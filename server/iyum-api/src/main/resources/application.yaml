@@ -1,0 +1,56 @@
+spring:
+  application:
+    name: iyum-api
+
+  # 로컬 .env 파일을 yaml 형식으로 읽기
+  config:
+    import: "optional:file:./.env[.properties]"
+
+  # PostgreSQL 연결
+  datasource:
+    url: "jdbc:postgresql://localhost:${IYUM_DB_PORT}/${IYUM_DB_NAME}"
+    username: "${IYUM_DB_USER}"
+    password: "${IYUM_DB_PASSWORD}"
+
+  # 테이블 생성 및 변경은 Flyway로 관리
+  # JPA는 엔티티와 테이블이 맞는지 검사
+  # 이렇게 역할 분담하는 것.
+  jpa:
+    hibernate:
+      # 엔티티와 테이블 구조 검사
+      # 서버가 시작될 때 Hibernate가 @Entity의 매핑과 실제 DB 구조 비교
+      # 이 때 테이블의 컬럼과 타입 등등 모두 맞으면 검사 통과
+      # 필요한 테이블이나 컬럼이 없거나 타입이 맞지 않으면 시작 과정에서부터 오류 발생
+      # update : 엔티티를 기준으로 DB 구조 변경 시도
+      # validate : 검사만 하는 설정 (다만 모든 인덱스, 제약조건까지 완벽하게 비교하는 검사는 아님)
+      ddl-auto: validate
+
+    # OSIV(Open Session In View)를 끄는 설정
+    # OSIV를 켜면 서비스의 트랜잭션이 끝난 뒤에도 컨트롤러나 화면을 만드는 단계에서 지연 로딩을 할 수 있도록 영속성 컨텍스트가 유지됨.
+    # 즉, 그러니까 컨트롤러에서 아직 로딩하지 않은 member.getPosts()에 접근하면 LazyInitializationException이 발생할 수 있는데
+    # 그럼 true가 좋은 것 같은데 왜 false로 하나?
+    # 데이터 조회를 서비스의 트랜잭션 안에서 마치도록 개발 구조를 명확하게 하기 위한 선택임.
+    # true로 하면 지연 로딩을 편리하게 해준다는 장점이 있으나,
+    # DB 조회가 어디서 얼마나 발생하는지 통제하기 어려워진다는 단점이 있음. (N+1 문제 발생 가능성이 높음)
+    open-in-view: false # 웹 요청 전체에 영속성 컨텍스트를 유지하지 않음
+
+  # Flyway 관련 의존성과 DB 연결이 준비되어 있으면 서버 시작 시 개발자가 작성한 마이그레이션 파일 실행
+  # 경로는 src/main/resources/db/migration/
+  flyway:
+    enabled: true # DB 변경 이력 관리 활성화
+
+# Spring 서버 포트
+server:
+  port: 8082
+
+# 서버 상태 확인
+# 서버 상태를 확인하는 API를 열되, 내부 상세 정보는 응답에 표시하지 않는다.
+management:
+  endpoints:
+    web:
+      exposure:
+        # http://localhost:8082/actuator/health
+        include: health # 상태 확인 API를 HTTP로 노출, health만 HTTP로 접근할 수 있도록 지정
+  endpoint:
+    health:
+      show-details: never

@@ -1,0 +1,24 @@
+name: iyum-local
+
+services:
+  postgres:
+    image: postgres:17
+    environment:
+      POSTGRES_DB: ${IYUM_DB_NAME:?IYUM_DB_NAME is required}
+      POSTGRES_USER: ${IYUM_DB_USER:?IYUM_DB_USER is required}
+      POSTGRES_PASSWORD: ${IYUM_DB_PASSWORD:?IYUM_DB_PASSWORD is required}
+    ports:
+      - "127.0.0.1:${IYUM_DB_PORT}:5432"
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test:
+        - CMD-SHELL
+        - pg_isready -U "$$POSTGRES_USER" -d "$$POSTGRES_DB"
+      interval: 5s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
+
+volumes:
+  postgres-data:
