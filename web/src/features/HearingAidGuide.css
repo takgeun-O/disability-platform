@@ -1,0 +1,743 @@
+/* Scoped to the guided overview; the full reference keeps its own disclosures. */
+.p03-journey {
+  margin-bottom: 24px;
+}
+.p03-journey h3 {
+  margin-bottom: 4px;
+  font-size: 15px;
+  font-weight: 700;
+}
+.p03-journey-hint,
+.p03-journey-note {
+  color: #6b6864;
+  font-size: 12px;
+  line-height: 1.6;
+  margin-bottom: 10px;
+}
+.p03-journey-steps {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 4px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.p03-journey-step {
+  display: grid;
+  grid-template-rows: auto auto 1fr auto;
+  gap: 4px;
+  align-items: start;
+  width: 100%;
+  min-height: 104px;
+  height: 100%;
+  padding: 10px 6px;
+  border: 1px solid #d0cec9;
+  border-radius: 2px;
+  font-family: inherit;
+  text-align: center;
+  cursor: pointer;
+  overflow-wrap: anywhere;
+}
+/* Expanded is a neutral outline, separate from the answer-derived yellow location. */
+.p03-journey-step[aria-expanded="true"] {
+  box-shadow: inset 0 0 0 1px #4a4845;
+  border-color: #4a4845;
+}
+.p03-journey-step:focus-visible {
+  outline: 2px solid #2563eb;
+  outline-offset: 2px;
+}
+.p03-journey-number,
+.p03-journey-chevron {
+  font-size: 11px;
+  line-height: 1.4;
+}
+.p03-journey-number {
+  font-family: 'DM Mono', monospace;
+}
+.p03-journey-name {
+  font-size: 13px;
+  line-height: 1.5;
+  word-break: keep-all;
+}
+.p03-journey-status {
+  font-size: 11px;
+  line-height: 1.5;
+}
+.p03-journey-detail {
+  margin-top: 8px;
+  padding: 16px;
+  border: 1px solid #d0cec9;
+  border-radius: 2px;
+  background: #fafaf8;
+  color: #4a4845;
+  font-size: 13px;
+  line-height: 1.7;
+  overflow-wrap: anywhere;
+}
+.p03-journey-detail h4 {
+  color: #1a1918;
+  font-size: 14px;
+  font-weight: 700;
+}
+.p03-journey-institution {
+  margin: 4px 0 10px;
+  font-weight: 600;
+}
+.p03-journey-detail ul {
+  margin: 8px 0 0;
+  padding-left: 18px;
+  list-style: disc;
+}
+.p03-journey-detail li + li {
+  margin-top: 4px;
+}
+.p03-result-summary {
+  margin-top: 18px;
+  padding: 16px;
+  border: 1px solid #dedbd5;
+  border-radius: 8px;
+  background: #f0eee9;
+}
+.p03-result-summary > h3 {
+  margin: 0 0 12px;
+  color: #4a4845;
+  font-size: 13px;
+  font-weight: 600;
+}
+.p03-result-facts {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+  margin: 0;
+  line-height: 1.6;
+}
+.p03-result-facts > div {
+  min-width: 0;
+  padding: 12px;
+  border: 1px solid #dedbd5;
+  border-radius: 6px;
+  background: #fafaf8;
+}
+.p03-result-facts > div:last-child:nth-child(odd) { grid-column: 1 / -1; }
+.p03-result-facts dt {
+  margin-bottom: 6px;
+  font-size: 13px;
+  color: #57534e;
+}
+.p03-result-facts dd {
+  margin: 0;
+  color: #292724;
+  font-size: 15px;
+  font-weight: 600;
+  word-break: keep-all;
+  overflow-wrap: anywhere;
+}
+.p03-fact-status {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 6px;
+  max-width: 100%;
+  padding: 4px 8px;
+  border: 1px solid #dedbd5;
+  border-radius: 4px;
+  background: #f0eee9;
+}
+.p03-fact-status > span:last-child { min-width: 0; }
+.p03-fact-icon { flex-shrink: 0; }
+.p03-fact-status--done {
+  border-color: #bbdfc5;
+  background: #ecfdf3;
+  color: #166534;
+}
+.p03-fact-status--in-progress,
+.p03-fact-status--check-needed,
+.p03-fact-status--unknown {
+  border-color: #f2d680;
+  background: #fef3c7;
+  color: #78350f;
+}
+@media (max-width: 600px) {
+  .p03-result-facts { grid-template-columns: minmax(0, 1fr); }
+  .p03-result-summary { padding: 12px; }
+}
+@media (max-width: 480px) {
+  .p03-journey-steps {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .p03-journey-step {
+    grid-template-columns: 22px minmax(0, 1fr) minmax(0, 1.1fr) 12px;
+    grid-template-rows: auto;
+    align-items: center;
+    gap: 8px;
+    min-height: 44px;
+    padding: 8px 10px;
+    text-align: left;
+  }
+}
+
+
+/* Question 02: one optional disclosure, separate from the answer buttons. */
+.p03-insurance-help {
+  margin: 0 0 16px;
+  border: 1px solid #dce3ed;
+  border-radius: 6px;
+  background: #f3f6fb;
+  color: #4a4845;
+  font-size: 13px;
+  line-height: 1.7;
+  word-break: keep-all;
+  overflow-wrap: anywhere;
+}
+.p03-insurance-help > summary {
+  min-height: 44px;
+  padding: 12px 14px;
+  color: #1e3a8a;
+  font-weight: 600;
+  cursor: pointer;
+}
+.p03-insurance-help > summary:focus-visible,
+.p03-insurance-help a:focus-visible {
+  outline: 2px solid #2563eb;
+  outline-offset: 2px;
+}
+.p03-insurance-help-content {
+  padding: 0 16px 16px;
+}
+.p03-insurance-help-content > section {
+  border-top: 1px solid #dce3ed;
+  padding-top: 16px;
+}
+.p03-insurance-help-content > section + section {
+  margin-top: 16px;
+}
+.p03-insurance-help h3 {
+  margin: 0 0 8px;
+  color: #1a1918;
+  font-size: 14px;
+  font-weight: 700;
+}
+.p03-insurance-help p + p {
+  margin-top: 10px;
+}
+.p03-insurance-help blockquote {
+  margin: 8px 0 0;
+  padding: 10px 12px;
+  border-left: 2px solid #d0cec9;
+  background: #fafaf8;
+}
+.p03-insurance-help a {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+  padding: 6px 0;
+  color: #1e3a8a;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+.p03-insurance-help-note {
+  color: #6b6864;
+  font-size: 12px;
+}
+
+/* Keep each full-reference topic visually separate from its neighbours. */
+.p03-reference > section {
+  scroll-margin-top: 24px;
+}
+.p03-reference > section + section {
+  margin-top: 28px;
+  padding-top: 28px;
+  border-top: 1px solid #d0cec9;
+}
+.p03-reference nav[aria-label="전체 기준 목차"] li + li {
+  border-top: 1px solid #e8e6e1;
+  padding-top: 6px;
+}
+.p03-reference nav[aria-label="전체 기준 목차"] a {
+  display: block;
+  padding: 4px 0;
+  overflow-wrap: anywhere;
+}
+.p03-reference nav[aria-label="전체 기준 목차"] a:focus-visible {
+  outline: 2px solid #2563eb;
+  outline-offset: 2px;
+}
+.p03-benefit-guide {
+  font-size: 13px;
+  color: #4a4845;
+  line-height: 1.7;
+  word-break: keep-all;
+  overflow-wrap: anywhere;
+}
+.p03-benefit-intro {
+  margin-bottom: 14px;
+}
+.p03-benefit-switch {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  min-width: 0;
+  padding: 0;
+  margin: 0 0 20px;
+  border: 0;
+}
+.p03-benefit-switch legend {
+  margin-bottom: 8px;
+  font-weight: 600;
+  color: #1a1918;
+}
+.p03-benefit-switch label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 44px;
+  padding: 10px 14px;
+  border: 1px solid #d0cec9;
+  border-radius: 4px;
+  cursor: pointer;
+}
+.p03-benefit-switch label:has(input:checked) {
+  background: #fef3c7;
+  border-color: #b7791f;
+  color: #78350f;
+  font-weight: 700;
+}
+.p03-benefit-switch input {
+  flex-shrink: 0;
+  accent-color: #78350f;
+}
+.p03-benefit-switch label:has(input:focus-visible),
+.p03-benefit-guide details > summary:focus-visible {
+  outline: 2px solid #2563eb;
+  outline-offset: 3px;
+}
+/* Optional cost details share the existing disclosure style in both views. */
+.p03-benefit-guide details > summary { min-height: 44px; }
+.p03-benefit-details {
+  margin: 12px 0;
+  background: #f3f6fb;
+  border: 1px solid #dce3ed;
+  border-radius: 8px;
+}
+.p03-benefit-details > summary {
+  padding: 12px 14px;
+  font-size: 14px;
+  font-weight: 600;
+  color: #1a1918;
+  cursor: pointer;
+}
+.p03-benefit-details > div { padding: 0 14px 16px; }
+.p03-benefit-mode-heading {
+  margin: 0 0 10px;
+  font-size: 15px;
+  font-weight: 700;
+  color: #1a1918;
+}
+.p03-benefit-action {
+  margin-bottom: 14px;
+  padding: 12px 14px;
+  background: #fffbeb;
+  border-left: 3px solid #fcd34d;
+}
+.p03-benefit-cards {
+  display: grid;
+  gap: 12px;
+  margin-bottom: 14px;
+  font-size: 13px;
+  line-height: 1.7;
+  color: #4a4845;
+  word-break: keep-all;
+  overflow-wrap: anywhere;
+}
+.p03-benefit-card {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  border: 1px solid #d0cec9;
+  border-radius: 4px;
+}
+.p03-benefit-composition,
+.p03-benefit-limits {
+  min-width: 0;
+  padding: 16px;
+}
+.p03-benefit-composition h4 {
+  margin: 0 0 12px;
+  font-size: 14px;
+  color: #1a1918;
+  font-weight: 700;
+}
+.p03-benefit-composition h4 span {
+  display: block;
+  font-size: 12px;
+  color: #6b6864;
+  font-weight: 400;
+}
+.p03-benefit-basis-label {
+  font-size: 12px;
+  color: #6b6864;
+}
+.p03-benefit-timing {
+  margin-top: 10px;
+  font-size: 12px;
+}
+.p03-benefit-limits {
+  border-left: 1px solid #e8e6e1;
+  background: #f0eee9;
+  border-radius: 0 4px 4px 0;
+}
+.p03-benefit-limits-title {
+  margin-bottom: 10px;
+  font-weight: 700;
+  color: #1a1918;
+}
+.p03-benefit-limits > div + div {
+  margin-top: 12px;
+  padding-top: 12px;
+  border-top: 1px solid #d0cec9;
+}
+.p03-benefit-limits strong {
+  display: block;
+  margin-top: 4px;
+  font-size: 16px;
+  color: #1a1918;
+}
+.p03-benefit-questions {
+  margin: 12px 0;
+  background: #f3f6fb;
+  border: 1px solid #dce3ed;
+  border-radius: 8px;
+}
+.p03-benefit-questions > summary {
+  min-height: 44px;
+  padding: 12px 14px;
+  font-size: 14px;
+  font-weight: 600;
+  color: #1a1918;
+  cursor: pointer;
+}
+.p03-benefit-questions > div {
+  padding: 0 14px 16px;
+}
+@media (max-width: 640px) {
+  .p03-benefit-card {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .p03-benefit-limits {
+    border-left: 0;
+    border-top: 1px solid #e8e6e1;
+    border-radius: 0 0 4px 4px;
+  }
+}
+
+/* One optional first-claim guide, shared by the reference and health journey. */
+.p03-direct-claim {
+  margin-top: 14px;
+  border: 1px solid #dce3ed;
+  border-radius: 8px;
+  background: #f3f6fb;
+  color: #4a4845;
+  font-size: 13px;
+  line-height: 1.7;
+  word-break: keep-all;
+  overflow-wrap: anywhere;
+}
+.p03-direct-claim > summary {
+  min-height: 44px;
+  padding: 12px 14px;
+  color: #1a1918;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+}
+.p03-direct-claim-scope {
+  display: block;
+  margin-top: 2px;
+  color: #6b6864;
+  font-size: 12px;
+  font-weight: 400;
+}
+.p03-direct-claim > summary:focus-visible,
+.p03-direct-claim a:focus-visible {
+  outline: 2px solid #2563eb;
+  outline-offset: 2px;
+}
+.p03-direct-claim-content {
+  padding: 0 14px 16px;
+}
+.p03-direct-claim-content > section {
+  border-top: 1px solid #dce3ed;
+  padding-top: 14px;
+}
+.p03-direct-claim-content > section + section {
+  margin-top: 14px;
+}
+.p03-direct-claim-title {
+  margin-bottom: 8px;
+  color: #1a1918;
+  font-weight: 700;
+}
+.p03-direct-claim a {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+  padding: 6px 0;
+  color: #1e3a8a;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+.p03-direct-claim-documents {
+  margin: 0;
+}
+.p03-direct-claim-documents > div {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 6px 16px;
+  padding: 10px 0;
+}
+.p03-direct-claim-documents > div + div {
+  border-top: 1px solid #dce3ed;
+}
+.p03-direct-claim-documents dt {
+  font-weight: 600;
+}
+.p03-direct-claim-documents dd {
+  margin: 0;
+}
+.p03-direct-claim blockquote {
+  margin: 0;
+  padding: 10px 12px;
+  border-left: 2px solid #d0cec9;
+  background: #fafaf8;
+}
+.p03-direct-claim-source {
+  margin-top: 16px;
+  font-size: 12px;
+  color: #6b6864;
+}
+.p03-direct-claim-source a {
+  display: flex;
+}
+@media (max-width: 640px) {
+  .p03-direct-claim-documents > div {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 2px;
+  }
+}
+
+/* Shared inline registry checks. Closing a disclosure retains the search state. */
+.p03-result-registry {
+  margin: 24px 0;
+  padding-top: 20px;
+  border-top: 1px solid #e8e6e1;
+}
+.p03-result-registry > h3 {
+  margin-bottom: 10px;
+  font-size: 16px;
+  font-weight: 700;
+  color: #1a1918;
+}
+.p03-registry {
+  font-size: 13px;
+  line-height: 1.7;
+  color: #4a4845;
+  word-break: keep-all;
+  overflow-wrap: anywhere;
+}
+.p03-registry-intro { margin-bottom: 12px; }
+.p03-registry-disclosure {
+  margin-top: 10px;
+  border: 1px solid #dce3ed;
+  border-radius: 8px;
+  background: #f3f6fb;
+}
+.p03-registry-disclosure > summary {
+  padding: 12px 14px;
+  min-height: 44px;
+  color: #1a1918;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  scroll-margin-top: 24px;
+}
+.p03-registry-selection {
+  display: block;
+  margin-top: 4px;
+  font-size: 12px;
+  font-weight: 400;
+  color: #4a4845;
+}
+.p03-registry-disclosure[open] .p03-registry-selection { display: none; }
+.p03-registry-content {
+  margin: 0 14px;
+  padding: 14px 0 16px;
+  border-top: 1px solid #dce3ed;
+}
+.p03-registry a,
+.p03-registry-more {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+  padding: 6px 0;
+  color: #1e3a8a;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+.p03-registry .p03-registry-lookup {
+  margin: 10px 0 4px;
+  max-width: 100%;
+  padding: 10px 14px;
+  border: 1px solid #1a1918;
+  border-radius: 2px;
+  background: #1a1918;
+  color: #fafaf8;
+  font-weight: 600;
+  text-decoration: none;
+}
+.p03-registry-lookup:hover { background: #383632; }
+.p03-registry-lookup-steps {
+  margin: 14px 0 10px;
+  padding-left: 22px;
+  list-style: decimal;
+}
+.p03-registry-lookup-steps li + li { margin-top: 6px; }
+.p03-registry-inquiry {
+  margin-top: 16px;
+  border: 1px solid #dce3ed;
+  border-radius: 6px;
+  background: #fafaf8;
+}
+.p03-registry-inquiry > summary {
+  min-height: 44px;
+  padding: 10px 12px;
+  color: #1a1918;
+  font-weight: 600;
+  cursor: pointer;
+}
+.p03-registry-inquiry > div {
+  margin: 0 12px;
+  padding: 12px 0;
+  border-top: 1px solid #dce3ed;
+}
+.p03-registry summary:focus-visible,
+.p03-registry a:focus-visible,
+.p03-registry button:focus-visible,
+.p03-registry input:focus-visible {
+  outline: 2px solid #2563eb;
+  outline-offset: 2px;
+}
+.p03-registry blockquote {
+  margin: 10px 0;
+  padding: 10px 12px;
+  border-left: 2px solid #d0cec9;
+  background: #fafaf8;
+}
+.p03-registry-note,
+.p03-registry-source {
+  font-size: 12px;
+  color: #6b6864;
+}
+.p03-registry-search label {
+  display: block;
+  margin-bottom: 6px;
+  font-weight: 600;
+}
+.p03-registry-search > div {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 8px;
+  margin-bottom: 6px;
+}
+.p03-registry-search input {
+  width: 100%;
+  min-width: 0;
+  min-height: 44px;
+  padding: 10px 12px;
+  border: 1px solid #4a4845;
+  border-radius: 2px;
+  font-family: inherit;
+  font-size: 14px;
+  background: #fafaf8;
+}
+.p03-registry-search button {
+  min-height: 44px;
+  padding: 10px 18px;
+  border: 1px solid #1a1918;
+  border-radius: 2px;
+  background: #1a1918;
+  color: #fafaf8;
+  font-family: inherit;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+}
+.p03-registry-caution {
+  padding: 10px 12px;
+  margin-top: 10px;
+  background: #f0eee9;
+  font-size: 12px;
+}
+.p03-registry-stale { margin-top: 6px; color: #92400e; }
+.p03-registry-search-status { margin: 12px 0 8px; }
+.p03-registry-search-status:empty { margin: 0; }
+.p03-registry-results {
+  display: grid;
+  gap: 6px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.p03-registry-results button {
+  width: 100%;
+  min-height: 44px;
+  padding: 10px 14px;
+  border: 1px solid #d0cec9;
+  border-radius: 2px;
+  background: #fafaf8;
+  color: #1a1918;
+  text-align: left;
+  font-family: inherit;
+  font-size: 13px;
+  line-height: 1.6;
+  overflow-wrap: anywhere;
+  cursor: pointer;
+}
+.p03-registry-results button[aria-pressed="true"] {
+  border-color: #1a1918;
+  background: #1a1918;
+  color: #fafaf8;
+}
+.p03-registry-results span { display: block; font-size: 12px; }
+.p03-registry-more {
+  margin-top: 8px;
+  border: 0;
+  background: transparent;
+  font-family: inherit;
+  font-size: 13px;
+  cursor: pointer;
+}
+.p03-registry-selected {
+  margin-top: 16px;
+  padding: 14px;
+  border: 1px solid #4a4845;
+  border-radius: 2px;
+  background: #fafaf8;
+}
+.p03-registry-selected h4 { font-size: 15px; font-weight: 700; color: #1a1918; }
+.p03-registry-price {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+  margin: 10px 0;
+  padding: 10px 12px;
+  background: #f0eee9;
+}
+.p03-registry-price strong { font-size: 16px; color: #1a1918; }
+.p03-registry-question { margin-top: 12px; padding-top: 12px; border-top: 1px solid #d0cec9; }
+.p03-registry-question p:first-child { margin-bottom: 6px; font-size: 12px; font-weight: 600; color: #78350f; }
+.p03-registry-source { margin-top: 16px; }
+@media (max-width: 480px) {
+  .p03-registry-search > div { grid-template-columns: minmax(0, 1fr); }
+  .p03-registry-search button { justify-self: start; }
+}

@@ -1,0 +1,52 @@
+@import url('https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;600;700&family=DM+Mono:wght@400;500&display=swap');
+@import 'tailwindcss';
+
+@theme {
+  --font-sans: 'Noto Sans KR', sans-serif;
+  --font-mono: 'DM Mono', monospace;
+  --color-background: #F6F6F4;
+  --color-foreground: #1A1918;
+  --color-border: #D0CEC9;
+  --color-muted: #908D88;
+  --color-primary: #1E3A8A;
+  --color-accent: #2563EB;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html {
+  scroll-behavior: smooth;
+}
+
+body {
+  font-family: 'Noto Sans KR', sans-serif;
+  background-color: #F6F6F4;
+  color: #1A1918;
+  -webkit-font-smoothing: antialiased;
+}
+
+:focus-visible {
+  outline: 2px solid #2563EB;
+  outline-offset: 2px;
+}
+
+/* Hide scrollbar until hover */
+::-webkit-scrollbar { width: 6px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: #D0CEC9; border-radius: 3px; }
+
+
+/* Existing mouse hover styles, without client-only handlers. */
+[data-hover="iyum-hover-0"]:hover {background-color:#EAE8E3 !important}
+[data-hover="iyum-hover-1"]:hover {color:#1E3A8A !important}
+[data-hover="iyum-hover-2"]:hover {color:#1E3A8A !important}
+[data-hover="iyum-hover-3"]:hover {color:#1E3A8A !important}
+[data-hover="iyum-hover-4"]:hover {color:#1E3A8A !important}
+[data-hover="iyum-hover-5"]:hover {background-color:#1A1918 !important;color:#FAFAF8 !important}
+[data-hover="iyum-hover-6"]:hover {color:#1E3A8A !important}
+[data-hover="iyum-hover-7"]:hover {background-color:#1A1918 !important;color:#FAFAF8 !important}
+[data-hover="iyum-hover-8"]:hover {background-color:#EAE8E3 !important}
+[data-hover="iyum-hover-9"]:hover {background-color:#EAE8E3 !important;border-color:#1A1918 !important}
+[data-hover="iyum-hover-10"]:hover {color:#1E3A8A !important;text-decoration:underline !important}

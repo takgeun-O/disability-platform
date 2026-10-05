@@ -1,0 +1,455 @@
+{
+  "scope": "Phase A.1 Alignment Patch",
+  "modifiedPages": [
+    {
+      "name": "Product Validation",
+      "url": "https://app.notion.com/p/3da2758cf837816c96abca56bf9eceb9?pvs=204",
+      "updates": [
+        {
+          "old_str": "## 6. Hypothesis 유형과 Segment 축",
+          "new_str": "## 6. Hypothesis 유형과 Segment 축\nPhase A.1에서는 기존 유형에 Acquisition / Organic Discovery를 추가한다. 검색 행동(Behavior), 현재 대안의 간극(Existing Solution Gap), 발견 경로(Acquisition), 실제 가치(Solution Value), 기여·재사용을 별도 근거로 판단한다. 한 유형의 Supported가 다른 가설의 승인을 대신하지 않는다.\n### 추가 Cohort와 가설 예시 — 실제 연구·판정 아님\n청각장애 아동 부모·보호자를 청각장애 Domain 내부의 별도 Validation Cohort로 포함한다. 청각장애 직장인·구직자·학생·보청기/인공와우 사용자·수어/구어 중심 사용자와 상황·연령·기기 경험·의사소통 방식이 겹칠 수 있다. 당사자 중심을 유지하며 부모를 Primary Segment로 확정하거나 발달장애 부모 시장으로 Pivot하지 않는다.\n검색 주체는 당사자·부모·보호자·가족일 수 있다. 향후 전문가·교사·직장 관계자의 검색 가능성도 미확정이며 이번 Target으로 승격하지 않는다. Cohort별 Problem Frequency, Pain Severity, Search Behavior, Existing Solution Gap, Repeat-use Opportunity, Experience Sharing, Organic Discovery Potential을 비교한다.\n아래 문장은 등록 시 참고할 Template / Example이며 DB 행·ID·Evidence·승인된 Segment가 아니다.\n- Acquisition: 청각장애 관련 반복 문제를 해결하려는 사용자가 검색엔진을 이용하고, 당사자 경험+공식 정보를 연결한 IYUM 콘텐츠를 Organic Search에서 발견할 수 있는가?\n- Parent / Caregiver Segment: 진단, 보청기·인공와우, 교육·학교생활, 지원제도, 의사소통 문제에서 반복 탐색하며 기존 검색·커뮤니티·공식기관만으로 상황에 맞는 답을 찾기 어려운가?\n- Parent Solution Value: 다른 부모의 실제 경험과 공식 정보를 함께 볼 때 한쪽만 볼 때보다 실제 과업·다음 행동에 도움이 되는가?\n- Parent Acquisition: 문제 발생 시 검색엔진을 주요 발견 경로로 사용하는가?\n문제·검색어·의도·필요 정보·신뢰 출처·경험·행동 결과가 Audience마다 어떻게 다른지 확인한다. 부모가 경험한 문제와 아동의 상태에 대한 연구자 추정을 구분한다.\n### 부모·아동 Problem / Content 후보\n첫 난청 진단 후 확인할 일, 보청기·인공와우 정보 비교, 보청기 적응 과정, 어린이집·유치원 지원 요청, 학교 수업에서의 어려움, 교사에게 설명할 내용, 지원제도, 다른 부모의 실제 과정은 인터뷰·콘텐츠 구조 검증 후보다. Content Roadmap이나 초기 우선순위는 아직 승인하지 않는다."
+        },
+        {
+          "old_str": "## 8. Research / Experiment 기록 원칙",
+          "new_str": "## 8. Research / Experiment 기록 원칙\n### Research / Interview Template — Search Behavior\n이 양식은 실제 연구 시작 시 <mention-page url=\"https://app.notion.com/p/3b34c9c66fed48d296cedcfeb3cbc9d2\"/>의 해당 기록 본문에 복사해 사용한다. DB 속성은 늘리지 않고 기존 Participant Criteria, Method, Observation, Participant Statement, Researcher Interpretation, Counter Evidence, Limitation, Result에 연결한다. 아직 작성된 응답은 없으며 빈칸을 가상 검색어나 경험으로 채우지 않는다.\n- 최근 청각장애 관련 문제를 해결하려던 실제 사건은 무엇이며, 언제 어떤 상황에서 누구를 위해 찾았는가? 문제 발생 후 가장 먼저 무엇을 했는가?\n- 실제 검색엔진을 사용했는가? 사용하지 않았다면 어떤 경로를 택했으며 그 이유는 무엇인가?\n- 사용했다면 어떤 엔진에서 실제로 무엇을 검색했는가? 기억나는 검색어·문장을 사용자 표현 그대로 기록하고 검색어를 바꾼 과정·이유를 확인한다.\n- 어떤 결과·사이트를 클릭했는가? 네이버카페·블로그·YouTube·카카오톡·공식기관 등으로 어떤 순서로 이동했는가?\n- 가장 도움이 된 정보, 부족했던 점, 신뢰한/신뢰하지 않은 출처와 이유는 무엇인가?\n- 기존 서비스를 계속 사용하는 이유와 이동하지 않는 이유는 무엇인가? 결국 해결했는가, 다음에 실제로 무엇을 했는가?\n- 관찰한 행동 / 참여자가 회상한 발언 / 연구자의 해석 / 반례·기억의 한계를 각각 기록한다. 재현 과업은 당시 행동의 직접 관찰과 구분한다.\n기록 칸: Participant Code·Audience·최근 사건 / 첫 행동 / 검색 여부·엔진 / 실제 Query 원문·변경 순서 / 클릭·채널 이동 / 유용·부족·신뢰 / 해결 확인·다음 행동 / 관찰·발언·해석·반례·한계. 기억하지 못한 Query는 미확인으로 두고 Product 용어로 자동 치환하지 않는다. 미래 사용 의향 질문보다 최근 실제 행동을 우선한다.\n검색어·경로에 개인 식별 정보가 포함되면 일반 Product 기록에는 제거·비식별화하고 그 사실을 표시한다. 원자료의 제한 접근·연구 목적 원칙을 유지한다. 검색 관련 속성은 반복 분석 필요성이 확인된 후에만 별도 검토한다.\n### Organic Discovery 실험 준비 양식\n관련 가설 / Audience·문제·Search Intent / 비교할 현재 대안 / 공개 가능한 콘텐츠·출처·동의 확인 / 자연 검색·직접 공유·운영자 유입 구분 / 관찰 기간·사전 기준 / 발견·유용성·실제 다음 행동·해결·기여·재사용 / 반례·한계 순으로 설계한다. 실제 유입을 측정하지 않은 Prototype 과업으로 Organic Discoverability를 입증하지 않는다. SEO 노출·검색량·Ranking·Traffic 목표나 결과를 임의 입력하지 않는다.\n세부 지표는 <mention-page url=\"https://app.notion.com/p/3b32758cf837805d9449cbdc8d8d7218?pvs=204\"/>, Seed Content·검색 노출 분류의 원본은 <mention-page url=\"https://app.notion.com/p/3ad2758cf83781d391fefe2e00314d42?pvs=204\"/>, 부모·아동 공개 자료 보호는 <mention-page url=\"https://app.notion.com/p/3ad2758cf83781e2887ad0c799d21bb6?pvs=204\"/>를 따른다."
+        },
+        {
+          "old_str": "## 13. Phase B Documentation Alignment",
+          "new_str": "## 13. Phase B Documentation Alignment\nSearch-driven 가설에 충분한 근거가 생기고 Product Decision / Release 승인을 거친 경우에만 Problem Page와 Discoverability / SEO Requirements를 검토한다. Supported 자체는 구현 승인이나 모든 후속 가설의 성공을 의미하지 않는다.\n검토 후보: Public Page 범위·비로그인 열람, Stable/Shareable URL, Index/noindex·robots·Sitemap·Canonical, Page Title·Meta Description·Semantic Heading, Crawlable HTML Content·Internal Linking·Structured Data, Last Updated·Source/Provenance·Crawlability·Duplicate Content 관리.\n이 목록은 Phase B Backlog다. 현재 Route·IA·Screen ID·Backend Problem Entity·DB Schema·Search Index/API·Frontend Component를 만들거나 변경하지 않는다. SSR/SSG/ISR, Framework, Search SDK, Analytics Platform, CMS, CDN은 요구 승인 후 기존 Frontend/Backend/ADR 절차에서 판단한다."
+        },
+        {
+          "old_str": "Backend의 누락 본문은 Phase B 변경 전에 재확인한다.",
+          "new_str": "Backend의 누락 본문은 Phase B 변경 전에 재확인한다.\n## 14. Search-driven Acquisition · Growth Loop 가설\n사용자 문제 → 실제 검색 행동 → IYUM Problem / Knowledge Content 발견 → 당사자 경험+공식 정보 확인 → 문제 해결 또는 다음 행동 → 질문·경험 기여 → Experience Data → Knowledge 품질 개선 → 검색 발견·재사용 가능성 증가를 검증한다. 축약하면 Search → Knowledge → Community → Experience Data → Search다.\n각 연결은 독립 가설다. 검색 유입 증가 ≠ 해결 증가, 해결 ≠ 회원가입, 회원가입 ≠ 기여, 기여 ≠ Community 자립이다. SEO는 확정 Acquisition Channel이 아니며 Google/Naver 발견·상위 노출·Community 전환을 보장하지 않는다.\n현재 사용 중인 검색·카페·메신저·공식기관을 유지하면서 IYUM을 보완적으로 이용할 수 있는지 검증한다. 기존 커뮤니티의 완전 이주를 전제하지 않는다. IYUM 정보를 네이버카페·카카오톡에 다시 공유하는 경로 역시 미검증 Distribution 가설이며 Organic Search와 별도로 기록한다.\nSearch Behavior·강한 Intent가 있는 문제·실제 Query·현재 결과의 간극·콘텐츠 비교 가치·실제 Organic 발견·후속 행동/해결·기여 전환을 순차적으로 확인한다. 노출은 Distribution Validation, Resolution은 Product Value Validation이며 하나로 성공 판정하지 않는다.\n## 15. Problem-centered Knowledge / Problem Page 가설\nProblem Page는 사용자 문제 관점에서 기존 Domain 정보를 연결하는 Presentation / Knowledge Structure의 Solution Hypothesis다. Community·복지정보·보조기기·기관·Search·향후 AI Architecture를 대체하지 않는다.\n구조 예시 — 실제 콘텐츠·Requirement 아님:\n- 직장 문제 후보: “회사 회의에서 내용을 놓칠 때” → 문제 설명·실제 당사자 경험·사용되는 해결 방법·관련 질문·공식 정보·지원제도·기기/서비스·주의점·출처·기준일·마지막 업데이트.\n- 부모 문제 후보: “아이가 난청 진단을 처음 받았을 때” → 먼저 확인할 것·공식 정보·의료/교육 확인 경로·동의된 부모 경험·지원제도·질문·다음 행동·출처/업데이트.\n두 예시는 사용자에게 관찰된 검색어가 아니라 구조 검증용 주제다. 정책 요약을 대량 생성하는 전략이나 Content Priority 확정이 아니다. 실제 문제·상황을 중심으로 기존 방식보다 도움이 되는지 비교하고 근거가 나온 뒤 콘텐츠 우선순위를 승인한다.\nResearch Participation Consent ≠ Public Content Consent. 연구 경험의 공개 활용은 별도 공개 동의와 비식별 검토를 전제로 하며, 운영자·Founder 실제 경험은 출처를 표시한다. 민감·아동 경험을 자동 검색 노출하지 않는다. 상세 기준의 원본은 운영 정책·법률 검토다."
+        }
+      ]
+    },
+    {
+      "name": "운영 정책",
+      "url": "https://app.notion.com/p/3ad2758cf83781d391fefe2e00314d42?pvs=204",
+      "updates": [
+        {
+          "old_str": "# 3. 콘텐츠 운영 정책 {toggle=\"true\"}",
+          "new_str": "# 3. 콘텐츠 운영 정책 {toggle=\"true\"}\n\t## Seed Content와 Provenance\n\t초기 콘텐츠 공급을 Editorial / Official Information, Interview-based Experience, User-generated Experience로 구분한다. 실제 문제·상황에 도움이 되는 Knowledge 구조는 <mention-page url=\"https://app.notion.com/p/3da2758cf837816c96abca56bf9eceb9?pvs=204\"/>에서 검증하며 정책 요약 대량 생산이나 콘텐츠 우선순위를 자동 승인하지 않는다.\n\t- Editorial / Official Information: 운영자가 공식·검증 가능한 자료를 바탕으로 작성한다. IYUM Editorial로 표시하고 출처·기준일·마지막 검토일·정보 성격·적용 대상/조건·공식 신청 또는 확인 경로를 제공한다. 복지·지원, 취업·직장, 기기 기초 정보, 공공서비스, 교육·학교 지원은 후보 예시다.\n\t- Interview-based Experience: 실제 연구 경험 중 별도의 콘텐츠 공개 동의를 받은 사례만 비식별 검토 후 활용한다. Research Participation Consent ≠ Public Content Consent. 연구 참여만으로 공개 콘텐츠·검색 노출·AI 활용을 승인하지 않는다.\n\t- User-generated Experience: 사용자가 직접 작성한 질문·답변·후기·경험·팁·해결 결과다. 초기에는 Editorial/인터뷰 기반 비중이 높을 수 있으나 절대 비율 KPI나 기여 성장의 보장은 아니다.\n\t가짜 사용자 계정, 허구의 후기·댓글·질문·답변·Community Interaction, AI 생성 경험담을 실제 후기처럼 표시하는 행위를 금지한다. 운영자 콘텐츠는 IYUM Editorial, Founder의 실제 당사자 경험은 Founder Experience 등으로 운영자와 실제 출처를 명시한다.\n\t청각장애 아동·부모의 진단 후 탐색, 기기 적응·비교, 교육·학교 지원, 교사와의 소통, 지원제도·다른 부모 경험은 Problem / Content Hypothesis 후보이며 Content Roadmap 확정이 아니다.\n\t## Public Knowledge / Community Indexability — 개념적 분류\n\t- Public Editorial / Knowledge Content: 검색엔진 Index 가능 후보.\n\t- Public Problem / Knowledge Page: Solution Hypothesis가 승인되고 공개 기준이 충족될 경우 Index 가능 후보.\n\t- Public Community Content: 사용자 기대·동의·콘텐츠 성격을 확인해 검색 노출 여부를 검토한다. 공개 열람을 무조건적인 검색 노출 동의로 취급하지 않는다.\n\t- Member-only Content: 검색 노출 대상이 아니다.\n\t- Sensitive Personal Experience: 기본적으로 검색 노출에 매우 신중하게 접근하고 자동 공개·노출 대상으로 삼지 않는다.\n\t이는 콘텐츠 분류 원칙이며 현재 로그인·공개 범위나 Index/noindex 기술 설정을 바꾸는 정책 확정이 아니다. 세부 Product / Privacy / Technical Contract는 Phase B에서 검토한다. 노출을 목적으로 민감 내용을 불필요하게 수집하지 않는다.\n\t## 부모·아동 콘텐츠 보호\n\t아동 이름을 제거하고 학교·학급·구체 지역 등 식별 가능 정보를 최소화한다. 불필요한 의료정보를 수집하지 않는다. 부모 인터뷰 연구 동의와 Public Content 동의를 분리하고 연구 원자료의 제한 접근을 유지한다. 공식/전문 출처와 경험담을 구분하며 실제 경험을 일반적인 의료 정답으로 표현하거나 특정 치료·기기 선택을 개별 의료 판단처럼 권고하지 않는다.\n\t세부 개인정보·동의 검토는 <mention-page url=\"https://app.notion.com/p/3ad2758cf83781e2887ad0c799d21bb6?pvs=204\"/>와 연결한다. 이 원칙은 새 의료서비스나 아동 직접 연구를 승인하지 않는다."
+        }
+      ]
+    },
+    {
+      "name": "KPI",
+      "url": "https://app.notion.com/p/3b32758cf837805d9449cbdc8d8d7218?pvs=204",
+      "updates": [
+        {
+          "old_str": "### 측정 운영",
+          "new_str": "### Organic Discovery → Problem Resolution Funnel\n기존 Validation → Early Product → Growth와 Revenue Learning 병행 구조 안에서 다음 연결을 검증한다. 현재는 후보 지표이며 실측 결과·목표 수치·검색 유입 성공 판정은 없다.\nSearch Impression → Organic Click → Problem / Knowledge Content Entry → Useful / Next Action → Problem Resolution → Related Content Exploration → Question / Signup / Experience Contribution → Repeat Visit.\n실제 행동은 분기·순서 변경·비회원 해결이 가능하며 위 경로를 필수 가입 Funnel로 강제하지 않는다. Problem Page 명칭은 Solution Hypothesis로서 Route·Screen 승인이 아니다.\n- Validation: 최근 실제 Search Behavior·Query·Search Intent·현재 대안의 간극, Audience별 비교 과업·도움·다음 행동·해결을 확인한다.\n- Discoverability / Distribution: Indexed Public Knowledge Page, Organic Impression·Click·CTR, Search Query, Organic Entry Page, 검색엔진별 유입, 관측 가능한 Ranking/Position을 후보로 둔다. CTR은 같은 엔진·기간·범위의 Organic Click / Impression으로 집계하며 분모가 없으면 산출하지 않는다. Indexed URL·노출·순위·클릭은 사용자 가치 지표가 아니다.\n- Early Product / Value: Useful Signal, Task Success, Next Action Signal, 사용자 확인 Resolution, Related Content Exploration, Search → Question / Signup / Experience Contribution, 재사용을 별도로 본다. 클릭·체류·좋아요·가입만으로 해결을 추정하지 않는다. 기존 질문의 Author-confirmed Resolution과 Knowledge 이용자의 User-confirmed Resolution은 대상이 다르므로 분모를 섞지 않는다.\n- Growth: Repeat Organic / Direct Visit, 자발적 경험 기여와 Knowledge 품질 개선을 연결해 본다. 직접 공유·커뮤니티 Referral·유료/운영자 모집·연구 과업 유입은 실제 Organic Search와 구분한다.\n전환 측정 전 진입 Cohort, 기간·관찰 창, 고유 사용자/세션/질문 단위, 분모·중복·미확인 처리, 채널 귀속 기준을 명시한다. 각 전환율은 관찰 가능한 같은 Cohort의 대상 진입자 중 해당 실제 행동을 한 비율로 정의하고 미확인 귀속은 별도 표시한다. 개인정보 최소수집 범위에서 확인할 수 없는 행동을 추정 실적으로 만들지 않는다.\n검색 유입 증가 ≠ 문제 해결 증가, 해결 ≠ 가입, 가입 ≠ 기여, 기여 ≠ Community 자립이다. SEO는 Distribution Validation이며 Resolution은 Product Value Validation이다. 인터뷰·Prototype의 유용성만으로 실제 Organic Discoverability를 입증하지 않는다.\n기존 가입자 1,000명·MAU 300명·게시글/답글 3,000개 등은 연간 Growth / Research 계획값으로 유지한다. 각각 PSF·Organic Acquisition·Knowledge Quality 검증을 자동 의미하지 않는다. 검색량·노출·Ranking·CTR·기여 전환 목표를 이번 단계에서 새로 정하지 않는다.\n### 측정 운영"
+        }
+      ]
+    },
+    {
+      "name": "제품 개요",
+      "url": "https://app.notion.com/p/3b32758cf837819cba2ccd94d5411f03?pvs=204",
+      "updates": [
+        {
+          "old_str": "## 제품 차별성",
+          "new_str": "## 초기 Distribution / Solution Hypothesis\n사용자가 청각장애 관련 실제 문제를 검색하는 과정에서 IYUM Problem / Knowledge Content를 발견하고, 공식 정보+당사자 경험을 통해 해결 또는 다음 행동에 도움을 얻은 뒤 일부가 질문·경험 기여·재방문으로 이어지는지 검증한다. 기존 Community에서 완전히 이주해야 한다고 전제하지 않으며 기존 서비스의 지속 이용·외부 공유 역시 가능성을 검증한다.\nSEO는 확정 Acquisition Channel이 아니고 Organic 발견·상위 노출·기여 전환은 미검증이다. Search → Knowledge → Resolution → Contribution → Experience Data → Knowledge Improvement의 각 연결은 <mention-page url=\"https://app.notion.com/p/3da2758cf837816c96abca56bf9eceb9?pvs=204\"/>에서 별도 Evidence로 판단한다.\nProblem Page는 기존 Community·복지정보·기기·기관·Search·AI를 사용자 문제 관점에서 연결하는 Presentation / Knowledge Structure 가설이다. 새 Domain Architecture나 승인된 Requirement가 아니며 실제 Route·IA·Screen·Backend·Frontend 변경은 Phase B 승인 후 검토한다.\n청각장애 아동 부모·보호자는 당사자·직장인·구직자·학생 등과 비교할 별도 Validation Cohort다. 검색 Audience는 본인·부모·보호자·가족일 수 있고 문제·검색어·출처 신뢰·다음 행동이 어떻게 다른지 확인한다. 부모를 Primary Segment로 확정하거나 당사자 중심 방향을 변경하지 않는다.\n## 제품 차별성"
+        }
+      ]
+    },
+    {
+      "name": "사용자 조사",
+      "url": "https://app.notion.com/p/3ad2758cf8378170a6edf8ca4b3987f1?pvs=204",
+      "updates": [
+        {
+          "old_str": "## Primary User",
+          "new_str": "## Phase A.1 Validation Cohort · Search Behavior\n청각장애 아동 부모·보호자를 청각장애 Domain 내부의 별도 조사 Cohort로 포함한다. 아래 기존 Primary / Secondary 사용자 구분은 보존하며 부모를 Primary Target으로 승격하지 않는다. 직장인·구직자·학생·기기 경험·의사소통 방식 등과 비교하고 특정 Beachhead나 발달장애 부모 시장 Pivot을 확정하지 않는다.\n문제 빈도·심각도, 실제 검색 행동, 현재 대안의 간극, 재사용 기회, 경험 공유, Organic Discovery 가능성을 Audience별로 확인한다. 검색자는 당사자·부모·보호자·가족일 수 있다.\n최근 실제 사건 → 첫 행동 → 사용한 검색엔진·실제 Query와 변경 과정 → 클릭한 사이트·채널 이동 → 도움·부족·신뢰 → 해결·실제 다음 행동을 조사한다. 사용자의 Query를 Product 용어로 바꾸거나 기억하지 못하는 응답을 생성하지 않는다.\n질문지·기록 양식과 Parent 가설 예시의 원본은 <mention-page url=\"https://app.notion.com/p/3da2758cf837816c96abca56bf9eceb9?pvs=204\"/> 6·8절이다. 연구 DB에 관찰·발언·해석·반례를 분리해 기록하며 여기의 통계를 부모 Cohort의 수요·검색 성과로 해석하지 않는다.\n## Primary User"
+        }
+      ]
+    },
+    {
+      "name": "법률 검토",
+      "url": "https://app.notion.com/p/3ad2758cf83781e2887ad0c799d21bb6?pvs=204",
+      "updates": [
+        {
+          "old_str": "# 1. 개인 정보 보호 {toggle=\"true\"}",
+          "new_str": "## Phase A.1 공개 콘텐츠 · 검색 노출 검토\nResearch Participation Consent와 Public Content Consent를 분리한다. 인터뷰 기반 경험은 별도 공개 동의를 받은 실제 사례만 비식별 검토 후 공개 활용할 수 있다. 연구 동의나 일반 공개 열람을 검색엔진 노출·AI/RAG·B2B 활용까지 포함하는 포괄 승인으로 취급하지 않는다.\n콘텐츠별 Indexability 원본은 <mention-page url=\"https://app.notion.com/p/3ad2758cf83781d391fefe2e00314d42?pvs=204\"/>이다. Public Editorial/Knowledge와 Public Problem Page는 Index 가능 후보, Public Community는 기대·동의·성격에 따른 검토 대상, Member-only는 검색 노출 대상 아님, Sensitive Personal Experience는 기본적으로 매우 신중한 검토 대상으로 구분한다. 실제 공개 범위·동의 안내·Index/noindex 계약은 Phase B에서 확정하며 이번에는 기술 설정을 바꾸지 않는다.\n청각장애 아동 부모·보호자 사례는 아동 이름을 제거하고 학교·학급·구체 지역 등 식별 가능한 정보를 최소화한다. 불필요한 의료정보를 수집하지 않고 부모 연구 참여와 공개 목적을 분리한다. 익명화된 듯한 사례라도 여러 정보의 결합으로 식별될 가능성을 공개 전 검토한다.\n실제 경험은 개별 사례이며 일반 의료 정답이 아니다. 공식/전문 출처·개인 경험·의료 판단을 구분하고 특정 치료·기기 선택을 IYUM의 개별 의료 권고처럼 표현하지 않는다. 이 항목은 기존 최소수집 원칙의 보완이며 의료서비스나 아동 직접 연구 승인이 아니다.\n# 1. 개인 정보 보호 {toggle=\"true\"}"
+        }
+      ]
+    },
+    {
+      "name": "경쟁 서비스",
+      "url": "https://app.notion.com/p/3ae2758cf8378163a861f34e01c81aba?pvs=204",
+      "updates": [
+        {
+          "old_str": "# 1. 직접 경쟁 서비스",
+          "new_str": "## Current Alternative Solution 관점\n비교 대상은 비슷한 기능을 가진 제품에 한정하지 않고 사용자가 현재 문제를 해결하는 방법 전체로 본다.\n- Community / Experience: 네이버카페, 카카오톡 오픈채팅·단체방, BAND, 기타 커뮤니티.\n- Search / Content Discovery: 네이버 검색, Google, 네이버 블로그, YouTube.\n- Official Information: 복지로, 정부24, 관련 공공기관·장애인 기관.\n- Product / Service Discovery: 네이버 쇼핑, 제품 리뷰, 제조사·판매사, 병원·센터 검색 서비스.\n위 목록은 조사할 대안 후보이며 해당 Cohort의 실제 사용이 확인되었다는 의미가 아니다. 접근성, 기존 사용자 기반, 검색 가능성, 축적·재발견, 문제 중심 구조, 실제 경험, 공식 정보·출처·최신성, 해결 확인, 재사용·상호작용, 정보 휘발성, 탐색 비용을 실제 과업에서 비교한다. 기능 수나 특정 앱의 개별 UX 버그로 우열·핵심 차별점을 단정하지 않는다.\n네이버카페는 경험이 축적되지만 문제별 정보가 게시글에 분산되어 여러 문서를 찾아야 하는지, 카카오톡은 질문 접근성이 있으나 시간순 대화의 지식을 재사용하기 어려운지를 가설로 확인한다. 어디에서 답을 찾고 무엇이 불편한지뿐 아니라 계속 쓰는 장점·이동하지 않는 이유도 조사한다.\n기존 서비스를 버리는 이주를 전제하지 않는다. IYUM의 보완적 Knowledge 이용과 카페·메신저 재공유 역시 <mention-page url=\"https://app.notion.com/p/3da2758cf837816c96abca56bf9eceb9?pvs=204\"/>에서 검증할 Distribution 가설이다.\n# 1. 직접 경쟁 서비스"
+        },
+        {
+          "old_str": "\t## 네이버 카페\n\t### 장점",
+          "new_str": "\t## 네이버 카페\n\t아래 장점·한계는 검증할 비교 가설이며 절대적인 플랫폼 평가나 IYUM 우위를 뜻하지 않는다.\n\t### 장점"
+        },
+        {
+          "old_str": "- 정보 탐색이 어려움 (모바일 이용 시 뒤로가기 버튼 클릭 시 페이지 전체 리프레시)",
+          "new_str": "- 모바일 뒤로가기·전체 리프레시 관련 기존 관찰 메모: 버전·환경·재현 여부 재확인 필요. 핵심 차별화 근거로 사용하지 않음"
+        },
+        {
+          "old_str": "\t## 카카오톡 오픈채팅\n\t### 장점",
+          "new_str": "\t## 카카오톡 오픈채팅\n\t아래 장점·한계는 실제 탐색·대화·재사용 행동으로 검증할 가설이며 일반화된 열등성 판정이 아니다.\n\t### 장점"
+        },
+        {
+          "old_str": "# 3. 경쟁 서비스 비교 {toggle=\"true\"}",
+          "new_str": "# 3. 경쟁 서비스 비교 {toggle=\"true\"}\n\t아래 표는 기존 Desk Research 비교 관점을 보존한 자료다. 최신 기능 전수 검증이나 사용자 가치 평가가 아니며 IYUM 열의 ◎는 구현·우수성 검증 완료를 뜻하지 않는다. 실제 성패는 Current Alternative 대비 문제 해결 Evidence로 판단한다."
+        }
+      ]
+    },
+    {
+      "name": "향후 기능",
+      "url": "https://app.notion.com/p/3b32758cf83781c2927be24c99a2a848?pvs=204",
+      "updates": [
+        {
+          "old_str": "## 20.3 도입 조건 · 보호 원칙 {toggle=\"true\" color=\"gray_bg\"}",
+          "new_str": "## 20.3 도입 조건 · 보호 원칙 {toggle=\"true\" color=\"gray_bg\"}\n\t\tPhase A.1 후보에는 Organic Discovery, Problem-centered Knowledge / Problem Page, 청각장애 아동 부모·보호자 Cohort의 비교 검증을 포함한다. 가설·양식·Phase B Discoverability Backlog 원본은 <mention-page url=\"https://app.notion.com/p/3da2758cf837816c96abca56bf9eceb9?pvs=204\"/> 6·8·13~15절이다. 이 항목은 신규 기능 승인이나 현재 Required / Optional / Deferred 재분류가 아니다.\n\t\t근거·Product Decision·Release 승인 후 Public Page 범위·비로그인 열람, URL·Index/noindex·robots·Sitemap·Canonical, 메타정보·접근 가능한 HTML·내부 링크·출처/최신성·중복 관리 등 Discoverability 요구를 검토한다. Public Route·IA·Search·Backend·Frontend·SSR/SSG/ISR 등 기술 판단은 Phase B까지 보류한다."
+        }
+      ]
+    },
+    {
+      "name": "Home",
+      "url": "https://app.notion.com/p/39f2758cf83780a6ad10e576f1b7713e?pvs=204",
+      "updates": [
+        {
+          "old_str": "**Stage 1 — Product Validation 준비**",
+          "new_str": "**Stage 1 — Product Validation 준비**\n\tPhase A.1 검증 범위에 실제 Search Behavior / Organic Discovery, Problem-centered Knowledge와 청각장애 아동 부모·보호자 Cohort를 추가했습니다. 모두 가설이며 SEO·Segment·Release 1 승인을 뜻하지 않습니다."
+        }
+      ]
+    },
+    {
+      "name": "Vision",
+      "url": "https://app.notion.com/p/3ad2758cf83780e4a3c7f9b849397de1?pvs=204",
+      "updates": [
+        {
+          "old_str": "<td>IYUM의 차별화</td>",
+          "new_str": "<td>IYUM의 차별화 가설 — 미검증 비교</td>"
+        },
+        {
+          "old_str": "# 6. 핵심 가치",
+          "new_str": "위 Cafe / Kakao / IYUM 비교는 검증 전 가설과 지향점을 정리한 것이다. 표현된 강약은 확정된 플랫폼 평가가 아니며 IYUM의 우위·검색 유입·문제 해결 성과를 입증하지 않는다. 현재 서비스의 장점과 계속 사용하는 이유를 함께 조사하고 개별 UX 문제만으로 차별화를 단정하지 않는다.\n# 6. 핵심 가치"
+        }
+      ]
+    },
+    {
+      "name": "Product Validation",
+      "url": "https://app.notion.com/p/3da2758cf837816c96abca56bf9eceb9?pvs=204",
+      "updates": [
+        {
+          "old_str": "각 연결은 독립 가설다.",
+          "new_str": "각 연결은 독립 가설이다."
+        }
+      ]
+    },
+    {
+      "name": "경쟁 서비스",
+      "url": "https://app.notion.com/p/3ae2758cf8378163a861f34e01c81aba?pvs=204",
+      "updates": [
+        {
+          "old_str": "# 1. 직접 경쟁 서비스\n",
+          "new_str": "# 1. 직접 경쟁 서비스 {toggle=\"true\"}\n"
+        }
+      ]
+    },
+    {
+      "name": "경쟁 서비스",
+      "url": "https://app.notion.com/p/3ae2758cf8378163a861f34e01c81aba?pvs=204",
+      "updates": [
+        {
+          "old_str": "# 1. 직접 경쟁 서비스 {toggle=\"true\"}\n직접 경쟁 서비스는 사용자가 장애 관련 정보를 얻기 위해 실제로 이용하는 서비스이다.\n## 복지로\n### 주요 기능\n- 장애인 복지 서비스 안내\n- 복지급여 신청\n- 정책 정보\n### 장점\n- 정부 공식 정보 제공\n- 높은 신뢰성\n- 다양한 복지 서비스 제공\n### 한계\n- 사용자 경험 공유 기능 없음\n- 커뮤니티 기능 없음\n- AI 검색 없음\n<empty-block/>\n---\n## 정부24\n### 주요 기능\n- 민원 신청\n- 행정 서비스\n- 증명서 발급\n### 장점\n- 공공 서비스 이용 가능\n### 한계\n- 정보 탐색 중심\n- 장애인 커뮤니티 기능 없음\n<empty-block/>\n---\n## 한국농아인협회\n### 주요 기능\n- 청각장애 정책\n- 행사 안내\n- 권익 보호\n### 장점\n- 청각장애 전문 기관\n- 신뢰도 높은 정보\n### 한계\n- 사용자 참여 부족\n- 게시판 활성도 제한\n- AI 서비스 없음\n<empty-block/>\n---\n## 한국장애인고용공단\n### 주요 기능\n- 취업 지원\n- 직업 훈련\n- 기업 지원\n### 장점\n- 취업 정보 전문성\n### 한계\n- 취업 중심\n- 일반 커뮤니티 기능 부족\n",
+          "new_str": "# 1. 직접 경쟁 서비스 {toggle=\"true\"}\n\t직접 경쟁 서비스는 사용자가 장애 관련 정보를 얻기 위해 실제로 이용하는 서비스이다.\n\t## 복지로\n\t### 주요 기능\n\t- 장애인 복지 서비스 안내\n\t- 복지급여 신청\n\t- 정책 정보\n\t### 장점\n\t- 정부 공식 정보 제공\n\t- 높은 신뢰성\n\t- 다양한 복지 서비스 제공\n\t### 한계\n\t- 사용자 경험 공유 기능 없음\n\t- 커뮤니티 기능 없음\n\t- AI 검색 없음\n\t<empty-block/>\n\t---\n\t## 정부24\n\t### 주요 기능\n\t- 민원 신청\n\t- 행정 서비스\n\t- 증명서 발급\n\t### 장점\n\t- 공공 서비스 이용 가능\n\t### 한계\n\t- 정보 탐색 중심\n\t- 장애인 커뮤니티 기능 없음\n\t<empty-block/>\n\t---\n\t## 한국농아인협회\n\t### 주요 기능\n\t- 청각장애 정책\n\t- 행사 안내\n\t- 권익 보호\n\t### 장점\n\t- 청각장애 전문 기관\n\t- 신뢰도 높은 정보\n\t### 한계\n\t- 사용자 참여 부족\n\t- 게시판 활성도 제한\n\t- AI 서비스 없음\n\t<empty-block/>\n\t---\n\t## 한국장애인고용공단\n\t### 주요 기능\n\t- 취업 지원\n\t- 직업 훈련\n\t- 기업 지원\n\t### 장점\n\t- 취업 정보 전문성\n\t### 한계\n\t- 취업 중심\n\t- 일반 커뮤니티 기능 부족\n"
+        }
+      ]
+    }
+  ],
+  "schema": {
+    "before": {
+      "name": "가설 레지스트리",
+      "schema": {
+        "Current Alternative": {
+          "description": "",
+          "name": "Current Alternative",
+          "type": "text"
+        },
+        "Evidence Level": {
+          "description": "",
+          "name": "Evidence Level",
+          "options": [
+            {
+              "color": "gray",
+              "description": "",
+              "name": "E0",
+              "url": "collectionPropertyOption://e13a570b-93df-4f07-b827-6a81e7785b63/ZW5bSw/OTEyNThjNDItNjQxNi00ZTlmLWIxYWQtMzc3N2E4OWM0NjZm"
+            },
+            {
+              "color": "blue",
+              "description": "",
+              "name": "E1",
+              "url": "collectionPropertyOption://e13a570b-93df-4f07-b827-6a81e7785b63/ZW5bSw/MTRhYTJhZTItY2MyYi00NjY1LWJiZDItZjFjYjU5NGU3ZGRk"
+            },
+            {
+              "color": "purple",
+              "description": "",
+              "name": "E2",
+              "url": "collectionPropertyOption://e13a570b-93df-4f07-b827-6a81e7785b63/ZW5bSw/ODYyMGYwNDgtMDc4Ni00ZmNjLTk4ODQtZDFjNGY2NDFkOTUw"
+            },
+            {
+              "color": "orange",
+              "description": "",
+              "name": "E3",
+              "url": "collectionPropertyOption://e13a570b-93df-4f07-b827-6a81e7785b63/ZW5bSw/YmY3NTAyMWUtYzAwZC00ZGZhLTk2NTgtODhmODVmOTI0MDkx"
+            },
+            {
+              "color": "green",
+              "description": "",
+              "name": "E4",
+              "url": "collectionPropertyOption://e13a570b-93df-4f07-b827-6a81e7785b63/ZW5bSw/NTk0OGRmZjQtMzFhOC00YWFiLWIyZDItZGQyYmY0ZjhmZmU0"
+            }
+          ],
+          "type": "select"
+        },
+        "Evidence Status": {
+          "description": "",
+          "name": "Evidence Status",
+          "options": [
+            {
+              "color": "gray",
+              "description": "",
+              "name": "Untested",
+              "url": "collectionPropertyOption://e13a570b-93df-4f07-b827-6a81e7785b63/dn5UYg/NzhlOGYwYjQtODkzZS00NDRmLWFhMjAtYTdiMjlhOThiNzkw"
+            },
+            {
+              "color": "green",
+              "description": "",
+              "name": "Supported",
+              "url": "collectionPropertyOption://e13a570b-93df-4f07-b827-6a81e7785b63/dn5UYg/OGM3NTY0OWQtZGM1Ni00MzMzLWI4MmQtZmE4M2E3Y2Y5YjM0"
+            },
+            {
+              "color": "yellow",
+              "description": "",
+              "name": "Mixed",
+              "url": "collectionPropertyOption://e13a570b-93df-4f07-b827-6a81e7785b63/dn5UYg/ZjM4NDk4OTYtZjE0Ny00OGNlLTk3ODgtNjZlMjQ2ODU3MjZk"
+            },
+            {
+              "color": "red",
+              "description": "",
+              "name": "Refuted",
+              "url": "collectionPropertyOption://e13a570b-93df-4f07-b827-6a81e7785b63/dn5UYg/NzI5ZTY3MTktZDk2Yy00N2RhLTk5M2UtNzQxOTYxZjZmYTBh"
+            }
+          ],
+          "type": "select"
+        },
+        "Expected User Value": {
+          "description": "",
+          "name": "Expected User Value",
+          "type": "text"
+        },
+        "Falsification Condition": {
+          "description": "",
+          "name": "Falsification Condition",
+          "type": "text"
+        },
+        "Hypothesis": {
+          "description": "",
+          "name": "Hypothesis",
+          "type": "title"
+        },
+        "Hypothesis ID": {
+          "description": "",
+          "name": "Hypothesis ID",
+          "type": "text"
+        },
+        "Hypothesis Type": {
+          "description": "",
+          "name": "Hypothesis Type",
+          "options": [
+            {
+              "color": "blue",
+              "description": "",
+              "name": "Problem",
+              "url": "collectionPropertyOption://e13a570b-93df-4f07-b827-6a81e7785b63/Y0Jycw/Zjg3Y2U0ZWQtN2ZjYi00ZjM0LTkyMTEtMWUzZTY0ZjdkZGNk"
+            },
+            {
+              "color": "blue",
+              "description": "",
+              "name": "Behavior",
+              "url": "collectionPropertyOption://e13a570b-93df-4f07-b827-6a81e7785b63/Y0Jycw/YTFkODk0YmEtZWQwOC00YmVjLThhYTctZTdmZDA5NGE1NjUx"
+            },
+            {
+              "color": "orange",
+              "description": "",
+              "name": "Existing Solution Gap",
+              "url": "collectionPropertyOption://e13a570b-93df-4f07-b827-6a81e7785b63/Y0Jycw/NWM2NDhiYWUtYjJmYi00MWE2LTgxM2YtYzJlOWQzODYyZjc2"
+            },
+            {
+              "color": "purple",
+              "description": "",
+              "name": "Segment",
+              "url": "collectionPropertyOption://e13a570b-93df-4f07-b827-6a81e7785b63/Y0Jycw/NTMzNTM5ZjktNDk5ZS00ZTVmLTlhZmItZjllZjliNmNiNzUw"
+            },
+            {
+              "color": "green",
+              "description": "",
+              "name": "Community",
+              "url": "collectionPropertyOption://e13a570b-93df-4f07-b827-6a81e7785b63/Y0Jycw/OWVjNTk2MjgtYzAwOC00MDAxLWI3YWUtODVjMDIyNDAzNWE4"
+            },
+            {
+              "color": "green",
+              "description": "",
+              "name": "Contribution / Supply",
+              "url": "collectionPropertyOption://e13a570b-93df-4f07-b827-6a81e7785b63/Y0Jycw/ZDQzZmE3MDktNDI4Yy00YTU1LThjMGUtYjVhYjY2ZmZlZjAz"
+            },
+            {
+              "color": "yellow",
+              "description": "",
+              "name": "Trust",
+              "url": "collectionPropertyOption://e13a570b-93df-4f07-b827-6a81e7785b63/Y0Jycw/NTZmNjY4NzktMGIwZS00NjA5LTg0NjEtZmQ0MjI4YTgwZDg0"
+            },
+            {
+              "color": "pink",
+              "description": "",
+              "name": "Retention / Repeat-use",
+              "url": "collectionPropertyOption://e13a570b-93df-4f07-b827-6a81e7785b63/Y0Jycw/ZGEyMDc1ZTctMWIxNi00MDZhLWE0YmUtODc5MDY4OTk2NWY5"
+            },
+            {
+              "color": "orange",
+              "description": "",
+              "name": "Solution Value",
+              "url": "collectionPropertyOption://e13a570b-93df-4f07-b827-6a81e7785b63/Y0Jycw/ODM3ODg0ZmQtYzg2MC00M2FjLWE5ZWQtNzE4Nzg4NjM0ZWJj"
+            },
+            {
+              "color": "brown",
+              "description": "",
+              "name": "Willingness-to-Pay",
+              "url": "collectionPropertyOption://e13a570b-93df-4f07-b827-6a81e7785b63/Y0Jycw/M2JmYWVkYzQtYWVmYS00NjhmLTliNjYtZTEyZjQyYmJkZWNh"
+            }
+          ],
+          "type": "select"
+        },
+        "Next Review": {
+          "description": "",
+          "name": "Next Review",
+          "querySqlColumns": {
+            "columns": [
+              {
+                "name": "date:Next Review:start",
+                "sqlType": "TEXT"
+              },
+              {
+                "name": "date:Next Review:end",
+                "sqlType": "TEXT"
+              },
+              {
+                "name": "date:Next Review:is_datetime",
+                "sqlType": "INTEGER"
+              }
+            ],
+            "usage": "For connections.notion.querySql. Main schema name not queryable."
+          },
+          "type": "date"
+        },
+        "Notes": {
+          "description": "",
+          "name": "Notes",
+          "type": "text"
+        },
+        "Product Decision": {
+          "description": "Product Decision Log의 해당 결정 ID와 링크. 결정 전에는 비워 둔다.",
+          "name": "Product Decision",
+          "type": "text"
+        },
+        "Related Research / Experiment": {
+          "dataSourceUrl": "collection://84b38ef3-ee7b-42c3-b70c-2ec4e9fa4f70",
+          "description": "",
+          "name": "Related Research / Experiment",
+          "propertyUrl": "collectionProperty://84b38ef3-ee7b-42c3-b70c-2ec4e9fa4f70/b3N8PA",
+          "type": "relation"
+        },
+        "Risk": {
+          "description": "",
+          "name": "Risk",
+          "type": "text"
+        },
+        "Target Segment / Situation": {
+          "description": "",
+          "name": "Target Segment / Situation",
+          "type": "text"
+        }
+      },
+      "url": "collection://e13a570b-93df-4f07-b827-6a81e7785b63"
+    },
+    "after": {
+      "metadata": {
+        "type": "data_source"
+      },
+      "title": "가설 레지스트리",
+      "url": "https://app.notion.com/p/60bcd170f1994ac5bc4e7075b25a954e?pvs=204",
+      "text": "<data-source url=\"{{collection://e13a570b-93df-4f07-b827-6a81e7785b63}}\">\nThe title of this Data Source is: 가설 레지스트리\n\nHere is the database's configurable state:\nProperties with `readOnly: true` are synced or system-managed. Do not try to update their values with page update tools.\n<data-source-state>\n{\"name\":\"가설 레지스트리\",\"schema\":{\"Current Alternative\":{\"description\":\"\",\"name\":\"Current Alternative\",\"type\":\"text\"},\"Evidence Level\":{\"description\":\"\",\"name\":\"Evidence Level\",\"options\":[{\"color\":\"gray\",\"description\":\"\",\"name\":\"E0\",\"url\":\"collectionPropertyOption://e13a570b-93df-4f07-b827-6a81e7785b63/ZW5bSw/OTEyNThjNDItNjQxNi00ZTlmLWIxYWQtMzc3N2E4OWM0NjZm\"},{\"color\":\"blue\",\"description\":\"\",\"name\":\"E1\",\"url\":\"collectionPropertyOption://e13a570b-93df-4f07-b827-6a81e7785b63/ZW5bSw/MTRhYTJhZTItY2MyYi00NjY1LWJiZDItZjFjYjU5NGU3ZGRk\"},{\"color\":\"purple\",\"description\":\"\",\"name\":\"E2\",\"url\":\"collectionPropertyOption://e13a570b-93df-4f07-b827-6a81e7785b63/ZW5bSw/ODYyMGYwNDgtMDc4Ni00ZmNjLTk4ODQtZDFjNGY2NDFkOTUw\"},{\"color\":\"orange\",\"description\":\"\",\"name\":\"E3\",\"url\":\"collectionPropertyOption://e13a570b-93df-4f07-b827-6a81e7785b63/ZW5bSw/YmY3NTAyMWUtYzAwZC00ZGZhLTk2NTgtODhmODVmOTI0MDkx\"},{\"color\":\"green\",\"description\":\"\",\"name\":\"E4\",\"url\":\"collectionPropertyOption://e13a570b-93df-4f07-b827-6a81e7785b63/ZW5bSw/NTk0OGRmZjQtMzFhOC00YWFiLWIyZDItZGQyYmY0ZjhmZmU0\"}],\"type\":\"select\"},\"Evidence Status\":{\"description\":\"\",\"name\":\"Evidence Status\",\"options\":[{\"color\":\"gray\",\"description\":\"\",\"name\":\"Untested\",\"url\":\"collectionPropertyOption://e13a570b-93df-4f07-b827-6a81e7785b63/dn5UYg/NzhlOGYwYjQtODkzZS00NDRmLWFhMjAtYTdiMjlhOThiNzkw\"},{\"color\":\"green\",\"description\":\"\",\"name\":\"Supported\",\"url\":\"collectionPropertyOption://e13a570b-93df-4f07-b827-6a81e7785b63/dn5UYg/OGM3NTY0OWQtZGM1Ni00MzMzLWI4MmQtZmE4M2E3Y2Y5YjM0\"},{\"color\":\"yellow\",\"description\":\"\",\"name\":\"Mixed\",\"url\":\"collectionPropertyOption://e13a570b-93df-4f07-b827-6a81e7785b63/dn5UYg/ZjM4NDk4OTYtZjE0Ny00OGNlLTk3ODgtNjZlMjQ2ODU3MjZk\"},{\"color\":\"red\",\"description\":\"\",\"name\":\"Refuted\",\"url\":\"collectionPropertyOption://e13a570b-93df-4f07-b827-6a81e7785b63/dn5UYg/NzI5ZTY3MTktZDk2Yy00N2RhLTk5M2UtNzQxOTYxZjZmYTBh\"}],\"type\":\"select\"},\"Expected User Value\":{\"description\":\"\",\"name\":\"Expected User Value\",\"type\":\"text\"},\"Falsification Condition\":{\"description\":\"\",\"name\":\"Falsification Condition\",\"type\":\"text\"},\"Hypothesis\":{\"description\":\"\",\"name\":\"Hypothesis\",\"type\":\"title\"},\"Hypothesis ID\":{\"description\":\"\",\"name\":\"Hypothesis ID\",\"type\":\"text\"},\"Hypothesis Type\":{\"description\":\"\",\"name\":\"Hypothesis Type\",\"options\":[{\"color\":\"blue\",\"description\":\"\",\"name\":\"Problem\",\"url\":\"collectionPropertyOption://e13a570b-93df-4f07-b827-6a81e7785b63/Y0Jycw/Zjg3Y2U0ZWQtN2ZjYi00ZjM0LTkyMTEtMWUzZTY0ZjdkZGNk\"},{\"color\":\"blue\",\"description\":\"\",\"name\":\"Behavior\",\"url\":\"collectionPropertyOption://e13a570b-93df-4f07-b827-6a81e7785b63/Y0Jycw/YTFkODk0YmEtZWQwOC00YmVjLThhYTctZTdmZDA5NGE1NjUx\"},{\"color\":\"orange\",\"description\":\"\",\"name\":\"Existing Solution Gap\",\"url\":\"collectionPropertyOption://e13a570b-93df-4f07-b827-6a81e7785b63/Y0Jycw/NWM2NDhiYWUtYjJmYi00MWE2LTgxM2YtYzJlOWQzODYyZjc2\"},{\"color\":\"purple\",\"description\":\"\",\"name\":\"Segment\",\"url\":\"collectionPropertyOption://e13a570b-93df-4f07-b827-6a81e7785b63/Y0Jycw/NTMzNTM5ZjktNDk5ZS00ZTVmLTlhZmItZjllZjliNmNiNzUw\"},{\"color\":\"green\",\"description\":\"\",\"name\":\"Community\",\"url\":\"collectionPropertyOption://e13a570b-93df-4f07-b827-6a81e7785b63/Y0Jycw/OWVjNTk2MjgtYzAwOC00MDAxLWI3YWUtODVjMDIyNDAzNWE4\"},{\"color\":\"green\",\"description\":\"\",\"name\":\"Contribution / Supply\",\"url\":\"collectionPropertyOption://e13a570b-93df-4f07-b827-6a81e7785b63/Y0Jycw/ZDQzZmE3MDktNDI4Yy00YTU1LThjMGUtYjVhYjY2ZmZlZjAz\"},{\"color\":\"yellow\",\"description\":\"\",\"name\":\"Trust\",\"url\":\"collectionPropertyOption://e13a570b-93df-4f07-b827-6a81e7785b63/Y0Jycw/NTZmNjY4NzktMGIwZS00NjA5LTg0NjEtZmQ0MjI4YTgwZDg0\"},{\"color\":\"pink\",\"description\":\"\",\"name\":\"Retention / Repeat-use\",\"url\":\"collectionPropertyOption://e13a570b-93df-4f07-b827-6a81e7785b63/Y0Jycw/ZGEyMDc1ZTctMWIxNi00MDZhLWE0YmUtODc5MDY4OTk2NWY5\"},{\"color\":\"orange\",\"description\":\"\",\"name\":\"Solution Value\",\"url\":\"collectionPropertyOption://e13a570b-93df-4f07-b827-6a81e7785b63/Y0Jycw/ODM3ODg0ZmQtYzg2MC00M2FjLWE5ZWQtNzE4Nzg4NjM0ZWJj\"},{\"color\":\"brown\",\"description\":\"\",\"name\":\"Willingness-to-Pay\",\"url\":\"collectionPropertyOption://e13a570b-93df-4f07-b827-6a81e7785b63/Y0Jycw/M2JmYWVkYzQtYWVmYS00NjhmLTliNjYtZTEyZjQyYmJkZWNh\"},{\"color\":\"blue\",\"description\":\"\",\"name\":\"Acquisition / Organic Discovery\",\"url\":\"collectionPropertyOption://e13a570b-93df-4f07-b827-6a81e7785b63/Y0Jycw/OTUwMDVlNjYtZjlkYi00YTU4LTllOTUtNTI5MGMyNDhmZGVi\"}],\"type\":\"select\"},\"Next Review\":{\"description\":\"\",\"name\":\"Next Review\",\"querySqlColumns\":{\"columns\":[{\"name\":\"date:Next Review:start\",\"sqlType\":\"TEXT\"},{\"name\":\"date:Next Review:end\",\"sqlType\":\"TEXT\"},{\"name\":\"date:Next Review:is_datetime\",\"sqlType\":\"INTEGER\"}],\"usage\":\"For connections.notion.querySql. Main schema name not queryable.\"},\"type\":\"date\"},\"Notes\":{\"description\":\"\",\"name\":\"Notes\",\"type\":\"text\"},\"Product Decision\":{\"description\":\"Product Decision Log의 해당 결정 ID와 링크. 결정 전에는 비워 둔다.\",\"name\":\"Product Decision\",\"type\":\"text\"},\"Related Research / Experiment\":{\"dataSourceUrl\":\"collection://84b38ef3-ee7b-42c3-b70c-2ec4e9fa4f70\",\"description\":\"\",\"name\":\"Related Research / Experiment\",\"propertyUrl\":\"collectionProperty://84b38ef3-ee7b-42c3-b70c-2ec4e9fa4f70/b3N8PA\",\"type\":\"relation\"},\"Risk\":{\"description\":\"\",\"name\":\"Risk\",\"type\":\"text\"},\"Target Segment / Situation\":{\"description\":\"\",\"name\":\"Target Segment / Situation\",\"type\":\"text\"}},\"url\":\"collection://e13a570b-93df-4f07-b827-6a81e7785b63\"}\n</data-source-state>\n\nHere is the SQLite table definition for this data source.\n<sqlite-table>\nCREATE TABLE IF NOT EXISTS \"collection://e13a570b-93df-4f07-b827-6a81e7785b63\" (\n\turl TEXT UNIQUE,\n\tcreatedTime TEXT, -- ISO-8601 datetime string, automatically set. This is the canonical time for when the page was created.\n\t\"Product Decision\" TEXT,\n\t\"Current Alternative\" TEXT,\n\t\"date:Next Review:start\" TEXT, -- ISO-8601 date or datetime string. Use the expanded property (date:<column_name>:start) to set this value.\n\t\"date:Next Review:end\" TEXT, -- ISO-8601 date or datetime string, can be empty. Must be NULL if the date is a single date, and must be present if the date is a range. Use the expanded property (date:<column_name>:end) to set this value.\n\t\"date:Next Review:is_datetime\" INTEGER, -- 1 if the date is a datetime, 0 if it is a date, NULL defaults to 0. Use the expanded property (date:<column_name>:is_datetime) to set this value.\n\t\"Target Segment / Situation\" TEXT,\n\t\"Notes\" TEXT,\n\t\"Expected User Value\" TEXT,\n\t\"Related Research / Experiment\" TEXT, -- JSON array of page URLs relating to {{collection://84b38ef3-ee7b-42c3-b70c-2ec4e9fa4f70}} data source, you must \"view\" {{collection://84b38ef3-ee7b-42c3-b70c-2ec4e9fa4f70}} to query this column\n\t\"Falsification Condition\" TEXT,\n\t\"Hypothesis Type\" TEXT, -- one of [\"Problem\", \"Behavior\", \"Existing Solution Gap\", \"Segment\", \"Community\", \"Contribution / Supply\", \"Trust\", \"Retention / Repeat-use\", \"Solution Value\", \"Willingness-to-Pay\", \"Acquisition / Organic Discovery\"]\n\t\"Evidence Level\" TEXT, -- one of [\"E0\", \"E1\", \"E2\", \"E3\", \"E4\"]\n\t\"Risk\" TEXT,\n\t\"Evidence Status\" TEXT, -- one of [\"Untested\", \"Supported\", \"Mixed\", \"Refuted\"]\n\t\"Hypothesis ID\" TEXT,\n\t\"Hypothesis\" TEXT\n)\n</sqlite-table>\n</data-source>"
+    },
+    "newProperties": [],
+    "newHypothesisOption": "Acquisition / Organic Discovery",
+    "researchTemplateLocation": "Product Validation §8; copyable body template"
+  },
+  "verification": {
+    "modifiedPages": 10,
+    "exactPatches": [
+      {
+        "name": "Product Validation",
+        "expectedPatchMatches": true
+      },
+      {
+        "name": "운영 정책",
+        "expectedPatchMatches": true
+      },
+      {
+        "name": "KPI",
+        "expectedPatchMatches": true
+      },
+      {
+        "name": "제품 개요",
+        "expectedPatchMatches": true
+      },
+      {
+        "name": "사용자 조사",
+        "expectedPatchMatches": true
+      },
+      {
+        "name": "법률 검토",
+        "expectedPatchMatches": true
+      },
+      {
+        "name": "경쟁 서비스",
+        "expectedPatchMatches": true
+      },
+      {
+        "name": "향후 기능",
+        "expectedPatchMatches": true
+      },
+      {
+        "name": "Home",
+        "expectedPatchMatches": true
+      },
+      {
+        "name": "Vision",
+        "expectedPatchMatches": true
+      }
+    ],
+    "hypothesisPropertyCount": 14,
+    "oldHypothesisOptionsPreserved": true,
+    "hypothesisTypeCount": 11,
+    "otherHypothesisPropertiesPreserved": true,
+    "researchPropertyCount": 20,
+    "researchSchemaUnchanged": true,
+    "releaseBodyUnchanged": true,
+    "decisionLogBodyUnchanged": true,
+    "hubChildrenPreserved": true,
+    "roadmapUnchanged": true,
+    "kpiLegacyChaptersUnchanged": true,
+    "competitorOriginalToggleSectionPreserved": true
+  },
+  "createdNotionPages": 0,
+  "createdEvidenceRows": 0,
+  "createdProductDecisions": 0
+}

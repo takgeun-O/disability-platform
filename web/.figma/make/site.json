@@ -1,0 +1,10 @@
+{
+  "description": "Provides a Korean-language desktop homepage wireframe focused on clear structure and usability to streamline early-stage web design and planning.",
+  "robots": {
+    "index": false
+  },
+  "accessibility": {
+    "addBypassLinks": false,
+    "ignoreReducedMotion": false
+  }
+}

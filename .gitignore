@@ -1,0 +1,23 @@
+# Operating-system and editor files
+.DS_Store
+._*
+*.swp
+
+# Installed dependencies and generated outputs
+node_modules/
+.pnpm-store/
+dist/
+build/
+.next/
+out/
+.vite/
+.cache/
+*.tsbuildinfo
+*.log
+coverage/
+
+# Local environment and deployment metadata
+.env*
+!.env.example
+.vercel/
+.netlify/

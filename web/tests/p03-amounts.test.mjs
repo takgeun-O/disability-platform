@@ -1,0 +1,21 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import fs from 'node:fs';
+import path from 'node:path';
+import vm from 'node:vm';
+import ts from 'typescript';
+const source = ts.createSourceFile('benefits.tsx',fs.readFileSync(path.resolve(import.meta.dirname,'../src/features/HearingAidBenefits.tsx'),'utf8'),ts.ScriptTarget.Latest,true,ts.ScriptKind.TSX);
+const declaration = source.statements.find(n=>ts.isVariableStatement(n)&&n.declarationList.declarations.some(d=>d.name.text==='AMOUNTS'));
+const amounts = vm.runInNewContext(ts.transpileModule(declaration.getText(source)+';AMOUNTS',{compilerOptions:{target:ts.ScriptTarget.ES2022}}).outputText);
+test('Existing single/bilateral maximum examples remain distinct from calculation basis', () => {
+ assert.equal(amounts.single.firstGeneral,'최대 99만 9천 원');
+ assert.equal(amounts.single.firstReduced,'최대 111만 원');
+ assert.equal(amounts.single.totalGeneral,'총 최대 117만 9천 원');
+ assert.equal(amounts.single.totalReduced,'총 최대 131만 원');
+ assert.equal(amounts.bilateral.firstGeneral,'최대 199만 8천 원');
+ assert.equal(amounts.bilateral.firstReduced,'최대 222만 원');
+ assert.equal(amounts.bilateral.totalGeneral,'총 최대 235만 8천 원');
+ assert.equal(amounts.bilateral.totalReduced,'총 최대 262만 원');
+ assert.ok(amounts.single.firstBasis.includes('기준액'));
+ assert.ok(amounts.bilateral.summary.includes('예시'));
+});

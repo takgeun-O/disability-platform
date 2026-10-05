@@ -4,7 +4,7 @@ import io.github.takgeun.iyum.member.domain.TermsCode;
 import lombok.Getter;
 
 // 검증 실패를 표현할 예외
-// 예외 처리기에서 입력 오류는 400, 버전 불일치는 409처럼 연결할 예정
+// HTTP 계층에서는 버전 불일치를 포함한 약관 정책 오류를 400으로 응답한다.
 @Getter
 public class SignupTermsException extends RuntimeException {
 

@@ -1,0 +1,18 @@
+:root {
+  color-scheme: light;
+  --color-ink: #202f33;
+  --color-muted: #526268;
+  --color-paper: #ffffff;
+  --color-page: #f7f9f8;
+  --color-line: #ced8d5;
+  --color-action: #145e50;
+  --color-tint: #edf5f1;
+  --color-warning: #fff7e8;
+  --color-focus: #005fcc;
+}
+* { box-sizing: border-box; }
+body { margin: 0; color: var(--color-ink); background: var(--color-page); font-family: -apple-system, BlinkMacSystemFont, 'Apple SD Gothic Neo', 'Malgun Gothic', sans-serif; font-size: 1rem; line-height: 1.8; }
+a { color: var(--color-action); text-underline-offset: .22em; overflow-wrap: anywhere; }
+a:hover { text-decoration-thickness: 2px; }
+:focus-visible { outline: 3px solid var(--color-focus); outline-offset: 4px; }
+@media (prefers-reduced-motion: reduce) { *, *::before, *::after { scroll-behavior: auto !important; } }
