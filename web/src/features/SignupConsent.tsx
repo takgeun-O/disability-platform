@@ -2,17 +2,21 @@
 
 import { useState, useRef, useId, useEffect } from 'react'
 import { useRouter } from 'next/navigation';
+import { useSignupFlow } from './SignupFlow';
+import { createAgreements } from '@/lib/signup-form';
 
 // ─── Consent item row ─────────────────────────────────────────────────────────
 
 function ConsentItem({
-  id, label, badge, checked, onChange,
+  id, label, badge, checked, onChange, disabled = false, errorId,
 }: {
   id: string
   label: string
   badge: '필수' | '선택'
   checked: boolean
   onChange: (v: boolean) => void
+  disabled?: boolean
+  errorId?: string
 }) {
   const isRequired = badge === '필수'
   return (
@@ -26,6 +30,9 @@ function ConsentItem({
         id={id}
         type="checkbox"
         checked={checked}
+        disabled={disabled}
+        aria-invalid={!!errorId}
+        aria-describedby={errorId}
         onChange={(e) => onChange(e.target.checked)}
         style={{ width: 17, height: 17, cursor: 'pointer', accentColor: '#1A1918', flexShrink: 0 }}
       />
@@ -57,14 +64,14 @@ function ConsentItem({
 export default function SignupConsent() {
   const router = useRouter()
   const uid = useId()
+  const { agreements, chooseAgreements } = useSignupFlow()
 
-  const [terms, setTerms]         = useState(false)
-  const [privacy, setPrivacy]     = useState(false)
-  const [marketing, setMarketing] = useState(false)
+  const [terms, setTerms] = useState(agreements?.find(item => item.termsCode === 'SERVICE_TERMS')?.agreed ?? false)
+  const [privacy, setPrivacy] = useState(agreements?.find(item => item.termsCode === 'PRIVACY_COLLECTION_USE')?.agreed ?? false)
   const [showError, setShowError] = useState(false)
 
-  const allChecked    = terms && privacy && marketing
-  const someChecked   = terms || privacy || marketing
+  const allChecked    = terms && privacy
+  const someChecked   = terms || privacy
   const requiredReady = terms && privacy
 
   const allRef = useRef<HTMLInputElement>(null)
@@ -81,7 +88,6 @@ export default function SignupConsent() {
     const v = e.target.checked
     setTerms(v)
     setPrivacy(v)
-    setMarketing(v)
     if (v) setShowError(false)
   }
 
@@ -96,16 +102,12 @@ export default function SignupConsent() {
     if (v && terms) setShowError(false)
   }
 
-  function handleMarketing(v: boolean) {
-    setMarketing(v)
-    // Marketing is optional — never affects the error state
-  }
-
   function handleNext() {
     if (!requiredReady) {
       setShowError(true)
       return
     }
+    chooseAgreements(createAgreements(terms, privacy))
     router.push('/register/info')
   }
 
@@ -172,6 +174,7 @@ export default function SignupConsent() {
               badge="필수"
               checked={terms}
               onChange={handleTerms}
+              errorId={showError && !terms ? `${uid}-consent-error` : undefined}
             />
             <ConsentItem
               id={`${uid}-privacy`}
@@ -179,19 +182,26 @@ export default function SignupConsent() {
               badge="필수"
               checked={privacy}
               onChange={handlePrivacy}
+              errorId={showError && !privacy ? `${uid}-consent-error` : undefined}
             />
             <ConsentItem
               id={`${uid}-marketing`}
               label="마케팅 정보 수신 동의"
               badge="선택"
-              checked={marketing}
-              onChange={handleMarketing}
+              checked={false}
+              disabled
+              onChange={() => {}}
             />
           </div>
+
+          <p style={{ fontSize: 12, color: '#908D88', marginTop: 12 }}>
+            현재 약관은 개발용 버전(dev-v1)입니다. 마케팅 정보 수신 동의는 준비 중입니다.
+          </p>
 
           {/* ── Required consent validation error ─────────────────── */}
           {showError && (
             <p
+              id={`${uid}-consent-error`}
               role="alert"
               style={{ fontSize: 12, color: '#B91C1C', marginTop: 12, marginBottom: 0 }}
             >

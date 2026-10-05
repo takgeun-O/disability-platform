@@ -11,7 +11,7 @@ import java.util.List;
 import java.util.Locale;
 
 @Schema(description = "회원가입 요청. 약관 두 항목 모두 현재 개발용 버전 dev-v1에 동의해야 합니다.")
-@ValidSignupRequest
+@ValidSignupRequest // SignupRequestValidator 를 실행하게 한다.
 public record SignupRequest(
 
         @NotBlank(message = "이메일을 입력해주세요.")
@@ -77,6 +77,7 @@ public record SignupRequest(
     }
 
     // toCommand 는 데이터 변환만 수행한다. 실제 요청 검증은 컨트롤러의 @Valid에서 실행
+    // passwordConfirm은 제외된다. 두 비밀번호가 같은지는 이미 확인되었음. (SignupRequest의 @ValidSignupRequest에 의해)
     public SignupCommand toCommand() {
         return new SignupCommand(
                 email,

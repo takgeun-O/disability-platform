@@ -11,8 +11,16 @@ public class SignupRequestValidator implements ConstraintValidator<ValidSignupRe
 
     private static final int MAX_PASSWORD_BYTES = 72;
 
+    /**
+     * 비밀번호가 UTF-8 기준 72바이트 이하인지
+     * 비밀번호와 확인값이 정확히 일치하는지
+     * 닉네임이 기존 MemberInputPolicy를 만족하는지
+     */
     @Override
-    public boolean isValid(SignupRequest request, ConstraintValidatorContext context) {
+    public boolean isValid(
+            SignupRequest request,
+            ConstraintValidatorContext context
+    ) {
 
         if (request == null) {
             return true;

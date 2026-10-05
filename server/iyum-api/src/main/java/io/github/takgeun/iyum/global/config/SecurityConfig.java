@@ -27,34 +27,43 @@ public class SecurityConfig {
             @Value("${springdoc.api-docs.enabled:false}") boolean apiDocsEnabled,
             @Value("${springdoc.swagger-ui.enabled:false}") boolean swaggerUiEnabled
     ) throws Exception {
-        AccessDeniedHandler accessDeniedHandler = (request, response, exception) -> {
-            boolean csrfFailure = exception instanceof CsrfException;
-            response.setStatus(403);
-            response.setContentType(MediaType.APPLICATION_JSON_VALUE);
-            response.setCharacterEncoding(StandardCharsets.UTF_8.name());
-            objectMapper.writeValue(response.getWriter(), ApiErrorResponse.of(
-                    csrfFailure ? "CSRF_TOKEN_INVALID" : "ACCESS_DENIED",
-                    csrfFailure ? "CSRF 토큰을 확인해 주세요." : "접근 권한이 없습니다."));
-        };
 
-        http.authorizeHttpRequests(authorize -> {
-                    authorize.requestMatchers(HttpMethod.POST, "/api/v1/auth/signup").permitAll()
-                            .requestMatchers(HttpMethod.GET, "/api/v1/auth/csrf").permitAll();
-                    if (apiDocsEnabled) {
-                        authorize.requestMatchers(HttpMethod.GET, "/v3/api-docs", "/v3/api-docs/**",
-                                "/v3/api-docs.yaml").permitAll();
-                    }
-                    if (swaggerUiEnabled) {
-                        authorize.requestMatchers(HttpMethod.GET, "/swagger-ui.html", "/swagger-ui/**")
-                                .permitAll();
-                    }
-                    // 명시적인 필터 체인을 등록하면 Boot의 Actuator 보안 자동 설정이 물러난다.
-                    // 기존 health 공개 범위를 그대로 보존하고 나머지 경로는 인증을 요구한다.
-                    authorize.requestMatchers(EndpointRequest.to(HealthEndpoint.class),
-                                    EndpointRequest.toAdditionalPaths(WebServerNamespace.SERVER, HealthEndpoint.class))
-                            .permitAll()
-                            .anyRequest().authenticated();
-                })
+        AccessDeniedHandler accessDeniedHandler =
+                (request, response, exception) -> {
+
+                    boolean csrfFailure = exception instanceof CsrfException;
+
+                    response.setStatus(403);
+                    response.setContentType(MediaType.APPLICATION_JSON_VALUE);
+                    response.setCharacterEncoding(StandardCharsets.UTF_8.name());
+
+                    objectMapper.writeValue(response.getWriter(), ApiErrorResponse.of(
+                            csrfFailure ? "CSRF_TOKEN_INVALID" : "ACCESS_DENIED",
+                            csrfFailure ? "CSRF 토큰을 확인해 주세요." : "접근 권한이 없습니다."));
+                };
+
+        http.authorizeHttpRequests(
+                        authorize -> {
+                            authorize
+                                    // 회원가입 요청에 로그인된 사용자일 것을 요구하지 않는다.
+                                    .requestMatchers(HttpMethod.POST, "/api/v1/auth/signup").permitAll()
+                                    .requestMatchers(HttpMethod.GET, "/api/v1/auth/csrf").permitAll();
+
+                            if (apiDocsEnabled) {
+                                authorize.requestMatchers(HttpMethod.GET, "/v3/api-docs", "/v3/api-docs/**",
+                                        "/v3/api-docs.yaml").permitAll();
+                            }
+                            if (swaggerUiEnabled) {
+                                authorize.requestMatchers(HttpMethod.GET, "/swagger-ui.html", "/swagger-ui/**")
+                                        .permitAll();
+                            }
+                            // 명시적인 필터 체인을 등록하면 Boot의 Actuator 보안 자동 설정이 물러난다.
+                            // 기존 health 공개 범위를 그대로 보존하고 나머지 경로는 인증을 요구한다.
+                            authorize.requestMatchers(EndpointRequest.to(HealthEndpoint.class),
+                                            EndpointRequest.toAdditionalPaths(WebServerNamespace.SERVER, HealthEndpoint.class))
+                                    .permitAll()
+                                    .anyRequest().authenticated();
+                        })
                 // 기본 HttpSession 저장소와 XOR 토큰 처리(BREACH 보호)를 그대로 사용한다.
                 .csrf(Customizer.withDefaults())
                 .cors(Customizer.withDefaults())
