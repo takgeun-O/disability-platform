@@ -3,3 +3,8 @@ springdoc:
     enabled: true
   swagger-ui:
     enabled: true
+
+# Next.js 개발 주소와 정확히 일치해야 한다. 쿠키를 사용하므로 와일드카드는 허용하지 않는다.
+iyum:
+  cors:
+    allowed-origin: ${IYUM_WEB_ORIGIN:http://127.0.0.1:8443}
