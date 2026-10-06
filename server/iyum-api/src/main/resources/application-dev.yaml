@@ -1,10 +1,28 @@
+spring:
+  mail:
+    host: 127.0.0.1   # 메일을 전달할 SMTP 서버
+    port: 1025
+    default-encoding: UTF-8 # 한글 메일을 위한 UTF-8 설정
+    properties:
+      "[mail.smtp.auth]": false   # SMTP 계정 인증 사용 여부 (로컬 Mailpit을 위한 설정. 실제 외부 메일 서비스 사용할 땐 바꿔야 함)
+      "[mail.smtp.starttls.enable]": false    # STARTTLS 사용 여부 (로컬 Mailpit을 위한 설정. 실제 외부 메일 서비스 사용할 땐 바꿔야 함)
+      "[mail.smtp.connectiontimeout]": 5000   # timeout 종류 : 연결읽기쓰기를 무한정 기다리지 않도록 제한
+      "[mail.smtp.timeout]": 5000
+      "[mail.smtp.writetimeout]": 5000
+
 springdoc:
   api-docs:
     enabled: true
   swagger-ui:
     enabled: true
 
-# Next.js 개발 주소와 정확히 일치해야 한다. 쿠키를 사용하므로 와일드카드는 허용하지 않는다.
 iyum:
   cors:
     allowed-origin: ${IYUM_WEB_ORIGIN:http://127.0.0.1:8443}
+
+  auth:
+    email-verification:
+      mail:
+        enabled: true   # 우리가 만들 메일 발송 빈의 활성화 여부
+        from: noreply@iyum.test   # 메일에 표시할 발신 주소
+        verification-page-url: http://127.0.0.1:8443/register/verify    # 이메일 인증 링크가 가리킬 프론트엔드 화면

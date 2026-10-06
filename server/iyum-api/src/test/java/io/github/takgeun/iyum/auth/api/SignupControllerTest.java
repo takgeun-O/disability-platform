@@ -1,5 +1,7 @@
 package io.github.takgeun.iyum.auth.api;
 
+import io.github.takgeun.iyum.auth.application.EmailVerificationTokenIssueService;
+import io.github.takgeun.iyum.auth.application.IssuedEmailVerificationToken;
 import io.github.takgeun.iyum.auth.application.SignupService;
 import io.github.takgeun.iyum.auth.application.SignupTermsPolicy;
 import io.github.takgeun.iyum.global.config.SecurityConfig;
@@ -29,6 +31,8 @@ import tools.jackson.databind.ObjectMapper;
 import tools.jackson.databind.node.ArrayNode;
 import tools.jackson.databind.node.ObjectNode;
 
+import java.time.Instant;
+
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.hamcrest.Matchers.hasItem;
 import static org.mockito.ArgumentMatchers.any;
@@ -40,6 +44,7 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
 
 // 실제 JSON 변환·DTO 검증·서비스 연결을 확인한다. DB 저장·롤백은 기존 통합 테스트가 담당한다.
+// 이 컨트롤러 테스트에서는 HTTP 입력과 응답을 확인하고, 실제 토큰 저장과 커밋 후 메일 처리는 통합 테스트에서 확인 예정 (SignupEmailVerificationIntegrationTest)
 @WebMvcTest(controllers = {SignupController.class, CsrfController.class}, properties = "spring.config.import=")
 @Import({SecurityConfig.class, GlobalExceptionHandler.class, SignupService.class, SignupTermsPolicy.class})
 class SignupControllerTest {
@@ -59,19 +64,40 @@ class SignupControllerTest {
             }
             """;
 
-    @Autowired MockMvc mockMvc;
-    @Autowired ObjectMapper objectMapper;
-    @MockitoBean MemberRepository memberRepository;
-    @MockitoBean MemberAgreementRepository memberAgreementRepository;
-    @MockitoBean PasswordEncoder passwordEncoder;
+    @Autowired
+    MockMvc mockMvc;
+    @Autowired
+    ObjectMapper objectMapper;
+
+    @MockitoBean
+    MemberRepository memberRepository;
+    @MockitoBean
+    MemberAgreementRepository memberAgreementRepository;
+    @MockitoBean
+    PasswordEncoder passwordEncoder;
+    @MockitoBean
+    EmailVerificationTokenIssueService tokenIssueService;
 
     @BeforeEach
     void prepareRepositoryBoundary() {
         Member saved = mock(Member.class);
+
         when(saved.getId()).thenReturn(42L);
         when(saved.getStatus()).thenReturn(MemberStatus.PENDING);
+        when(saved.getEmail()).thenReturn("member@example.com");
+
         when(memberRepository.saveAndFlush(any(Member.class))).thenReturn(saved);
+
         when(passwordEncoder.encode(anyString())).thenReturn(HASH);
+
+        when(tokenIssueService.issue(42L))
+                .thenReturn(
+                        new IssuedEmailVerificationToken(
+                                42L,
+                                "A".repeat(43),
+                                Instant.parse("2026-10-06T12:30:00Z")
+                        )
+                );
     }
 
     @Test

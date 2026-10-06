@@ -63,3 +63,8 @@ springdoc:
     enabled: false
   # 전역 예외 처리기의 응답을 모든 API에 자동 추가하지 않고 각 API의 계약을 문서화한다.
   override-with-generic-response: false
+
+iyum:
+  auth:
+    email-verification:
+      token-ttl: 30m
