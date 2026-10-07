@@ -38,7 +38,9 @@ public class EmailVerificationTokenIssueService {
         }
 
         // 회원 조회와 상태 확인
-        Member member = memberRepository.findById(memberId)
+        // memberRepository.findByIdForUpdate : 비관적 잠금
+        // 이 잠금은 issue() 트랜잭션 안에서 유지된다.
+        Member member = memberRepository.findByIdForUpdate(memberId)
                 .orElseThrow(() -> new IllegalArgumentException(
                         "존재하지 않는 회원입니다."
                 ));

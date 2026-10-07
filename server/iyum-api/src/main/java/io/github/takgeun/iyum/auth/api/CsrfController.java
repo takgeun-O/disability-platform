@@ -21,8 +21,8 @@ public class CsrfController {
     @Operation(
             summary = "CSRF 토큰 조회",
             description = "비로그인 상태에서도 조회할 수 있습니다. "
-                    + "응답 token을 회원가입의 X-CSRF-TOKEN 헤더에 넣고 동일한 세션 쿠키를 유지하세요. "
-                    + "이 토큰은 이메일 인증 토큰이 아닙니다."
+                    + "응답 token을 회원가입 또는 이메일 인증 요청의 "
+                    + "X-CSRF-TOKEN 헤더에 넣고 동일한 세션 쿠키를 유지하세요. "
     )
     @GetMapping(
             value = "/api/v1/auth/csrf",
