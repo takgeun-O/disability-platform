@@ -8,6 +8,7 @@ import io.github.takgeun.iyum.member.infrastructure.MemberAgreementRepository;
 import io.github.takgeun.iyum.member.infrastructure.MemberRepository;
 import lombok.RequiredArgsConstructor;
 import org.hibernate.exception.ConstraintViolationException;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
@@ -25,6 +26,9 @@ public class SignupService {
     private final MemberAgreementRepository memberAgreementRepository;
     private final SignupTermsPolicy signupTermsPolicy;
     private final PasswordEncoder passwordEncoder;
+
+    private final EmailVerificationTokenIssueService tokenIssueService;
+    private final ApplicationEventPublisher eventPublisher;
 
     /**
      * @Transactional : 두 리파지토리의 저장을 묶는다. (정상적으로 끝나면 회원과 약관 동의 이력이 함께 커밋)
@@ -80,10 +84,41 @@ public class SignupService {
         // SQL이 실행되었더라도 트랜잭션이 커밋된 것은 아니므로, 뒤의 약관 저장에서 실패하면 회원 저장도 롤백됨.
         memberAgreementRepository.saveAllAndFlush(agreements);  // 저장 후 즉시 flush
 
+        /**
+         * 토큰 발급
+         *
+         * SignupService.signup()과 tokenIssueService.issue() 모두 @Transactional이고
+         * 기본 전파 속성을 사용하므로, 이번 호출에서는 같은 트랜잭션에 참여한다.
+         *
+         * 따라서 다음 데이터가 함꼐 커밋되거나 함께 롤백된다.
+         * - 회원
+         * - 약관 동의
+         * - 이메일 인증 토큰
+         */
+        IssuedEmailVerificationToken issuedToken =
+                tokenIssueService.issue(savedMember.getId());
+
+        /**
+         * 메일 발송을 요청하는 이벤트 발행
+         * Spring이 커밋 후 처리하도록 등록
+         */
+        eventPublisher.publishEvent(
+                new EmailVerificationMailRequested(
+                        savedMember.getEmail(), // 수신 주소 중요! 회원 정보에 저장된 이메일로 인증 메일을 보내야 한다.
+                        issuedToken
+                )
+        );
+
         return new SignupResult(
                 savedMember.getId(),
                 savedMember.getStatus()
         );
+
+        // 메서드 본문이 반환
+        // → Spring의 트랜잭션 처리에서 커밋
+        // → 리스너 실행
+        // → 호출자에게 결과 반환
+        // (외부 트랜잭션에 참여 중이라면) -> 해당 외부 트랜잭션의 커밋이 끝날 때까지 기다린다.
     }
 
     private RuntimeException translateMemberConstraintViolation(
@@ -94,17 +129,17 @@ public class SignupService {
                 cause != null;
                 cause = cause.getCause()
         ) {
-            if(cause instanceof ConstraintViolationException violation) {
+            if (cause instanceof ConstraintViolationException violation) {
                 String constraintName = violation.getConstraintName();
 
-                if("uk_members_email".equals(constraintName)) {
+                if ("uk_members_email".equals(constraintName)) {
                     return new SignupConflictException(
                             SignupConflictException.Code.EMAIL_ALREADY_EXISTS,
                             exception
                     );
                 }
 
-                if("uk_members_nickname_lower".equals(constraintName)) {
+                if ("uk_members_nickname_lower".equals(constraintName)) {
                     return new SignupConflictException(
                             SignupConflictException.Code.NICKNAME_ALREADY_EXISTS,
                             exception

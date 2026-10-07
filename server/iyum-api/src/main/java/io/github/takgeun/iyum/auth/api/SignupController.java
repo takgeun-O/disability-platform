@@ -36,7 +36,9 @@ public class SignupController {
             summary = "회원가입",
             description = "비로그인 사용자를 PENDING(이메일 인증 대기) 상태로 가입시킵니다. "
                     + "이메일 인증 후 ACTIVE가 되면 사용자가 직접 로그인해야 하며, 가입 성공은 로그인이 아닙니다. "
-                    + "현재 이메일 인증 토큰 발급·메일 발송·로그인은 구현 예정입니다. "
+                    + "회원가입 시 이메일 인증 토큰을 발급합니다. "
+                    + "메일 발송이 활성화된 환경에서는 커밋 후 인증 메일 발송을 시도합니다. "
+                    + "메일 발송 실패 시에도 가입 데이터는 유지됩니다. "
                     + "먼저 GET /api/v1/auth/csrf를 호출하고, 같은 세션에서 token을 X-CSRF-TOKEN 헤더에 전달하세요.",
             parameters = @Parameter(
                     name = "X-CSRF-TOKEN",

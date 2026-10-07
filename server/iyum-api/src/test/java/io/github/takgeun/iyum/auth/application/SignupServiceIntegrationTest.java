@@ -1,5 +1,6 @@
 package io.github.takgeun.iyum.auth.application;
 
+import io.github.takgeun.iyum.auth.infrastructure.EmailVerificationTokenRepository;
 import io.github.takgeun.iyum.member.domain.*;
 import io.github.takgeun.iyum.member.infrastructure.MemberAgreementRepository;
 import io.github.takgeun.iyum.member.infrastructure.MemberRepository;
@@ -50,6 +51,9 @@ public class SignupServiceIntegrationTest {
     @MockitoSpyBean
     private MemberAgreementRepository memberAgreementRepository;
 
+    @Autowired
+    EmailVerificationTokenRepository tokenRepository;
+
     /**
      * Testcontainers가 실행한 PostgreSQL의 접속 정보를 Spring에 전달하는 코드.
      */
@@ -86,6 +90,8 @@ public class SignupServiceIntegrationTest {
     @BeforeEach
     void cleanDatabase() {
         // deleteAllInBatch() : 한 번의 삭제 쿼리로 전체 삭제 (Spring Data JPA가 제공하는 메소드, 테이블 구조는 유지하고 저장된 모든 행 삭제)
+        // 회원을 참조하는 토큰을 먼저 삭제해야 회원 삭제 가능
+        tokenRepository.deleteAllInBatch();
 
         // 회원을 참조하는 자식 데이터 먼저 삭제
         memberAgreementRepository.deleteAllInBatch();
