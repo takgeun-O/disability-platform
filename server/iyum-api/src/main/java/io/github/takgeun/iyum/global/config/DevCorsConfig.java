@@ -36,6 +36,7 @@ public class DevCorsConfig {
         cors.setAllowedOrigins(List.of(allowedOrigin));
 
         // 쿠키 같은 자격 증명을 포함하는 교차 출처 요청을 허용
+        // 프론트에서 아래와 같이 사용할 것
 //        fetch("http://127.0.0.1:8082/api/v1/auth/csrf", {
 //                credentials: "include"
 //        });
