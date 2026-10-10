@@ -132,6 +132,14 @@ export default function SignupVerify() {
                     </p>
                 )}
 
+                {link.kind !== 'ready' && (
+                    <p style={{ marginBottom: 24 }}>
+                        <Link href="/register/resend" style={{ fontSize: 14, color: '#4A4845', textDecoration: 'underline' }}>
+                            인증 메일 다시 요청하기
+                        </Link>
+                    </p>
+                )}
+
                 <Link
                     href="/"
                     style={{

@@ -29,7 +29,8 @@ public class LocalEmailVerificationMailTest {
                             )
                     )
                     .withUserConfiguration(
-                            EmailVerificationMailConfig.class
+                            EmailVerificationMailConfig.class,
+                            io.github.takgeun.iyum.global.config.EmailVerificationMailDispatchConfig.class
                     )
                     .withPropertyValues(
                             "spring.mail.host=127.0.0.1",

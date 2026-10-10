@@ -8,6 +8,9 @@ import io.github.takgeun.iyum.member.domain.TermsCode;
 import io.github.takgeun.iyum.member.infrastructure.MemberAgreementRepository;
 import io.github.takgeun.iyum.member.infrastructure.MemberRepository;
 import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.AfterEach;
+import org.springframework.scheduling.concurrent.ThreadPoolTaskExecutor;
+import static org.awaitility.Awaitility.await;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -113,6 +116,15 @@ public class SignupEmailVerificationIntegrationTest {
     // 메일은 실제로 보내면 안되므로 여기서는 @MockitoBean 선언
     @MockitoBean
     EmailVerificationMailSender mailSender; // 리스너에 해당 Mock 주입 -> Mailpit이 실행되지 않아도 이 통합 테스트가 가능하게 함
+
+    @Autowired
+    ThreadPoolTaskExecutor emailVerificationMailExecutor;
+
+    @AfterEach
+    void awaitMailTasks() {
+        await().until(() -> emailVerificationMailExecutor.getActiveCount() == 0
+                && emailVerificationMailExecutor.getQueueSize() == 0);
+    }
 
     @BeforeEach
     void cleanDatabase() {
@@ -229,7 +241,7 @@ public class SignupEmailVerificationIntegrationTest {
                 .isEqualTo(MemberStatus.PENDING);
 
         // 메일 발송 시점에 별도 트랜잭션에서도 가입 데이터가 조회됐다.
-        assertThat(committedDataVisible.get()).isTrue();
+        await().untilTrue(committedDataVisible);
 
         ArgumentCaptor<IssuedEmailVerificationToken> captor =
                 ArgumentCaptor.forClass(
@@ -237,7 +249,7 @@ public class SignupEmailVerificationIntegrationTest {
                 );
 
         // 7. 발송 인자를 캡처해서 회원, 토큰 연결 확인
-        verify(mailSender).send(
+        verify(mailSender, timeout(3000)).send(
                 eq("signup-mail@example.com"),
                 captor.capture()
         );
@@ -327,7 +339,7 @@ public class SignupEmailVerificationIntegrationTest {
                         .getStatus()
         ).isEqualTo(MemberStatus.PENDING);
 
-        verify(mailSender).send(
+        verify(mailSender, timeout(3000)).send(
                 eq("signup-mail@example.com"),
                 any(IssuedEmailVerificationToken.class)
         );
@@ -338,6 +350,8 @@ public class SignupEmailVerificationIntegrationTest {
     @Test
     void 중복_가입은_추가_토큰과_메일을_생성하지_않는다() {
         signupService.signup(validCommand());
+
+        awaitMailTasks();
 
         // 첫 번째 정상 가입의 호출 기록만 지웁니다.
         clearInvocations(mailSender);

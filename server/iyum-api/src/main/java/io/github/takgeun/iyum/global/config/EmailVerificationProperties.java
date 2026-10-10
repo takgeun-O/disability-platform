@@ -3,6 +3,7 @@ package io.github.takgeun.iyum.global.config;
 import org.springframework.boot.context.properties.ConfigurationProperties;
 
 import java.time.Duration;
+import org.springframework.boot.context.properties.bind.DefaultValue;
 
 // 이 접두사의 설정값을 이 객체에 바인딩하겠다는 의미
 // 실제로 객체를 만들고 빈으로 등록하려면 @EnableConfigurationProperties 또는 @ConfigurationPropertiesScan이 필요.
@@ -16,10 +17,19 @@ import java.time.Duration;
         prefix = "iyum.auth.email-verification"
 )
 public record EmailVerificationProperties(
-        Duration tokenTtl
+        Duration tokenTtl,
+        @DefaultValue("60s") Duration resendMinInterval,
+        @DefaultValue("5") int resendMaxPerHour
 ) {
 
     public EmailVerificationProperties {
+        if (resendMinInterval == null || resendMinInterval.isZero()
+                || resendMinInterval.isNegative() || resendMinInterval.compareTo(Duration.ofHours(1)) > 0) {
+            throw new IllegalArgumentException("재전송 최소 간격은 0초 초과, 1시간 이하여야 합니다.");
+        }
+        if (resendMaxPerHour < 1) {
+            throw new IllegalArgumentException("시간당 발급 횟수는 1 이상이어야 합니다.");
+        }
         if (tokenTtl == null
                 || tokenTtl.isZero()
                 || tokenTtl.isNegative()) {

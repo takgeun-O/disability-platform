@@ -13,6 +13,10 @@ public interface MemberRepository extends JpaRepository<Member, Long> {
 
     Optional<Member> findByEmail(String email);
 
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("select m from Member m where m.email = :email")
+    Optional<Member> findByEmailForUpdate(@Param("email") String email);
+
     boolean existsByEmail(String email);
 
     @Query("""

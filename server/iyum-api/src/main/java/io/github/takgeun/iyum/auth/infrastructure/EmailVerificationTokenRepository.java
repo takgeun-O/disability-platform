@@ -8,9 +8,28 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
 import java.util.Optional;
+import java.util.List;
+import java.time.Instant;
 
 public interface EmailVerificationTokenRepository
         extends JpaRepository<EmailVerificationToken, Long> {
+
+    // 사용·폐기·만료 여부와 무관하게 최초 가입을 포함한 모든 발급 이력을 센다.
+    @Query(
+            "select max(t.createdAt) " +
+                    "from EmailVerificationToken t " +
+                    "where t.memberId = :memberId")
+    Optional<Instant> findLatestIssuedAt(@Param("memberId") Long memberId);
+
+    long countByMemberIdAndCreatedAtGreaterThan(Long memberId, Instant windowStart);
+
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("""
+            select t from EmailVerificationToken t
+            where t.memberId = :memberId and t.usedAt is null and t.revokedAt is null
+            order by t.id
+            """)
+    List<EmailVerificationToken> findUnconsumedForUpdate(@Param("memberId") Long memberId);
 
     /**
      * 사용자가 원본 토큰을 제출하면 서버가 그 값을 해시하고,

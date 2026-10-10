@@ -8,6 +8,8 @@ import org.springframework.boot.context.properties.EnableConfigurationProperties
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.mail.javamail.JavaMailSender;
+import org.springframework.beans.factory.annotation.Qualifier;
+import java.util.concurrent.Executor;
 
 /**
  * 1. application-dev.yaml에서 mail.enabled=true 인지 확인
@@ -39,13 +41,14 @@ public class EmailVerificationMailConfig {
 
     // 커밋 후 이벤트를 처리하는 리스너 등록
     // mail.enabled=true 일 때 발송 구현체와 리스너가 함께 등록된다.
-    // 리스너에 @Component를 붙이지 않은 이유도 여기서 직접 빈으로 등록하기 떄문임. (참고로 dev 프로필에서는 가입과 토큰 저장은 실행되지만 메일 발송은 실행되지 않게 해놓음)
+    // 리스너는 여기서 직접 등록한다. dev 프로필은 Mailpit 발송이 켜져 있다.
     @Bean
     public EmailVerificationMailRequestedListener emailVerificationMailRequestedListener(
-        EmailVerificationMailSender mailSender
+        EmailVerificationMailSender mailSender,
+        @Qualifier("emailVerificationMailExecutor") Executor executor
     ) {
         return new EmailVerificationMailRequestedListener(
-                mailSender
+                mailSender, executor
         );
     }
 }

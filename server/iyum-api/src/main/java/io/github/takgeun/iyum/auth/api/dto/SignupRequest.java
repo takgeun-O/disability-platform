@@ -8,7 +8,7 @@ import jakarta.validation.Valid;
 import jakarta.validation.constraints.*;
 
 import java.util.List;
-import java.util.Locale;
+import io.github.takgeun.iyum.member.domain.MemberInputPolicy;
 
 @Schema(description = "회원가입 요청. 약관 두 항목 모두 현재 개발용 버전 dev-v1에 동의해야 합니다.")
 @ValidSignupRequest // SignupRequestValidator 를 실행하게 한다.
@@ -66,7 +66,7 @@ public record SignupRequest(
         // 잘못된 입력에 대한 판단은 검증기가 담당
 
         if (email != null) {
-            email = email.strip().toLowerCase(Locale.ROOT);
+            email = MemberInputPolicy.canonicalizeEmail(email);
         }
 
         if(nickname != null) {
