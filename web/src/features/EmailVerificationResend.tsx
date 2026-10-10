@@ -17,6 +17,9 @@ const acceptedMessage =
   "입력한 이메일이 인증 대기 상태이고 재전송 조건을 충족하면 인증 메일이 발송됩니다. 메일함과 스팸함을 확인해 주세요.";
 
 export default function EmailVerificationResend() {
+  // 1. 이메일 입력값은 email 상태에 저장된다.
+  // useState(""): 처음에는 빈 문자열을 저장
+  // email : 현재 저장된 이메일 값 , setEmail(...): 이메일 값을 변경하고 화면에 반영하도록 요청
   const [email, setEmail] = useState("");
   const [state, setState] = useState<ResendState>({ kind: "idle" });
   const inFlightRef = useRef(false);
@@ -38,9 +41,14 @@ export default function EmailVerificationResend() {
   }, [state]);
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
+    // 브라우저의 기본 폼 제출로 페이지가 새로 열리는 동작을 막는다.
     event.preventDefault();
     if (!mountedRef.current || inFlightRef.current) return;
+
+    // 빈 값, 길이, 기본 이메일 형식을 검사한다.
     const validationError = validateEmail(email);
+
+    // 오류가 있으면 리턴한다. (오류를 화면에 표시하고 서버 요청은 보내지 않음)
     if (validationError) {
       setState({ kind: "error", message: validationError, emailInvalid: true });
       return;
@@ -50,9 +58,20 @@ export default function EmailVerificationResend() {
     setState({ kind: "submitting" });
     try {
       // 수동 재시도마다 동일 세션의 새 CSRF 값을 조회한다.
+      // 작동 순서
+      // 1. getCsrfToken()으로 CSRF 토큰을 받는다.
+      // 2. { email } 객체와 CSRF 토큰을 API 함수에 전달한다.
+      // 3. API 함수가 정상적으로 끝나면 화면 상태를 accepted로 바꾼다.
       const csrfToken = await getCsrfToken();
       if (!mountedRef.current) return;
+      // { email } 은 { email: email }의 축약형임
+      // 왼쪽 email은 서버로 전달할 필드명, 오른쪽 email은 현재 상태에 저장된 값
+      // 실제 fetch()는 resendEmailVerification() 안에서 실행된다.
       await resendEmailVerification({ email }, csrfToken);
+
+      // resendEmailVerification()에서 HTTP 202와 본문의 ACCEPTED를 모두 확인하면 정상 반환이 되고
+      // 정상 반환하면 setState({ kind: "accepted" }); 가 실행되어
+      // {state.kind === "accepted" ...} 로 인해 화면이 표시된다.
       if (mountedRef.current) setState({ kind: "accepted" });
     } catch (error) {
       if (!mountedRef.current) return;
