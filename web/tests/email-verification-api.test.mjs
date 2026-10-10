@@ -174,3 +174,29 @@ test("API 주소가 없으면 요청 전에 실패한다", async (t) => {
     }
   }
 });
+
+test("API 주소 끝에 슬래시가 있어도 올바른 인증 URL로 요청한다", async (t) => {
+  const previousValue = process.env.NEXT_PUBLIC_API_BASE_URL;
+
+  process.env.NEXT_PUBLIC_API_BASE_URL = baseUrl + "/";
+
+  let requestedUrl;
+
+  t.mock.method(globalThis, "fetch", async (url) => {
+    requestedUrl = url;
+
+    return json({ status: "ACTIVE" });
+  });
+
+  try {
+    await api.verifyEmail(request, "test-csrf-token");
+
+    assert.equal(requestedUrl, baseUrl + "/api/v1/auth/email/verify");
+  } finally {
+    if (previousValue === undefined) {
+      delete process.env.NEXT_PUBLIC_API_BASE_URL;
+    } else {
+      process.env.NEXT_PUBLIC_API_BASE_URL = previousValue;
+    }
+  }
+});

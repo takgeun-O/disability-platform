@@ -38,11 +38,11 @@ export async function verifyEmail(
         throw new EmailVerificationApiError(
             0,
             "API_NOT_CONFIGURED",
-            "인증 서비스에 연결할 수 없습니다. 잠ㅣ 후 다시 시도해 주세요.",
+            "인증 서비스에 연결할 수 없습니다. 잠시 후 다시 시도해 주세요.",
         );
     }
 
-    const url = baseUrl.replace(/\/s/, "") + "/api/v1/auth/email/verify";
+    const url = baseUrl.replace(/\/$/, "") + "/api/v1/auth/email/verify";
 
     let response: Response;
 

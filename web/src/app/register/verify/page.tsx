@@ -4,13 +4,13 @@ import { Suspense } from 'react';
 import SignupVerify from '@/features/SignupVerify';
 
 export const metadata: Metadata = {
-    // 페이지 주소에는 이메일 인증 토큰이 포함된다.
-    // 이 설정은 브라우저가 이 페이지에서 보내는 요청에 이전 페이지 주소인 Referer 정보를
-    // 싣지 않도록 하기 위한 설정. (토큰이 포함된 URL이 참조 주소로 전달되는 것을 막는 목적)
+    // 이 페이지에서 나가는 요청의 Referer 헤더에
+    // 토큰이 포함된 현재 페이지 URL이 전달되지 않도록 한다.
   referrer: 'no-referrer',
 };
 
 function VerificationFallback() {
+    // 준비 중에 보여줄 화면을 정의한다. (임시 안내 화면)
   return (
     <main>
       <div
@@ -32,6 +32,7 @@ export default function Page() {
   return (
     // URL의 쿼리를 읽는 화면이 준비되는 동안 fallback에 지정한 안내를 표시하도록 구성
     // 개발 서버에서는 문제가 없어보여도 프로덕션 빌드에서 오류가 날 수 있어서 함께 적용한다.
+    // SignupVerify : 실제로 보여줄 인증 화면
     <Suspense fallback={<VerificationFallback />}>
       <SignupVerify />
     </Suspense>
