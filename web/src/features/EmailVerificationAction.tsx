@@ -26,6 +26,7 @@ type VerificationState =
       kind: 'error';
       message: string;
       canRetry: boolean;
+      canResend?: boolean;
     };
 
 export default function EmailVerificationAction({
@@ -128,6 +129,7 @@ export default function EmailVerificationAction({
           kind: 'error',
           message: error.message,
           canRetry: !cannotRetry,
+          canResend: error.code === 'EMAIL_VERIFICATION_INVALID',
         });
       } else if (error instanceof SignupApiError) {
         // 기존 getCsrfToken()에서 발생하는 오류입니다.
@@ -223,6 +225,14 @@ export default function EmailVerificationAction({
             로그인 화면으로 이동
           </Link>
         </div>
+      )}
+
+      {state.kind === 'error' && state.canResend && (
+        <p style={{ marginBottom: 16 }}>
+          <Link href="/register/resend" style={{ fontSize: 14, color: '#4A4845', textDecoration: 'underline' }}>
+            인증 메일 다시 요청하기
+          </Link>
+        </p>
       )}
 
       {showButton && (

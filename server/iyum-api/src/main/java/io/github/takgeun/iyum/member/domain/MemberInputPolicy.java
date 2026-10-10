@@ -14,12 +14,16 @@ public final class MemberInputPolicy {
 
     private MemberInputPolicy() {}
 
+    public static String canonicalizeEmail(String email) {
+        return email == null ? null : email.strip().toLowerCase(Locale.ROOT);
+    }
+
     public static String normalizeEmail(String email) {
         if(email == null || email.isBlank()) {
             throw new IllegalArgumentException("이메일은 필수입니다.");
         }
 
-        String normalized = email.strip().toLowerCase(Locale.ROOT);
+        String normalized = canonicalizeEmail(email);
 
         if(normalized.length() > 254) {
             throw new IllegalArgumentException(

@@ -68,3 +68,5 @@ iyum:
   auth:
     email-verification:
       token-ttl: 30m
+      resend-min-interval: 60s
+      resend-max-per-hour: 5

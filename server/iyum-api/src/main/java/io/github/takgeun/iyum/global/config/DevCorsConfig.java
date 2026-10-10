@@ -65,6 +65,8 @@ public class DevCorsConfig {
         source.registerCorsConfiguration("/api/v1/auth/signup", cors);
         source.registerCorsConfiguration("/api/v1/auth/email/verify", cors);
 
+        source.registerCorsConfiguration("/api/v1/auth/email/resend", cors);
+
         return source;
     }
 }

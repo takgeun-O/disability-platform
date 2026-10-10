@@ -17,14 +17,20 @@ export function buildSignupRequest(fields: SignupFields, agreements: SignupAgree
   return { ...fields, agreements };
 }
 
+// 가입과 재전송 폼이 같은 입력 안내 정책을 사용한다. 최종 검증은 서버가 담당한다.
+export function validateEmail(value: string): string | undefined {
+  const email = value.trim();
+  if (!email) return '이메일을 입력해 주세요.';
+  if (email.length > 254 || !/^[^\s@]+@[^\s@]+$/.test(email)) {
+    return '올바른 이메일 주소를 254자 이내로 입력해 주세요.';
+  }
+}
+
 export function validateSignupForm(fields: SignupFields, agreements: SignupAgreement[] | null): SignupFormErrors {
   const errors: SignupFormErrors = {};
-  const email = fields.email.trim();
   const nickname = fields.nickname.trim();
-  if (!email) errors.email = '이메일을 입력해 주세요.';
-  else if (email.length > 254 || !/^[^\s@]+@[^\s@]+$/.test(email)) {
-    errors.email = '올바른 이메일 주소를 254자 이내로 입력해 주세요.';
-  }
+  const emailError = validateEmail(fields.email);
+  if (emailError) errors.email = emailError;
   if (!fields.password) errors.password = '비밀번호를 입력해 주세요.';
   else if (fields.password.length < 8 || !/[A-Za-z]/.test(fields.password) || !/[0-9]/.test(fields.password)) {
     errors.password = '비밀번호는 8자 이상이며 영문과 숫자를 포함해야 합니다.';

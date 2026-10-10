@@ -1,46 +1,56 @@
 package io.github.takgeun.iyum.auth.application;
 
-import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.transaction.event.TransactionPhase;
 import org.springframework.transaction.event.TransactionalEventListener;
 
+import java.util.concurrent.Executor;
+import java.util.concurrent.RejectedExecutionException;
+
 /**
- * 커밋 후 이벤트를 처리하는 리스너 작성
+ * 애플리케이션 시작 시 다음 과정을 거친다.
+ * 1. Spring이 EmailVerificationMailConfig를 발견하고 활성화 조건 확인
+ * 2. emailVerificationMailSender()로 SMTP 발송 구현체 등록
+ * 3. 발송 구현체와 emailVerificationMailExecutor 빈을 주입하여 리스너를 생성하고 등록한다.
+ * 4. 리스너의 @TransactionalEventListener 메서드를 감지해, EmailVerificationMailRequested 이벤트를 처리하도록 연결한다.
  */
 @Slf4j
-@RequiredArgsConstructor
 public class EmailVerificationMailRequestedListener {
-
     private final EmailVerificationMailSender mailSender;
+    private final Executor executor;
 
-    @TransactionalEventListener(
-            // 이벤트가 발행된 트랜잭션이 성공적으로 커밋된 뒤 실행하도록 지정
-            // AFTER_COMMIT이 자동으로 비동기 실행을 뜻하는 것은 아님.
-            // 이번 구현은 같은 요청 스레드에서 커밋 후 발송을 시도하므로, SMTP가 느리면 가입 응답도 늦어질 수 있다.
-            // 그래서 이전에 설정한 SMTP 타임아웃이 이 때 필요함.
-            phase = TransactionPhase.AFTER_COMMIT
-    )
+    public EmailVerificationMailRequestedListener(
+            EmailVerificationMailSender mailSender,
+            @Qualifier("emailVerificationMailExecutor") Executor executor
+    ) {
+        this.mailSender = mailSender;
+        this.executor = executor;
+    }
+
+    // Spring은 이벤트 타입으로 리스너를 연결한다.
+    // 여기서 연결 기준은 메서드 파라미터의 타입 : EmailVerificationMailRequested
+    // 여기서 AFTER_COMMIT 설정을 했으니 이벤트 발행 시 Spring은 이 트랜잭션이 성공적으로 커밋되면 처리하도록 등록한다.
+    @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
     public void on(EmailVerificationMailRequested event) {
+        // 리스너가 실제로 메일 발송 처리
         try {
-            mailSender.send(
-                    event.recipientEmail(),
-                    event.issuedToken()
-            );
+            // 커밋 전에는 큐에도 넣지 않는다. 요청 응답은 SMTP 완료를 기다리지 않는다.
+            executor.execute(() -> send(event));
+        } catch (RejectedExecutionException exception) {
+            // 발송 실패 로그
+            log.error("이메일 인증 메일 큐 등록 실패. memberId={}, failureType={}",
+                    event.issuedToken().memberId(), exception.getClass().getSimpleName());
+        }
+    }
+
+    private void send(EmailVerificationMailRequested event) {
+        try {
+            mailSender.send(event.recipientEmail(), event.issuedToken());
         } catch (RuntimeException exception) {
-            /**
-             * 이 시점에는 회원과 토큰이 이미 저장됐음. 따라서 메일 발송 실패는 이미 완료된 가입과 별도로 처리해야 한다.
-             *
-             * 로그에는 두 정보만 남긴다.
-             * - 어떤 회원의 발송이 실패했는지
-             * - 어떤 종류의 예외였는지
-             * 메일 본문이나 토큰이 예외 메시지에 포함될 가능성을 피하기 위해 예외 메시지와 예외 객체 전체를 출력하지 않음.
-             */
-            log.error(
-                    "이메일 인증 메일 발송 실패. memberId={}, failureType={}",
-                    event.issuedToken().memberId(),
-                    exception.getClass().getSimpleName()
-            );
+            // 이미 커밋한 DB 결과는 유지한다. 민감한 예외 메시지·본문·토큰은 기록하지 않는다.
+            log.error("이메일 인증 메일 발송 실패. memberId={}, failureType={}",
+                    event.issuedToken().memberId(), exception.getClass().getSimpleName());
         }
     }
 }
