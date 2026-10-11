@@ -49,3 +49,6 @@ out/
 .idea/
 *.iml
 .DS_Store
+
+# Next.js generated type declarations
+/next-env.d.ts

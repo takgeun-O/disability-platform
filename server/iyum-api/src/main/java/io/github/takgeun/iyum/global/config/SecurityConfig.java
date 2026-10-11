@@ -11,6 +11,8 @@ import org.springframework.http.HttpMethod;
 import org.springframework.http.MediaType;
 import org.springframework.security.config.Customizer;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
+import org.springframework.security.config.annotation.web.configurers.AbstractHttpConfigurer;
+import org.springframework.security.web.AuthenticationEntryPoint;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.access.AccessDeniedHandler;
 import org.springframework.security.web.csrf.CsrfException;
@@ -51,6 +53,31 @@ public class SecurityConfig {
                                     csrfFailure
                                             ? "CSRF 토큰을 확인해 주세요."
                                             : "접근 권한이 없습니다."
+                            )
+                    );
+                };
+
+        // 로그인하지 않은 사용자가 보호된 API에 접근했을 때 실행
+        AuthenticationEntryPoint authenticationEntryPoint =
+                (request, response, exception) -> {
+                    response.setStatus(401);
+                    response.setContentType(MediaType.APPLICATION_JSON_VALUE);
+                    response.setCharacterEncoding(
+                            StandardCharsets.UTF_8.name()
+                    );
+
+                    /**
+                     * {
+                     *   "code": "AUTHENTICATION_REQUIRED",
+                     *   "message": "로그인이 필요합니다.",
+                     *   "fieldErrors": []
+                     * }
+                     */
+                    objectMapper.writeValue(
+                            response.getWriter(),
+                            ApiErrorResponse.of(
+                                    "AUTHENTICATION_REQUIRED",
+                                    "로그인이 필요합니다."
                             )
                     );
                 };
@@ -114,14 +141,16 @@ public class SecurityConfig {
                 .csrf(Customizer.withDefaults())
                 .cors(Customizer.withDefaults())
 
-                .exceptionHandling(exceptions ->
-                        exceptions.accessDeniedHandler(accessDeniedHandler)
+                .exceptionHandling(exceptions -> exceptions
+                        // 비로그인 사용자의 보호된 API 접근 -> 401
+                        .authenticationEntryPoint(authenticationEntryPoint)
+                        // 접근 권한 부족 또는 CSRF 오류 -> 403
+                        .accessDeniedHandler(accessDeniedHandler)
                 )
 
-                // 기존 Boot 기본 인증 방식을 보존한다.
-                // 회원 로그인 구현은 후속 작업이다.
-                .formLogin(Customizer.withDefaults())
-                .httpBasic(Customizer.withDefaults());
+                // 기본 HTML 로그인과 HTTP Basic 인증을 끄고, 내가 만들 JSON 로그인 API를 통해 인증하도록 준비
+                .formLogin(AbstractHttpConfigurer::disable)
+                .httpBasic(AbstractHttpConfigurer::disable);
 
         return http.build();
     }
