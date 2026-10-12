@@ -59,13 +59,17 @@ public class DevCorsConfig {
 
         // 설정을 허용할 API 경로 지정
         // UrlBasedCorsConfigurationSource : 요청 URL에 맞는 CORS 설정을 찾아주는 역할
-        // SecurityCOnfig의 .cors(Customizer.withDefaults()) 코드가 Spring Security의 요청 처리에 아래 설정을 연결한다.
+        // SecurityConfig의 .cors(Customizer.withDefaults()) 코드가 Spring Security의 요청 처리에 아래 설정을 연결한다.
         UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
         source.registerCorsConfiguration("/api/v1/auth/csrf", cors);
         source.registerCorsConfiguration("/api/v1/auth/signup", cors);
         source.registerCorsConfiguration("/api/v1/auth/email/verify", cors);
 
         source.registerCorsConfiguration("/api/v1/auth/email/resend", cors);
+        source.registerCorsConfiguration("/api/v1/auth/login", cors);   // 프론트엔드에서 로그인 API 호출 시 기존 개발 Origin과 쿠키 포함 요청 허용
+
+        source.registerCorsConfiguration("/api/v1/auth/me", cors);
+        source.registerCorsConfiguration("/api/v1/auth/logout", cors);
 
         return source;
     }
