@@ -1,16 +1,16 @@
 "use client";
 
-import { useState, useId, useRef } from 'react'
+import { useEffect, useState, useId, useRef, type FormEvent } from 'react';
 import Link from '@/components/AppLink';
 import { useRouter } from 'next/navigation';
 import { safeReturnPath } from '@/lib/navigation';
 import { useQueryParams } from '@/lib/useQueryParams';
+import { useAuth } from '@/components/AuthProvider';
+import { useNavigationGuard } from '@/components/NavigationGuard';
+import { AuthApiError, getAuthCsrf } from '@/lib/auth-api';
+import { validateLoginForm } from '@/lib/login-form';
 
-// ─── Types ────────────────────────────────────────────────────────────────────
-
-type FormState = 'idle' | 'processing' | 'authFail' | 'networkError' | 'restricted'
-
-// ─── Helpers ──────────────────────────────────────────────────────────────────
+type Feedback = { kind: 'error' | 'success'; message: string; needsVerification?: boolean; canContinue?: boolean };
 
 function inputStyle(hasError: boolean, extra: React.CSSProperties = {}): React.CSSProperties {
   const c = hasError ? '#B91C1C' : '#1A1918'
@@ -40,217 +40,117 @@ function fieldErrorStyle(): React.CSSProperties {
   return { fontSize: 12, color: '#B91C1C', marginTop: 5, margin: 0 }
 }
 
-// ─── Mock sentinels (prototype-only, not real Product credentials) ───────────
-//
-//   success@example.com   / success1234   → Login success → Home
-//   restricted@example.com / restricted1234 → Restricted state
-//   error@example.com     / error1234     → Network/System Error
-//   anything else (valid form)            → Authentication Failure
-
-// ─── Screen ───────────────────────────────────────────────────────────────────
-
 export default function Login() {
-  const [searchParams] = useQueryParams()
-  const router = useRouter()
-  const uid = useId()
+  const [searchParams] = useQueryParams();
+  const router = useRouter();
+  const auth = useAuth();
+  const guard = useNavigationGuard();
+  const uid = useId();
+  const destination = safeReturnPath(searchParams.get('from') ?? '');
+  const hasReturn = destination !== '/';
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [showPw, setShowPw] = useState(false);
+  const [emailError, setEmailError] = useState('');
+  const [pwError, setPwError] = useState('');
+  const [feedback, setFeedback] = useState<Feedback | null>(null);
+  const [preparing, setPreparing] = useState(false);
+  const emailRef = useRef<HTMLInputElement>(null);
+  const pwRef = useRef<HTMLInputElement>(null);
+  const feedbackRef = useRef<HTMLDivElement>(null);
+  const inFlightRef = useRef(false);
+  const mountedRef = useRef(false);
+  const isProcessing = auth.pending !== null || preparing;
 
-  // `from` carries the encoded return path (not displayed to user)
-  const fromParam  = searchParams.get('from')  ?? ''
-  // `state` enables static state inspection via URL for Lo-Fi review
-  const stateParam = searchParams.get('state') ?? ''
+  useEffect(() => {
+    mountedRef.current = true;
+    return () => { mountedRef.current = false; };
+  }, []);
+  useEffect(() => {
+    if (emailError) emailRef.current?.focus();
+    else if (pwError) pwRef.current?.focus();
+    else feedbackRef.current?.focus();
+  }, [emailError, pwError, feedback]);
 
-  const initFormState = (): FormState => {
-    switch (stateParam) {
-      case 'authFail':     return 'authFail'
-      case 'networkError': return 'networkError'
-      case 'restricted':   return 'restricted'
-      case 'processing':   return 'processing'
-      default:             return 'idle'
-    }
+  function navigateAfterLogin() {
+    guard.request(() => router.replace(destination));
   }
-
-  // Pre-populate email for static state inspection frames
-  const initEmail = (): string => {
-    switch (stateParam) {
-      case 'restricted':   return 'restricted@example.com'
-      case 'authFail':
-      case 'networkError':
-      case 'processing':   return 'user@example.com'
-      default:             return ''
+  async function handleSubmit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!mountedRef.current || inFlightRef.current || auth.pending) return;
+    const values = { email, password }; // 비밀번호 원문으로 요청 객체를 만든다.
+    const errors = validateLoginForm(values);
+    setEmailError(errors.email ?? '');
+    setPwError(errors.password ?? '');
+    setFeedback(null);
+    if (Object.keys(errors).length) {
+      (errors.email ? emailRef : pwRef).current?.focus();
+      return;
     }
-  }
-
-  const [formState, setFormState]     = useState<FormState>(initFormState)
-  const [email, setEmail]             = useState(initEmail)
-  const [password, setPassword]       = useState('')
-  const [keepLogin, setKeepLogin]     = useState(false)
-  const [showPw, setShowPw]           = useState(false)
-  const [emailError, setEmailError]   = useState('')
-  const [pwError, setPwError]         = useState('')
-
-  const emailRef = useRef<HTMLInputElement>(null)
-  const pwRef    = useRef<HTMLInputElement>(null)
-
-  const isProcessing = formState === 'processing'
-  const hasReturn    = !!fromParam
-
-  // ── Validation ─────────────────────────────────────────────────────────────
-
-  function validate(): boolean {
-    let firstRef: React.RefObject<HTMLInputElement | null> | null = null
-
-    const trimmed = email.trim()
-    if (!trimmed) {
-      setEmailError('이메일을 입력해 주세요.')
-      if (!firstRef) firstRef = emailRef
-    } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(trimmed)) {
-      setEmailError('올바른 이메일 형식을 입력해 주세요.')
-      if (!firstRef) firstRef = emailRef
-    } else {
-      setEmailError('')
-    }
-
-    if (!password) {
-      setPwError('비밀번호를 입력해 주세요.')
-      if (!firstRef) firstRef = pwRef
-    } else {
-      setPwError('')
-    }
-
-    if (firstRef) firstRef.current?.focus()
-    return firstRef === null
-  }
-
-  // ── Submit ─────────────────────────────────────────────────────────────────
-
-  function handleSubmit(e: React.FormEvent) {
-    e.preventDefault()
-    if (isProcessing) return
-
-    // Reset form-level state and field errors before new attempt
-    setFormState('idle')
-    setEmailError('')
-    setPwError('')
-
-    if (!validate()) return
-
-    setFormState('processing')
-
-    setTimeout(() => {
-      const trimmed = email.trim()
-
-      if (trimmed === 'success@example.com' && password === 'success1234') {
-        const dest = safeReturnPath(fromParam)
-        router.push(dest)
-        return
+    inFlightRef.current = true;
+    try {
+      const result = await auth.signIn(values, () => {
+        if (!mountedRef.current) return;
+        setPassword('');
+        setShowPw(false);
+        setFeedback({ kind: 'success', message: '로그인 상태를 확인했습니다. 보안 확인 정보를 갱신하고 있습니다.' });
+      });
+      if (!mountedRef.current || result.kind === 'ignored') return;
+      if (result.csrfReady && !result.recovered) navigateAfterLogin();
+      else setFeedback({ kind: 'success', canContinue: true,
+        message: result.recovered
+          ? '로그인 응답을 확인하지 못했지만 현재 로그인된 세션을 확인했습니다. 회원 정보를 확인한 뒤 계속해 주세요.'
+          : '로그인은 완료되었습니다. 이후 요청을 위한 보안 확인 정보를 가져오지 못했습니다. 다시 확인하거나 계속할 수 있습니다.' });
+    } catch (error) {
+      if (!mountedRef.current) return;
+      if (error instanceof AuthApiError) {
+        setEmailError(error.fieldErrors.email ?? '');
+        setPwError(error.fieldErrors.password ?? '');
+        setFeedback({ kind: 'error', message: error.message, needsVerification: error.code === 'EMAIL_VERIFICATION_REQUIRED' });
+      } else {
+        setFeedback({ kind: 'error', message: '로그인 결과를 확인하지 못했습니다. 현재 로그인 상태를 다시 확인해 주세요.' });
       }
-      if (trimmed === 'restricted@example.com' && password === 'restricted1234') {
-        setFormState('restricted')
-        return
-      }
-      if (trimmed === 'error@example.com' && password === 'error1234') {
-        setFormState('networkError')
-        return
-      }
-      // Default mock: credentials not accepted → Authentication Failure
-      setFormState('authFail')
-    }, 400)
+    } finally { inFlightRef.current = false; }
   }
-
-  // ── Render ─────────────────────────────────────────────────────────────────
-
-  const formAreaLabel: Record<FormState, string | null> = {
-    idle:         null,
-    processing:   null,
-    authFail:     '이메일 또는 비밀번호를 확인해 주세요.',
-    networkError: '로그인 중 문제가 발생했습니다. 잠시 후 다시 시도해 주세요.',
-    restricted:   '현재 이 계정으로 로그인할 수 없습니다.',
+  async function prepareAndContinue() {
+    if (inFlightRef.current || isProcessing) return;
+    inFlightRef.current = true;
+    setPreparing(true);
+    try {
+      await getAuthCsrf();
+      if (mountedRef.current) navigateAfterLogin();
+    } catch {
+      if (mountedRef.current) setFeedback({ kind: 'success', canContinue: true,
+        message: '로그인 상태는 유지됩니다. 보안 확인 정보를 아직 가져오지 못했습니다. 연결을 확인하거나 계속해 주세요.' });
+    } finally {
+      inFlightRef.current = false;
+      if (mountedRef.current) setPreparing(false);
+    }
   }
 
   return (
     <main>
       <div style={{ maxWidth: 440, margin: '0 auto', padding: '60px 24px 80px' }}>
-
-        {/* H1 */}
-        <h1 style={{ fontSize: 22, fontWeight: 700, color: '#1A1918', letterSpacing: '-0.01em', marginBottom: hasReturn ? 10 : 36 }}>
-          로그인
-        </h1>
-
-        {/* Return context hint — no technical URL displayed */}
-        {hasReturn && (
-          <p style={{ fontSize: 13, color: '#908D88', marginBottom: 32 }}>
-            로그인 후 이전 페이지로 이동합니다.
-          </p>
-        )}
-
-        <form onSubmit={handleSubmit} noValidate aria-label="로그인 양식">
-
-          {/* ── Auth Failure (form-level) ──────────────────────────── */}
-          {formState === 'authFail' && (
-            <div
-              role="alert"
-              style={{
-                borderTop: '1px solid #B91C1C', borderBottom: '1px solid #B91C1C',
-                borderLeft: '1px solid #B91C1C', borderRight: '1px solid #B91C1C',
-                borderRadius: 2, padding: '11px 14px', marginBottom: 24,
-              }}
-            >
-              <p style={{ fontSize: 13, color: '#B91C1C', margin: 0 }}>
-                {formAreaLabel.authFail}
-              </p>
-            </div>
-          )}
-
-          {/* ── Network / System Error (form-level) ───────────────── */}
-          {formState === 'networkError' && (
-            <div
-              role="alert"
-              style={{
-                borderTop: '1px solid #92400E', borderBottom: '1px solid #92400E',
-                borderLeft: '1px solid #92400E', borderRight: '1px solid #92400E',
-                borderRadius: 2, padding: '11px 14px', marginBottom: 24,
-              }}
-            >
-              <p style={{ fontSize: 13, color: '#92400E', margin: 0, marginBottom: 8 }}>
-                {formAreaLabel.networkError}
-              </p>
-              <button
-                type="button"
-                onClick={() => {
-                  // Retry: show Processing briefly, then return to recoverable idle state
-                  setFormState('processing')
-                  setTimeout(() => setFormState('idle'), 400)
-                }}
-                aria-label="로그인 다시 시도"
-                style={{
-                  fontSize: 12, color: '#92400E', background: 'none', border: 'none',
-                  padding: 0, cursor: 'pointer', textDecoration: 'underline', fontFamily: 'inherit',
-                }}
-              >
-                다시 시도
-              </button>
-            </div>
-          )}
-
-          {/* ── Restricted account (form-level) ───────────────────── */}
-          {formState === 'restricted' && (
-            <div
-              role="alert"
-              style={{
-                borderTop: '1px solid #D0CEC9', borderBottom: '1px solid #D0CEC9',
-                borderLeft: '1px solid #D0CEC9', borderRight: '1px solid #D0CEC9',
-                borderRadius: 2, padding: '11px 14px', marginBottom: 24,
-              }}
-            >
-              <p style={{ fontSize: 13, color: '#4A4845', margin: 0, marginBottom: 4 }}>
-                {formAreaLabel.restricted}
-              </p>
-              <p style={{ fontSize: 12, color: '#908D88', margin: 0 }}>
-                계정 상태를 확인하거나 문의해 주세요.
-              </p>
-            </div>
-          )}
-
+        <h1 style={{ fontSize: 22, fontWeight: 700, color: '#1A1918', letterSpacing: '-0.01em', marginBottom: hasReturn ? 10 : 36 }}>로그인</h1>
+        {hasReturn && <p style={{ fontSize: 13, color: '#908D88', marginBottom: 32 }}>로그인 후 이전 페이지로 이동합니다.</p>}
+        {feedback && <div ref={feedbackRef} tabIndex={-1} role={feedback.kind === 'error' ? 'alert' : 'status'}
+          style={{ border: '1px solid #D0CEC9', borderRadius: 2, padding: '11px 14px', marginBottom: 24,
+            fontSize: 13, lineHeight: 1.7, color: feedback.kind === 'error' ? '#B91C1C' : '#4A4845' }}>
+          <p style={{ margin: 0 }}>{feedback.message}</p>
+          {feedback.needsVerification && <Link href="/register/resend" style={{ textDecoration: 'underline' }}>인증 메일 다시 요청하기</Link>}
+        </div>}
+        {auth.status === 'authenticated' && auth.member ? (
+          <div>
+            <p style={{ fontSize: 14, marginBottom: 20 }}>{auth.member.nickname}님으로 로그인되어 있습니다.</p>
+            <button type="button" disabled={isProcessing} onClick={navigateAfterLogin}
+              style={{ padding: '12px 20px', background: '#1A1918', color: '#FAFAF8', borderRadius: 2, cursor: isProcessing ? 'wait' : 'pointer' }}>
+              {isProcessing ? '보안 확인 중…' : hasReturn ? '이전 페이지로 계속' : '홈으로 이동'}
+            </button>
+            {feedback?.canContinue && <button type="button" disabled={isProcessing} onClick={() => { void prepareAndContinue(); }}
+              style={{ display: 'block', marginTop: 16, fontSize: 13, textDecoration: 'underline', cursor: 'pointer' }}>보안 정보 다시 확인</button>}
+          </div>
+        ) : (
+          <form onSubmit={handleSubmit} noValidate aria-label="로그인 양식" aria-busy={isProcessing}>
           {/* ── Email field ────────────────────────────────────────── */}
           <div style={{ marginBottom: 20 }}>
             <label htmlFor={`${uid}-email`} style={labelStyle()}>
@@ -327,49 +227,15 @@ export default function Login() {
             )}
           </div>
 
-          {/* ── 로그인 유지 ────────────────────────────────────────── */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 28 }}>
-            <input
-              id={`${uid}-keep`}
-              type="checkbox"
-              checked={keepLogin}
-              onChange={(e) => setKeepLogin(e.target.checked)}
-              disabled={isProcessing}
-              style={{ width: 16, height: 16, cursor: isProcessing ? 'default' : 'pointer', accentColor: '#1A1918', flexShrink: 0 }}
-            />
-            <label
-              htmlFor={`${uid}-keep`}
-              style={{ fontSize: 13, color: '#4A4845', cursor: isProcessing ? 'default' : 'pointer', userSelect: 'none' }}
-            >
-              로그인 유지
-            </label>
-          </div>
-
-          {/* ── Primary action ─────────────────────────────────────── */}
-          <button
-            type="submit"
-            disabled={isProcessing}
-            aria-disabled={isProcessing}
-            aria-label={isProcessing ? '로그인 처리 중' : '로그인'}
-            style={{
-              width: '100%',
-              backgroundColor: isProcessing ? '#908D88' : '#1A1918',
-              color: '#FAFAF8',
-              border: 'none',
-              borderRadius: 2,
-              padding: '12px 0',
-              fontSize: 15,
-              fontWeight: 700,
-              cursor: isProcessing ? 'default' : 'pointer',
-              fontFamily: 'inherit',
-              letterSpacing: '-0.01em',
-            }}
-          >
-            {isProcessing ? '처리 중...' : '로그인'}
-          </button>
-
-        </form>
-
+            {isProcessing && <p role="status" aria-live="polite" style={{ fontSize: 13, marginBottom: 12 }}>로그인 요청을 처리하고 있습니다.</p>}
+            <button type="submit" disabled={isProcessing} aria-label={isProcessing ? '로그인 처리 중' : '로그인'}
+              style={{ width: '100%', backgroundColor: isProcessing ? '#908D88' : '#1A1918', color: '#FAFAF8',
+                border: 'none', borderRadius: 2, padding: '12px 0', fontSize: 15, fontWeight: 700,
+                cursor: isProcessing ? 'wait' : 'pointer', fontFamily: 'inherit', letterSpacing: '-0.01em' }}>
+              {isProcessing ? '처리 중...' : '로그인'}
+            </button>
+          </form>
+        )}
         {/* ── Supporting navigation ──────────────────────────────── */}
         <div
           role="navigation"
@@ -395,70 +261,7 @@ export default function Login() {
           </Link>
         </div>
 
-        {/* ── Lo-Fi prototype state inspection guide ─────────────── */}
-        <div style={{ marginTop: 52, paddingTop: 24, borderTop: '1px solid #E8E6E1' }}>
-          <p
-            style={{
-              fontSize: 11, color: '#D0CEC9', marginBottom: 14,
-              fontFamily: "'DM Mono', monospace", letterSpacing: '0.04em',
-            }}
-          >
-            PROTOTYPE · 상태 확인
-          </p>
-          <ul style={{ listStyle: 'none', padding: 0, margin: 0, display: 'flex', flexDirection: 'column', gap: 9 }}>
-            {(
-              [
-                { label: '기본 (Default)',              to: '/login' },
-                { label: '인증 실패',                   to: '/login?state=authFail' },
-                { label: '네트워크 / 시스템 오류',       to: '/login?state=networkError' },
-                { label: '계정 제한됨',                 to: '/login?state=restricted' },
-                { label: '처리 중 — 정적 확인',          to: '/login?state=processing' },
-                {
-                  label: '보호된 이동 — 글쓰기 진입',
-                  to: `/login?from=${encodeURIComponent('/community/posts/create')}`,
-                },
-                {
-                  label: '보호된 동작 — 게시글 상세 복귀',
-                  to: `/login?from=${encodeURIComponent('/community/posts/101')}`,
-                },
-              ] as { label: string; to: string }[]
-            ).map((item) => (
-              <li key={item.to}>
-                <Link
-                  href={item.to}
-                  style={{
-                    fontSize: 11, color: '#908D88',
-                    fontFamily: "'DM Mono', monospace",
-                    textDecoration: 'underline',
-                    textDecorationStyle: 'dotted',
-                  }}
-                >
-                  {item.label}
-                </Link>
-              </li>
-            ))}
-            <li style={{ fontSize: 11, color: '#908D88', fontFamily: "'DM Mono', monospace", marginTop: 4 }}>
-              유효성 오류 — 이메일 없이 제출
-            </li>
-            <li style={{ fontSize: 11, color: '#908D88', fontFamily: "'DM Mono', monospace" }}>
-              유효성 오류 — 형식 오류 (예: &quot;abc&quot; 입력 후 제출)
-            </li>
-            <li style={{ fontSize: 11, color: '#908D88', fontFamily: "'DM Mono', monospace", marginTop: 4 }}>
-              ── 폼 직접 테스트 (프로토타입 전용 계정) ──
-            </li>
-            <li style={{ fontSize: 11, color: '#908D88', fontFamily: "'DM Mono', monospace" }}>
-              성공: success@example.com / success1234
-            </li>
-            <li style={{ fontSize: 11, color: '#908D88', fontFamily: "'DM Mono', monospace" }}>
-              계정 제한: restricted@example.com / restricted1234
-            </li>
-            <li style={{ fontSize: 11, color: '#908D88', fontFamily: "'DM Mono', monospace" }}>
-              오류 / 재시도: error@example.com / error1234
-            </li>
-          </ul>
-        </div>
-
       </div>
     </main>
-  )
+  );
 }

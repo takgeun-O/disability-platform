@@ -1,4 +1,5 @@
 import Link from '@/components/AppLink';
+import AuthControls from '@/components/AuthControls';
 export { default as GlobalNav } from "./GlobalNav";
 
 const FOOTER_LINKS = ['서비스 소개', '이용약관', '개인정보처리방침', '운영정책', '문의', '접근성 안내']
@@ -18,22 +19,7 @@ export function Header() {
             장애인플랫폼
           </span>
         </Link>
-        <div className="flex items-center gap-2">
-          <Link
-            href="/login"
-            className="text-sm font-medium px-3 py-1.5 hover:underline transition-colors"
-            style={{ color: '#1A1918', textDecoration: 'none' }}
-          >
-            로그인
-          </Link>
-          <Link
-            href="/register"
-            className="text-sm font-medium px-3 py-1.5"
-            style={{ backgroundColor: '#1E3A8A', color: '#FFFFFF', borderRadius: 2, textDecoration: 'none' }}
-          >
-            회원가입
-          </Link>
-        </div>
+        <AuthControls />
       </div>
     </header>
   )
