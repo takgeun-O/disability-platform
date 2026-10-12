@@ -77,5 +77,8 @@ export function useUnsavedChanges(isDirty: boolean) {
   const guard = useNavigationGuard();
   const setDirty = guard.setDirty;
   useLayoutEffect(() => {setDirty(isDirty); return () => setDirty(false);}, [isDirty, setDirty]);
-  return {state: guard.pending ? 'blocked' : 'unblocked', reset: guard.cancel, proceed: guard.proceed, request: guard.request};
+  // proceed가 dirty를 초기화한 뒤에도 같은 폼의 새 편집은 다시 보호해야 한다.
+  // isDirty가 이미 true이면 위 effect가 재실행되지 않으므로 편집 이벤트에서도 알린다.
+  return {state: guard.pending ? 'blocked' : 'unblocked', reset: guard.cancel, proceed: guard.proceed, request: guard.request,
+    markDirty: () => setDirty(true)};
 }

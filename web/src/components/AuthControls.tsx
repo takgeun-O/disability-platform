@@ -1,13 +1,61 @@
 'use client';
 
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { usePathname, useRouter } from 'next/navigation';
 import Link from '@/components/AppLink';
 import { useAuth } from '@/components/AuthProvider';
 import { useNavigationGuard } from '@/components/NavigationGuard';
 import { AuthApiError } from '@/lib/auth-api';
 
-type Feedback = { message: string; error: boolean; memberId: number | null };
+type Feedback = { id: number; message: string; error: boolean; memberId: number | null };
+
+// 알림마다 별도 수명과 타이머를 가진다. 교체·숨김·닫기 시 key에 의해 해제된다.
+function FeedbackNotice({ feedback, onDismiss }: { feedback: Feedback; onDismiss: (id: number) => void }) {
+  const noticeRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    const notice = noticeRef.current;
+    if (!notice || feedback.error) return; // 오류는 사용자가 닫거나 후속 동작으로 해소한다.
+    let remaining = 5_000;
+    let started = 0;
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    let disposed = false;
+    const pause = () => {
+      if (timer === undefined) return;
+      clearTimeout(timer);
+      timer = undefined;
+      remaining = Math.max(0, remaining - (performance.now() - started));
+    };
+    const resume = () => {
+      if (disposed || timer !== undefined) return;
+      started = performance.now();
+      timer = setTimeout(() => {
+        timer = undefined;
+        if (!disposed) onDismiss(feedback.id);
+      }, remaining);
+    };
+    const onFocusOut = (event: FocusEvent) => {
+      if (!notice.contains(event.relatedTarget as Node | null)) resume();
+    };
+    notice.addEventListener('focusin', pause);
+    notice.addEventListener('focusout', onFocusOut);
+    if (!notice.contains(document.activeElement)) resume();
+    return () => {
+      disposed = true;
+      pause();
+      notice.removeEventListener('focusin', pause);
+      notice.removeEventListener('focusout', onFocusOut);
+    };
+  }, [feedback.id, feedback.error, onDismiss]);
+
+  return <div ref={noticeRef} role={feedback.error ? 'alert' : 'status'} aria-atomic="true"
+    style={{ position: 'absolute', right: 0, top: '100%', zIndex: 20, width: 'min(320px, 85vw)',
+      padding: 12, background: '#FAFAF8', border: '1px solid #D0CEC9', fontSize: 12, lineHeight: 1.6,
+      color: feedback.error ? '#B91C1C' : '#4A4845', display: 'flex', alignItems: 'flex-start', gap: 8 }}>
+    <span style={{ flex: 1 }}>{feedback.message}</span>
+    <button type="button" aria-label="알림 닫기" onClick={() => onDismiss(feedback.id)}
+      style={{ flexShrink: 0, minHeight: 24, padding: '2px 4px', color: '#4A4845', textDecoration: 'underline', cursor: 'pointer' }}>닫기</button>
+  </div>;
+}
 
 export default function AuthControls() {
   const auth = useAuth();
@@ -15,16 +63,20 @@ export default function AuthControls() {
   const router = useRouter();
   const pathname = usePathname();
   const routeVersionRef = useRef(0);
-  useEffect(() => { routeVersionRef.current++; }, [pathname]);
+  useLayoutEffect(() => { routeVersionRef.current++; }, [pathname]);
   const [feedback, setFeedback] = useState<Feedback | null>(null);
-  const feedbackRef = useRef<HTMLParagraphElement>(null);
+  const feedbackIdRef = useRef(0);
+  const dismissFeedback = useCallback((id: number) => {
+    // 이미 대기열에 있던 이전 타이머도 새 알림을 지울 수 없다.
+    setFeedback(current => current?.id === id ? null : current);
+  }, []);
+  const showFeedback = (next: Omit<Feedback, 'id'>) => setFeedback({ ...next, id: ++feedbackIdRef.current });
   const mountedRef = useRef(false);
   const inFlightRef = useRef(false);
   useEffect(() => {
     mountedRef.current = true;
     return () => { mountedRef.current = false; };
   }, []);
-  useEffect(() => { feedbackRef.current?.focus(); }, [feedback]);
 
   async function handleLogout(restoreDirty: boolean) {
     if (inFlightRef.current || auth.pending) return;
@@ -39,18 +91,19 @@ export default function AuthControls() {
       const result = await auth.signOut();
       if (!mountedRef.current) return;
       if (result.kind === 'ignored') { restoreGuard(); return; }
-      setFeedback({ error: false, memberId: null, message: result.confirmedBy === 'logout'
+      showFeedback({ error: false, memberId: null, message: result.confirmedBy === 'logout'
         ? '로그아웃되었습니다.' : '로그아웃 응답을 확인하지 못했지만 현재 비로그인 상태임을 확인했습니다.' });
-      // 작성 중 이탈 확인은 POST 전에 수행한다. 성공하면 공개 경로로 이동한다.
-      router.replace('/');
+      // 요청 이후 이동한 화면은 유지한다. 같은 화면에서도 새 편집의 동의를 다시 받는다.
+      // 이 확인을 취소해도 서버에서 완료된 로그아웃 상태는 그대로 유지한다.
+      if (routeVersionRef.current === routeVersion) guard.request(() => router.replace('/'));
     } catch (error) {
       restoreGuard();
-      if (mountedRef.current) setFeedback({ error: true, memberId: auth.member?.memberId ?? null,
+      if (mountedRef.current) showFeedback({ error: true, memberId: auth.member?.memberId ?? null,
         message: error instanceof AuthApiError ? error.message : '로그아웃 결과를 확인하지 못했습니다. 로그인 상태를 다시 확인해 주세요.' });
     } finally { inFlightRef.current = false; }
   }
   const feedbackVisible = feedback && (feedback.error
-    ? feedback.memberId === (auth.member?.memberId ?? null)
+    ? auth.status === 'error' || feedback.memberId === (auth.member?.memberId ?? null)
     : auth.status === 'anonymous');
 
   return (
@@ -88,10 +141,7 @@ export default function AuthControls() {
           </>
         )}
       </div>
-      {feedbackVisible && <p ref={feedbackRef} tabIndex={-1} role={feedback.error ? 'alert' : 'status'}
-        style={{ position: 'absolute', right: 0, top: '100%', zIndex: 20, width: 'min(320px, 85vw)',
-          padding: 12, background: '#FAFAF8', border: '1px solid #D0CEC9', fontSize: 12, lineHeight: 1.6,
-          color: feedback.error ? '#B91C1C' : '#4A4845' }}>{feedback.message}</p>}
+      {feedbackVisible && <FeedbackNotice key={feedback.id} feedback={feedback} onDismiss={dismissFeedback} />}
     </div>
   );
 }

@@ -23,7 +23,10 @@ const menu = page => page.getByLabel('회원 메뉴');
 const submit = page => main(page).getByRole('button', { name: '로그인', exact: true });
 const signOut = page => menu(page).getByRole('button', { name: '로그아웃', exact: true });
 let currentCheck;
-async function check(name, run) { currentCheck = name; await run(); results.push(name); console.log('PASS', name); }
+async function check(name, run) {
+  if (process.env.IYUM_LOGIN_CHECK_FILTER && !name.includes(process.env.IYUM_LOGIN_CHECK_FILTER)) return;
+  currentCheck = name; await run(); results.push(name); console.log('PASS', name);
+}
 async function waitFor(predicate) {
   const deadline = Date.now() + 15000;
   while (Date.now() < deadline) { const value = await predicate(); if (value) return value; await delay(100); }
@@ -341,6 +344,228 @@ try {
     assert.equal(await page.getByRole('dialog').count(), 0);
     await context.close();
   });
+  // 지연 응답과 알림 시간은 실제 API 장애·계정 생성 없이 재현한다.
+  const titleInput = page => page.getByPlaceholder('제목을 입력하세요.');
+  const bodyInput = page => page.getByPlaceholder('내용을 입력하세요.');
+  const closeNotice = page => page.getByRole('banner').getByRole('button', { name: '알림 닫기', exact: true });
+  const logoutNotice = page => page.getByRole('banner').getByRole('status').filter({ has: page.getByRole('button', { name: '알림 닫기', exact: true }) });
+  const anonymousMenu = page => menu(page).getByRole('link', { name: '로그인', exact: true });
+  const leave = page => page.getByRole('button', { name: '나가기 — 입력한 내용이 사라집니다', exact: true });
+  const keepWriting = page => page.getByRole('button', { name: '계속 작성', exact: true });
+  async function clockPage(options = {}) {
+    const result = await newPage();
+    const calls = await mock(result.page, { authenticated: true, ...options });
+    await result.page.clock.install({ time: new Date('2030-01-01T00:00:00Z') });
+    await result.page.goto(base + '/');
+    await signOut(result.page).waitFor();
+    await result.page.clock.pauseAt(new Date('2030-01-02T00:00:00Z'));
+    return { ...result, calls };
+  }
+  for (const confirmedBy of ['logout', 'me']) {
+    await check('로그아웃 회귀: ' + confirmedBy + ' 지연 성공 중 다른 작성 화면의 입력·초점 보존', async () => {
+      const { context, page } = await newPage();
+      let release;
+      const gate = new Promise(resolve => { release = resolve; });
+      const calls = await mock(page, { authenticated: true, logout: async (route, _calls, setAuth) => {
+        await gate; setAuth(false);
+        return confirmedBy === 'logout' ? route.fulfill({ status: 204 }) : route.abort('failed');
+      } });
+      await page.goto(base + '/');
+      await signOut(page).click();
+      await waitFor(() => calls.logout === 1);
+      await page.getByRole('navigation', { name: '주 메뉴' }).getByRole('link', { name: '커뮤니티', exact: true }).click();
+      await main(page).getByRole('link', { name: '글쓰기', exact: true }).click();
+      await page.waitForURL('**/community/posts/create');
+      await titleInput(page).fill('응답 대기 중 시작한 글');
+      await bodyInput(page).fill('이 내용과 현재 초점이 유지되어야 합니다.');
+      release();
+      await anonymousMenu(page).waitFor();
+      await logoutNotice(page).waitFor();
+      assert.equal(new URL(page.url()).pathname, '/community/posts/create');
+      assert.equal(await titleInput(page).inputValue(), '응답 대기 중 시작한 글');
+      assert.equal(await bodyInput(page).inputValue(), '이 내용과 현재 초점이 유지되어야 합니다.');
+      assert.equal(await bodyInput(page).evaluate(el => document.activeElement === el), true);
+      assert.equal(await page.getByRole('dialog').count(), 0);
+      assert.equal(calls.logout, 1);
+      if (confirmedBy === 'logout') {
+        await page.setViewportSize({ width: 390, height: 844 });
+        await page.evaluate(() => window.scrollTo(0, 0));
+        assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true);
+        await page.screenshot({ path: path.join(artifacts, 'logout-notice-mobile.png'), clip: { x: 0, y: 0, width: 390, height: 250 } });
+      }
+      await closeNotice(page).click();
+      assert.equal(new URL(page.url()).pathname, '/community/posts/create');
+      await anonymousMenu(page).waitFor();
+      await page.getByRole('banner').getByRole('link').first().click();
+      await page.getByRole('dialog').waitFor();
+      await keepWriting(page).click();
+      await context.close();
+    });
+  }
+  for (const change of ['추가 본문', '추가 본문 후 이동 허용', '첨부 삭제', '빈 폼의 첫 입력']) {
+    await check('로그아웃 회귀: 같은 작성 화면의 ' + change + ' 후 이탈 확인과 비로그인 상태 유지', async () => {
+      const { context, page } = await newPage();
+      let release;
+      const gate = new Promise(resolve => { release = resolve; });
+      const calls = await mock(page, { authenticated: true, logout: async (route, _calls, setAuth) => {
+        await gate; setAuth(false); return route.fulfill({ status: 204 });
+      } });
+      await page.goto(base + '/community/posts/create');
+      await signOut(page).waitFor();
+      if (change !== '빈 폼의 첫 입력') await titleInput(page).fill('동의 전 입력');
+      if (change === '첨부 삭제') await page.locator('input[type=file]').setInputFiles({
+        name: 'guard.png', mimeType: 'image/png',
+        buffer: Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+jX1sAAAAASUVORK5CYII=', 'base64'),
+      });
+      await signOut(page).click();
+      if (change !== '빈 폼의 첫 입력') await leave(page).click();
+      await waitFor(() => calls.logout === 1);
+      if (change === '첨부 삭제') await page.getByRole('button', { name: 'guard.png 삭제' }).click();
+      else await bodyInput(page).fill('처음 확인한 뒤 새로 쓴 내용');
+      release();
+      await anonymousMenu(page).waitFor();
+      await page.getByRole('dialog').waitFor();
+      assert.equal(new URL(page.url()).pathname, '/community/posts/create');
+      assert.equal(await keepWriting(page).evaluate(el => document.activeElement === el), true);
+      if (change === '추가 본문 후 이동 허용') {
+        await leave(page).click();
+        await page.waitForURL(base + '/');
+        await anonymousMenu(page).waitFor();
+        assert.equal(calls.logout, 1);
+        await context.close();
+        return;
+      }
+      await keepWriting(page).click();
+      if (change === '첨부 삭제') assert.equal(await page.getByRole('button', { name: 'guard.png 삭제' }).count(), 0);
+      else assert.equal(await bodyInput(page).inputValue(), '처음 확인한 뒤 새로 쓴 내용');
+      await anonymousMenu(page).waitFor();
+      assert.equal(calls.logout, 1);
+      // 추가 확인 취소 뒤에도 작성 화면은 dirty이며, 정상적인 이탈 허용은 계속 가능하다.
+      await page.getByRole('banner').getByRole('link').first().click();
+      await page.getByRole('dialog').waitFor();
+      await leave(page).click();
+      await page.waitForURL(base + '/');
+      await anonymousMenu(page).waitFor();
+      assert.equal(calls.logout, 1);
+      await context.close();
+    });
+  }
+  await check('로그아웃 회귀: 깨끗한 폼에서 시작한 요청이 실패해도 대기 중 새 입력 보호', async () => {
+    const { context, page } = await newPage();
+    let release;
+    const gate = new Promise(resolve => { release = resolve; });
+    const calls = await mock(page, { authenticated: true, logout: async route => {
+      await gate; return route.fulfill({ status: 500, body: 'unavailable' });
+    } });
+    await page.goto(base + '/community/posts/create');
+    await signOut(page).click();
+    await waitFor(() => calls.logout === 1);
+    await bodyInput(page).fill('요청이 실패해도 남아야 하는 내용');
+    release();
+    await page.getByRole('banner').getByRole('alert').waitFor();
+    await signOut(page).waitFor();
+    await page.getByRole('banner').getByRole('link').first().click();
+    await page.getByRole('dialog').waitFor();
+    await keepWriting(page).click();
+    assert.equal(await bodyInput(page).inputValue(), '요청이 실패해도 남아야 하는 내용');
+    assert.equal(calls.logout, 1);
+    await context.close();
+  });
+  for (const confirmedBy of ['logout', 'me']) {
+    await check('로그아웃 회귀: ' + confirmedBy + ' 성공 알림은 5초 후 닫히고 비로그인 유지', async () => {
+      const { context, page, calls } = await clockPage(confirmedBy === 'me' ? {
+        logout: (route, _calls, setAuth) => { setAuth(false); return route.abort('failed'); },
+      } : {});
+      await signOut(page).click();
+      await logoutNotice(page).waitFor();
+      await anonymousMenu(page).waitFor();
+      assert.equal(await closeNotice(page).evaluate(el => document.activeElement === el), false);
+      await page.clock.runFor(4999);
+      assert.equal(await logoutNotice(page).isVisible(), true);
+      await page.clock.runFor(1);
+      await closeNotice(page).waitFor({ state: 'detached' });
+      await anonymousMenu(page).waitFor();
+      assert.equal(new URL(page.url()).pathname, '/');
+      assert.equal(calls.logout, 1);
+      await context.close();
+    });
+  }
+  for (const outcome of ['성공', '오류', '결과 미확인']) {
+    await check('로그아웃 회귀: ' + outcome + ' 알림 수동 닫기는 인증·경로를 바꾸지 않음', async () => {
+      const { context, page, calls } = await clockPage(outcome === '오류' ? {
+        logout: route => route.fulfill({ status: 403, json: errorBody('CSRF_TOKEN_INVALID') }),
+      } : outcome === '결과 미확인' ? {
+        logout: route => route.abort('failed'),
+        me: (route, calls) => route.fulfill(calls.logout ? { status: 500, body: 'unavailable' } : { status: 200, json: member }),
+      } : {});
+      await signOut(page).click();
+      await closeNotice(page).waitFor();
+      if (outcome !== '성공') {
+        await page.clock.runFor(10000);
+        await page.getByRole('banner').getByRole('alert').waitFor();
+      }
+      await closeNotice(page).focus();
+      await page.keyboard.press('Enter');
+      await closeNotice(page).waitFor({ state: 'detached' });
+      await page.clock.runFor(6000);
+      if (outcome === '성공') await anonymousMenu(page).waitFor();
+      else if (outcome === '오류') await signOut(page).waitFor();
+      else await menu(page).getByRole('button', { name: '상태 다시 확인' }).waitFor();
+      assert.equal(new URL(page.url()).pathname, '/');
+      assert.equal(calls.logout, 1);
+      await context.close();
+    });
+  }
+  await check('로그아웃 회귀: 닫기 버튼 키보드 초점 동안 타이머 일시 정지 후 남은 시간 재개', async () => {
+    const { context, page } = await clockPage();
+    await signOut(page).click();
+    await logoutNotice(page).waitFor();
+    await page.clock.runFor(2000);
+    await closeNotice(page).focus();
+    await page.clock.runFor(10000);
+    assert.equal(await closeNotice(page).evaluate(el => document.activeElement === el), true);
+    assert.equal(await logoutNotice(page).isVisible(), true);
+    await page.keyboard.press('Tab');
+    assert.equal(await closeNotice(page).evaluate(el => document.activeElement === el), false);
+    await page.clock.runFor(2999);
+    assert.equal(await logoutNotice(page).isVisible(), true);
+    await page.clock.runFor(1);
+    await closeNotice(page).waitFor({ state: 'detached' });
+    await anonymousMenu(page).waitFor();
+    await context.close();
+  });
+  for (const replacement of ['성공', '오류']) {
+    await check('로그아웃 회귀: 이전 성공 타이머가 새 ' + replacement + ' 알림을 지우지 않음', async () => {
+      const { context, page, calls } = await clockPage({ logout: (route, calls, setAuth) => {
+        if (calls.logout === 2 && replacement === '오류') return route.fulfill({ status: 403, json: errorBody('CSRF_TOKEN_INVALID') });
+        setAuth(false); return route.fulfill({ status: 204 });
+      } });
+      await signOut(page).click();
+      await logoutNotice(page).waitFor();
+      await page.clock.runFor(2000);
+      await anonymousMenu(page).click();
+      await fillLogin(page);
+      await submit(page).click();
+      await page.waitForURL(base + '/');
+      await signOut(page).click();
+      await closeNotice(page).waitFor();
+      await page.clock.runFor(3000); // 이전 알림의 만료 시각
+      assert.equal(await closeNotice(page).isVisible(), true);
+      if (replacement === '성공') {
+        await page.clock.runFor(1999);
+        assert.equal(await logoutNotice(page).isVisible(), true);
+        await page.clock.runFor(1);
+        await closeNotice(page).waitFor({ state: 'detached' });
+        await anonymousMenu(page).waitFor();
+      } else {
+        await page.clock.runFor(10000);
+        await page.getByRole('banner').getByRole('alert').waitFor();
+        await signOut(page).waitFor();
+      }
+      assert.equal(calls.logout, 2);
+      await context.close();
+    });
+  }
   if (process.env.IYUM_RUN_LOCAL_LOGIN_TEST === 'true') {
     await check('실제 ACTIVE 가입·Mailpit 인증·잘못된 암호·연속 제출·세션 교체·새로고침·로그아웃·재로그인', async () => {
       const { context, page, email, nickname, password } = await createMember('active');
