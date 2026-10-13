@@ -1,5 +1,7 @@
 package io.github.takgeun.iyum.global.config;
 
+import io.github.takgeun.iyum.auth.session.config.SessionSecurityConfig;
+
 import io.github.takgeun.iyum.global.error.ApiErrorResponse;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.actuate.endpoint.web.WebServerNamespace;

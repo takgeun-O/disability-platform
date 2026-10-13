@@ -1,6 +1,6 @@
 package io.github.takgeun.iyum.global.config;
 
-import io.github.takgeun.iyum.auth.api.CsrfController;
+import io.github.takgeun.iyum.auth.session.api.CsrfController;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;

@@ -1,6 +1,6 @@
 package io.github.takgeun.iyum.global.config;
 
-import io.github.takgeun.iyum.auth.api.CsrfController;
+import io.github.takgeun.iyum.auth.session.api.CsrfController;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;

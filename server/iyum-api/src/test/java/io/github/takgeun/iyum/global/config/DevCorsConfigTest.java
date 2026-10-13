@@ -1,9 +1,9 @@
 package io.github.takgeun.iyum.global.config;
 
-import io.github.takgeun.iyum.auth.api.CsrfController;
-import io.github.takgeun.iyum.auth.api.SignupController;
-import io.github.takgeun.iyum.auth.application.SignupResult;
-import io.github.takgeun.iyum.auth.application.SignupService;
+import io.github.takgeun.iyum.auth.session.api.CsrfController;
+import io.github.takgeun.iyum.auth.signup.api.SignupController;
+import io.github.takgeun.iyum.auth.signup.application.SignupResult;
+import io.github.takgeun.iyum.auth.signup.application.SignupService;
 import io.github.takgeun.iyum.member.domain.MemberStatus;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
