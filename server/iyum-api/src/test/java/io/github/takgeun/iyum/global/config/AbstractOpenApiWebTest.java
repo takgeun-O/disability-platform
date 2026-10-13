@@ -1,8 +1,8 @@
 package io.github.takgeun.iyum.global.config;
 
-import io.github.takgeun.iyum.auth.api.CsrfController;
-import io.github.takgeun.iyum.auth.api.SignupController;
-import io.github.takgeun.iyum.auth.application.SignupService;
+import io.github.takgeun.iyum.auth.session.api.CsrfController;
+import io.github.takgeun.iyum.auth.signup.api.SignupController;
+import io.github.takgeun.iyum.auth.signup.application.SignupService;
 import io.github.takgeun.iyum.global.error.GlobalExceptionHandler;
 import org.springdoc.core.configuration.SpringDocConfiguration;
 import org.springdoc.core.configuration.SpringDocSecurityConfiguration;

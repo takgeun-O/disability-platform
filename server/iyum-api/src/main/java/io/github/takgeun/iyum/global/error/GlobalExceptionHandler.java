@@ -1,8 +1,8 @@
 package io.github.takgeun.iyum.global.error;
 
-import io.github.takgeun.iyum.auth.application.InvalidEmailVerificationTokenException;
-import io.github.takgeun.iyum.auth.application.SignupConflictException;
-import io.github.takgeun.iyum.auth.application.SignupTermsException;
+import io.github.takgeun.iyum.auth.emailverification.application.InvalidEmailVerificationTokenException;
+import io.github.takgeun.iyum.auth.signup.application.SignupConflictException;
+import io.github.takgeun.iyum.auth.signup.application.SignupTermsException;
 import io.github.takgeun.iyum.auth.security.EmailVerificationRequiredException;
 import org.springframework.http.*;
 import org.springframework.http.converter.HttpMessageNotReadableException;

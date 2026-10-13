@@ -4,6 +4,8 @@
 작업 브랜치: `feat/email-verification-resend`  
 저장소: `/Users/tackeunoh/Developer/iyum`
 
+2026-10-13: 아래 코드 위치는 현재 패키지 구조로 갱신했습니다. 당시 기능·검증 기록은 유지하며, 이동 이유와 대응 경로는 [백엔드 패키지 정리](../server/iyum-api/docs/Package-Structure-2026-10-13.md)를 참고하세요.
+
 ## 1. 이번에 구현한 기능
 
 메일을 받지 못했거나 링크를 사용할 수 없는 사용자가 `/register/resend`에서 가입한 이메일을 직접 입력하고 인증 메일 재전송을 요청할 수 있습니다. 새 탭이나 새로고침 후에도 사용할 수 있습니다. 가입 직후의 `SignupFlow` 메모리에는 이메일을 추가하지 않았습니다.
@@ -70,15 +72,15 @@
 | 3 | `web/src/lib/signup-form.ts` / `validateEmail` | 가입·재전송이 공유하는 이메일 입력 안내 |
 | 4 | `web/src/lib/email-verification-resend-api.ts` / `resendEmailVerification` | 요청 구성, 정확한 상태·JSON 계약 검사, 안전한 오류 분류 |
 | 5 | `web/src/lib/signup-api.ts` / `getCsrfToken` | 기존 세션 CSRF 조회 기능 재사용 |
-| 6 | `server/iyum-api/src/main/java/io/github/takgeun/iyum/auth/api/EmailVerificationResendController.java` / `resend` | 입력 검증, 서비스 호출, 공통 접수 응답, OpenAPI 설명 |
-| 7 | 같은 `auth/api/dto/EmailVerificationResendRequest.java`, `EmailVerificationResendResponse.java` | 요청·응답 모양 |
-| 8 | 같은 `auth/application/EmailVerificationResendService.java` / `resend` | 회원 잠금, 제한 판단, 토큰 폐기·발급, 이벤트 발행 |
-| 9 | 같은 `auth/infrastructure/EmailVerificationTokenRepository.java` | 마지막 발급 시각, 최근 발급 횟수, 미사용 토큰 잠금 조회 |
+| 6 | `server/iyum-api/src/main/java/io/github/takgeun/iyum/auth/emailverification/api/EmailVerificationResendController.java` / `resend` | 입력 검증, 서비스 호출, 공통 접수 응답, OpenAPI 설명 |
+| 7 | 같은 `auth/emailverification/api/dto/EmailVerificationResendRequest.java`, `EmailVerificationResendResponse.java` | 요청·응답 모양 |
+| 8 | 같은 `auth/emailverification/application/EmailVerificationResendService.java` / `resend` | 회원 잠금, 제한 판단, 토큰 폐기·발급, 이벤트 발행 |
+| 9 | 같은 `auth/emailverification/infrastructure/EmailVerificationTokenRepository.java` | 마지막 발급 시각, 최근 발급 횟수, 미사용 토큰 잠금 조회 |
 | 10 | 같은 패키지 루트의 `member/infrastructure/MemberRepository.java` / `findByEmailForUpdate` | 이메일로 회원을 조회하면서 DB 행 잠금 |
-| 11 | `auth/application/EmailVerificationTokenIssueService.java` / `issue` | 기존 난수 생성·해시 저장·토큰 유효 기간 계산 재사용 |
-| 12 | `auth/application/EmailVerificationMailRequestedListener.java` / `on`, `send` | 성공 커밋 후 작업 큐 제출, SMTP 실패 분리 |
-| 13 | `global/config/EmailVerificationMailDispatchConfig.java` | 메일 전용 작업 스레드 2개, 대기 큐 100개, 큐 초과 거절 |
-| 14 | `global/config/EmailVerificationProperties.java`, `src/main/resources/application.yaml` | 유효 기간 및 재전송 정책 설정·검증 |
+| 11 | `auth/emailverification/application/EmailVerificationTokenIssueService.java` / `issue` | 기존 난수 생성·해시 저장·토큰 유효 기간 계산 재사용 |
+| 12 | `auth/emailverification/application/EmailVerificationMailRequestedListener.java` / `on`, `send` | 성공 커밋 후 작업 큐 제출, SMTP 실패 분리 |
+| 13 | `auth/emailverification/config/EmailVerificationMailDispatchConfig.java` | 메일 전용 작업 스레드 2개, 대기 큐 100개, 큐 초과 거절 |
+| 14 | `auth/emailverification/config/EmailVerificationProperties.java`, `src/main/resources/application.yaml` | 유효 기간 및 재전송 정책 설정·검증 |
 | 15 | `src/main/resources/db/migration/V4__index_email_verification_issuance.sql` | 회원·발급 시각 복합 인덱스 추가. 기존 V1~V3는 수정하지 않음 |
 
 이동 링크는 `SignupVerify.tsx`, `EmailVerificationAction.tsx`에 있습니다. `web/next.config.ts`는 토큰이 포함될 수 있는 인증 화면 경로를 개발 요청 로그에서 제외합니다.
