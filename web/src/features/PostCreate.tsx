@@ -226,7 +226,7 @@ export default function PostCreate() {
   const transferredPreviewRef = useRef<string | null>(null)
   useEffect(() => {imagesRef.current = images}, [images])
 
-  function markDirty() { setIsDirty(true) }
+  function markDirty() { setIsDirty(true); blocker.markDirty() }
 
   // ── Router navigation blocker ──────────────────────────────────────────────
   // Intercepts Link clicks (GNB, Logo, Footer), router.push(), and browser back.
@@ -298,6 +298,7 @@ export default function PostCreate() {
   }
 
   function removeImage(id: string) {
+    markDirty()
     setImages((prev) => {
       const img = prev.find((i) => i.id === id)
       if (img) URL.revokeObjectURL(img.preview)

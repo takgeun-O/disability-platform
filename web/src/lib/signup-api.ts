@@ -66,12 +66,22 @@ function responseError(response: Response, body: unknown): SignupApiError {
     '가입 결과를 확인하지 못했습니다. 잠시 후 다시 시도해 주세요.');
 }
 
+// 가입·이메일 인증의 기존 문자열 인터페이스는 유지한다.
 export async function getCsrfToken(): Promise<string> {
+  return (await getCsrfContext()).token;
+}
+
+export type CsrfContext = { headerName: 'X-CSRF-TOKEN'; token: string };
+
+// 인증 기능들이 공유하는 세션 CSRF 조회. 호출자가 기능에 맞는 오류 문구로 변환한다.
+export async function getCsrfContext(): Promise<CsrfContext> {
   const url = apiUrl('/api/v1/auth/csrf');
   let response: Response;
   try {
     response = await fetch(url, {
       method: 'GET',
+      redirect: 'error',
+      referrerPolicy: 'no-referrer',
       credentials: 'include', // 서버의 세션 쿠키를 받고, 다음 요청에도 같은 쿠키를 보냅니다.
       cache: 'no-store',
       headers: { Accept: 'application/json' },
@@ -83,12 +93,14 @@ export async function getCsrfToken(): Promise<string> {
   }
   const body = await readJson(response);
   if (!response.ok) throw responseError(response, body);
-  if (!isObject(body) || body.headerName !== 'X-CSRF-TOKEN'
+  if (response.status !== 200
+      || !/^application\/json(?:;|$)/i.test(response.headers.get('content-type') ?? '')
+      || !isObject(body) || body.headerName !== 'X-CSRF-TOKEN'
       || typeof body.token !== 'string' || !body.token) {
     throw new SignupApiError(response.status, 'UNEXPECTED_RESPONSE',
       '보안 확인 정보를 받지 못했습니다. 잠시 후 다시 시도해 주세요.');
   }
-  return body.token;
+  return { headerName: body.headerName, token: body.token };
 }
 
 export async function signup(request: SignupRequest, csrfToken: string): Promise<SignupResponse> {

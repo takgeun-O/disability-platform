@@ -3,9 +3,13 @@ package io.github.takgeun.iyum.global.error;
 import io.github.takgeun.iyum.auth.application.InvalidEmailVerificationTokenException;
 import io.github.takgeun.iyum.auth.application.SignupConflictException;
 import io.github.takgeun.iyum.auth.application.SignupTermsException;
+import io.github.takgeun.iyum.auth.security.EmailVerificationRequiredException;
 import org.springframework.http.*;
 import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.springframework.security.access.AccessDeniedException;
+import org.springframework.security.authentication.AccountStatusException;
+import org.springframework.security.authentication.AuthenticationServiceException;
+import org.springframework.security.authentication.BadCredentialsException;
 import org.springframework.security.core.AuthenticationException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
@@ -164,6 +168,59 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
                 // HTTP 캐시는 브라우저나 중간 서버가 응답을 저장해 두었다가 재사용하는 기능
                 .cacheControl(CacheControl.noStore())   // 인증 실패 응답을 HTTP 캐시에 저장하지 마라.
                 .body(body);
+    }
+
+    @ExceptionHandler(BadCredentialsException.class)
+    public ResponseEntity<ApiErrorResponse> handleBadCredentials(
+            BadCredentialsException exception
+    ) {
+        return ResponseEntity
+                .status(HttpStatus.UNAUTHORIZED)
+                // HTTP 캐시는 브라우저나 중간 서버가 응답을 저장해 두었다가 재사용하는 기능
+                .cacheControl(CacheControl.noStore())   // 인증 실패 응답을 HTTP 캐시에 저장하지 마라.
+                .body(ApiErrorResponse.of(
+                        "LOGIN_FAILED",
+                        "이메일 또는 비밀번호를 확인해 주세요."
+                ));
+    }
+
+    @ExceptionHandler(EmailVerificationRequiredException.class)
+    public ResponseEntity<ApiErrorResponse> handleEmailVerificationRequired(
+            EmailVerificationRequiredException exception
+    ) {
+        return ResponseEntity
+                .status(HttpStatus.FORBIDDEN)
+                .cacheControl(CacheControl.noStore())
+                .body(ApiErrorResponse.of(
+                        "EMAIL_VERIFICATION_REQUIRED",
+                        "이메일 인증을 완료해 주세요."
+                ));
+    }
+
+    @ExceptionHandler(AccountStatusException.class)
+    public ResponseEntity<ApiErrorResponse> handleAccountStatus(
+            AccountStatusException exception
+    ) {
+        return ResponseEntity
+                .status(HttpStatus.FORBIDDEN)
+                .cacheControl(CacheControl.noStore())
+                .body(ApiErrorResponse.of(
+                        "ACCOUNT_UNAVAILABLE",
+                        "현재 로그인할 수 없는 계정입니다."
+                ));
+    }
+
+    @ExceptionHandler(AuthenticationServiceException.class)
+    public ResponseEntity<ApiErrorResponse> handleAuthenticationService(
+            AuthenticationException exception
+    ) {
+        return ResponseEntity
+                .internalServerError()
+                .cacheControl(CacheControl.noStore())
+                .body(ApiErrorResponse.of(
+                        "INTERNAL_SERVER_ERROR",
+                        "서버 오류가 발생했습니다. 잠시 후 다시 시도해 주세요."
+                ));
     }
 
     @ExceptionHandler(Exception.class)

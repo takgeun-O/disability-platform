@@ -9,3 +9,11 @@ test('Next login return path preserves local query/hash and rejects external/exe
  assert.equal(safeReturnPath('/community/posts/create?type=test#form'), '/community/posts/create?type=test#form');
  for(const value of ['', 'javascript:alert(1)', '//example.com', '/\\example.com', 'https://example.com']) assert.equal(safeReturnPath(value), '/');
 });
+
+test('로그인으로 되돌아가는 경로와 인코딩된 외부·제어문자 경로를 차단', () => {
+  for (const value of ['/login', '/login/?from=/login', '/x/../login#x', '/%6cogin', '/%256cogin',
+    '/%2fexample.com', '/%252fexample.com', '/%5cexample.com', '/%0alogin', '/\t/evil.example', '/%']) {
+    assert.equal(safeReturnPath(value), '/');
+  }
+  assert.equal(safeReturnPath('/search?q=%ED%85%8C%EC%8A%A4%ED%8A%B8#results'), '/search?q=%ED%85%8C%EC%8A%A4%ED%8A%B8#results');
+});
