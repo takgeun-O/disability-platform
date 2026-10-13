@@ -1,0 +1,220 @@
+/* IYUM foundations. Scope component styles to avoid rewriting legacy forms/P03. */
+:root {
+  --iyum-ink: #09234a;
+  --iyum-muted: #526a80;
+  --iyum-primary: #00758d;
+  --iyum-blue: #1469b8;
+  --iyum-surface: #ffffff;
+  --iyum-mist: #f1f7fa;
+  --iyum-border: #d7e5ec;
+  --iyum-danger: #a12727;
+  --iyum-deadline: #a94310;
+  --iyum-radius: 6px;
+  --iyum-shadow: 0 8px 28px rgb(9 35 74 / 5%);
+}
+.iyum-app { background: var(--iyum-surface); color: var(--iyum-ink); }
+.iyum-container { width: min(1280px, calc(100% - 80px)); margin-inline: auto; }
+.iyum-button { display: inline-flex; align-items: center; justify-content: center; min-height: 44px; padding: 10px 18px; border: 1px solid transparent; border-radius: 8px; font-size: 14px; font-weight: 600; line-height: 1.5; cursor: pointer; text-decoration: none; white-space: nowrap; }
+.iyum-button-primary { background: var(--iyum-primary); color: white; }
+.iyum-button-primary:hover { background: #07566b; }
+.iyum-button-outline { border-color: #7493a6; background: white; color: var(--iyum-primary); }
+.iyum-button-outline:hover { background: var(--iyum-mist); }
+.iyum-button:disabled { opacity: .65; cursor: wait; }
+.iyum-card { border: 1px solid var(--iyum-border); border-radius: var(--iyum-radius); background: white; }
+.iyum-text-link { display: inline-flex; align-items: center; gap: 10px; min-height: 44px; color: var(--iyum-primary); font-weight: 600; font-size: 14px; text-decoration: none; }
+.iyum-text-link:hover { text-decoration: underline; text-underline-offset: 4px; }
+.iyum-eyebrow { margin: 0 0 10px; color: var(--iyum-primary); font-size: 14px; font-weight: 600; line-height: 1.6; }
+.iyum-header { position: relative; z-index: 30; border-bottom: 1px solid var(--iyum-border); background: white; }
+.iyum-header-inner { display: grid; grid-template-columns: 1fr auto 1fr; align-items: center; gap: 32px; min-height: 88px; }
+.iyum-wordmark { display: inline-flex; width: fit-content; align-items: center; gap: 14px; color: inherit; text-decoration: none; }
+.iyum-wordmark > span { font-size: 36px; font-weight: 700; letter-spacing: .22em; }
+.iyum-brand-symbol { flex-shrink: 0; width: 48px; height: 54px; }
+.iyum-wordmark small { font-size: 12px; color: var(--iyum-muted); }
+.iyum-skip-link { position: absolute; top: 8px; left: 16px; transform: translateY(-160%); background: var(--iyum-ink); color: white; padding: 12px 18px; z-index: 80; border-radius: 8px; }
+.iyum-skip-link:focus { transform: none; }
+.iyum-nav { min-width: 0; }
+.iyum-nav-items { display: flex; align-items: center; gap: 32px; }
+.iyum-nav-link { display: flex; min-height: 48px; align-items: center; gap: 8px; border: 0; background: transparent; padding: 8px 0; font-size: 16px; font-weight: 600; color: var(--iyum-ink); text-decoration: none; cursor: pointer; }
+.iyum-nav-link:hover, .iyum-nav-link[aria-current], .iyum-nav-link[aria-expanded=true] { color: var(--iyum-primary); }
+.iyum-chevron { transition: transform .15s ease; }
+.iyum-chevron.is-open { transform: rotate(180deg); }
+.iyum-information { position: relative; }
+.iyum-information-menu { position: absolute; z-index: 40; top: calc(100% + 12px); left: -24px; width: 300px; padding: 10px; border: 1px solid var(--iyum-border); border-radius: 12px; background: white; box-shadow: 0 16px 40px rgb(9 35 74 / 12%); }
+.iyum-information-menu a { display: flex; flex-direction: column; gap: 4px; padding: 14px; border-radius: 8px; font-weight: 600; color: var(--iyum-ink); text-decoration: none; }
+.iyum-information-menu a:hover { background: var(--iyum-mist); }
+.iyum-information-menu small { color: var(--iyum-muted); font-size: 14px; font-weight: 400; }
+.iyum-mobile-toggle { display: none; }
+.iyum-auth-controls { justify-self: end; position: relative; min-width: 0; max-width: 300px; }
+.iyum-member-menu { display: flex; align-items: center; gap: 8px; font-size: 14px; }
+.iyum-member-name { min-width: 0; max-width: 140px; overflow-wrap: anywhere; }
+.iyum-auth-login, .iyum-auth-logout { color: var(--iyum-ink); }
+.iyum-auth-login:hover, .iyum-auth-logout:hover { background: var(--iyum-mist); }
+.iyum-auth-notice { position: absolute; z-index: 60; right: 0; top: calc(100% + 10px); display: flex; align-items: flex-start; gap: 12px; width: min(360px, calc(100vw - 40px)); padding: 16px; border: 1px solid var(--iyum-border); border-left: 4px solid var(--iyum-primary); border-radius: 10px; background: white; box-shadow: 0 10px 32px rgb(9 35 74 / 14%); font-size: 14px; line-height: 1.7; color: var(--iyum-ink); }
+.iyum-auth-notice.is-error { color: var(--iyum-danger); border-left-color: var(--iyum-danger); }
+.iyum-notice-close { flex-shrink: 0; min-width: 44px; min-height: 44px; color: var(--iyum-muted); text-decoration: underline; cursor: pointer; }
+.iyum-home { line-height: 1.7; }
+.iyum-home h1, .iyum-home h2, .iyum-home h3 { word-break: keep-all; overflow-wrap: anywhere; color: var(--iyum-ink); }
+.iyum-home h2 { font-size: 28px; font-weight: 700; line-height: 1.4; letter-spacing: -.035em; }
+.iyum-home h3 { font-size: 16px; font-weight: 600; }
+.iyum-hero { position: relative; isolation: isolate; overflow: hidden; padding-block: 32px 22px; background: #f3f9fd; }
+.iyum-hero-art { position: absolute; top: 0; right: 0; width: min(100%, 1180px); height: 100%; pointer-events: none; }
+.iyum-hero-art img { object-fit: cover; object-position: right center; }
+.iyum-hero::after { content: ''; position: absolute; inset: 0; background: linear-gradient(90deg, #f4faff 0%, rgb(247 251 255 / 92%) 28%, rgb(247 251 255 / 65%) 55%, transparent 76%); pointer-events: none; }
+.iyum-hero > .iyum-container { position: relative; z-index: 1; }
+.iyum-hero .iyum-eyebrow { font-size: 18px; margin-bottom: 6px; }
+.iyum-hero h1 { max-width: 1000px; margin: 0 0 8px; font-size: clamp(36px, 3.4vw, 50px); font-weight: 700; line-height: 1.3; letter-spacing: -.045em; }
+.iyum-mobile-break { display: none; }
+.iyum-hero-intro { margin: 0 0 20px; font-size: 20px; color: #35506b; }
+.iyum-home-search { max-width: 820px; }
+.iyum-search-field { display: flex; align-items: center; gap: 16px; padding-left: 20px; border: 1px solid var(--iyum-primary); border-radius: 5px; background: white; box-shadow: var(--iyum-shadow); }
+.iyum-search-field > svg { flex-shrink: 0; }
+.iyum-search-field input { width: 100%; min-width: 0; min-height: 54px; font-size: 17px; color: var(--iyum-ink); background: transparent; border: 0; border-radius: 4px; }
+.iyum-search-field input::placeholder { color: var(--iyum-muted); }
+.iyum-search-field input:focus-visible { outline-offset: -3px; }
+.iyum-search-field button { min-height: 56px; min-width: 128px; border-radius: 3px; font-size: 17px; }
+.iyum-search-note { color: var(--iyum-muted); font-size: 14px; margin-top: 4px; }
+.iyum-field-error { color: var(--iyum-danger); font-size: 14px; margin-top: 8px; }
+.iyum-search-field:has([aria-invalid=true]) { border-color: var(--iyum-danger); }
+.iyum-suggestions { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 20px; margin-top: 2px; font-size: 14px; }
+.iyum-suggestions > span { color: var(--iyum-muted); }
+.iyum-suggestions a { display: inline-flex; align-items: center; min-height: 44px; color: var(--iyum-primary); font-weight: 600; }
+.iyum-suggestions a:hover { text-decoration: underline; }
+.iyum-shortcuts { padding-block: 28px 24px; }
+.iyum-shortcut-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 18px; margin-top: 16px; }
+.iyum-shortcut { display: flex; align-items: center; gap: 18px; min-height: 100px; padding: 20px; text-decoration: none; transition: border-color .15s, box-shadow .15s; }
+.iyum-shortcut:hover { border-color: var(--iyum-primary); box-shadow: var(--iyum-shadow); }
+.iyum-shortcut-icon { display: inline-flex; align-items: center; justify-content: center; flex-shrink: 0; width: 48px; height: 48px; border-radius: 0; background: transparent; color: var(--iyum-primary); }
+.iyum-shortcut-copy { display: flex; flex: 1; min-width: 0; flex-direction: column; gap: 4px; }
+.iyum-shortcut-copy strong { font-size: 17px; }
+.iyum-shortcut-copy > span { color: var(--iyum-muted); font-size: 14px; word-break: keep-all; }
+.iyum-arrow { color: var(--iyum-primary); font-size: 24px; }
+.iyum-home-grid { display: grid; grid-template-columns: minmax(0, 2fr) minmax(340px, 1fr); grid-template-areas: 'community deadlines' 'community guides'; gap: 22px 36px; align-items: start; padding-block: 12px 44px; }
+.iyum-community-preview { grid-area: community; min-width: 0; }
+.iyum-deadlines { grid-area: deadlines; padding: 20px; border-top: 3px solid #c55618; }
+.iyum-deadlines h2 { font-size: 23px; }
+.iyum-guides { grid-area: guides; min-width: 0; }
+.iyum-guides h2 { font-size: 24px; }
+.iyum-section-heading { display: flex; justify-content: space-between; align-items: center; gap: 20px; }
+.iyum-community-title { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; }
+.iyum-community-toolbar { display: flex; align-items: center; justify-content: space-between; min-height: 50px; margin-top: 8px; color: var(--iyum-primary); font-size: 14px; }
+.iyum-community-toolbar > span { align-self: stretch; display: flex; align-items: center; border-bottom: 2px solid var(--iyum-primary); padding-inline: 8px; font-weight: 600; }
+.iyum-community-note { margin: 16px 0; color: var(--iyum-muted); font-size: 14px; }
+.iyum-posts { list-style: none; padding: 0; margin: 0 0 12px; border-top: 1px solid var(--iyum-border); }
+.iyum-posts li { border-bottom: 1px solid var(--iyum-border); }
+.iyum-posts a { display: grid; grid-template-columns: 112px minmax(0, 1fr) auto; align-items: center; gap: 16px; padding: 16px 4px; text-decoration: none; color: var(--iyum-ink); }
+.iyum-posts a:hover { background: var(--iyum-mist); }
+.iyum-post-category { white-space: nowrap; width: fit-content; padding: 4px 10px; border-radius: 20px; background: #eaf4fb; color: #165c91; font-size: 13px; font-weight: 500; }
+.iyum-post-content { min-width: 0; display: flex; flex-direction: column; gap: 6px; }
+.iyum-post-content strong { font-size: 17px; font-weight: 600; word-break: keep-all; overflow-wrap: anywhere; }
+.iyum-post-content time, .iyum-post-comments { color: var(--iyum-muted); font-size: 14px; }
+.iyum-post-comments { white-space: nowrap; }
+.iyum-empty-state { margin-block: 16px; padding: 16px; border-radius: 6px; background: var(--iyum-mist); }
+.iyum-empty-state p { font-size: 14px; color: var(--iyum-muted); }
+.iyum-empty-state .iyum-empty-title { font-size: 16px; font-weight: 600; color: var(--iyum-ink); margin-bottom: 8px; }
+.iyum-empty-state .iyum-text-link { margin-top: 8px; }
+.iyum-deadline-examples { border-top: 1px solid var(--iyum-border); }
+.iyum-deadline-examples summary { min-height: 44px; padding-block: 10px; cursor: pointer; color: var(--iyum-primary); font-size: 14px; font-weight: 600; }
+.iyum-example-note { font-size: 14px; color: var(--iyum-muted); }
+.iyum-deadline-list { list-style: none; margin: 0; padding: 0; }
+.iyum-deadline-list > li { padding-top: 20px; margin-top: 20px; border-top: 1px solid var(--iyum-border); }
+.iyum-deadline-title { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.iyum-deadline-badge { border-radius: 20px; background: #fff0e5; color: var(--iyum-deadline); padding: 4px 10px; font-size: 14px; font-weight: 700; white-space: nowrap; }
+.iyum-deadline-list p, .iyum-deadline-list time { font-size: 14px; color: var(--iyum-muted); }
+.iyum-deadline-list > li > p { margin-block: 8px 4px; }
+.iyum-shortcut-icon svg { width: 42px; height: 42px; stroke-width: 1.4; }
+.iyum-guide-link, .iyum-guide-upcoming { position: relative; isolation: isolate; overflow: hidden; }
+.iyum-guide-art { object-fit: cover; object-position: right center; pointer-events: none; }
+.iyum-guide-link::after, .iyum-guide-upcoming::after { content: ''; position: absolute; inset: 0; background: linear-gradient(90deg, white, rgb(255 255 255 / 95%) 38%, rgb(255 255 255 / 80%) 68%, rgb(255 255 255 / 10%)); pointer-events: none; }
+.iyum-guide-link > span, .iyum-guide-upcoming > span, .iyum-guide-copy { position: relative; z-index: 1; }
+.iyum-guide-copy b { color: var(--iyum-primary); font-size: 14px; font-weight: 600; }
+.iyum-guide-copy .iyum-badge { width: fit-content; }
+.iyum-guide-link { display: flex; align-items: center; gap: 14px; min-height: 150px; padding: 20px; margin-top: 14px; color: var(--iyum-ink); text-decoration: none; }
+.iyum-guide-copy { display: flex; flex: 1; flex-direction: column; gap: 4px; min-width: 0; }
+.iyum-guide-link small { font-size: 14px; color: var(--iyum-primary); }
+.iyum-guide-link strong { font-size: 17px; }
+.iyum-guide-copy > span:not(.iyum-badge) { font-size: 14px; color: var(--iyum-muted); }
+.iyum-guide-link:hover strong { text-decoration: underline; }
+.iyum-guide-upcoming { display: flex; align-items: center; gap: 14px; min-height: 138px; padding: 20px; margin-top: 14px; }
+.iyum-guide-upcoming h3 { margin: 0; font-size: 17px; }
+.iyum-guide-upcoming p { color: var(--iyum-muted); font-size: 14px; }
+.iyum-badge { padding: 4px 8px; border-radius: 6px; background: var(--iyum-mist); color: var(--iyum-muted); font-size: 13px; }
+.iyum-about { background: var(--iyum-mist); padding-block: 48px; scroll-margin-top: 24px; }
+.iyum-about h2 { font-size: 26px; margin-bottom: 16px; }
+.iyum-about p:not(.iyum-eyebrow) { max-width: 760px; color: var(--iyum-muted); font-size: 16px; }
+.iyum-about .iyum-about-note { font-size: 14px; margin-top: 12px; }
+.iyum-footer { padding-block: 36px; border-top: 1px solid var(--iyum-border); background: #f8fbfd; }
+.iyum-footer-inner { display: flex; align-items: flex-start; justify-content: space-between; gap: 40px; }
+.iyum-footer p { margin-top: 12px; max-width: 430px; font-size: 13px; line-height: 1.7; color: var(--iyum-muted); }
+.iyum-footer nav { display: flex; flex-wrap: wrap; gap: 8px 24px; }
+.iyum-footer nav a { display: inline-flex; align-items: center; min-height: 44px; font-size: 14px; color: var(--iyum-ink); }
+.iyum-search-results-notice { max-width: 1152px; margin: 20px auto 0; padding: 12px 24px; color: var(--iyum-muted); background: var(--iyum-mist); font-size: 14px; line-height: 1.7; }
+@media (max-width: 1100px) {
+  .iyum-header-inner { gap: 20px; }
+  .iyum-nav-items { gap: 20px; }
+  .iyum-shortcut { padding: 20px; gap: 12px; }
+  .iyum-home-grid { gap: 24px; }
+}
+@media (max-width: 900px) {
+  .iyum-header-inner { grid-template-columns: 1fr auto; gap: 0 12px; padding-top: 12px; }
+  .iyum-header .iyum-wordmark { min-height: 48px; align-items: center; }
+  .iyum-header .iyum-wordmark > span { font-size: 28px; }
+  .iyum-nav { order: 3; grid-column: 1 / -1; border-top: 1px solid var(--iyum-border); margin-top: 10px; }
+  .iyum-mobile-toggle { display: flex; width: 100%; align-items: center; justify-content: space-between; min-height: 44px; padding: 8px 0; font-size: 14px; font-weight: 600; color: var(--iyum-ink); cursor: pointer; }
+  .iyum-nav-items { display: none; align-items: stretch; gap: 0; padding-bottom: 12px; }
+  .iyum-nav.is-open .iyum-nav-items { display: flex; flex-direction: column; }
+  .iyum-nav-link { width: 100%; justify-content: space-between; border-top: 1px solid var(--iyum-border); padding: 12px 4px; }
+  .iyum-information-menu { position: static; width: 100%; box-shadow: none; background: var(--iyum-mist); padding: 4px; }
+  .iyum-information-menu a { min-height: 64px; }
+  .iyum-home-grid { grid-template-columns: minmax(0, 1fr); grid-template-areas: 'deadlines' 'community' 'guides'; gap: 40px; }
+  .iyum-shortcut-grid { grid-template-columns: minmax(0, 1fr); }
+  .iyum-shortcut { min-height: 94px; }
+  .iyum-footer-inner { flex-direction: column; gap: 24px; }
+  .iyum-auth-controls { max-width: 260px; }
+}
+@media (max-width: 600px) {
+  .iyum-container { width: calc(100% - 40px); }
+  .iyum-header .iyum-wordmark { gap: 8px; }
+  .iyum-header .iyum-wordmark > span { font-size: 24px; letter-spacing: .16em; }
+  .iyum-header .iyum-brand-symbol { width: 34px; height: 39px; }
+  .iyum-hero-art { height: 190px; width: 100%; }
+  .iyum-hero-art img { object-position: right center; }
+  .iyum-hero::after { background: linear-gradient(180deg, transparent 100px, #f3f9fd 190px); }
+  .iyum-header .iyum-wordmark small { display: none; }
+  .iyum-auth-controls { max-width: min(220px, calc(100vw - 180px)); }
+  .iyum-member-menu { gap: 4px; }
+  .iyum-member-menu .iyum-button { padding: 10px 8px; }
+  .iyum-member-name { max-width: 100px; font-size: 13px; }
+  .iyum-hero { padding-block: 180px 24px; }
+  .iyum-hero .iyum-eyebrow { font-size: 14px; }
+  .iyum-hero h1 { font-size: 32px; line-height: 1.4; }
+  .iyum-mobile-break { display: initial; }
+  .iyum-hero-intro { font-size: 16px; margin-bottom: 24px; }
+  .iyum-search-field { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 0 10px; padding: 0; border: 0; border-radius: 0; background: transparent; box-shadow: none; }
+  .iyum-search-field > svg { grid-row: 1; grid-column: 1; z-index: 1; margin-left: 14px; pointer-events: none; }
+  .iyum-search-field input { grid-row: 1; grid-column: 1 / -1; border: 2px solid var(--iyum-primary); padding: 12px 10px 12px 48px; border-radius: 8px; background: white; min-height: 58px; font-size: 14px; }
+  .iyum-search-field input[aria-invalid=true] { border-color: var(--iyum-danger); }
+  .iyum-search-field button { grid-column: 1 / -1; min-height: 48px; margin-top: 8px; border-radius: 8px; font-size: 16px; }
+  .iyum-suggestions { gap: 0 16px; margin-top: 12px; }
+  .iyum-suggestions > span { width: 100%; }
+  .iyum-shortcuts { padding-block: 28px 24px; }
+  .iyum-home h2 { font-size: 24px; }
+  .iyum-shortcut-grid { gap: 12px; margin-top: 20px; }
+  .iyum-shortcut { padding: 18px; }
+  .iyum-shortcut-copy strong { font-size: 16px; }
+  .iyum-deadlines { padding: 20px; }
+  .iyum-deadlines h2 { font-size: 22px; }
+  .iyum-empty-state { padding: 16px; }
+  .iyum-section-heading { flex-wrap: wrap; gap: 12px; }
+  .iyum-section-heading .iyum-button { min-height: 44px; }
+  .iyum-posts a { grid-template-columns: minmax(0, 1fr) auto; gap: 8px 12px; padding: 18px 0; }
+  .iyum-post-category { grid-column: 1; }
+  .iyum-post-content { grid-column: 1 / -1; grid-row: 2; }
+  .iyum-post-comments { grid-row: 1; grid-column: 2; }
+  .iyum-post-content strong { font-size: 16px; }
+  .iyum-home-grid { padding-bottom: 40px; }
+  .iyum-about { padding-block: 36px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  html { scroll-behavior: auto; }
+  *, *::before, *::after { animation-duration: .01ms !important; animation-iteration-count: 1 !important; transition-duration: .01ms !important; scroll-behavior: auto !important; }
+}

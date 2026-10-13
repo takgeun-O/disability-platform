@@ -118,7 +118,7 @@ try {
     await page.goto(base + '/');
     await menu(page).getByText('로그인 확인 중…').waitFor();
     assert.equal(await menu(page).getByRole('link').count(), 0);
-    await main(page).getByText('필요한 장애 관련 정보를 찾아보세요', { exact: false }).waitFor();
+    await main(page).getByText('지금 나에게 필요한', { exact: false }).waitFor();
     release();
     await menu(page).getByText('로그인 상태를 확인하지 못했습니다.').waitFor();
     assert.equal(await menu(page).getByRole('link').count(), 0);
@@ -307,7 +307,7 @@ try {
     await page.getByRole('button', { name: '나가기 — 입력한 내용이 사라집니다', exact: true }).click();
     await page.getByRole('banner').getByRole('alert').waitFor();
     assert.equal(await page.getByPlaceholder('제목을 입력하세요.').inputValue(), '저장하지 않은 글');
-    await page.getByRole('banner').getByRole('link').first().click();
+    await page.getByRole('banner').getByRole('link', { name: 'IYUM 홈으로 이동', exact: true }).click();
     await page.getByRole('dialog').waitFor();
     await page.getByRole('button', { name: '계속 작성', exact: true }).click();
     await signOut(page).click();
@@ -335,11 +335,11 @@ try {
     await signOut(page).click();
     await page.getByRole('button', { name: '나가기 — 입력한 내용이 사라집니다', exact: true }).click();
     await waitFor(() => calls.logout === 1);
-    await page.getByRole('banner').getByRole('link').first().click();
+    await page.getByRole('banner').getByRole('link', { name: 'IYUM 홈으로 이동', exact: true }).click();
     await page.waitForURL(base + '/');
     release();
     await page.getByRole('banner').getByRole('alert').waitFor();
-    await page.locator('nav').getByRole('link', { name: '커뮤니티', exact: true }).click();
+    await page.getByRole('navigation', { name: '주 메뉴' }).getByRole('link', { name: '커뮤니티', exact: true }).click();
     await page.waitForURL(base + '/community');
     assert.equal(await page.getByRole('dialog').count(), 0);
     await context.close();
@@ -396,7 +396,7 @@ try {
       await closeNotice(page).click();
       assert.equal(new URL(page.url()).pathname, '/community/posts/create');
       await anonymousMenu(page).waitFor();
-      await page.getByRole('banner').getByRole('link').first().click();
+      await page.getByRole('banner').getByRole('link', { name: 'IYUM 홈으로 이동', exact: true }).click();
       await page.getByRole('dialog').waitFor();
       await keepWriting(page).click();
       await context.close();
@@ -441,7 +441,7 @@ try {
       await anonymousMenu(page).waitFor();
       assert.equal(calls.logout, 1);
       // 추가 확인 취소 뒤에도 작성 화면은 dirty이며, 정상적인 이탈 허용은 계속 가능하다.
-      await page.getByRole('banner').getByRole('link').first().click();
+      await page.getByRole('banner').getByRole('link', { name: 'IYUM 홈으로 이동', exact: true }).click();
       await page.getByRole('dialog').waitFor();
       await leave(page).click();
       await page.waitForURL(base + '/');
@@ -464,7 +464,7 @@ try {
     release();
     await page.getByRole('banner').getByRole('alert').waitFor();
     await signOut(page).waitFor();
-    await page.getByRole('banner').getByRole('link').first().click();
+    await page.getByRole('banner').getByRole('link', { name: 'IYUM 홈으로 이동', exact: true }).click();
     await page.getByRole('dialog').waitFor();
     await keepWriting(page).click();
     assert.equal(await bodyInput(page).inputValue(), '요청이 실패해도 남아야 하는 내용');

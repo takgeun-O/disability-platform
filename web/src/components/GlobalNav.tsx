@@ -1,46 +1,84 @@
-"use client";
-import { usePathname } from "next/navigation";
-import Link from "./AppLink";
-const NAV_ITEMS = [
-  { label: '홈', to: '/' },
-  { label: '커뮤니티', to: '/community' },
-  { label: '복지·지원정보', to: '/welfare' },
-  { label: '병원·전문기관', to: '/hospitals' },
-  { label: '보조기기', to: '/devices' },
-]
+'use client';
+
+import { useEffect, useRef, useState } from 'react';
+import { usePathname } from 'next/navigation';
+import Link from './AppLink';
+import { useNavigationGuard } from './NavigationGuard';
+
+const INFORMATION = [
+  { label: '이용 가이드', href: '/validation/hearing-aid-health-insurance', description: '보청기 건강보험 안내' },
+  { label: '복지·지원정보', href: '/welfare', description: '지원 안내 살펴보기' },
+  { label: '기기 정보', href: '/devices', description: '준비 중' },
+  { label: '병원·전문기관', href: '/hospitals', description: '준비 중' },
+];
 
 export default function GlobalNav() {
-  const pathname = usePathname()
+  const pathname = usePathname();
+  const guard = useNavigationGuard();
+  const [expanded, setExpanded] = useState({ path: pathname, mobile: false, info: false });
+  const mobileOpen = expanded.path === pathname && expanded.mobile;
+  const infoOpen = expanded.path === pathname && expanded.info;
+  const navRef = useRef<HTMLElement>(null);
+  const infoRef = useRef<HTMLDivElement>(null);
+  const mobileButton = useRef<HTMLButtonElement>(null);
+  const infoButton = useRef<HTMLButtonElement>(null);
+  const close = () => {
+    // 이탈 확인을 취소하면 기존 대화상자가 이 메뉴 링크로 초점을 돌려준다.
+    // 실제 경로가 바뀌기 전까지 dirty 화면의 메뉴를 숨기지 않는다.
+    if (!guard.isDirty()) setExpanded({ path: pathname, mobile: false, info: false });
+  };
+
+  useEffect(() => {
+    if (guard.pending) return;
+    function pointer(event: PointerEvent) {
+      if (!navRef.current?.contains(event.target as Node)) {
+        setExpanded({ path: pathname, mobile: false, info: false });
+      } else if (!infoRef.current?.contains(event.target as Node)) {
+        setExpanded(current => ({ ...current, info: false }));
+      }
+    }
+    function keyboard(event: KeyboardEvent) {
+      if (event.key !== 'Escape') return;
+      if (infoOpen) {
+        setExpanded(current => ({ ...current, info: false }));
+        infoButton.current?.focus();
+      } else if (mobileOpen) {
+        setExpanded({ path: pathname, mobile: false, info: false });
+        mobileButton.current?.focus();
+      }
+    }
+    document.addEventListener('pointerdown', pointer);
+    document.addEventListener('keydown', keyboard);
+    return () => {
+      document.removeEventListener('pointerdown', pointer);
+      document.removeEventListener('keydown', keyboard);
+    };
+  }, [pathname, mobileOpen, infoOpen, guard.pending]);
 
   return (
-    <nav aria-label="주 메뉴" style={{ borderBottom: '1px solid #D0CEC9', backgroundColor: '#FAFAF8' }}>
-      <div className="max-w-6xl mx-auto px-6">
-        <ul className="flex items-center" role="list" style={{ margin: 0, padding: 0, listStyle: 'none' }}>
-          {NAV_ITEMS.map((item) => {
-            const current = item.to === '/' ? pathname === '/' : pathname.startsWith(item.to)
-            return (
-              <li key={item.label}>
-                <Link
-                  href={item.to}
-                  aria-current={current ? 'page' : undefined}
-                  style={{
-                    display: 'inline-block',
-                    fontSize: 14,
-                    fontWeight: 500,
-                    padding: '12px 16px',
-                    textDecoration: 'none',
-                    color: current ? '#1E3A8A' : '#1A1918',
-                    borderBottom: current ? '2px solid #1E3A8A' : '2px solid transparent',
-                  }}
-                >
-                  {item.label}
-                </Link>
-              </li>
-            )
-          })}
-        </ul>
+    <nav ref={navRef} className={`iyum-nav${mobileOpen ? ' is-open' : ''}`} aria-label="주 메뉴">
+      <button ref={mobileButton} className="iyum-mobile-toggle" type="button"
+        aria-expanded={mobileOpen} aria-controls="iyum-navigation" aria-label={mobileOpen ? '메뉴 닫기' : '메뉴 열기'}
+        onClick={() => setExpanded({ path: pathname, mobile: !mobileOpen, info: false })}>
+        <span>메뉴</span><span aria-hidden="true">{mobileOpen ? '닫기 ×' : '☰'}</span>
+      </button>
+      <div id="iyum-navigation" className="iyum-nav-items">
+        <div ref={infoRef} className="iyum-information">
+          <button ref={infoButton} type="button" className="iyum-nav-link" aria-expanded={infoOpen} aria-controls="iyum-information-menu"
+            onClick={() => setExpanded({ path: pathname, mobile: mobileOpen, info: !infoOpen })}>
+            정보 찾기 <span className={infoOpen ? 'iyum-chevron is-open' : 'iyum-chevron'} aria-hidden="true">⌄</span>
+          </button>
+          <div id="iyum-information-menu" className="iyum-information-menu" hidden={!infoOpen}>
+            {INFORMATION.map(item => <Link key={item.href} href={item.href} onClick={close}
+              aria-current={pathname === item.href ? 'page' : undefined}>
+              <span>{item.label}</span><small>{item.description}</small>
+            </Link>)}
+          </div>
+        </div>
+        <Link className="iyum-nav-link" href="/community" onClick={close}
+          aria-current={pathname.startsWith('/community') ? 'page' : undefined}>커뮤니티</Link>
+        <Link className="iyum-nav-link" href="/#iyum-about" onClick={close}>IYUM 소개</Link>
       </div>
     </nav>
-  )
+  );
 }
-

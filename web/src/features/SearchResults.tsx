@@ -678,6 +678,7 @@ export default function SearchResults() {
 
   return (
     <main id="main-content">
+      <p className="iyum-search-results-notice">검색 결과는 화면 체험을 위한 예시 데이터입니다. 실제 공고·기관·기기 제공 여부는 확인되지 않았습니다.</p>
       <div style={{ maxWidth: 800, margin: '0 auto', padding: '36px 24px 80px' }}>
 
         {/* ── SEARCH FIELD ─────────────────────────────────────────── */}

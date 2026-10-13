@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 const base = process.env.BASE_URL ?? 'http://127.0.0.1:8443';
 const checks = [
- ['/', '필요한 장애 관련 정보를 찾아보세요'], ['/community', '질문, 경험, 일상을'],
+ ['/', '지금 나에게 필요한'], ['/community', '질문, 경험, 일상을'],
  ['/community/posts?topic='+encodeURIComponent('보청기'), '보청기'],
  ['/community/posts/8', '오늘 아이 첫 보청기'],
  ['/community/posts/create?type='+encodeURIComponent('질문·답변'), '게시글 작성'],
