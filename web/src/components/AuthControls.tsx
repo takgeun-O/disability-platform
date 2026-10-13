@@ -48,12 +48,10 @@ function FeedbackNotice({ feedback, onDismiss }: { feedback: Feedback; onDismiss
   }, [feedback.id, feedback.error, onDismiss]);
 
   return <div ref={noticeRef} role={feedback.error ? 'alert' : 'status'} aria-atomic="true"
-    style={{ position: 'absolute', right: 0, top: '100%', zIndex: 20, width: 'min(320px, 85vw)',
-      padding: 12, background: '#FAFAF8', border: '1px solid #D0CEC9', fontSize: 12, lineHeight: 1.6,
-      color: feedback.error ? '#B91C1C' : '#4A4845', display: 'flex', alignItems: 'flex-start', gap: 8 }}>
+    className={`iyum-auth-notice${feedback.error ? ' is-error' : ''}`}>
     <span style={{ flex: 1 }}>{feedback.message}</span>
     <button type="button" aria-label="알림 닫기" onClick={() => onDismiss(feedback.id)}
-      style={{ flexShrink: 0, minHeight: 24, padding: '2px 4px', color: '#4A4845', textDecoration: 'underline', cursor: 'pointer' }}>닫기</button>
+      className="iyum-notice-close">닫기</button>
   </div>;
 }
 
@@ -107,8 +105,8 @@ export default function AuthControls() {
     : auth.status === 'anonymous');
 
   return (
-    <div style={{ position: 'relative', maxWidth: 280 }}>
-      <div className="flex items-center gap-2" aria-label="회원 메뉴">
+    <div className="iyum-auth-controls">
+      <div className="iyum-member-menu" aria-label="회원 메뉴">
         {auth.status === 'checking' || (auth.pending === 'login' && auth.status !== 'authenticated') ? (
           <span role="status" className="text-sm" style={{ color: '#4A4845' }}>
             {auth.pending === 'login' ? '로그인 처리 중…' : '로그인 확인 중…'}
@@ -121,23 +119,20 @@ export default function AuthControls() {
           </div>
         ) : auth.status === 'authenticated' && auth.member ? (
           <>
-            <span className="text-sm" style={{ overflowWrap: 'anywhere' }}>{auth.member.nickname}님</span>
+            <span className="iyum-member-name">{auth.member.nickname}님</span>
             <button type="button" disabled={!!auth.pending} onClick={() => {
               if (inFlightRef.current || auth.pending) return;
               // NavigationGuard의 기존 작성 중 확인창에서 취소하면 POST도 보내지 않는다.
               const wasDirty = guard.isDirty();
               guard.request(() => { void handleLogout(wasDirty); });
-            }} className="text-sm font-medium px-3 py-1.5"
-              style={{ color: '#1A1918', cursor: auth.pending ? 'wait' : 'pointer', whiteSpace: 'nowrap' }}>
+            }} className="iyum-button iyum-auth-logout">
               {auth.pending === 'logout' ? '로그아웃 중…' : '로그아웃'}
             </button>
           </>
         ) : (
           <>
-            <Link href="/login" className="text-sm font-medium px-3 py-1.5 hover:underline transition-colors"
-              style={{ color: '#1A1918', textDecoration: 'none' }}>로그인</Link>
-            <Link href="/register" className="text-sm font-medium px-3 py-1.5"
-              style={{ backgroundColor: '#1E3A8A', color: '#FFFFFF', borderRadius: 2, textDecoration: 'none' }}>회원가입</Link>
+            <Link href="/login" className="iyum-button iyum-auth-login">로그인</Link>
+            <Link href="/register" className="iyum-button iyum-button-outline">회원가입</Link>
           </>
         )}
       </div>
