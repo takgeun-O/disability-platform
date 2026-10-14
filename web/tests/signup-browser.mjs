@@ -66,25 +66,35 @@ try {
   await check('direct completion URL does not claim an unconfirmed signup', async () => {
     const page = await browser.newPage();
     await page.goto(base + '/register/verify');
-    await page.getByText('현재 이 화면에서 확인할 수 있는 가입 결과가 없습니다.', { exact: false }).waitFor();
-    assert.equal(await page.getByRole('heading', { name: '회원가입 요청이 완료되었습니다' }).count(), 0);
+    for (const reload of [false, true]) {
+      if (reload) await page.reload();
+      await page.getByText('이미 가입을 요청했다면 이 안내만으로 가입 실패를 의미하지는 않습니다.', { exact: false }).waitFor();
+      assert.equal(await page.getByRole('heading', { name: '회원가입 요청이 완료되었습니다' }).count(), 0);
+      assert.equal(await page.getByText('이메일 인증 대기 · PENDING', { exact: true }).count(), 0);
+    }
     await page.close();
   });
   await check('required consent and invalid input prevent requests', async () => {
     const page = await browser.newPage();
-    let requests = 0;
-    page.on('request', request => { if (request.url().startsWith(api + '/api/v1/auth/')) requests++; });
+    const requests = { signup: 0, csrf: 0, me: 0 };
+    page.on('request', request => {
+      if (request.url() === api + '/api/v1/auth/signup' && request.method() === 'POST') requests.signup++;
+      if (request.url() === api + '/api/v1/auth/csrf' && request.method() === 'GET') requests.csrf++;
+      if (request.url() === api + '/api/v1/auth/me' && request.method() === 'GET') requests.me++;
+    });
     await page.goto(base + '/register');
     await page.getByRole('button', { name: '다음', exact: true }).click();
     await page.getByRole('main').getByRole('alert').waitFor();
     assert.match(await page.getByRole('main').getByRole('alert').innerText(), /필수 약관/);
-    assert.equal(requests, 0);
+    assert.equal(requests.signup, 0);
+    assert.equal(requests.csrf, 0); // 헤더의 정상 GET /me는 가입 요청으로 합산하지 않는다.
     await page.goto(base + '/register/info');
     await fill(page);
     await page.locator('input[autocomplete="new-password"]').nth(1).fill('Different456!');
     await page.getByRole('button', { name: '가입하기', exact: true }).click();
     await page.getByText('비밀번호가 일치하지 않습니다.', { exact: true }).waitFor();
-    assert.equal(requests, 0);
+    assert.equal(requests.signup, 0);
+    assert.equal(requests.csrf, 0); // 헤더의 정상 GET /me는 가입 요청으로 합산하지 않는다.
     await page.close();
   });
   await check('real CSRF + signup returns 201/PENDING; double submit is blocked; no password persistence', async () => {
@@ -92,6 +102,7 @@ try {
     await fill(page);
     const responsePromise = page.waitForResponse(response => response.url() === api + '/api/v1/auth/signup');
     await page.locator('form').evaluate(form => { form.requestSubmit(); form.requestSubmit(); });
+    await page.getByRole('button', { name: '가입 중…', exact: true }).waitFor();
     assert.equal(await page.getByRole('button', { name: '가입 중…', exact: true }).isDisabled(), true);
     const response = await responsePromise;
     assert.equal(response.status(), 201);

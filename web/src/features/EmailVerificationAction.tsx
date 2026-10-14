@@ -2,6 +2,9 @@
 
 import { useEffect, useRef, useState } from 'react';
 
+import { useRouter } from 'next/navigation';
+import { useNavigationGuard, useNavigationRequest } from '@/components/NavigationGuard';
+import { useVerificationNotice } from '@/components/VerificationNotice';
 import Link from '@/components/AppLink';
 
 import {
@@ -21,7 +24,7 @@ type EmailVerificationActionProps = {
 type VerificationState =
   | { kind: 'idle' }
   | { kind: 'submitting' }
-  | { kind: 'success' }
+  | { kind: 'redirecting' }
   | {
       kind: 'error';
       message: string;
@@ -45,34 +48,24 @@ export default function EmailVerificationAction({
   // useRef : 화면 변경 없이 값을 기억. 화면에 표시할 값은 useState(), 중복 실행 방지처럼 내부에서 기억할 값은 useRef()로 관리
   const inFlightRef = useRef(false);
 
-  // 요청을 기다리는 동안 화면을 떠났는지 확인합니다.
-  const mountedRef = useRef(false);
+  const router = useRouter();
+  const guard = useNavigationGuard();
+  const notice = useVerificationNotice();
+  const requestScope = useNavigationRequest();
 
   // 성공·오류 안내로 키보드 초점을 이동할 때 사용합니다.
   const feedbackRef = useRef<HTMLParagraphElement>(null);
 
   useEffect(() => {
-    mountedRef.current = true;
-
-    return () => {
-      mountedRef.current = false;
-    };
-  }, []);
-
-  useEffect(() => {
-    if (
-      state.kind === 'success'
-      || state.kind === 'error'
-    ) {
-      feedbackRef.current?.focus();
-    }
-  }, [state.kind]);
+    // 전환 진행 중에는 초점을 옮기지 않는다. 로그인 도착 후 그 화면의 안내가 한 번 받는다.
+    if (requestScope.isActive() && state.kind === 'error') feedbackRef.current?.focus();
+  }, [state.kind, requestScope]);
 
   async function handleVerify() {
     if (
-      !mountedRef.current
+      !requestScope.isActive()
       || inFlightRef.current
-      || state.kind === 'success'
+      || state.kind === 'redirecting'
       || (
         state.kind === 'error'
         && !state.canRetry
@@ -81,6 +74,7 @@ export default function EmailVerificationAction({
       return;
     }
 
+    const isCurrent = requestScope.begin();
     inFlightRef.current = true;
 
     setState({
@@ -92,11 +86,11 @@ export default function EmailVerificationAction({
       // 실제로 HTTP 요청이 시작되는 곳이다.
       // 1. getCsrfToken()의 GET 요청이 끝날 때까지 기다림
       // 2. 반환받은 CSRF 토큰으로 인증 POST 요청
-      // 3. verifyEamil()이 성공적으로 반환되면 화면을 success로 변경
+      // 3. verifyEmail()이 200/ACTIVE를 확인하면 같은 탭의 로그인으로 이동
       const csrfToken = await getCsrfToken();
 
       // CSRF 조회 중 화면을 떠났다면 인증 POST를 시작하지 않습니다.
-      if (!mountedRef.current) {
+      if (!isCurrent()) {
         return;
       }
 
@@ -105,16 +99,18 @@ export default function EmailVerificationAction({
         csrfToken,
       );
 
-      if (!mountedRef.current) {
+      if (!isCurrent()) {
         return;
       }
 
       // verifyEmail은 200 / ACTIVE를 확인한 경우에만 정상 반환합니다.
-      setState({
-        kind: 'success',
+      setState({ kind: 'redirecting' });
+      guard.request(() => {
+        notice.publish();
+        router.replace('/login');
       });
     } catch (error) {
-      if (!mountedRef.current) {
+      if (!isCurrent()) {
         return;
       }
 
@@ -149,123 +145,35 @@ export default function EmailVerificationAction({
         });
       }
     } finally {
-      inFlightRef.current = false;
+      if (isCurrent()) inFlightRef.current = false;
     }
   }
 
   const isSubmitting = state.kind === 'submitting';
 
   const showButton =
-    state.kind !== 'success'
+    state.kind !== 'redirecting'
     && (
       state.kind !== 'error'
       || state.canRetry
     );
 
   return (
-    <div style={{ marginBottom: 32 }}>
-      {isSubmitting && (
-        <p
-          role="status"
-          aria-live="polite"
-          style={{
-            fontSize: 13,
-            color: '#4A4845',
-            marginBottom: 12,
-          }}
-        >
-          이메일 인증을 처리하고 있습니다.
-        </p>
-      )}
-
-      {state.kind === 'error' && (
-        <p
-          id="email-verification-feedback"
-          ref={feedbackRef}
-          tabIndex={-1}
-          role="alert"
-          style={{
-            fontSize: 13,
-            color: '#B91C1C',
-            lineHeight: 1.7,
-            marginBottom: 16,
-          }}
-        >
-          {state.message}
-        </p>
-      )}
-
-      {state.kind === 'success' && (
-        <div>
-          <p
-            ref={feedbackRef}
-            tabIndex={-1}
-            role="status"
-            aria-live="polite"
-            style={{
-              fontSize: 14,
-              color: '#4A4845',
-              lineHeight: 1.7,
-              marginBottom: 16,
-            }}
-          >
-            이메일 인증이 완료되었습니다.
-            <br />
-            계정이 활성화되었습니다. 직접 로그인해 주세요.
-          </p>
-
-          <Link
-            href="/login"
-            style={{
-              fontSize: 14,
-              color: '#1A1918',
-              textDecoration: 'underline',
-            }}
-          >
-            로그인 화면으로 이동
-          </Link>
-        </div>
-      )}
-
-      {state.kind === 'error' && state.canResend && (
-        <p style={{ marginBottom: 16 }}>
-          <Link href="/register/resend" style={{ fontSize: 14, color: '#4A4845', textDecoration: 'underline' }}>
-            인증 메일 다시 요청하기
-          </Link>
-        </p>
-      )}
-
-      {showButton && (
-        <button
-          type="button"
-          onClick={handleVerify}
-          disabled={isSubmitting}
-          aria-describedby={
-            state.kind === 'error'
-              ? 'email-verification-feedback'
-              : undefined
-          }
-          style={{
-            width: '100%',
-            padding: '12px 16px',
-            border: 'none',
-            borderRadius: 2,
-            backgroundColor: '#1A1918',
-            color: '#FFFFFF',
-            fontSize: 14,
-            fontWeight: 600,
-            fontFamily: 'inherit',
-            cursor: isSubmitting ? 'wait' : 'pointer',
-            opacity: isSubmitting ? 0.6 : 1,
-          }}
-        >
-          {isSubmitting
-            ? '인증 중…'
-            : state.kind === 'error'
-              ? '다시 인증하기'
-              : '이메일 인증하기'}
-        </button>
-      )}
+    <div className="auth-verification">
+      {isSubmitting && <p role="status" aria-live="polite" className="auth-status">이메일 인증을 처리하고 있습니다.</p>}
+      {state.kind === 'error' && <p id="email-verification-feedback" ref={feedbackRef} tabIndex={-1} role="alert" className="auth-feedback is-error">{state.message}</p>}
+      {state.kind === 'redirecting' && <p role="status" aria-live="polite" className="auth-feedback">
+        이메일 인증을 확인했습니다. 로그인 화면으로 이동하고 있습니다.
+      </p>}
+      {state.kind === 'error' && state.canResend && <p className="auth-copy">
+        <Link href="/register/resend" className="iyum-button iyum-button-outline auth-submit">인증 메일 다시 요청하기</Link>
+        <span>이미 인증을 완료했다면 로그인해 주세요. </span><Link href="/login" className="iyum-text-link">로그인 화면으로 이동</Link>
+      </p>}
+      {showButton && <button type="button" onClick={handleVerify} disabled={isSubmitting}
+        aria-describedby={state.kind === 'error' ? 'email-verification-feedback' : undefined}
+        className="iyum-button iyum-button-primary auth-submit">
+        {isSubmitting ? '인증 중…' : state.kind === 'error' ? '다시 인증하기' : '이메일 인증하기'}
+      </button>}
     </div>
   );
 }

@@ -2,8 +2,10 @@
 
 import { useState, useRef, useId, useEffect } from 'react'
 import { useRouter } from 'next/navigation';
+import { useNavigationGuard } from '@/components/NavigationGuard';
 import { useSignupFlow } from './SignupFlow';
 import { createAgreements } from '@/lib/signup-form';
+import AuthFrame from '@/components/auth/AuthFrame';
 
 // ─── Consent item row ─────────────────────────────────────────────────────────
 
@@ -20,41 +22,10 @@ function ConsentItem({
 }) {
   const isRequired = badge === '필수'
   return (
-    <div
-      style={{
-        display: 'flex', alignItems: 'center', gap: 10,
-        padding: '11px 0', borderBottom: '1px solid #E8E6E1',
-      }}
-    >
-      <input
-        id={id}
-        type="checkbox"
-        checked={checked}
-        disabled={disabled}
-        aria-invalid={!!errorId}
-        aria-describedby={errorId}
-        onChange={(e) => onChange(e.target.checked)}
-        style={{ width: 17, height: 17, cursor: 'pointer', accentColor: '#1A1918', flexShrink: 0 }}
-      />
-      <label
-        htmlFor={id}
-        style={{
-          fontSize: 14, color: '#1A1918', cursor: 'pointer',
-          flex: 1, display: 'flex', alignItems: 'center', gap: 8,
-          userSelect: 'none',
-        }}
-      >
-        {label}
-        <span
-          style={{
-            fontSize: 11, fontWeight: 500,
-            color: isRequired ? '#B91C1C' : '#908D88',
-          }}
-          aria-label={isRequired ? '필수 동의 항목' : '선택 동의 항목'}
-        >
-          [{badge}]
-        </span>
-      </label>
+    <div className="auth-consent-row">
+      <input id={id} type="checkbox" checked={checked} disabled={disabled}
+        aria-invalid={!!errorId} aria-describedby={errorId} onChange={e => onChange(e.target.checked)} />
+      <label htmlFor={id}>{label}<span aria-label={isRequired ? '필수 동의 항목' : '선택 동의 항목'}>[{badge}]</span></label>
     </div>
   )
 }
@@ -63,6 +34,7 @@ function ConsentItem({
 
 export default function SignupConsent() {
   const router = useRouter()
+  const guard = useNavigationGuard()
   const uid = useId()
   const { agreements, chooseAgreements } = useSignupFlow()
 
@@ -114,144 +86,26 @@ export default function SignupConsent() {
   // ── Render ─────────────────────────────────────────────────────────────────
 
   return (
-    <main>
-      <div style={{ maxWidth: 500, margin: '0 auto', padding: '60px 24px 80px' }}>
-
-        {/* H1 */}
-        <h1
-          style={{
-            fontSize: 22, fontWeight: 700, color: '#1A1918',
-            letterSpacing: '-0.01em', marginBottom: 8,
-          }}
-        >
-          회원가입
-        </h1>
-        <p style={{ fontSize: 13, color: '#908D88', marginBottom: 40 }}>
-          서비스 이용을 위해 약관을 확인하고 동의해 주세요.
-        </p>
-
-        {/* Agreement group — fieldset for semantic grouping */}
-        <fieldset style={{ border: 'none', padding: 0, margin: 0 }}>
-          <legend className="sr-only">약관 동의</legend>
-
-          {/* ── 전체 동의 ─────────────────────────────────────────── */}
-          <div
-            style={{
-              display: 'flex', alignItems: 'center', gap: 10,
-              padding: '13px 16px',
-              borderTop: '1px solid #D0CEC9',
-              borderBottom: '1px solid #D0CEC9',
-              borderLeft: '1px solid #D0CEC9',
-              borderRight: '1px solid #D0CEC9',
-              borderRadius: 2,
-              marginBottom: 16,
-            }}
-          >
-            <input
-              ref={allRef}
-              id={`${uid}-all`}
-              type="checkbox"
-              checked={allChecked}
-              onChange={handleAllConsent}
-              style={{ width: 17, height: 17, cursor: 'pointer', accentColor: '#1A1918', flexShrink: 0 }}
-            />
-            <label
-              htmlFor={`${uid}-all`}
-              style={{
-                fontSize: 15, fontWeight: 600, color: '#1A1918',
-                cursor: 'pointer', flex: 1, userSelect: 'none',
-              }}
-            >
-              전체 동의
-            </label>
-          </div>
-
-          {/* ── Individual consent items ───────────────────────────── */}
-          <div>
-            <ConsentItem
-              id={`${uid}-terms`}
-              label="이용약관"
-              badge="필수"
-              checked={terms}
-              onChange={handleTerms}
-              errorId={showError && !terms ? `${uid}-consent-error` : undefined}
-            />
-            <ConsentItem
-              id={`${uid}-privacy`}
-              label="개인정보 수집 · 이용"
-              badge="필수"
-              checked={privacy}
-              onChange={handlePrivacy}
-              errorId={showError && !privacy ? `${uid}-consent-error` : undefined}
-            />
-            <ConsentItem
-              id={`${uid}-marketing`}
-              label="마케팅 정보 수신 동의"
-              badge="선택"
-              checked={false}
-              disabled
-              onChange={() => {}}
-            />
-          </div>
-
-          <p style={{ fontSize: 12, color: '#908D88', marginTop: 12 }}>
-            현재 약관은 개발용 버전(dev-v1)입니다. 마케팅 정보 수신 동의는 준비 중입니다.
-          </p>
-
-          {/* ── Required consent validation error ─────────────────── */}
-          {showError && (
-            <p
-              id={`${uid}-consent-error`}
-              role="alert"
-              style={{ fontSize: 12, color: '#B91C1C', marginTop: 12, marginBottom: 0 }}
-            >
-              필수 약관에 동의해야 가입할 수 있습니다.
-            </p>
-          )}
-
-        </fieldset>
-
-        {/* ── Action area ────────────────────────────────────────────── */}
-        <div
-          style={{
-            display: 'flex', justifyContent: 'flex-end',
-            alignItems: 'center', gap: 12, marginTop: 36,
-          }}
-        >
-          {/*
-            취소 — Cancel destination is unresolved per Product Contract.
-            This button is intentionally non-navigating in the prototype.
-          */}
-          <button
-            type="button"
-            style={{
-              fontSize: 14, color: '#4A4845',
-              background: 'none', border: 'none',
-              cursor: 'pointer', fontFamily: 'inherit',
-              padding: '10px 16px',
-            }}
-          >
-            취소
-          </button>
-
-          {/* 다음 — primary action → SCR-AUTH-003 when required consent is met */}
-          <button
-            type="button"
-            onClick={handleNext}
-            style={{
-              fontSize: 14, fontWeight: 700, color: '#FAFAF8',
-              backgroundColor: '#1A1918',
-              border: 'none', borderRadius: 2,
-              padding: '10px 28px',
-              cursor: 'pointer', fontFamily: 'inherit',
-              letterSpacing: '-0.01em',
-            }}
-          >
-            다음
-          </button>
+    <AuthFrame title="회원가입" step={1} description="서비스 이용을 위해 약관을 확인하고 동의해 주세요.">
+      {/* 실제 체크박스와 fieldset을 유지해 Space/Tab 조작 및 일부 동의 상태를 전달한다. */}
+      <fieldset>
+        <legend className="sr-only">약관 동의</legend>
+        <div className="auth-consent-row is-all">
+          <input ref={allRef} id={`${uid}-all`} type="checkbox" checked={allChecked} onChange={handleAllConsent} />
+          <label htmlFor={`${uid}-all`}>전체 동의</label>
         </div>
-
+        <ConsentItem id={`${uid}-terms`} label="이용약관" badge="필수" checked={terms} onChange={handleTerms}
+          errorId={showError && !terms ? `${uid}-consent-error` : undefined} />
+        <ConsentItem id={`${uid}-privacy`} label="개인정보 수집 · 이용" badge="필수" checked={privacy} onChange={handlePrivacy}
+          errorId={showError && !privacy ? `${uid}-consent-error` : undefined} />
+        <ConsentItem id={`${uid}-marketing`} label="마케팅 정보 수신 동의" badge="선택" checked={false} disabled onChange={() => {}} />
+        <p className="auth-hint auth-consent-note">현재 약관은 개발용 버전(dev-v1)입니다. 마케팅 정보 수신 동의는 준비 중입니다.</p>
+        {showError && <p id={`${uid}-consent-error`} role="alert" className="auth-field-error">필수 약관에 동의해야 가입할 수 있습니다.</p>}
+      </fieldset>
+      <div className="auth-actions">
+        <button className="iyum-button iyum-button-outline" type="button" onClick={() => guard.request(() => router.push('/'))}>취소</button>
+        <button className="iyum-button iyum-button-primary" type="button" onClick={handleNext}>다음</button>
       </div>
-    </main>
+    </AuthFrame>
   )
 }

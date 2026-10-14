@@ -302,7 +302,6 @@ try {
       await page.getByRole('button', { name: '이메일 인증하기', exact: true }).click();
       await page.getByText('이메일 인증이 완료되었습니다.', { exact: false }).waitFor();
       assert.deepEqual(Object.fromEntries(Object.entries(dbSummary(email)).filter(([key]) => key !== 'firstIssued')), { status: 'ACTIVE', tokens: 2, used: 1, revoked: 1 });
-      await page.getByRole('link', { name: '로그인 화면으로 이동' }).click();
       await page.waitForURL('**/login');
       assert.equal((await mailList(email)).length, 2);
       console.log('Created local test member:', email, 'ACTIVE; 2 token records, 2 Mailpit messages retained');

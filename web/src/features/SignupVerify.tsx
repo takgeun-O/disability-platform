@@ -3,18 +3,12 @@
 import { useSearchParams } from 'next/navigation';
 
 import Link from '@/components/AppLink';
+import AuthFrame from '@/components/auth/AuthFrame';
 import { readEmailVerificationLink } from '@/lib/email-verification-link';
 
 import { useSignupFlow } from './SignupFlow';
 import EmailVerificationAction from './EmailVerificationAction';
 
-
-const messageStyle = {
-    fontSize: 13,
-    color: '#908D88',
-    lineHeight: 1.7,
-    marginBottom: 32,
-};
 
 export default function SignupVerify() {
     // 현재 URL의 ? 뒤에 있는 쿼리 파라미터를 읽는 Next.js 기능
@@ -46,112 +40,27 @@ export default function SignupVerify() {
     }
 
     return (
-        <main>
-            <div
-                style={{
-                    maxWidth: 500,
-                    margin: '0 auto',
-                    padding: '60px 24px 80px',
-                }}
-            >
-                <p
-                    style={{
-                        fontSize: 11,
-                        color: '#908D88',
-                        fontFamily: "'DM Mono', monospace",
-                        letterSpacing: '0.04em',
-                        marginBottom: 8,
-                    }}
-                >
-                    회원가입 3/3
-                </p>
-
-                <h1
-                    style={{
-                        fontSize: 22,
-                        fontWeight: 700,
-                        color: '#1A1918',
-                        letterSpacing: '-0.01em',
-                        marginBottom: 16,
-                    }}
-                >
-                    {title}
-                </h1>
-
-                {link.kind === 'ready' && (
-                    <section aria-label="이메일 인증 안내">
-                        <p style={messageStyle}>
-                            이메일 인증을 완료하면 계정이 활성화됩니다.
-                            <br />
-                            인증을 완료한 후 직접 로그인해 주세요.
-                        </p>
-
-                        <EmailVerificationAction
-                            key={link.token}    // 자식 컴포넌트에 인증 토큰 전달
-                            token={link.token}  // 토큰이 달라지면 해당 컴포넌트의 상태를 새로 시작
-                        />
-                    </section>
-                )}
-
-                {/* link.kind === 'invalid'가 참이면 오른쪽의 <p>를 화면에 표시한다. */}
-                {link.kind === 'invalid' && (
-                    <p role="alert" style={messageStyle}>
-                        인증 링크의 형식이 올바르지 않습니다.
-                        <br />
-                        메일에 포함된 링크 전체를 다시 열어 주세요.
-                    </p>
-                )}
-
-                {isPending && (
-                    <div role="status" aria-live="polite">
-                        <p
-                            style={{
-                                fontSize: 14,
-                                fontWeight: 600,
-                                color: '#4A4845',
-                                marginBottom: 12,
-                            }}
-                        >
-                            이메일 인증 대기 · PENDING
-                        </p>
-
-                        <p style={messageStyle}>
-                            가입한 이메일의 메일함에서 인증 메일을 확인해 주세요.
-                            <br />
-                            메일의 링크에서 인증을 완료한 후 직접 로그인할 수 있습니다.
-                        </p>
-                    </div>
-                )}
-
-                {link.kind === 'missing' && !isPending && (
-                    <p style={messageStyle}>
-                        메일에 포함된 이메일 인증 링크로 접속해 주세요.
-                        <br />
-                        이미 가입을 요청했다면 이 안내만으로 가입 실패를
-                        의미하지는 않습니다.
-                    </p>
-                )}
-
-                {link.kind !== 'ready' && (
-                    <p style={{ marginBottom: 24 }}>
-                        <Link href="/register/resend" style={{ fontSize: 14, color: '#4A4845', textDecoration: 'underline' }}>
-                            인증 메일 다시 요청하기
-                        </Link>
-                    </p>
-                )}
-
-                <Link
-                    href="/"
-                    style={{
-                        fontSize: 13,
-                        color: '#4A4845',
-                        textDecoration: 'underline',
-                        textDecorationStyle: 'dotted',
-                    }}
-                >
-                    홈으로 돌아가기
-                </Link>
-            </div>
-        </main>
+        <AuthFrame title={title} step={3}>
+            {link.kind === 'ready' && <section aria-label="이메일 인증 안내">
+                <p className="auth-copy">이메일 인증을 완료하면 계정이 활성화됩니다.<br />인증이 완료되면 로그인 화면으로 이동합니다.</p>
+                <EmailVerificationAction
+                    key={link.token} // 토큰이 달라지면 자식 상태를 새로 시작한다.
+                    token={link.token}
+                />
+            </section>}
+            {link.kind === 'invalid' && <p role="alert" className="auth-feedback is-error">
+                인증 링크의 형식이 올바르지 않습니다.<br />메일에 포함된 링크 전체를 다시 열어 주세요.
+            </p>}
+            {link.kind === 'invalid' && <p className="auth-copy">이미 인증을 완료했다면 로그인해 주세요. <Link href="/login" className="iyum-text-link">로그인 화면으로 이동</Link></p>}
+            {isPending && <div role="status" aria-live="polite" className="auth-feedback">
+                <p className="auth-feedback-title">이메일 인증 대기 · PENDING</p>
+                <p>가입한 이메일의 메일함에서 인증 메일을 확인해 주세요.<br />메일의 링크에서 인증을 완료한 후 직접 로그인할 수 있습니다.</p>
+            </div>}
+            {link.kind === 'missing' && !isPending && <p className="auth-copy">
+                메일에 포함된 이메일 인증 링크로 접속해 주세요.<br />이미 가입을 요청했다면 이 안내만으로 가입 실패를 의미하지는 않습니다.
+            </p>}
+            {link.kind !== 'ready' && <Link href="/register/resend" className="iyum-button iyum-button-outline auth-submit">인증 메일 다시 요청하기</Link>}
+            <div className="auth-links"><Link href="/" className="iyum-text-link">홈으로 돌아가기</Link></div>
+        </AuthFrame>
     );
 }

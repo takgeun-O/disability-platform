@@ -2,49 +2,27 @@
 
 import { useEffect, useState, useId, useRef, type FormEvent } from 'react';
 import Link from '@/components/AppLink';
+import AuthFrame from '@/components/auth/AuthFrame';
+import { FieldLabel, FieldError, PasswordInput } from '@/components/auth/AuthFields';
 import { useRouter } from 'next/navigation';
 import { safeReturnPath } from '@/lib/navigation';
 import { useQueryParams } from '@/lib/useQueryParams';
+import { useVerificationNotice } from '@/components/VerificationNotice';
 import { useAuth } from '@/components/AuthProvider';
 import { useNavigationGuard } from '@/components/NavigationGuard';
 import { AuthApiError, getAuthCsrf } from '@/lib/auth-api';
 import { validateLoginForm } from '@/lib/login-form';
 
-type Feedback = { kind: 'error' | 'success'; message: string; needsVerification?: boolean; canContinue?: boolean };
-
-function inputStyle(hasError: boolean, extra: React.CSSProperties = {}): React.CSSProperties {
-  const c = hasError ? '#B91C1C' : '#1A1918'
-  return {
-    width: '100%',
-    boxSizing: 'border-box',
-    borderTop: `1.5px solid ${c}`,
-    borderBottom: `1.5px solid ${c}`,
-    borderLeft: `1.5px solid ${c}`,
-    borderRight: `1.5px solid ${c}`,
-    borderRadius: 2,
-    padding: '10px 12px',
-    fontSize: 14,
-    backgroundColor: '#FAFAF8',
-    color: '#1A1918',
-    outline: 'none',
-    fontFamily: 'inherit',
-    ...extra,
-  }
-}
-
-function labelStyle(): React.CSSProperties {
-  return { display: 'block', fontSize: 12, fontWeight: 600, color: '#4A4845', marginBottom: 6 }
-}
-
-function fieldErrorStyle(): React.CSSProperties {
-  return { fontSize: 12, color: '#B91C1C', marginTop: 5, margin: 0 }
-}
+type Feedback = { verificationTicket?: number; kind: 'error' | 'success'; message: string; needsVerification?: boolean; canContinue?: boolean };
 
 export default function Login() {
   const [searchParams] = useQueryParams();
   const router = useRouter();
   const auth = useAuth();
   const guard = useNavigationGuard();
+  const { read, consume } = useVerificationNotice();
+  // 읽기는 순수하게 수행하고, 실제로 마운트한 뒤 소비한다(StrictMode/중단된 렌더 대응).
+  const [verificationTicket] = useState(read);
   const uid = useId();
   const destination = safeReturnPath(searchParams.get('from') ?? '');
   const hasReturn = destination !== '/';
@@ -53,7 +31,9 @@ export default function Login() {
   const [showPw, setShowPw] = useState(false);
   const [emailError, setEmailError] = useState('');
   const [pwError, setPwError] = useState('');
-  const [feedback, setFeedback] = useState<Feedback | null>(null);
+  const [feedback, setFeedback] = useState<Feedback | null>(() => verificationTicket === null ? null : {
+    kind: 'success', verificationTicket, message: '이메일 인증이 완료되었습니다. 로그인해 주세요.',
+  });
   const [preparing, setPreparing] = useState(false);
   const emailRef = useRef<HTMLInputElement>(null);
   const pwRef = useRef<HTMLInputElement>(null);
@@ -62,6 +42,9 @@ export default function Login() {
   const mountedRef = useRef(false);
   const isProcessing = auth.pending !== null || preparing;
 
+  useEffect(() => {
+    if (verificationTicket !== null) consume(verificationTicket);
+  }, [verificationTicket, consume]);
   useEffect(() => {
     mountedRef.current = true;
     return () => { mountedRef.current = false; };
@@ -128,140 +111,54 @@ export default function Login() {
     }
   }
 
+  const visibleFeedback = feedback && (feedback.verificationTicket === undefined
+    || feedback.verificationTicket === guard.getApprovalVersion()) ? feedback : null;
+
   return (
-    <main>
-      <div style={{ maxWidth: 440, margin: '0 auto', padding: '60px 24px 80px' }}>
-        <h1 style={{ fontSize: 22, fontWeight: 700, color: '#1A1918', letterSpacing: '-0.01em', marginBottom: hasReturn ? 10 : 36 }}>로그인</h1>
-        {hasReturn && <p style={{ fontSize: 13, color: '#908D88', marginBottom: 32 }}>로그인 후 이전 페이지로 이동합니다.</p>}
-        {feedback && <div ref={feedbackRef} tabIndex={-1} role={feedback.kind === 'error' ? 'alert' : 'status'}
-          style={{ border: '1px solid #D0CEC9', borderRadius: 2, padding: '11px 14px', marginBottom: 24,
-            fontSize: 13, lineHeight: 1.7, color: feedback.kind === 'error' ? '#B91C1C' : '#4A4845' }}>
-          <p style={{ margin: 0 }}>{feedback.message}</p>
-          {feedback.needsVerification && <Link href="/register/resend" style={{ textDecoration: 'underline' }}>인증 메일 다시 요청하기</Link>}
-        </div>}
-        {auth.status === 'authenticated' && auth.member ? (
-          <div>
-            <p style={{ fontSize: 14, marginBottom: 20 }}>{auth.member.nickname}님으로 로그인되어 있습니다.</p>
-            <button type="button" disabled={isProcessing} onClick={navigateAfterLogin}
-              style={{ padding: '12px 20px', background: '#1A1918', color: '#FAFAF8', borderRadius: 2, cursor: isProcessing ? 'wait' : 'pointer' }}>
-              {isProcessing ? '보안 확인 중…' : hasReturn ? '이전 페이지로 계속' : '홈으로 이동'}
-            </button>
-            {feedback?.canContinue && <button type="button" disabled={isProcessing} onClick={() => { void prepareAndContinue(); }}
-              style={{ display: 'block', marginTop: 16, fontSize: 13, textDecoration: 'underline', cursor: 'pointer' }}>보안 정보 다시 확인</button>}
-          </div>
-        ) : (
-          <form onSubmit={handleSubmit} noValidate aria-label="로그인 양식" aria-busy={isProcessing}>
-          {/* ── Email field ────────────────────────────────────────── */}
-          <div style={{ marginBottom: 20 }}>
-            <label htmlFor={`${uid}-email`} style={labelStyle()}>
-              이메일{' '}
-              <span aria-hidden="true" style={{ color: '#B91C1C', fontWeight: 400 }}>(필수)</span>
-            </label>
-            <input
-              ref={emailRef}
-              id={`${uid}-email`}
-              type="email"
-              name="email"
-              autoComplete="email"
-              value={email}
-              onChange={(e) => {
-                setEmail(e.target.value)
-                if (emailError) setEmailError('')
-              }}
-              placeholder="이메일 주소"
-              aria-required="true"
-              aria-invalid={emailError ? true : undefined}
-              aria-describedby={emailError ? `${uid}-email-err` : undefined}
-              disabled={isProcessing}
-              style={inputStyle(!!emailError)}
-            />
-            {emailError && (
-              <p id={`${uid}-email-err`} role="alert" style={fieldErrorStyle()}>
-                {emailError}
-              </p>
-            )}
-          </div>
-
-          {/* ── Password field ─────────────────────────────────────── */}
-          <div style={{ marginBottom: 20 }}>
-            <label htmlFor={`${uid}-pw`} style={labelStyle()}>
-              비밀번호{' '}
-              <span aria-hidden="true" style={{ color: '#B91C1C', fontWeight: 400 }}>(필수)</span>
-            </label>
-            <div style={{ position: 'relative' }}>
-              <input
-                ref={pwRef}
-                id={`${uid}-pw`}
-                type={showPw ? 'text' : 'password'}
-                name="password"
-                autoComplete="current-password"
-                value={password}
-                onChange={(e) => {
-                  setPassword(e.target.value)
-                  if (pwError) setPwError('')
-                }}
-                placeholder="비밀번호"
-                aria-required="true"
-                aria-invalid={pwError ? true : undefined}
-                aria-describedby={pwError ? `${uid}-pw-err` : undefined}
-                disabled={isProcessing}
-                style={inputStyle(!!pwError, { paddingRight: 60 })}
-              />
-              <button
-                type="button"
-                onClick={() => setShowPw((v) => !v)}
-                aria-label={showPw ? '비밀번호 숨기기' : '비밀번호 표시'}
-                style={{
-                  position: 'absolute', right: 10, top: '50%', transform: 'translateY(-50%)',
-                  background: 'none', border: 'none', cursor: 'pointer',
-                  fontSize: 11, color: '#908D88', fontFamily: 'inherit', padding: '2px 4px', lineHeight: 1,
-                }}
-              >
-                {showPw ? '숨기기' : '표시'}
-              </button>
-            </div>
-            {pwError && (
-              <p id={`${uid}-pw-err`} role="alert" style={fieldErrorStyle()}>
-                {pwError}
-              </p>
-            )}
-          </div>
-
-            {isProcessing && <p role="status" aria-live="polite" style={{ fontSize: 13, marginBottom: 12 }}>로그인 요청을 처리하고 있습니다.</p>}
-            <button type="submit" disabled={isProcessing} aria-label={isProcessing ? '로그인 처리 중' : '로그인'}
-              style={{ width: '100%', backgroundColor: isProcessing ? '#908D88' : '#1A1918', color: '#FAFAF8',
-                border: 'none', borderRadius: 2, padding: '12px 0', fontSize: 15, fontWeight: 700,
-                cursor: isProcessing ? 'wait' : 'pointer', fontFamily: 'inherit', letterSpacing: '-0.01em' }}>
-              {isProcessing ? '처리 중...' : '로그인'}
-            </button>
-          </form>
-        )}
-        {/* ── Supporting navigation ──────────────────────────────── */}
-        <div
-          role="navigation"
-          aria-label="계정 관련 이동"
-          style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', gap: 20, marginTop: 24 }}
-        >
-          <Link
-            href="/register"
-            style={{ fontSize: 13, color: '#4A4845', textDecoration: 'none' }}
-            onMouseEnter={(e) => { e.currentTarget.style.textDecoration = 'underline' }}
-            onMouseLeave={(e) => { e.currentTarget.style.textDecoration = 'none' }}
-          >
-            회원가입
-          </Link>
-          <span style={{ color: '#D0CEC9', fontSize: 11 }} aria-hidden="true">·</span>
-          <Link
-            href="/forgot-password"
-            style={{ fontSize: 13, color: '#4A4845', textDecoration: 'none' }}
-            onMouseEnter={(e) => { e.currentTarget.style.textDecoration = 'underline' }}
-            onMouseLeave={(e) => { e.currentTarget.style.textDecoration = 'none' }}
-          >
-            비밀번호 찾기
-          </Link>
+    <AuthFrame title="로그인" description={hasReturn ? '로그인 후 이전 페이지로 이동합니다.' : '이메일과 비밀번호로 로그인해 주세요.'}>
+      {visibleFeedback && <div ref={feedbackRef} tabIndex={-1} role={visibleFeedback.kind === 'error' ? 'alert' : 'status'}
+        className={`auth-feedback${visibleFeedback.kind === 'error' ? ' is-error' : ''}`}>
+        <p>{visibleFeedback.message}</p>
+        {visibleFeedback.verificationTicket !== undefined && auth.status === 'authenticated' && <p>현재 로그인된 세션은 유지됩니다. 방금 인증한 계정과 같은 계정인지 이 안내만으로 확인할 수 없습니다.</p>}
+        {visibleFeedback.needsVerification && <Link href="/register/resend" className="iyum-text-link">인증 메일 다시 요청하기</Link>}
+      </div>}
+      {auth.status === 'authenticated' && auth.member ? (
+        <div>
+          <p className="auth-copy">{auth.member.nickname}님으로 로그인되어 있습니다.</p>
+          <button className="iyum-button iyum-button-primary auth-submit" type="button" disabled={isProcessing} onClick={navigateAfterLogin}>
+            {isProcessing ? '보안 확인 중…' : hasReturn ? '이전 페이지로 계속' : '홈으로 이동'}
+          </button>
+          {feedback?.canContinue && <button className="iyum-text-link" type="button" disabled={isProcessing} onClick={() => { void prepareAndContinue(); }}>보안 정보 다시 확인</button>}
         </div>
-
-      </div>
-    </main>
+      ) : (
+        <form onSubmit={handleSubmit} noValidate aria-label="로그인 양식" aria-busy={isProcessing}>
+          {/* 입력 상태·검증·오류 초점은 기존 handleSubmit과 ref가 관리한다. */}
+          <div className="auth-field">
+            <FieldLabel htmlFor={`${uid}-email`} text="이메일" />
+            <input className="auth-input" ref={emailRef} id={`${uid}-email`} type="email" name="email" autoComplete="email"
+              value={email} onChange={event => { setEmail(event.target.value); if (emailError) setEmailError(''); }}
+              placeholder="이메일 주소" aria-required="true" aria-invalid={emailError ? true : undefined}
+              aria-describedby={emailError ? `${uid}-email-err` : undefined} disabled={isProcessing} />
+            <FieldError id={`${uid}-email-err`} msg={emailError} />
+          </div>
+          <div className="auth-field">
+            <FieldLabel htmlFor={`${uid}-pw`} text="비밀번호" />
+            <PasswordInput inputRef={pwRef} id={`${uid}-pw`} name="password" autoComplete="current-password"
+              value={password} onChange={value => { setPassword(value); if (pwError) setPwError(''); }}
+              placeholder="비밀번호" show={showPw} onToggle={() => setShowPw(value => !value)}
+              hasError={!!pwError} describedBy={pwError ? `${uid}-pw-err` : undefined} disabled={isProcessing} />
+            <FieldError id={`${uid}-pw-err`} msg={pwError} />
+          </div>
+          {isProcessing && <p className="auth-status" role="status" aria-live="polite">로그인 요청을 처리하고 있습니다.</p>}
+          <button className="iyum-button iyum-button-primary auth-submit" type="submit" disabled={isProcessing} aria-label={isProcessing ? '로그인 처리 중' : '로그인'}>
+            {isProcessing ? '처리 중...' : '로그인'}
+          </button>
+        </form>
+      )}
+      <nav className="auth-links" aria-label="계정 관련 이동">
+        <Link href="/register" className="iyum-text-link">회원가입</Link>
+        <Link href="/forgot-password" className="iyum-text-link">비밀번호 찾기</Link>
+      </nav>
+    </AuthFrame>
   );
 }

@@ -100,7 +100,7 @@ async function createMember(kind) {
     assert.ok(!!token);
     await page.goto(base + '/register/verify?token=' + token);
     await page.getByRole('button', { name: '이메일 인증하기', exact: true }).click();
-    await page.getByText('이메일 인증이 완료되었습니다.', { exact: false }).waitFor();
+    await page.waitForURL('**/login'); await page.getByText('이메일 인증이 완료되었습니다. 로그인해 주세요.', { exact: true }).waitFor();
   }
   Object.assign(createdMembers.at(-1), dbSummary(email), { mails: messages.length });
   return { context, page, email, nickname, password };
