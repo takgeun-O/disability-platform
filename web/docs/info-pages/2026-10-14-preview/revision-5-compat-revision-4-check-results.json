@@ -1,0 +1,132 @@
+{
+  "scope": "검토 시안 브라우저 검사, 실제 API/정책 최신성 검증 아님",
+  "results": [
+    {
+      "name": "실제 원본 28개 완료 조합: 4순서·기관/문의/행동·기존 조건·금액 노출 유지",
+      "status": "passed",
+      "detail": {
+        "completedCombinations": 28
+      }
+    },
+    {
+      "name": "등록 전: 주민센터→등록 문의→진단 자료 확인→병원 검사/자료 제출/심사",
+      "status": "passed"
+    },
+    {
+      "name": "센터 상담에서만 추가 제품/비용 질문 토글·현재 문의 복사와 기존 상담 질문 복사 구분",
+      "status": "passed"
+    },
+    {
+      "name": "의료급여/모름: 신청·결정 통보의 조건 유지, 기억나지 않음을 첫 신청/승인으로 처리하지 않음",
+      "status": "passed"
+    },
+    {
+      "name": "복사 권한 실패 시 현재 단계 문의의 직접 복사·키보드 초점 제공",
+      "status": "passed"
+    },
+    {
+      "name": "수정·상세 왕복 시 기관/질문/다음 단계가 답변과 일치하고 4순서 유지",
+      "status": "passed"
+    },
+    {
+      "name": "1440/390/320 결과 4종 캡처·가로 넘침·버튼 최소44px·순서와 대비",
+      "status": "passed"
+    },
+    {
+      "name": "시안 API 요청·저장소·런타임 오류 없음",
+      "status": "passed"
+    },
+    {
+      "name": "4단계 번호·제목·기관·문의·준비 문구의 실제 계산 대비 4.5:1 이상",
+      "status": "passed",
+      "detail": [
+        {
+          "selector": ".action-number",
+          "fg": "rgb(255, 255, 255)",
+          "bg": "rgb(0, 117, 141)",
+          "ratio": 5.344690008158752
+        },
+        {
+          "selector": ".action-number",
+          "fg": "rgb(255, 255, 255)",
+          "bg": "rgb(33, 93, 150)",
+          "ratio": 6.838589688922034
+        },
+        {
+          "selector": ".action-number",
+          "fg": "rgb(255, 255, 255)",
+          "bg": "rgb(138, 82, 17)",
+          "ratio": 6.372004503732354
+        },
+        {
+          "selector": ".action-number",
+          "fg": "rgb(255, 255, 255)",
+          "bg": "rgb(56, 91, 122)",
+          "ratio": 7.129246276870851
+        },
+        {
+          "selector": ".action-label h3",
+          "fg": "rgb(9, 35, 74)",
+          "bg": "rgb(237, 248, 248)",
+          "ratio": 14.348342918100716
+        },
+        {
+          "selector": ".action-label h3",
+          "fg": "rgb(9, 35, 74)",
+          "bg": "rgb(241, 247, 253)",
+          "ratio": 14.407193677892522
+        },
+        {
+          "selector": ".action-label h3",
+          "fg": "rgb(9, 35, 74)",
+          "bg": "rgb(255, 250, 240)",
+          "ratio": 14.941401527711735
+        },
+        {
+          "selector": ".action-label h3",
+          "fg": "rgb(9, 35, 74)",
+          "bg": "rgb(244, 247, 250)",
+          "ratio": 14.457915473886377
+        },
+        {
+          "selector": ".place-heading p",
+          "fg": "rgb(7, 86, 107)",
+          "bg": "rgb(237, 248, 248)",
+          "ratio": 7.593988136728703
+        },
+        {
+          "selector": ".action-context",
+          "fg": "rgb(82, 106, 128)",
+          "bg": "rgb(241, 247, 253)",
+          "ratio": 5.215003378905334
+        },
+        {
+          "selector": ".action-question blockquote",
+          "fg": "rgb(9, 35, 74)",
+          "bg": "rgb(241, 247, 253)",
+          "ratio": 14.407193677892522
+        },
+        {
+          "selector": ".note-checklist legend",
+          "fg": "rgb(33, 93, 150)",
+          "bg": "rgb(241, 247, 253)",
+          "ratio": 6.3380146750171305
+        },
+        {
+          "selector": ".note-checklist legend",
+          "fg": "rgb(138, 82, 17)",
+          "bg": "rgb(255, 250, 240)",
+          "ratio": 6.124557407931308
+        },
+        {
+          "selector": ".after-heading",
+          "fg": "rgb(39, 78, 110)",
+          "bg": "rgb(244, 247, 250)",
+          "ratio": 8.134061855438711
+        }
+      ]
+    }
+  ],
+  "errors": [],
+  "apiCalls": 0
+}

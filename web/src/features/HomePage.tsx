@@ -72,8 +72,8 @@ export default function HomePage() {
       </section>
     </div>
     <section id="iyum-about" className="iyum-about" aria-labelledby="about-heading"><div className="iyum-container"><p className="iyum-eyebrow">IYUM · 이움</p><h2 id="about-heading">정보와 경험이 이어지는 곳</h2>
-      <p>청각장애 관련 정보와 서로의 경험을 한곳에서 살펴보세요.<br />IYUM은 필요한 정보를 찾는 어려움을 줄이고, 더 나은 선택을 돕고자 합니다.</p>
+      <p>장애 관련 정보와 서로의 경험을 한곳에서 살펴보세요.<br />IYUM은 필요한 정보를 찾는 어려움을 줄이고, 더 나은 선택을 돕고자 합니다.</p>
       <p className="iyum-about-note">기기·기관 탐색과 공고 연계는 준비 중입니다. 현재 제공되는 지원 안내와 커뮤니티부터 이용해 보세요.</p>
-    </div></section>
+    <Link href="/about" className="iyum-text-link">IYUM 더 알아보기 →</Link></div></section>
   </main>;
 }

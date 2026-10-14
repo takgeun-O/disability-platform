@@ -9,7 +9,7 @@ import { safeReturnPath } from '@/lib/navigation';
 import { useQueryParams } from '@/lib/useQueryParams';
 import { useVerificationNotice } from '@/components/VerificationNotice';
 import { useAuth } from '@/components/AuthProvider';
-import { useNavigationGuard } from '@/components/NavigationGuard';
+import { useNavigationGuard, useNavigationRequest } from '@/components/NavigationGuard';
 import { AuthApiError, getAuthCsrf } from '@/lib/auth-api';
 import { validateLoginForm } from '@/lib/login-form';
 
@@ -20,6 +20,7 @@ export default function Login() {
   const router = useRouter();
   const auth = useAuth();
   const guard = useNavigationGuard();
+  const focusScope = useNavigationRequest();
   const { read, consume } = useVerificationNotice();
   // 읽기는 순수하게 수행하고, 실제로 마운트한 뒤 소비한다(StrictMode/중단된 렌더 대응).
   const [verificationTicket] = useState(read);
@@ -50,10 +51,11 @@ export default function Login() {
     return () => { mountedRef.current = false; };
   }, []);
   useEffect(() => {
+    if (!focusScope.isActive()) return;
     if (emailError) emailRef.current?.focus();
     else if (pwError) pwRef.current?.focus();
     else feedbackRef.current?.focus();
-  }, [emailError, pwError, feedback]);
+  }, [emailError, pwError, feedback, focusScope]);
 
   function navigateAfterLogin() {
     guard.request(() => router.replace(destination));

@@ -1,0 +1,47 @@
+{
+  "base": "http://127.0.0.1:8451",
+  "scope": "P03 Next UI; anonymous header /me mocked; no API writes",
+  "results": [
+    {
+      "name": "30초 요약: 승인된 간결한 내용·기존 소개 화면 제거·설문과 URL 유지",
+      "status": "passed"
+    },
+    {
+      "name": "질문 진행 중 안내 열기: 양쪽 모드·목차 이동 후 질문/답변/스크롤 복귀",
+      "status": "passed"
+    },
+    {
+      "name": "결과의 모든 안내 버튼: 체크·펼침·내용 유지, 요약→전체 기준도 원래 버튼으로 복귀",
+      "status": "passed"
+    },
+    {
+      "name": "키보드 순환·배경 초점 차단·모달 바깥 클릭 시 답변 보존",
+      "status": "passed"
+    },
+    {
+      "name": "모달 내부 이동과 스크롤만 변경, 닫기 버튼은 긴 안내에서도 항상 접근",
+      "status": "passed"
+    },
+    {
+      "name": "기존 query/hash 직접 진입: 목표 설명 모달·미선택 설문·닫은 뒤 바로 질문",
+      "status": "passed"
+    },
+    {
+      "name": "1440·390·320 모달 캡처·가로 넘침 없음·리사이즈 후 닫기와 설문 보존",
+      "status": "passed"
+    },
+    {
+      "name": "브라우저 뒤로 가기/페이지 이탈은 스크롤 잠금 정리, 다시 진입·반복 열기 정상",
+      "status": "passed"
+    },
+    {
+      "name": "04 검수·청구: Enter/Space 접기 뒤 05→Shift+Tab→04, 재열기·목차 후에도 순서 유지",
+      "status": "passed"
+    },
+    {
+      "name": "런타임 오류 없음",
+      "status": "passed"
+    }
+  ],
+  "errors": []
+}

@@ -127,12 +127,12 @@ try {
     let release; const gate = new Promise(resolve => { release = resolve; }); state.list = async route => { await gate; return route.fulfill({ json: listBody(route.request().url()) }); };
     await page.getByRole('button', { name: '적용', exact: true }).click(); await page.waitForURL('**type=QUESTION'); await page.waitForFunction(() => document.querySelector('.community-list-column [aria-busy]')?.getAttribute('aria-busy') === 'true');
     assert.equal(await posts(page).count(), 20); assert.match(await page.locator('.community-applied').innerText(), /전체 유형/); assert.match(await page.locator('.community-request-status').innerText(), /이전 결과/);
-    release(); await listReady(page); await waitFor(()=>page.locator('#community-results-heading').evaluate(el=>el===document.activeElement && el.getBoundingClientRect().top>=0 && el.getBoundingClientRect().top<200)); assert.equal(new URL(page.url()).searchParams.get('type'), 'QUESTION');
+    release(); await listReady(page); await waitFor(()=>page.locator('#community-results-heading').evaluate(el=>el!==document.activeElement && el.getBoundingClientRect().top>=0 && el.getBoundingClientRect().top<200)); assert.equal(new URL(page.url()).searchParams.get('type'), 'QUESTION');
     assert.match(await page.locator('.community-applied').innerText(), /질문/); assert.equal(await posts(page).count(), 20); state.list = null;
   });
   await check('페이지 이동·새로고침·신규 조건 적용 시 첫 페이지', async () => {
     await page.getByRole('button', { name: '다음 페이지', exact: true }).scrollIntoViewIfNeeded(); assert((await page.evaluate(()=>scrollY))>500);
-    await page.getByRole('button', { name: '다음 페이지', exact: true }).click(); await page.waitForURL('**page=1'); await listReady(page); assert.equal(await posts(page).count(), 1); await waitFor(()=>page.locator('#community-results-heading').evaluate(el=>el===document.activeElement && el.getBoundingClientRect().top>=0 && el.getBoundingClientRect().bottom<innerHeight));
+    await page.getByRole('button', { name: '다음 페이지', exact: true }).click(); await page.waitForURL('**page=1'); await listReady(page); assert.equal(await posts(page).count(), 1); await waitFor(()=>page.locator('#community-results-heading').evaluate(el=>el!==document.activeElement && el.getBoundingClientRect().top>=0 && el.getBoundingClientRect().bottom<innerHeight));
     await page.reload(); await listReady(page); assert.equal(await posts(page).count(), 1);
     await page.getByLabel('주제', { exact: true }).selectOption('HEARING_AID'); await page.getByRole('button', { name: '적용', exact: true }).click(); await page.waitForURL('**topic=HEARING_AID'); await listReady(page);
     assert.equal(new URL(page.url()).searchParams.get('page'), null); assert.equal(await posts(page).count(), 11);
@@ -162,7 +162,7 @@ try {
       state.list = async route => { const url = new URL(route.request().url()); if (url.searchParams.get('type') === 'QUESTION') { held = true; await gate; return route.fulfill(status === 200 ? { json: listBody(url) } : { status, json: failure('SERVER_ERROR') }).catch(() => {}); } return route.fulfill({ json: listBody(url) }); };
       await page.getByLabel('글 유형', { exact: true }).selectOption('QUESTION'); await page.getByLabel('주제', { exact: true }).selectOption(''); await page.getByRole('button', { name: '적용', exact: true }).click(); await waitFor(() => held);
       await page.getByLabel('글 유형', { exact: true }).selectOption('REVIEW'); await page.getByRole('button', { name: '적용', exact: true }).click(); await page.waitForURL(url => url.searchParams.get('type') === 'REVIEW'); await listReady(page);
-      await waitFor(()=>page.locator('#community-results-heading').evaluate(el=>el===document.activeElement));await page.evaluate(()=>scrollTo(0,500));await delay(80);release(); await delay(120);assert(Math.abs(await page.evaluate(()=>scrollY)-500)<6); assert.match(await page.locator('.community-applied').innerText(), /경험/); assert.equal(await page.getByRole('main').getByRole('alert').count(), 0); assert.equal(await posts(page).count(), 20);
+      await waitFor(()=>page.locator('#community-results-heading').evaluate(el=>el!==document.activeElement && el.getBoundingClientRect().top>=0 && el.getBoundingClientRect().top<200));await page.evaluate(()=>scrollTo(0,500));await delay(80);release(); await delay(120);assert(Math.abs(await page.evaluate(()=>scrollY)-500)<6); assert.match(await page.locator('.community-applied').innerText(), /경험/); assert.equal(await page.getByRole('main').getByRole('alert').count(), 0); assert.equal(await posts(page).count(), 20);
     } state.list = null;
   });
   await check('조회 중 뒤로 가면 늦은 응답을 무시하고 이전 URL 결과 복원', async () => {
@@ -184,7 +184,7 @@ try {
     const previous=await posts(page).first().innerText();state.list=route=>route.fulfill({status:500,json:failure('SERVER_ERROR')});
     const next=page.getByRole('button',{name:'다음 페이지',exact:true});await next.scrollIntoViewIfNeeded();await next.focus();await page.keyboard.press('Enter');await page.getByRole('main').getByRole('alert').waitFor();
     assert.equal(await posts(page).first().innerText(),previous);assert((await page.evaluate(()=>scrollY))>500);assert.equal(await page.locator('#community-results-heading').evaluate(el=>el===document.activeElement),false);
-    state.list=null;await page.getByRole('button',{name:'다시 시도',exact:true}).click();await listReady(page);await waitFor(()=>page.locator('#community-results-heading').evaluate(el=>el===document.activeElement));
+    state.list=null;await page.getByRole('button',{name:'다시 시도',exact:true}).click();await listReady(page);await waitFor(()=>page.locator('#community-results-heading').evaluate(el=>el!==document.activeElement && el.getBoundingClientRect().top>=0 && el.getBoundingClientRect().top<200));
   });
   await check('390px 모바일 베스트 숨김·필터 취소·Escape·초점·Tab 가두기', async () => {
     await page.setViewportSize({ width: 390, height: 844 }); await page.goto(base + '/community/posts'); await listReady(page); await noOverflow(page); await shot(page, 'mock-list-390');
@@ -200,6 +200,32 @@ try {
     await page.getByRole('button', { name: '필터', exact: true }).click(); const dialog = page.getByRole('dialog');
     await dialog.getByLabel('글 유형', { exact: true }).selectOption('REVIEW'); await dialog.getByRole('button', { name: '적용', exact: true }).click(); await page.waitForURL('**type=REVIEW'); await listReady(page); assert.equal(await dialog.count(), 0);
     await page.setViewportSize({ width: 320, height: 800 }); await noOverflow(page);assert.equal(await page.locator('.community-best').isVisible(),false);assert(await page.getByRole('link',{name:'글쓰기',exact:true}).isVisible()); await page.getByRole('button', { name: '필터', exact: true }).click(); await noOverflow(page); await shot(page, 'mock-filter-320'); await page.keyboard.press('Escape');
+  });
+  await check('모바일 키보드 필터 적용: 패널 닫기 후 최신 결과에 작은 읽기 초점',async()=>{
+    await page.goto(base+'/community/posts');await listReady(page);
+    const filter=page.getByRole('button',{name:'필터',exact:true});await filter.focus();await filter.press('Enter');
+    const dialog=page.getByRole('dialog');await dialog.getByLabel('글 유형',{exact:true}).selectOption('QUESTION');
+    const apply=dialog.getByRole('button',{name:'적용',exact:true});await apply.focus();await apply.press('Enter');await listReady(page);
+    await waitFor(()=>page.locator('#community-results-heading').evaluate(el=>el===document.activeElement));
+    assert.match(await page.locator('#community-results-heading').evaluate(el=>getComputedStyle(el).boxShadow),/-4px/);
+    await page.keyboard.press('Tab');assert(await page.evaluate(()=>document.activeElement.matches('a,button')));
+  });
+  await check('목록 조회 중 다른 화면 이탈 승인: 늦은 결과가 남아 있는 목록의 초점/스크롤을 바꾸지 않음',async()=>{
+    await page.setViewportSize({width:1440,height:1000});
+    let releaseResult, releaseDestination, requested=false, destinationRequested=false;
+    const resultGate=new Promise(resolve=>{releaseResult=resolve;});
+    const destinationGate=new Promise(resolve=>{releaseDestination=resolve;});
+    const match=url=>url.origin===base&&url.pathname==='/about';
+    const hold=async route=>{if(route.request().headers().rsc==='1'){destinationRequested=true;await destinationGate;}await route.continue();};
+    await context.route(match,hold);
+    await page.goto(base+'/community/posts');await listReady(page);
+    state.list=async route=>{requested=true;await resultGate;return route.fulfill({json:listBody(route.request().url())});};
+    const next=page.getByRole('button',{name:'다음 페이지',exact:true});await next.focus();await next.press('Enter');await waitFor(()=>requested);
+    await page.locator('#iyum-navigation a[href="/about"]').click();await waitFor(()=>destinationRequested);
+    assert(await page.locator('#community-results-heading').isVisible());const y=await page.evaluate(()=>scrollY);
+    releaseResult();await listReady(page);await delay(100);
+    assert(await page.locator('#iyum-navigation a[href="/about"]').evaluate(el=>el===document.activeElement));assert.equal(await page.evaluate(()=>scrollY),y);
+    releaseDestination();await page.waitForURL(base+'/about');state.list=null;await context.unroute(match,hold);
   });
   await check('공개 상세의 줄바꿈·HTML 비실행·긴 문자열·직접 진입 기본 복귀', async () => {
     await page.goto(base + '/community/posts/1'); await page.locator('.community-post-body').waitFor();

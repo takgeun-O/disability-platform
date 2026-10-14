@@ -1,0 +1,74 @@
+/* Approved information pages; shared IYUM tokens, scoped away from authentication/community. */
+.iyum-info { color: var(--iyum-ink); line-height: 1.8; font-size: 16px; }
+.iyum-info-container { width: min(1120px, calc(100% - 80px)); margin: 0 auto; padding-block: 28px 72px; }
+.iyum-info h1,.iyum-info h2,.iyum-info h3 { word-break: keep-all; overflow-wrap: anywhere; font-weight: 700; line-height: 1.45; }
+.iyum-info h1 { font-size: 36px; letter-spacing: -.04em; }
+.iyum-info h2 { font-size: 26px; letter-spacing: -.025em; margin-bottom: 16px; }
+.iyum-info h3 { font-size: 18px; margin-block: 10px; }
+.iyum-info p { color: var(--iyum-muted); margin-block: 12px; }
+.iyum-info .iyum-eyebrow { color: var(--iyum-primary); }
+.info-breadcrumb { display: flex; gap: 10px; flex-wrap: wrap; font-size: 13px; color: var(--iyum-muted); margin-bottom: 32px; }
+.info-breadcrumb a { color: inherit; text-decoration: underline; text-underline-offset: 3px; }
+.info-about-lead { display: grid; grid-template-columns: minmax(0, 1fr) 280px; gap: 60px; align-items: center; padding-block: 18px 42px; }
+.iyum-info .info-intro { font-size: 17px; max-width: 760px; margin-block: 18px; }
+.info-actions { display: flex; gap: 12px; flex-wrap: wrap; align-items: center; }
+.info-brand-art { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 16px; min-height: 280px; background: radial-gradient(ellipse, #e8f8f8, #f5f9fc 64%, white 72%); }
+.info-brand-art strong { font-size: 36px; letter-spacing: .22em; padding-left: .22em; }
+.info-brand-art span { font-size: 10px; letter-spacing: .12em; color: var(--iyum-muted); }
+.info-section { margin-top: 52px; }
+.info-problem { padding: 32px; background: var(--iyum-mist); border-left: 3px solid var(--iyum-primary); }
+.info-values { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 22px; margin-top: 24px; }
+.info-values article { padding: 24px; }
+.info-values p { font-size: 15px; }
+.info-topics { display: grid; grid-template-columns: repeat(4, minmax(0,1fr)); margin-top: 24px; border-top: 1px solid var(--iyum-border); border-bottom: 1px solid var(--iyum-border); }
+.info-topics article { padding: 22px 18px; }
+.info-topics p { font-size: 14px; }
+.info-about-bottom { display: grid; grid-template-columns: 1fr 1.4fr; gap: 64px; }
+.info-brand-story blockquote { font-size: 19px; font-weight: 600; margin-top: 22px; color: var(--iyum-primary); }
+.info-availability { padding-top: 22px; margin-top: 24px; border-top: 1px solid var(--iyum-border); }
+.info-notice { padding: 22px 24px; background: var(--iyum-mist); border: 1px solid var(--iyum-border); border-radius: var(--iyum-radius); margin-block: 24px; }
+.info-notice h2 { font-size: 20px; }
+.info-notice p { margin-bottom: 0; font-size: 15px; }
+.info-page-head { margin-bottom: 38px; }
+.info-list-title { display: flex; align-items: baseline; justify-content: space-between; gap: 16px; margin-bottom: 18px; }
+.info-list-title h2 { font-size: 20px; margin: 0; }
+.info-list-title span { font-size: 14px; color: var(--iyum-muted); font-weight: 400; }
+.info-welfare-card { display: grid; grid-template-columns: minmax(0,1fr) auto; gap: 32px; padding: 28px; align-items: center; }
+.info-welfare-card h2 { font-size: 23px; margin: 16px 0 8px; }
+.info-welfare-card p { font-size: 15px; }
+.info-welfare-card dl { display: flex; gap: 16px; margin-block: 16px; font-size: 14px; }
+.info-welfare-card dt { flex-shrink: 0; color: var(--iyum-muted); }
+.info-welfare-card .info-source { font-size: 13px; }
+.info-card-action { text-align: center; }
+@media (max-width: 900px) {
+ .info-about-lead { grid-template-columns: minmax(0,1fr) 190px; gap: 24px; }
+ .info-brand-art { min-height: 200px; }
+ .info-values { gap: 12px; }
+ .info-values article { padding: 18px; }
+ .info-about-bottom { gap: 28px; }
+ .info-topics { grid-template-columns: repeat(2,minmax(0,1fr)); }
+}
+@media (max-width: 600px) {
+ .iyum-info-container { width: calc(100% - 32px); padding-block: 20px 40px; }
+ .info-breadcrumb { margin-bottom: 22px; }
+ .iyum-info h1 { font-size: 28px; }
+ .iyum-info h2 { font-size: 23px; }
+ .iyum-info .info-intro { font-size: 15px; }
+ .info-about-lead,.info-about-bottom,.info-values,.info-welfare-card { grid-template-columns: minmax(0,1fr); }
+ .info-about-lead { padding-block: 0 12px; gap: 12px; }
+ .info-brand-art { min-height: 160px; gap: 8px; }
+ .info-brand-art img { width: 62px; height: 70px; }
+ .info-brand-art strong { font-size: 26px; }
+ .info-section { margin-top: 32px; }
+ .info-problem,.info-notice,.info-welfare-card { padding: 20px; }
+ .info-about-bottom { gap: 32px; }
+ .info-actions { gap: 8px; }
+ .iyum-info .iyum-button { white-space: normal; }
+ .info-topics article { padding: 14px 8px; }
+ .info-card-action { text-align: left; border-top: 1px solid var(--iyum-border); padding-top: 12px; }
+ .info-page-head { margin-bottom: 26px; }
+ .info-list-title h2 { font-size: 18px; }
+ .info-welfare-card h2 { font-size: 21px; }
+}
+
+.iyum-info p { word-break: keep-all; overflow-wrap: anywhere; }

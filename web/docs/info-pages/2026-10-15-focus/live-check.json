@@ -1,0 +1,15 @@
+{
+  "base": "http://127.0.0.1:8443",
+  "scope": "Actual dev Next UI and anonymous Spring public GET; no API mocks and no writes",
+  "checks": [
+    "실제 Spring 공개 목록 GET와 현재 8443 목록 표시 비교, 초기 제목 강제 초점 없음",
+    "현재 8443에서 R08 → 04 접기 → Tab 05 → Shift+Tab 04 → Esc 복귀"
+  ],
+  "createdData": 0,
+  "publicGet": {
+    "status": 200,
+    "items": 5
+  },
+  "errors": [],
+  "passed": true
+}

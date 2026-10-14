@@ -2,6 +2,7 @@
 
 import { useState, useRef, useEffect, useLayoutEffect, useMemo, useSyncExternalStore } from "react";
 import Link from '@/components/AppLink';
+import { useNavigationGuard } from '@/components/NavigationGuard';
 import PRODUCTS_RAW from "@/data/hearingAidProducts.json";
 import {
   BenefitGuide,
@@ -15,6 +16,10 @@ import {
 } from "./HearingAidBenefits";
 import DirectClaimGuide from "./DirectClaimGuide";
 import RegistryCheck, { type Product } from "./RegistryCheck";
+import HearingAidActions from "./HearingAidActions";
+import HearingAidReferenceDialog from "./HearingAidReferenceDialog";
+import { focusForReading, revealForReading } from "@/lib/reading-focus";
+import { useGuidanceClipboard } from "./useGuidanceClipboard";
 import "./HearingAidGuide.css";
 
 /* ─── Types ─────────────────────────────────────────────────────────────────── */
@@ -1336,7 +1341,7 @@ function stepColors(step: JStep) {
         bg: "#ECFDF5", // 연초록 배경
         text: "#065F46", // 진초록 단계명·체크 표시
         badge: "#047857", // 초록색 완료 상태 문구
-        border: "#D0CEC9",
+        border: "var(--iyum-border)",
       };
     case "current":
       return {
@@ -1347,20 +1352,27 @@ function stepColors(step: JStep) {
       };
     case "check-needed":
       return {
-        bg: "#F5F3F0",
-        text: "#4A4845",
-        badge: "#6B6864",
-        border: "#D0CEC9",
+        bg: "var(--iyum-mist)",
+        text: "var(--iyum-muted)",
+        badge: "var(--iyum-muted)",
+        border: "var(--iyum-border)",
       };
     case "future":
       return {
-        bg: "#FAFAF8",
-        text: "#4A4845",
-        badge: "#6B6864",
-        border: "#D0CEC9",
+        bg: "var(--iyum-surface)",
+        text: "var(--iyum-muted)",
+        badge: "var(--iyum-muted)",
+        border: "var(--iyum-border)",
       };
   }
 }
+
+function subscribeJourneyWidth(notify: () => void) {
+  const query = window.matchMedia("(min-width: 901px)");
+  query.addEventListener("change", notify);
+  return () => query.removeEventListener("change", notify);
+}
+const getJourneyWide = () => window.matchMedia("(min-width: 901px)").matches;
 
 /* ─── GuidedJourney — reading a step never changes the answer-derived location ─ */
 
@@ -1375,9 +1387,16 @@ function GuidedJourney({
   expandedStep: number | null;
   onExpand: (step: number | null) => void;
 }) {
+  const wide = useSyncExternalStore(subscribeJourneyWidth, getJourneyWide, () => false);
+  const [mobileOpen, setMobileOpen] = useState(false);
+  const expanded = wide || mobileOpen;
+  const current = steps.find(step => isHighlighted(step));
   return (
     <section className="p03-journey" aria-labelledby="p03-journey-heading">
-      <h3 id="p03-journey-heading">전체 절차와 내 위치</h3>
+      <div className="p03-journey-title"><h3 id="p03-journey-heading">전체 절차와 내 위치</h3>
+        {current && <span className="p03-current-location">{current.name} · {current.statusLabel || "먼저 확인"}</span>}
+        <button type="button" className="p03-journey-toggle" aria-label={expanded ? "전체 절차 접기" : "전체 절차 펼치기"} aria-expanded={expanded} aria-controls="p03-journey-content" onClick={() => setMobileOpen(value => !value)}>{expanded ? "접기 −" : "펼치기 +"}</button>
+      </div><div id="p03-journey-content" hidden={!expanded}>
       <p className="p03-journey-hint">
         단계를 누르면 해당 절차를 볼 수 있어요.
       </p>
@@ -1446,6 +1465,7 @@ function GuidedJourney({
           )}
         </div>
       ))}
+      </div>
     </section>
   );
 }
@@ -1462,11 +1482,11 @@ function ExpandableJourneySteps({
   return (
     <div
       style={{
-        borderTop: "1px solid #D0CEC9",
-        borderBottom: "1px solid #D0CEC9",
-        borderLeft: "1px solid #D0CEC9",
-        borderRight: "1px solid #D0CEC9",
-        borderRadius: 2,
+        borderTop: "1px solid var(--iyum-border)",
+        borderBottom: "1px solid var(--iyum-border)",
+        borderLeft: "1px solid var(--iyum-border)",
+        borderRight: "1px solid var(--iyum-border)",
+        borderRadius: 6,
         overflow: "hidden",
       }}
     >
@@ -1476,9 +1496,10 @@ function ExpandableJourneySteps({
           <details
             key={i}
             id={`${idPrefix}-step-${i + 1}`}
+            open={idPrefix === "p03-reference-journey" && i === 0}
             style={{
               backgroundColor: c.bg,
-              borderTop: i > 0 ? "1px solid #D0CEC9" : "none",
+              borderTop: i > 0 ? "1px solid var(--iyum-border)" : "none",
             }}
           >
             <summary
@@ -1495,7 +1516,7 @@ function ExpandableJourneySteps({
             >
               <span
                 style={{
-                  fontSize: 11,
+                  fontSize: 14,
                   fontFamily: "'DM Mono', monospace",
                   color: c.badge,
                   minWidth: 22,
@@ -1517,7 +1538,7 @@ function ExpandableJourneySteps({
                 >
                   <span
                     style={{
-                      fontSize: 13,
+                      fontSize: 14,
                       fontWeight: isHighlighted(step) ? 700 : 600,
                       color: c.text,
                     }}
@@ -1527,7 +1548,7 @@ function ExpandableJourneySteps({
                   {step.statusLabel && (
                     <span
                       style={{
-                        fontSize: 11,
+                        fontSize: 14,
                         color: c.badge,
                         fontWeight: 500,
                       }}
@@ -1536,14 +1557,14 @@ function ExpandableJourneySteps({
                     </span>
                   )}
                 </div>
-                <div style={{ fontSize: 11, color: c.badge, lineHeight: 1.4 }}>
+                <div style={{ fontSize: 14, color: c.badge, lineHeight: 1.4 }}>
                   {step.institution}
                 </div>
               </div>
               <span
                 aria-hidden="true"
                 style={{
-                  fontSize: 11,
+                  fontSize: 14,
                   color: c.badge,
                   flexShrink: 0,
                   marginTop: 2,
@@ -1559,7 +1580,7 @@ function ExpandableJourneySteps({
             >
               <p
                 style={{
-                  fontSize: 12,
+                  fontSize: 14,
                   color: c.text,
                   lineHeight: 1.6,
                   marginBottom: step.detailLines.length ? 8 : 0,
@@ -1582,7 +1603,7 @@ function ExpandableJourneySteps({
                     <li
                       key={j}
                       style={{
-                        fontSize: 12,
+                        fontSize: 14,
                         color: c.badge,
                         lineHeight: 1.6,
                         paddingLeft: 10,
@@ -1607,25 +1628,8 @@ function ExpandableJourneySteps({
 
 /* ─── CopyButton ────────────────────────────────────────────────────────────── */
 
-function CopyButton({ copyText }: { copyText: string }) {
-  const [status, setStatus] = useState<"idle" | "success" | "fail">("idle");
-  const [showFallback, setShowFallback] = useState(false);
-  const fallbackRef = useRef<HTMLTextAreaElement>(null);
-
-  async function handleCopy() {
-    try {
-      await navigator.clipboard.writeText(copyText);
-      setStatus("success");
-      setShowFallback(false);
-    } catch {
-      setStatus("fail");
-      setShowFallback(true);
-      setTimeout(() => {
-        fallbackRef.current?.focus();
-        fallbackRef.current?.select();
-      }, 50);
-    }
-  }
+function CopyButton({ copyText, label = "질문 복사하기" }: { copyText: string; label?: string }) {
+  const { status, showFallback, fallbackRef, handleCopy } = useGuidanceClipboard(copyText);
 
   return (
     <div style={{ marginTop: 16 }}>
@@ -1637,17 +1641,17 @@ function CopyButton({ copyText }: { copyText: string }) {
           alignItems: "center",
           minHeight: 44,
           padding: "10px 18px",
-          border: "1.5px solid #1A1918",
-          borderRadius: 2,
+          border: "1.5px solid var(--iyum-ink)",
+          borderRadius: 6,
           backgroundColor: "transparent",
-          color: "#1A1918",
+          color: "var(--iyum-ink)",
           fontSize: 14,
           fontWeight: 600,
           cursor: "pointer",
           fontFamily: "inherit",
         }}
       >
-        질문 복사하기
+        {label}
       </button>
       <div
         role="status"
@@ -1677,13 +1681,13 @@ function CopyButton({ copyText }: { copyText: string }) {
             display: "block",
             width: "100%",
             marginTop: 8,
-            fontSize: 12,
+            fontSize: 14,
             lineHeight: 1.7,
             padding: "10px 12px",
             fontFamily: "inherit",
-            border: "1px solid #D0CEC9",
-            borderRadius: 2,
-            backgroundColor: "#FAFAF8",
+            border: "1px solid var(--iyum-border)",
+            borderRadius: 6,
+            backgroundColor: "var(--iyum-surface)",
             resize: "vertical",
             boxSizing: "border-box",
           }}
@@ -1714,19 +1718,19 @@ function PreviousAnswer({
         gap: 12,
         padding: "10px 14px",
         marginBottom: 8,
-        borderTop: "1px solid #E8E6E1",
-        borderBottom: "1px solid #E8E6E1",
-        borderLeft: "1px solid #E8E6E1",
-        borderRight: "1px solid #E8E6E1",
-        borderRadius: 2,
-        backgroundColor: "#F0EEE9",
+        borderTop: "1px solid var(--iyum-border)",
+        borderBottom: "1px solid var(--iyum-border)",
+        borderLeft: "1px solid var(--iyum-border)",
+        borderRight: "1px solid var(--iyum-border)",
+        borderRadius: 6,
+        backgroundColor: "var(--iyum-mist)",
       }}
     >
       <span
         style={{
-          fontSize: 10,
+          fontSize: 14,
           fontFamily: "'DM Mono', monospace",
-          color: "#908D88",
+          color: "var(--iyum-muted)",
           marginTop: 3,
           flexShrink: 0,
           minWidth: 28,
@@ -1737,8 +1741,8 @@ function PreviousAnswer({
       <div style={{ flex: 1, minWidth: 0 }}>
         <div
           style={{
-            fontSize: 11,
-            color: "#908D88",
+            fontSize: 14,
+            color: "var(--iyum-muted)",
             marginBottom: 1,
             lineHeight: 1.3,
           }}
@@ -1747,8 +1751,8 @@ function PreviousAnswer({
         </div>
         <div
           style={{
-            fontSize: 13,
-            color: "#1A1918",
+            fontSize: 14,
+            color: "var(--iyum-ink)",
             fontWeight: 500,
             lineHeight: 1.4,
           }}
@@ -1760,8 +1764,8 @@ function PreviousAnswer({
         type="button"
         onClick={onEdit}
         style={{
-          fontSize: 12,
-          color: "#1E3A8A",
+          fontSize: 14,
+          color: "var(--iyum-primary)",
           background: "none",
           border: "none",
           cursor: "pointer",
@@ -1876,21 +1880,21 @@ function QuestionBlock({
   onSelect: (v: string) => void;
 }) {
   return (
-    <div style={{ marginBottom: 12 }}>
+    <section className="p03-question" aria-labelledby={`p03-question-${num}`}>
       <div
         style={{
           padding: "18px 20px",
-          borderTop: "1.5px solid #1A1918",
-          borderBottom: "1.5px solid #1A1918",
-          borderLeft: "1.5px solid #1A1918",
-          borderRight: "1.5px solid #1A1918",
-          borderRadius: 2,
+          borderTop: "1.5px solid var(--iyum-ink)",
+          borderBottom: "1.5px solid var(--iyum-ink)",
+          borderLeft: "1.5px solid var(--iyum-ink)",
+          borderRight: "1.5px solid var(--iyum-ink)",
+          borderRadius: 6,
         }}
       >
         <p
           style={{
-            fontSize: 10,
-            color: "#908D88",
+            fontSize: 14,
+            color: "var(--iyum-muted)",
             marginBottom: 6,
             fontFamily: "'DM Mono', monospace",
             letterSpacing: "0.04em",
@@ -1898,23 +1902,23 @@ function QuestionBlock({
         >
           질문 {String(num).padStart(2, "0")}
         </p>
-        <p
+        <h2 id={`p03-question-${num}`} tabIndex={-1}
           style={{
             fontSize: 15,
             fontWeight: 700,
-            color: "#1A1918",
+            color: "var(--iyum-ink)",
             marginBottom: desc ? 8 : 14,
             lineHeight: 1.4,
             letterSpacing: "-0.01em",
           }}
         >
           {question}
-        </p>
+        </h2>
         {desc && (
           <p
             style={{
-              fontSize: 13,
-              color: "#4A4845",
+              fontSize: 14,
+              color: "var(--iyum-muted)",
               lineHeight: 1.6,
               marginBottom: 6,
             }}
@@ -1925,8 +1929,8 @@ function QuestionBlock({
         {subtext && (
           <p
             style={{
-              fontSize: 12,
-              color: "#908D88",
+              fontSize: 14,
+              color: "var(--iyum-muted)",
               lineHeight: 1.5,
               marginBottom: 14,
             }}
@@ -1943,6 +1947,7 @@ function QuestionBlock({
                 key={opt.value}
                 type="button"
                 onClick={() => onSelect(opt.value)}
+                className="p03-option"
                 aria-pressed={isSel}
                 style={{
                   display: "block",
@@ -1951,21 +1956,21 @@ function QuestionBlock({
                   padding: "10px 14px",
                   textAlign: "left",
                   fontSize: 14,
-                  color: isSel ? "#FAFAF8" : "#1A1918",
-                  backgroundColor: isSel ? "#1A1918" : "#FAFAF8",
+                  color: isSel ? "var(--iyum-surface)" : "var(--iyum-ink)",
+                  backgroundColor: isSel ? "var(--iyum-ink)" : "var(--iyum-surface)",
                   borderTop: isSel
-                    ? "1.5px solid #1A1918"
-                    : "1px solid #D0CEC9",
+                    ? "1.5px solid var(--iyum-ink)"
+                    : "1px solid var(--iyum-border)",
                   borderBottom: isSel
-                    ? "1.5px solid #1A1918"
-                    : "1px solid #D0CEC9",
+                    ? "1.5px solid var(--iyum-ink)"
+                    : "1px solid var(--iyum-border)",
                   borderLeft: isSel
-                    ? "1.5px solid #1A1918"
-                    : "1px solid #D0CEC9",
+                    ? "1.5px solid var(--iyum-ink)"
+                    : "1px solid var(--iyum-border)",
                   borderRight: isSel
-                    ? "1.5px solid #1A1918"
-                    : "1px solid #D0CEC9",
-                  borderRadius: 2,
+                    ? "1.5px solid var(--iyum-ink)"
+                    : "1px solid var(--iyum-border)",
+                  borderRadius: 6,
                   cursor: "pointer",
                   fontFamily: "inherit",
                   lineHeight: 1.4,
@@ -1978,7 +1983,7 @@ function QuestionBlock({
           })}
         </div>
       </div>
-    </div>
+    </section>
   );
 }
 
@@ -1996,13 +2001,15 @@ function ResultSection({
   onEditProduct,
   benefitMode,
   onBenefitModeChange,
+  medicalAid,
 }: {
   code: ResultCode;
   info: ResultInfo;
   facts: AnswerFact[];
   headingRef: React.RefObject<HTMLHeadingElement | null>;
   onReset: () => void;
-  onGoTo: (v: PageView, triggerId?: string) => void;
+  onGoTo: (v: PageView, triggerId?: string, targetId?: string) => void;
+  medicalAid: boolean;
   overrideQ1?: string | null;
   registryCheck: React.ReactNode;
   onEditProduct: () => void;
@@ -2021,13 +2028,12 @@ function ResultSection({
       ? { ...info, questions: effectiveQuestions }
       : info;
   const copyText = buildCopyText(effectiveInfo, facts);
-  const hasQuestions = !!info.questions;
   return (
     <div style={{ marginTop: 28 }}>
       {/* Result heading — receives programmatic focus on first result appearance */}
       <div
         style={{
-          borderTop: "2px solid #1A1918",
+          borderTop: "2px solid var(--iyum-ink)",
           paddingTop: 24,
           marginBottom: 20,
           scrollMarginTop: 80,
@@ -2041,15 +2047,14 @@ function ResultSection({
             scrollMarginTop: 80,
             fontSize: 20,
             fontWeight: 700,
-            color: "#1A1918",
+            color: "var(--iyum-ink)",
             letterSpacing: "-0.02em",
             marginBottom: 8,
-            outline: "none",
           }}
         >
           {info.title}
         </h2>
-        <p style={{ fontSize: 14, color: "#4A4845", lineHeight: 1.6 }}>
+        <p style={{ fontSize: 14, color: "var(--iyum-muted)", lineHeight: 1.6 }}>
           {info.currentState}
         </p>
         {facts.length > 0 && (
@@ -2079,272 +2084,23 @@ function ResultSection({
         )}
       </div>
 
-      {/* 지금 할 일 — next action and contact guidance in one place */}
-      <div
-        style={{
-          marginBottom: 28,
-          scrollMarginTop: 80,
-        }}
-      >
-        <h3
-          id="today-tasks"
-          tabIndex={-1}
-          style={{
-            fontSize: 16,
-            fontWeight: 700,
-            color: "#1A1918",
-            marginBottom: 14,
-            outline: "none",
-          }}
-        >
-          지금 할 일
-        </h3>
-        <div
-          style={{
-            padding: "18px 18px",
-            borderRadius: 2,
-            marginBottom: info.centerNote ? 12 : 0,
-            backgroundColor: "#FFFBEB",
-            borderTop: "1px solid #FDE68A",
-            borderBottom: "1px solid #FDE68A",
-            borderLeft: "1px solid #FDE68A",
-            borderRight: "1px solid #FDE68A",
-          }}
-        >
-          <p
-            style={{
-              fontSize: 15,
-              fontWeight: 600,
-              color: "#1A1918",
-              lineHeight: 1.7,
-              marginBottom: 10,
-            }}
-          >
-            {info.nextAction}
-          </p>
-          {info.nextActionNote && (
-            <p
-              style={{
-                fontSize: 13,
-                color: "#4A4845",
-                lineHeight: 1.7,
-                marginBottom: 10,
-              }}
-            >
-              {info.nextActionNote}
-            </p>
-          )}
-          <p
-            style={{
-              fontSize: 13,
-              color: "#78350F",
-              lineHeight: 1.6,
-              marginBottom: info.contactQuestion ? 14 : 0,
-            }}
-          >
-            먼저 확인할 곳: <strong>{info.institution}</strong>
-          </p>
-          {info.contactQuestion && (
-            <>
-              <p
-                style={{
-                  fontSize: 11,
-                  fontWeight: 600,
-                  color: "#92400E",
-                  marginBottom: 6,
-                  letterSpacing: "0.02em",
-                }}
-              >
-                이렇게 물어보세요
-              </p>
-              <p
-                style={{
-                  fontSize: 13,
-                  color: "#1A1918",
-                  lineHeight: 1.7,
-                  fontStyle: "italic",
-                  padding: "10px 14px",
-                  backgroundColor: "#FEF9C3",
-                  borderRadius: 2,
-                  borderTop: "1px solid #FDE68A",
-                  borderBottom: "1px solid #FDE68A",
-                  borderLeft: "1px solid #FDE68A",
-                  borderRight: "1px solid #FDE68A",
-                }}
-              >
-                &quot;{info.contactQuestion}&quot;
-              </p>
-            </>
-          )}
-          {info.onlineLink && (
-            <div style={{ marginTop: 12 }}>
-              <a
-                href="https://www.nhis.or.kr/nhis/minwon/retrieveCvaplCstInfoColctAgreView.do"
-                target="_blank"
-                rel="noopener noreferrer"
-                style={{
-                  display: "inline-flex",
-                  alignItems: "center",
-                  gap: 4,
-                  fontSize: 13,
-                  color: "#1E3A8A",
-                  textDecoration: "underline",
-                  fontWeight: 600,
-                }}
-              >
-                공단 온라인 개인 상담 (로그인 · 새 탭)
-              </a>
-              <p
-                style={{
-                  fontSize: 12,
-                  color: "#6B6864",
-                  lineHeight: 1.5,
-                  marginTop: 4,
-                }}
-              >
-                전화 대신 글로 문의할 수 있어요. 공단 홈페이지의 &apos;국민소통·참여
-                → 온라인 상담문의 → 개인 상담&apos;에서도 찾을 수 있어요.
-              </p>
-            </div>
-          )}
-          {info.secondary && (
-            <p
-              style={{
-                fontSize: 13,
-                color: "#78350F",
-                lineHeight: 1.6,
-                marginTop: 12,
-                paddingTop: 10,
-                borderTop: "1px solid #FDE68A",
-              }}
-            >
-              추가 확인: {info.secondary}
-            </p>
-          )}
-        </div>
-        {info.centerNote && (
-          <div style={{ marginTop: 10 }}>
-            <p
-              style={{
-                fontSize: 11,
-                fontWeight: 600,
-                color: "#908D88",
-                letterSpacing: "0.04em",
-                marginBottom: 4,
-              }}
-            >
-              보청기센터 상담에서 도움받을 일
-            </p>
-            <p style={{ fontSize: 13, color: "#908D88", lineHeight: 1.6 }}>
-              {info.centerNote}
-            </p>
-          </div>
+      <HearingAidActions code={code} info={info} medicalAid={medicalAid}
+        onClaim={() => onGoTo("reference", "p03-claim-link", "p03-reference-journey-step-4")}
+        renderCopy={text => <CopyButton key={text} copyText={text} label="이 질문 복사하기" />}>
+        {(code === "R08" || code === "R18") && effectiveInfo.questions && (
+          <details className="p03-extra-questions"><summary>제품·비용 상담 질문 더 보기</summary>
+            {overrideQ1 && <p>선택한 제품이 반영됐어요. <button className="iyum-text-link" type="button" id="p03-result-suggested-product" onClick={onEditProduct}>제품 변경 ↓</button></p>}
+            <ol>{effectiveInfo.questions.map((question, index) => <li key={index}><p>{question.text}</p><p className="p03-small">확인할 것: {question.purpose}</p></li>)}</ol>
+            {copyText && <CopyButton key={copyText} copyText={copyText} label="추가 상담 질문 복사하기" />}
+          </details>
         )}
-      </div>
-
-      {/* 보청기센터에서 물어볼 질문 3개 */}
-      <div style={{ marginBottom: 28 }}>
-        <h3
-          style={{
-            fontSize: 16,
-            fontWeight: 700,
-            color: "#1A1918",
-            marginBottom: 14,
-          }}
-        >
-          보청기센터에서 물어볼 질문 3개
-        </h3>
-        {hasQuestions ? (
-          <>
-            {overrideQ1 && (
-              <p style={{ fontSize: 12, color: "#1E3A8A", marginBottom: 8 }}>
-                선택한 제품이 반영됐어요.{" "}
-                <button
-                  type="button"
-                  id="p03-result-suggested-product"
-                  onClick={onEditProduct}
-                  style={{
-                    fontSize: 12,
-                    color: "#1E3A8A",
-                    background: "none",
-                    border: "none",
-                    cursor: "pointer",
-                    fontFamily: "inherit",
-                    padding: "6px 0",
-                    minHeight: 44,
-                    textDecoration: "underline",
-                  }}
-                >
-                  제품 변경 ↓
-                </button>
-              </p>
-            )}
-            <ol
-              style={{
-                listStyle: "none",
-                padding: 0,
-                margin: 0,
-                display: "flex",
-                flexDirection: "column",
-                gap: 10,
-              }}
-            >
-              {effectiveInfo.questions!.map((q, i) => (
-                <li
-                  key={i}
-                  style={{
-                    padding: "14px 16px",
-                    borderTop: "1px solid #D0CEC9",
-                    borderBottom: "1px solid #D0CEC9",
-                    borderLeft: "1px solid #D0CEC9",
-                    borderRight: "1px solid #D0CEC9",
-                    borderRadius: 2,
-                  }}
-                >
-                  <p
-                    style={{
-                      fontSize: 14,
-                      color: "#1A1918",
-                      lineHeight: 1.6,
-                      marginBottom: 6,
-                    }}
-                  >
-                    <span style={{ fontWeight: 700, marginRight: 6 }}>
-                      {i + 1}.
-                    </span>
-                    {q.text}
-                  </p>
-                  <p
-                    style={{ fontSize: 12, color: "#908D88", lineHeight: 1.5 }}
-                  >
-                    확인할 것: {q.purpose}
-                  </p>
-                </li>
-              ))}
-            </ol>
-            {copyText && <CopyButton key={copyText} copyText={copyText} />}
-          </>
-        ) : (
-          <p
-            style={{
-              fontSize: 13,
-              color: "#908D88",
-              lineHeight: 1.6,
-              padding: "12px 16px",
-              border: "1px solid #E8E6E1",
-              borderRadius: 2,
-            }}
-          >
-            이 결과의 상담 준비 질문을 불러올 수 없어요.
-          </p>
-        )}
-      </div>
+      </HearingAidActions>
 
       {/* Health detail — R08/R09/R10 only */}
       {info.hasHealthDetail && (
         <div
           style={{
-            borderTop: "1px solid #D0CEC9",
+            borderTop: "1px solid var(--iyum-border)",
             paddingTop: 24,
             marginBottom: 32,
           }}
@@ -2353,7 +2109,7 @@ function ResultSection({
             style={{
               fontSize: 15,
               fontWeight: 700,
-              color: "#1A1918",
+              color: "var(--iyum-ink)",
               marginBottom: 4,
             }}
           >
@@ -2362,13 +2118,13 @@ function ResultSection({
           {(code === "R09" || code === "R10") && (
             <p
               style={{
-                fontSize: 12,
+                fontSize: 14,
                 color: "#92400E",
                 lineHeight: 1.5,
                 marginBottom: 10,
                 padding: "8px 12px",
                 backgroundColor: "#FFFBEB",
-                borderRadius: 2,
+                borderRadius: 6,
               }}
             >
               아래는 일반 기준이에요. 이번에 지원받을 수 있는지는 이전 이력을
@@ -2395,16 +2151,16 @@ function ResultSection({
       {/* Navigation to reference/bilateral */}
       <div
         style={{
-          borderTop: "1px solid #E8E6E1",
+          borderTop: "1px solid var(--iyum-border)",
           paddingTop: 20,
           marginBottom: 16,
         }}
       >
         <p
           style={{
-            fontSize: 11,
+            fontSize: 14,
             fontWeight: 600,
-            color: "#908D88",
+            color: "var(--iyum-muted)",
             marginBottom: 10,
             letterSpacing: "0.06em",
             textTransform: "uppercase",
@@ -2415,16 +2171,16 @@ function ResultSection({
         <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
           <button
             type="button"
-            id="p03-result-reference"
+            id="p03-result-reference" aria-haspopup="dialog"
             onClick={() => onGoTo("reference", "p03-result-reference")}
             style={{
               minHeight: 44,
               padding: "10px 16px",
-              fontSize: 13,
-              color: "#1A1918",
+              fontSize: 14,
+              color: "var(--iyum-ink)",
               backgroundColor: "transparent",
-              border: "1px solid #D0CEC9",
-              borderRadius: 2,
+              border: "1px solid var(--iyum-border)",
+              borderRadius: 6,
               cursor: "pointer",
               fontFamily: "inherit",
             }}
@@ -2433,16 +2189,16 @@ function ResultSection({
           </button>
           <button
             type="button"
-            id="p03-result-bilateral"
+            id="p03-result-bilateral" aria-haspopup="dialog"
             onClick={() => onGoTo("bilateral", "p03-result-bilateral")}
             style={{
               minHeight: 44,
               padding: "10px 16px",
-              fontSize: 13,
-              color: "#1A1918",
+              fontSize: 14,
+              color: "var(--iyum-ink)",
               backgroundColor: "transparent",
-              border: "1px solid #D0CEC9",
-              borderRadius: 2,
+              border: "1px solid var(--iyum-border)",
+              borderRadius: 6,
               cursor: "pointer",
               fontFamily: "inherit",
             }}
@@ -2453,13 +2209,13 @@ function ResultSection({
       </div>
 
       {/* Reset */}
-      <div style={{ borderTop: "1px solid #E8E6E1", paddingTop: 16 }}>
+      <div style={{ borderTop: "1px solid var(--iyum-border)", paddingTop: 16 }}>
         <button
           type="button"
           onClick={onReset}
           style={{
-            fontSize: 13,
-            color: "#908D88",
+            fontSize: 14,
+            color: "var(--iyum-muted)",
             background: "none",
             border: "none",
             cursor: "pointer",
@@ -2479,12 +2235,6 @@ function ResultSection({
 
 /* ─── Main component ────────────────────────────────────────────────────────── */
 
-type NavEntry = {
-  view: PageView;
-  scrollY: number;
-  openDetailIds: string[];
-  focusId: string | null;
-};
 const VIEW_HEADING_IDS: Record<PageView, string> = {
   summary: "p03-summary-heading",
   guided: "p03-guided-heading",
@@ -2501,10 +2251,11 @@ function getProductFreshness() {
 }
 
 export default function HearingAidGuide() {
-  const [view, setView] = useState<PageView>("summary");
+  const { getApprovalVersion } = useNavigationGuard();
+  const [view, setView] = useState<PageView>("guided");
   const [benefitMode, setBenefitMode] =
     useState<BenefitMode>("single");
-  const [navStack, setNavStack] = useState<NavEntry[]>([]);
+  const [dialogTriggerId, setDialogTriggerId] = useState<string | undefined>();
   const [q1, setQ1] = useState<Q1 | null>(null);
   const [q2, setQ2] = useState<Q2 | null>(null);
   const [q3, setQ3] = useState<Q3 | null>(null);
@@ -2521,26 +2272,65 @@ export default function HearingAidGuide() {
 
   const guidedHeadingRef = useRef<HTMLHeadingElement>(null);
   const resultHeadingRef = useRef<HTMLHeadingElement>(null);
-  const prevResultRef = useRef<ResultCode | null>(null);
   const bilateralQsRef = useRef<HTMLHeadingElement>(null);
   const mainRef = useRef<HTMLElement>(null);
   const resultProductDetailsRef = useRef<HTMLDetailsElement>(null);
-  const pendingNavigationRef = useRef<{ restore?: NavEntry; hashId?: string } | null>(null);
+  const keyboardInteraction = useRef(false);
+  const followQuestionRef = useRef(false);
+  const pendingNavigationRef = useRef<{ hashId: string } | null>(null);
 
-  // Hashes are browser-only. Read after hydration, then follow same-document links.
+  function focusReference(id: string) {
+    const section = document.getElementById(id);
+    if (!section) return;
+    let ancestor: HTMLElement | null = section;
+    while (ancestor) {
+      if (ancestor instanceof HTMLDetailsElement) ancestor.open = true;
+      ancestor = ancestor.parentElement;
+    }
+    if (id === "p03-reference-journey-step-4") {
+      const claim = section.querySelector<HTMLDetailsElement>(".p03-direct-claim");
+      if (claim) claim.open = true;
+    }
+    if (id === "steps" || id === "full-criteria") {
+      const first = document.getElementById("p03-reference-journey-step-1") as HTMLDetailsElement | null;
+      if (first) first.open = true;
+    }
+    const target = (section.matches("details") ? section.querySelector("summary") : section.matches("h1,h2,h3") ? section : section.querySelector("h1,h2,h3")) as HTMLElement | null;
+    const focus = target ?? section;
+    // Native summary/button/link tab order must survive programmatic focus.
+    focusForReading(focus, keyboardInteraction.current);
+    // Scroll only the dialog body: the survey behind it never changes position.
+    const scroller = focus.closest<HTMLElement>(".p03-dialog-body");
+    if (scroller) {
+      scroller.scrollTo({
+        top: scroller.scrollTop + focus.getBoundingClientRect().top - scroller.getBoundingClientRect().top - 24,
+        behavior: "instant",
+      });
+    }
+  }
+
+  // Legacy query strings are left intact. Recognized reference hashes open the dialog;
+  // the common #main-content-start skip target must never become a page route.
   useEffect(() => {
+    const navigationVersion = getApprovalVersion();
     const openHash = () => {
       const id = window.location.hash.slice(1);
-      const referenceIds = ["full-criteria", "registration-help", "eligibility", "benefit", "steps", "center-product-check", "before-buying", "sources"];
+      const referenceIds = ["full-criteria", "registration-help", "eligibility", "benefit", "steps", "center-product-check", "before-buying", "sources", "already-purchased", "p03-reference-history", "p03-reference-insurance", "p03-reference-journey-step-4", "p03-reference-journey-direct-claim"];
       if (id === "one-or-two" || referenceIds.includes(id)) {
-        pendingNavigationRef.current = {hashId: id === "one-or-two" ? "bilateral-heading" : id};
+        const target = id === "one-or-two" ? "bilateral-heading" : id === "already-purchased" ? "p03-reference-already-purchased" : id;
+        pendingNavigationRef.current = {hashId: target};
         setView(id === "one-or-two" ? "bilateral" : "reference");
+        // For a hash change inside the already open content, no React transition is needed.
+        const section = document.getElementById(target);
+        if (section?.getClientRects().length) focusReference(target);
       }
     };
-    const frame = requestAnimationFrame(openHash);
+    const frame = requestAnimationFrame(() => {
+      if (navigationVersion === getApprovalVersion()) openHash();
+    });
     window.addEventListener("hashchange", openHash);
     return () => {cancelAnimationFrame(frame); window.removeEventListener("hashchange", openHash);};
-  }, []);
+  }, [getApprovalVersion]);
 
   const currentStep = getCurrentStep(q1, q2, q3, q4, q5);
   const resultCode =
@@ -2566,6 +2356,7 @@ export default function HearingAidGuide() {
     nextQ4: Q4 | null,
     nextQ5: Q5 | null,
   ) {
+    followQuestionRef.current = true;
     const nextStep = getAnswerJourneyStep(
       nextQ1,
       nextQ2,
@@ -2609,137 +2400,55 @@ export default function HearingAidGuide() {
     followAnsweredJourney(q1, q2, q3, q4, v as Q5);
   }
 
-  const prefersReduced =
-    typeof window !== "undefined"
-      ? window.matchMedia("(prefers-reduced-motion: reduce)").matches
-      : false;
-
-  // Restore disclosures before measuring/scrolling the remounted view.
-  // "instant" overrides the global smooth-scroll CSS during history restoration.
+  // The dialog opens before this parent layout effect. Open the requested
+  // disclosure and focus it; survey state and document scroll stay untouched.
   useLayoutEffect(() => {
     const pending = pendingNavigationRef.current;
-    if (!pending) return;
+    if (!pending || view === "guided") return;
     pendingNavigationRef.current = null;
-    const entry = pending.restore;
-    if (entry) {
-      const openIds = new Set(entry.openDetailIds);
-      mainRef.current
-        ?.querySelectorAll<HTMLDetailsElement>("details[id]")
-        .forEach((el) => {
-          el.open = openIds.has(el.id);
-        });
-    }
-    if (pending.hashId) {
-      const section = document.getElementById(pending.hashId);
-      const heading = section?.matches("h1,h2,h3") ? section : section?.querySelector("h1,h2,h3");
-      const target = (heading ?? section) as HTMLElement | null;
-      target?.setAttribute("tabindex", "-1");
-      target?.focus({preventScroll:true});
-      target?.scrollIntoView({block:"start", behavior:"instant"});
-      return;
-    }
-    const guidedResult = view === "guided" && resultCode;
-    const focusId = guidedResult
-      ? "p03-result-heading"
-      : (entry?.focusId ?? VIEW_HEADING_IDS[view]);
-    const target =
-      document.getElementById(focusId) ??
-      document.getElementById(VIEW_HEADING_IDS[view]);
-    target?.focus({ preventScroll: true });
-    if (guidedResult) {
-      target?.scrollIntoView({ block: "start", behavior: "instant" });
-    } else {
-      window.scrollTo({ top: entry?.scrollY ?? 0, behavior: "instant" });
-    }
-  }, [view, resultCode]);
+    focusReference(pending.hashId);
+  }, [view]);
 
-  /* Show the current state and next action together when a result first appears. */
-  useEffect(() => {
-    const firstResult = resultCode !== null && prevResultRef.current === null;
-    prevResultRef.current = resultCode;
-    if (!firstResult) return;
-    const el = resultHeadingRef.current;
+  // Only an explicit answer/edit/reset moves to new reading content. No delayed
+  // timer remains to steal focus after a later interaction or route transition.
+  useLayoutEffect(() => {
+    if (!followQuestionRef.current) return;
+    followQuestionRef.current = false;
+    if (view !== "guided") return;
+    const el = currentStep === "done" ? resultHeadingRef.current : document.getElementById(`p03-question-${currentStep.slice(1)}`);
     if (!el) return;
-    const scrollTimer = setTimeout(
-      () => {
-        el.scrollIntoView({
-          behavior: prefersReduced ? "instant" : "smooth",
-          block: "start",
-        });
-      },
-      prefersReduced ? 0 : 50,
-    );
-    const focusTimer = setTimeout(
-      () => el.focus({ preventScroll: true }),
-      prefersReduced ? 0 : 350,
-    );
-    return () => {
-      clearTimeout(scrollTimer);
-      clearTimeout(focusTimer);
-    };
-  }, [resultCode, prefersReduced]);
+    // Pointer readers keep their current control. Keyboard readers get the new
+    // heading as a reading anchor (next Tab continues to the following control).
+    if (keyboardInteraction.current) focusForReading(el, true);
+    revealForReading(el);
+  }, [q1, q2, q3, q4, q5, currentStep, view]);
 
   function handleReset() {
+    followQuestionRef.current = true;
     setExpandedJourneyStep(null);
     setQ1(null);
     setQ2(null);
     setQ3(null);
     setQ4(null);
     setQ5(null);
-    window.scrollTo({ top: 0, behavior: prefersReduced ? "auto" : "smooth" });
-    setTimeout(
-      () => guidedHeadingRef.current?.focus(),
-      prefersReduced ? 0 : 50,
-    );
   }
 
-  function enterGuided() {
-    pendingNavigationRef.current = {};
+  function closeReference() {
+    pendingNavigationRef.current = null;
     setView("guided");
   }
 
-  function goTo(v: PageView, triggerId?: string) {
-    const openDetailIds = Array.from(
-      mainRef.current?.querySelectorAll<HTMLDetailsElement>(
-        "details[id][open]",
-      ) ?? [],
-    ).map((d) => d.id);
-    setNavStack((prev) => [
-      ...prev,
-      {
-        view,
-        scrollY: window.scrollY,
-        openDetailIds,
-        focusId: triggerId ?? null,
-      },
-    ]);
-    pendingNavigationRef.current = {};
-    setView(v);
-  }
-
-  function backLabel(): string {
-    if (navStack.length === 0) {
-      return resultCode
-        ? "← 내 확인 결과로 돌아가기"
-        : "← 30초 요약으로 돌아가기";
-    }
-    const prev = navStack[navStack.length - 1];
-    if (prev.view === "reference") return "← 전체 기준의 보던 곳으로 돌아가기";
-    if (prev.view === "guided") return "← 내 확인 결과로 돌아가기";
-    return "← 30초 요약으로 돌아가기";
-  }
-
-  function goBackFromInner() {
-    if (navStack.length > 0) {
-      const prev = navStack[navStack.length - 1];
-      setNavStack((s) => s.slice(0, -1));
-      pendingNavigationRef.current = { restore: prev };
-      setView(prev.view);
-    } else {
-      const target = resultCode ? "guided" : "summary";
-      pendingNavigationRef.current = {};
-      setView(target);
-    }
+  function goTo(v: PageView, triggerId?: string, targetId?: string) {
+    if (v === "guided") { closeReference(); return; }
+    // New bilateral links share the full criteria. The legacy #one-or-two
+    // address remains supported. Neither option hides/unmounts the survey.
+    const destination = v === "bilateral" ? "reference" : v;
+    const target = v === "bilateral" ? "benefit" : targetId ?? (v === "summary" ? "p03-summary-heading" : "steps");
+    if (v === "bilateral") setBenefitMode("bilateral");
+    if (view === "guided") setDialogTriggerId(triggerId);
+    if (destination === view) { focusReference(target); return; }
+    pendingNavigationRef.current = {hashId: target};
+    setView(destination);
   }
 
   function handleProductSearch() {
@@ -2788,14 +2497,13 @@ export default function HearingAidGuide() {
     if (!details) return;
     details.open = true;
     const summary = details.querySelector("summary");
-    summary?.focus({ preventScroll: true });
-    summary?.scrollIntoView({
-      block: "start",
-      behavior: prefersReduced ? "auto" : "smooth",
-    });
+    if (summary) {
+      focusForReading(summary, keyboardInteraction.current);
+      revealForReading(summary);
+    }
   }
 
-  const inner: React.CSSProperties = { maxWidth: 720, margin: "0 auto" };
+  const inner: React.CSSProperties = { margin: "0 auto" };
 
   /* Q display helpers — last answered Q stays open with options visible */
   const q1IsOpen = currentStep === "Q1" || lastAnsweredQ === "Q1";
@@ -2810,7 +2518,11 @@ export default function HearingAidGuide() {
   const q5IsCollapsed = showQ5 && q5 !== null && !q5IsOpen;
 
   return (
-    <main id="main-content" ref={mainRef}>
+    <main id="main-content" className="p03-page" ref={mainRef}
+      onPointerDownCapture={() => { keyboardInteraction.current = false; }}
+      onKeyDownCapture={() => { keyboardInteraction.current = true; }}
+      onClickCapture={event => { keyboardInteraction.current = event.detail === 0; }}
+    >
       {/* Screen-reader live region for result changes */}
       <div
         role="status"
@@ -2831,7 +2543,7 @@ export default function HearingAidGuide() {
       </div>
 
       <div
-        className="px-4 sm:px-6"
+        className="p03-container"
         style={{ paddingTop: 28, paddingBottom: 64 }}
       >
         {/* Breadcrumb */}
@@ -2845,14 +2557,14 @@ export default function HearingAidGuide() {
                 listStyle: "none",
                 padding: 0,
                 margin: 0,
-                fontSize: 12,
-                color: "#908D88",
+                fontSize: 14,
+                color: "var(--iyum-muted)",
               }}
             >
               <li>
                 <Link
                   href="/welfare"
-                  style={{ color: "#1E3A8A", textDecoration: "none" }}
+                  style={{ color: "var(--iyum-primary)", textDecoration: "none" }}
                 >
                   복지·지원정보
                 </Link>
@@ -2863,221 +2575,52 @@ export default function HearingAidGuide() {
           </nav>
         </div>
 
-        {/* ── Summary ── */}
-        {view === "summary" && (
-          <div style={inner}>
-            <h1
-              id="p03-summary-heading"
-              tabIndex={-1}
-              style={{
-                fontSize: 22,
-                fontWeight: 700,
-                color: "#1A1918",
-                letterSpacing: "-0.02em",
-                lineHeight: 1.3,
-                marginBottom: 12,
-              }}
-            >
-              보청기센터에 가기 전,
-              <br />
-              지원 과정부터 알아보세요
-            </h1>
-            <p
-              style={{
-                fontSize: 14,
-                color: "#4A4845",
-                lineHeight: 1.7,
-                marginBottom: 24,
-              }}
-            >
-              청각장애 검사 중이거나 등록 결과를 기다리고 있어도 괜찮아요.
-              <br />
-              전체 과정에서 내 위치를 알아보고, 센터에서 물어볼 질문을
-              준비하세요.
-            </p>
-
-            <div
-              style={{
-                padding: "16px 18px",
-                backgroundColor: "#F0EEE9",
-                borderRadius: 2,
-                marginBottom: 20,
-              }}
-            >
-              <p
-                style={{
-                  fontSize: 10,
-                  color: "#908D88",
-                  fontWeight: 600,
-                  letterSpacing: "0.06em",
-                  marginBottom: 12,
-                  textTransform: "uppercase",
-                }}
-              >
-                30초 요약
-              </p>
-              <ul
-                style={{
-                  listStyle: "none",
-                  padding: 0,
-                  margin: 0,
-                  display: "flex",
-                  flexDirection: "column",
-                  gap: 8,
-                }}
-              >
-                {[
-                  "등록 확인 → 처방 → 구입·착용 → 검수·청구 → 이후 관리로 이어져요.",
-                  "센터에서는 제품 상담과 신청 지원 범위를 물어보세요.",
-                  "한쪽 지원 기준액 131만 원은 제품·관리 비용을 나누어 지원하는 구조예요.",
-                ].map((item, i) => (
-                  <li
-                    key={i}
-                    style={{
-                      display: "flex",
-                      gap: 8,
-                      fontSize: 13,
-                      color: "#1A1918",
-                      lineHeight: 1.5,
-                    }}
-                  >
-                    <span
-                      style={{
-                        color: "#908D88",
-                        flexShrink: 0,
-                        fontFamily: "'DM Mono', monospace",
-                        fontSize: 11,
-                        marginTop: 1,
-                      }}
-                    >
-                      {String(i + 1).padStart(2, "0")}
-                    </span>
-                    {item}
-                  </li>
-                ))}
-              </ul>
+        <HearingAidReferenceDialog
+          open={view !== "guided"}
+          titleId={VIEW_HEADING_IDS[view]}
+          returnFocusId={dialogTriggerId}
+          onClose={closeReference}
+          onSectionNavigate={focusReference}
+        >
+          {/* Approved compact summary, not the former standalone landing page. */}
+          <section hidden={view !== "summary"} className="p03-quick-summary">
+            <h2 id="p03-summary-heading" tabIndex={-1}>30초 요약</h2>
+            <ol>
+              <li><strong>전체 흐름</strong><p>등록 확인 → 처방 → 구입·착용 → 검수·청구 → 이후 관리로 이어져요.</p></li>
+              <li><strong>센터에서 확인할 것</strong><p>센터에서는 제품 상담과 신청 지원 범위를 물어보세요.</p></li>
+            </ol>
+            <p className="p03-small">최종 급여 자격을 판정하는 페이지가 아닙니다. 개인별 적용은 공단에서 확인하세요.</p>
+            <div className="p03-summary-links">
+              <button type="button" id="p03-summary-reference" className="iyum-text-link" onClick={() => goTo("reference")}>전체 기준 보기 →</button>
+              <button type="button" id="p03-summary-bilateral" className="iyum-text-link" onClick={() => goTo("bilateral")}>아동·청소년 양쪽 지원 →</button>
             </div>
-
-            <p
-              style={{
-                fontSize: 12,
-                color: "#908D88",
-                lineHeight: 1.6,
-                marginBottom: 28,
-                padding: "10px 14px",
-                border: "1px solid #E8E6E1",
-                borderRadius: 2,
-              }}
-            >
-              최종 급여 자격을 판정하는 페이지가 아닙니다. 개인별 적용은
-              공단에서 확인하세요.
-            </p>
-
-            <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-              <button
-                type="button"
-                onClick={enterGuided}
-                style={{
-                  minHeight: 52,
-                  padding: "14px 24px",
-                  fontSize: 15,
-                  fontWeight: 700,
-                  color: "#FAFAF8",
-                  backgroundColor: "#1A1918",
-                  border: "none",
-                  borderRadius: 2,
-                  cursor: "pointer",
-                  fontFamily: "inherit",
-                  letterSpacing: "-0.01em",
-                  textAlign: "left",
-                }}
-              >
-                내 상황 확인하기 →
-              </button>
-              <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
-                <button
-                  type="button"
-                  id="p03-summary-reference"
-                  onClick={() => goTo("reference", "p03-summary-reference")}
-                  style={{
-                    minHeight: 44,
-                    padding: "10px 18px",
-                    fontSize: 13,
-                    color: "#1A1918",
-                    backgroundColor: "transparent",
-                    border: "1.5px solid #D0CEC9",
-                    borderRadius: 2,
-                    cursor: "pointer",
-                    fontFamily: "inherit",
-                  }}
-                >
-                  전체 기준 보기
-                </button>
-                <button
-                  type="button"
-                  id="p03-summary-bilateral"
-                  onClick={() => goTo("bilateral", "p03-summary-bilateral")}
-                  style={{
-                    minHeight: 44,
-                    padding: "10px 18px",
-                    fontSize: 13,
-                    color: "#1A1918",
-                    backgroundColor: "transparent",
-                    border: "1.5px solid #D0CEC9",
-                    borderRadius: 2,
-                    cursor: "pointer",
-                    fontFamily: "inherit",
-                  }}
-                >
-                  아동·청소년의 양쪽 지원 알아보기
-                </button>
-              </div>
-            </div>
-          </div>
-        )}
+          </section>
 
         {/* ── Reference (전체 기준) ── */}
         {(
           <div hidden={view !== "reference"} className="p03-reference" style={inner}>
-            <button
-              type="button"
-              onClick={goBackFromInner}
-              style={{
-                fontSize: 13,
-                color: "#1E3A8A",
-                background: "none",
-                border: "none",
-                cursor: "pointer",
-                fontFamily: "inherit",
-                padding: "0 0 20px",
-                minHeight: 44,
-              }}
-            >
-              {backLabel()}
-            </button>
-            <h2
+            <h1
               id="full-criteria"
               tabIndex={-1}
               style={{
                 fontSize: 20,
                 fontWeight: 700,
-                color: "#1A1918",
+                color: "var(--iyum-ink)",
                 marginBottom: 8,
                 letterSpacing: "-0.02em",
               }}
             >
-              전체 기준 보기
-            </h2>
+              전체 절차와 지원 기준
+            </h1>
             <p
               style={{
-                fontSize: 13,
-                color: "#908D88",
+                fontSize: 14,
+                color: "var(--iyum-muted)",
                 lineHeight: 1.6,
                 marginBottom: 28,
               }}
             >
-              이 안내는 읽기용 참고 화면이에요. 내 상황별 다음 행동을 확인하려면
-              &apos;내 상황 확인하기&apos;를 이용하세요.
+              필요한 기준을 확인한 뒤 닫으면, 답변과 체크를 남겨 둔 설문으로 돌아갈 수 있어요.
             </p>
 
             {/* 목차 */}
@@ -3086,15 +2629,15 @@ export default function HearingAidGuide() {
               style={{
                 marginBottom: 32,
                 padding: "14px 16px",
-                border: "1px solid #E8E6E1",
-                borderRadius: 2,
+                border: "1px solid var(--iyum-border)",
+                borderRadius: 6,
               }}
             >
               <p
                 style={{
-                  fontSize: 11,
+                  fontSize: 14,
                   fontWeight: 600,
-                  color: "#908D88",
+                  color: "var(--iyum-muted)",
                   marginBottom: 8,
                   letterSpacing: "0.06em",
                   textTransform: "uppercase",
@@ -3113,10 +2656,10 @@ export default function HearingAidGuide() {
                 }}
               >
                 {[
+                  ["#steps", "전체 절차"],
                   ["#registration-help", "청각장애 등록"],
                   ["#eligibility", "지원 대상"],
                   ["#benefit", "지원 금액 · 한쪽/양쪽"],
-                  ["#steps", "5단계 진행 절차"],
                   ["#center-product-check", "구입 전 센터·제품 등록 확인"],
                   ["#before-buying", "센터 상담 준비"],
                   ["#sources", "공식 출처"],
@@ -3125,8 +2668,8 @@ export default function HearingAidGuide() {
                     <a
                       href={href}
                       style={{
-                        fontSize: 13,
-                        color: "#1E3A8A",
+                        fontSize: 14,
+                        color: "var(--iyum-primary)",
                         textDecoration: "underline",
                         textDecorationStyle: "dotted",
                       }}
@@ -3138,13 +2681,76 @@ export default function HearingAidGuide() {
               </ol>
             </nav>
 
+            {/* 전체 절차: 질문·결과에서 처음 열리는 본문 */}
+            <section id="steps">
+              <h3
+                style={{
+                  fontSize: 16,
+                  fontWeight: 700,
+                  color: "var(--iyum-ink)",
+                  marginBottom: 10,
+                  scrollMarginTop: 20,
+                }}
+              >
+                전체 절차
+              </h3>
+              <ExpandableJourneySteps
+                idPrefix="p03-reference-journey"
+                steps={BASE.map((b, i) => ({
+                  ...b,
+                  institution: stepInstitution(i, null),
+                  status: "future" as StepStatus,
+                  statusLabel: "",
+                  detailLines: stepDetails(i, null, null),
+                  showDirectClaim: i === 3,
+                }))}
+              />
+              <details
+                id="p03-reference-already-purchased"
+                style={{
+                  marginTop: 12,
+                  marginBottom: 12,
+                  background: "#f3f6fb",
+                  border: "1px solid #dce3ed",
+                  borderRadius: 8,
+                }}
+              >
+                <summary
+                  style={{
+                    padding: "12px 14px",
+                    fontSize: 14,
+                    fontWeight: 600,
+                    lineHeight: 1.6,
+                    color: "#1a1918",
+                    cursor: "pointer",
+                    userSelect: "none",
+                  }}
+                >
+                  이미 구입했는데 등록·처방 절차를 거치지 않았어요
+                </summary>
+                <div
+                  style={{
+                    padding: "0 14px 16px 28px",
+                    fontSize: 14,
+                    color: "#4a4845",
+                    lineHeight: 1.8,
+                    overflowWrap: "anywhere",
+                  }}
+                >
+                  구입했다고 무조건 지원되거나 지원이 불가능하다고 단정할 수는
+                  없어요. 처방일·구입일·장애등록일과 구입 자료를 가지고
+                  국민건강보험공단에 적용 가능 여부를 먼저 확인하세요.
+                </div>
+              </details>
+            </section>
+
             {/* 1. 청각장애 등록 */}
             <section id="registration-help">
               <h3
                 style={{
                   fontSize: 16,
                   fontWeight: 700,
-                  color: "#1A1918",
+                  color: "var(--iyum-ink)",
                   marginBottom: 10,
                   scrollMarginTop: 20,
                 }}
@@ -3153,8 +2759,8 @@ export default function HearingAidGuide() {
               </h3>
               <p
                 style={{
-                  fontSize: 13,
-                  color: "#4A4845",
+                  fontSize: 14,
+                  color: "var(--iyum-muted)",
                   lineHeight: 1.7,
                   marginBottom: 10,
                 }}
@@ -3164,8 +2770,8 @@ export default function HearingAidGuide() {
               </p>
               <p
                 style={{
-                  fontSize: 13,
-                  color: "#4A4845",
+                  fontSize: 14,
+                  color: "var(--iyum-muted)",
                   lineHeight: 1.7,
                   marginBottom: 10,
                 }}
@@ -3237,7 +2843,7 @@ export default function HearingAidGuide() {
 
                       <p
                         style={{
-                          fontSize: 12,
+                          fontSize: 14,
                           color: "#666",
                           marginBottom: 4,
                         }}
@@ -3258,7 +2864,7 @@ export default function HearingAidGuide() {
 
                       <p
                         style={{
-                          fontSize: 13,
+                          fontSize: 14,
                           color: "#4a4845",
                           margin: 0,
                         }}
@@ -3271,12 +2877,12 @@ export default function HearingAidGuide() {
               </div>
               <p
                 style={{
-                  fontSize: 13,
-                  color: "#4A4845",
+                  fontSize: 14,
+                  color: "var(--iyum-muted)",
                   lineHeight: 1.7,
                   padding: "12px 14px",
-                  backgroundColor: "#F0EEE9",
-                  borderRadius: 2,
+                  backgroundColor: "var(--iyum-mist)",
+                  borderRadius: 6,
                 }}
               >
                 문의 예:{" "}
@@ -3293,7 +2899,7 @@ export default function HearingAidGuide() {
                 style={{
                   fontSize: 16,
                   fontWeight: 700,
-                  color: "#1A1918",
+                  color: "var(--iyum-ink)",
                   marginBottom: 10,
                   scrollMarginTop: 20,
                 }}
@@ -3599,7 +3205,7 @@ export default function HearingAidGuide() {
                 style={{
                   fontSize: 16,
                   fontWeight: 700,
-                  color: "#1A1918",
+                  color: "var(--iyum-ink)",
                   marginBottom: 10,
                 }}
               >
@@ -3612,76 +3218,13 @@ export default function HearingAidGuide() {
               />
             </section>
 
-            {/* 5. 5단계 절차 */}
-            <section id="steps">
-              <h3
-                style={{
-                  fontSize: 16,
-                  fontWeight: 700,
-                  color: "#1A1918",
-                  marginBottom: 10,
-                  scrollMarginTop: 20,
-                }}
-              >
-                5단계 진행 절차
-              </h3>
-              <ExpandableJourneySteps
-                idPrefix="p03-reference-journey"
-                steps={BASE.map((b, i) => ({
-                  ...b,
-                  institution: stepInstitution(i, null),
-                  status: "future" as StepStatus,
-                  statusLabel: "",
-                  detailLines: stepDetails(i, null, null),
-                  showDirectClaim: i === 3,
-                }))}
-              />
-              <details
-                id="p03-reference-already-purchased"
-                style={{
-                  marginTop: 12,
-                  marginBottom: 12,
-                  background: "#f3f6fb",
-                  border: "1px solid #dce3ed",
-                  borderRadius: 8,
-                }}
-              >
-                <summary
-                  style={{
-                    padding: "12px 14px",
-                    fontSize: 14,
-                    fontWeight: 600,
-                    lineHeight: 1.6,
-                    color: "#1a1918",
-                    cursor: "pointer",
-                    userSelect: "none",
-                  }}
-                >
-                  이미 구입했는데 등록·처방 절차를 거치지 않았어요
-                </summary>
-                <div
-                  style={{
-                    padding: "0 14px 16px 28px",
-                    fontSize: 14,
-                    color: "#4a4845",
-                    lineHeight: 1.8,
-                    overflowWrap: "anywhere",
-                  }}
-                >
-                  구입했다고 무조건 지원되거나 지원이 불가능하다고 단정할 수는
-                  없어요. 처방일·구입일·장애등록일과 구입 자료를 가지고
-                  국민건강보험공단에 적용 가능 여부를 먼저 확인하세요.
-                </div>
-              </details>
-            </section>
-
-            {/* 6. 구입 전 센터·제품 등록 확인 */}
+            {/* 구입 전 센터·제품 등록 확인: 기존 검색 기능 재사용 */}
             <section id="center-product-check">
               <h3
                 style={{
                   fontSize: 16,
                   fontWeight: 700,
-                  color: "#1A1918",
+                  color: "var(--iyum-ink)",
                   marginBottom: 10,
                   scrollMarginTop: 20,
                 }}
@@ -3700,7 +3243,7 @@ export default function HearingAidGuide() {
                 style={{
                   fontSize: 16,
                   fontWeight: 700,
-                  color: "#1A1918",
+                  color: "var(--iyum-ink)",
                   marginBottom: 10,
                   scrollMarginTop: 20,
                 }}
@@ -3709,8 +3252,8 @@ export default function HearingAidGuide() {
               </h3>
               <p
                 style={{
-                  fontSize: 13,
-                  color: "#4A4845",
+                  fontSize: 14,
+                  color: "var(--iyum-muted)",
                   lineHeight: 1.7,
                   marginBottom: 14,
                 }}
@@ -3737,10 +3280,10 @@ export default function HearingAidGuide() {
                     key={i}
                     style={{
                       padding: "12px 16px",
-                      border: "1px solid #D0CEC9",
-                      borderRadius: 2,
-                      fontSize: 13,
-                      color: "#1A1918",
+                      border: "1px solid var(--iyum-border)",
+                      borderRadius: 6,
+                      fontSize: 14,
+                      color: "var(--iyum-ink)",
                       lineHeight: 1.6,
                     }}
                   >
@@ -3759,7 +3302,7 @@ export default function HearingAidGuide() {
                 style={{
                   fontSize: 16,
                   fontWeight: 700,
-                  color: "#1A1918",
+                  color: "var(--iyum-ink)",
                   marginBottom: 10,
                   scrollMarginTop: 20,
                 }}
@@ -3768,8 +3311,8 @@ export default function HearingAidGuide() {
               </h3>
               <p
                 style={{
-                  fontSize: 12,
-                  color: "#908D88",
+                  fontSize: 14,
+                  color: "var(--iyum-muted)",
                   lineHeight: 1.5,
                   marginBottom: 12,
                 }}
@@ -3820,20 +3363,20 @@ export default function HearingAidGuide() {
                     date: "2026-09-25 확인 · PDF 새 탭",
                   },
                 ].map(({ label, href, date }) => (
-                  <li key={href} style={{ fontSize: 13, lineHeight: 1.5 }}>
+                  <li key={href} style={{ fontSize: 14, lineHeight: 1.5 }}>
                     <a
                       href={href}
                       target="_blank"
                       rel="noopener noreferrer"
-                      style={{ color: "#1E3A8A" }}
+                      style={{ color: "var(--iyum-primary)" }}
                     >
                       {label}
                     </a>
                     {date && (
                       <span
                         style={{
-                          color: "#908D88",
-                          fontSize: 12,
+                          color: "var(--iyum-muted)",
+                          fontSize: 14,
                           marginLeft: 8,
                         }}
                       >
@@ -3845,13 +3388,13 @@ export default function HearingAidGuide() {
               </ul>
             </section>
 
-            <div style={{ borderTop: "1px solid #E8E6E1", paddingTop: 20 }}>
+            <div style={{ borderTop: "1px solid var(--iyum-border)", paddingTop: 20 }}>
               <button
                 type="button"
-                onClick={goBackFromInner}
+                onClick={closeReference}
                 style={{
-                  fontSize: 13,
-                  color: "#1E3A8A",
+                  fontSize: 14,
+                  color: "var(--iyum-primary)",
                   background: "none",
                   border: "none",
                   cursor: "pointer",
@@ -3860,7 +3403,7 @@ export default function HearingAidGuide() {
                   minHeight: 44,
                 }}
               >
-                {backLabel()}
+                닫고 설문으로 돌아가기
               </button>
             </div>
           </div>
@@ -3869,32 +3412,15 @@ export default function HearingAidGuide() {
         {/* ── Bilateral (보호자·양쪽 지원) ── */}
         {(
           <div hidden={view !== "bilateral"} style={inner}>
-            <button
-              type="button"
-              onClick={goBackFromInner}
-              style={{
-                fontSize: 13,
-                color: "#1E3A8A",
-                background: "none",
-                border: "none",
-                cursor: "pointer",
-                fontFamily: "inherit",
-                padding: "0 0 20px",
-                minHeight: 44,
-              }}
-            >
-              {backLabel()}
-            </button>
             <h2
               id="bilateral-heading"
               tabIndex={-1}
               style={{
                 fontSize: 20,
                 fontWeight: 700,
-                color: "#1A1918",
+                color: "var(--iyum-ink)",
                 marginBottom: 8,
                 letterSpacing: "-0.02em",
-                outline: "none",
               }}
             >
               아이의 보청기, 양쪽 모두 지원받을 수 있나요?
@@ -3907,7 +3433,7 @@ export default function HearingAidGuide() {
               style={{
                 padding: "16px 18px",
                 backgroundColor: "#FFFBEB",
-                borderRadius: 2,
+                borderRadius: 6,
                 marginBottom: 24,
                 borderTop: "1px solid #FDE68A",
                 borderBottom: "1px solid #FDE68A",
@@ -3917,7 +3443,7 @@ export default function HearingAidGuide() {
             >
               <p
                 style={{
-                  fontSize: 13,
+                  fontSize: 14,
                   fontWeight: 700,
                   color: "#78350F",
                   marginBottom: 6,
@@ -3928,7 +3454,7 @@ export default function HearingAidGuide() {
               <p
                 style={{
                   fontSize: 14,
-                  color: "#1A1918",
+                  color: "var(--iyum-ink)",
                   lineHeight: 1.6,
                   marginBottom: 8,
                 }}
@@ -3941,18 +3467,11 @@ export default function HearingAidGuide() {
                 onClick={() => {
                   const el = bilateralQsRef.current;
                   if (!el) return;
-                  el.scrollIntoView({
-                    behavior: prefersReduced ? "auto" : "smooth",
-                    block: "start",
-                  });
-                  setTimeout(
-                    () => el.focus({ preventScroll: true }),
-                    prefersReduced ? 0 : 300,
-                  );
+                  focusReference(el.id);
                 }}
                 style={{
-                  fontSize: 13,
-                  color: "#1E3A8A",
+                  fontSize: 14,
+                  color: "var(--iyum-primary)",
                   textDecoration: "underline",
                   fontWeight: 600,
                   background: "none",
@@ -3987,17 +3506,17 @@ export default function HearingAidGuide() {
 
             <div
               style={{
-                borderTop: "1px solid #E8E6E1",
+                borderTop: "1px solid var(--iyum-border)",
                 paddingTop: 20,
                 marginTop: 24,
               }}
             >
               <button
                 type="button"
-                onClick={goBackFromInner}
+                onClick={closeReference}
                 style={{
-                  fontSize: 13,
-                  color: "#1E3A8A",
+                  fontSize: 14,
+                  color: "var(--iyum-primary)",
                   background: "none",
                   border: "none",
                   cursor: "pointer",
@@ -4006,83 +3525,21 @@ export default function HearingAidGuide() {
                   minHeight: 44,
                 }}
               >
-                {backLabel()}
+                닫고 설문으로 돌아가기
               </button>
             </div>
           </div>
         )}
 
-        {/* ── Guided ── */}
-        {view === "guided" && (
-          <div style={inner}>
-            <button
-              type="button"
-              onClick={() => setView("summary")}
-              style={{
-                fontSize: 13,
-                color: "#1E3A8A",
-                background: "none",
-                border: "none",
-                cursor: "pointer",
-                fontFamily: "inherit",
-                padding: "0 0 16px",
-                minHeight: 44,
-              }}
-            >
-              ← 30초 요약으로 돌아가기
-            </button>
+        </HearingAidReferenceDialog>
 
-            <h2
-              ref={guidedHeadingRef}
-              id="p03-guided-heading"
-              tabIndex={-1}
-              style={{
-                fontSize: 20,
-                fontWeight: 700,
-                color: "#1A1918",
-                letterSpacing: "-0.02em",
-                marginBottom: 8,
-                outline: "none",
-              }}
-            >
-              내 상황 확인하기
-            </h2>
-
-            {/* Instructions */}
-            <div
-              style={{
-                marginBottom: 16,
-                padding: "12px 14px",
-                backgroundColor: "#F0EEE9",
-                borderRadius: 2,
-              }}
-            >
-              <p
-                style={{
-                  fontSize: 12,
-                  color: "#4A4845",
-                  lineHeight: 1.6,
-                  marginBottom: 4,
-                }}
-              >
-                아는 내용만 선택해 주세요. 필요한 질문만 확인하고, 센터에서
-                물어볼 질문을 정리해 드릴게요.
-              </p>
-              <p
-                style={{
-                  fontSize: 12,
-                  color: "#4A4845",
-                  lineHeight: 1.6,
-                  marginBottom: 4,
-                }}
-              >
-                보호자가 대신 확인한다면, 보청기를 사용할 분의 등록 상태와 보험
-                자격을 기준으로 답해 주세요.
-              </p>
-              <p style={{ fontSize: 12, color: "#908D88", lineHeight: 1.5 }}>
-                답변은 서버에 저장·전송되지 않으며 새로고침하면 사라져요.
-              </p>
-            </div>
+        {/* ── Guided: stays visible and mounted behind the modal. ── */}
+        {(
+          <div className="p03-guided" style={inner}>
+            <header className="p03-guide-head"><p className="iyum-eyebrow">보청기 건강보험 지원 안내</p>
+              <h1 ref={guidedHeadingRef} id="p03-guided-heading" tabIndex={-1}>내 상황부터 확인해 보세요</h1>
+              <p>아는 내용만 선택해 주세요. 답한 질문은 그대로 남고, 필요한 답변을 마치면 아래에서 지금 할 일을 확인할 수 있어요.</p>
+            </header>
 
             {/* One process overview, shared by the questions and result. */}
             <GuidedJourney
@@ -4092,6 +3549,7 @@ export default function HearingAidGuide() {
               onExpand={setExpandedJourneyStep}
             />
 
+            <div className="p03-guide-layout"><div>
             {/* Q1 */}
             {q1IsCollapsed && (
               <PreviousAnswer
@@ -4099,6 +3557,7 @@ export default function HearingAidGuide() {
                 questionText="청각장애 진단·등록은 어디까지 진행하셨나요?"
                 selectedLabel={q1Label}
                 onEdit={() => {
+                  followQuestionRef.current = true;
                   setQ1(null);
                   setQ2(null);
                   setQ3(null);
@@ -4126,6 +3585,7 @@ export default function HearingAidGuide() {
                 questionText="건강보험과 의료급여 중 어디에 해당하나요?"
                 selectedLabel={q2Label}
                 onEdit={() => {
+                  followQuestionRef.current = true;
                   setQ2(null);
                   setQ3(null);
                   setQ4(null);
@@ -4153,6 +3613,7 @@ export default function HearingAidGuide() {
                 questionText="이비인후과에서 지원금 신청용 보청기 처방전을 받았나요?"
                 selectedLabel={q3Label}
                 onEdit={() => {
+                  followQuestionRef.current = true;
                   setQ3(null);
                   setQ4(null);
                   setQ5(null);
@@ -4178,6 +3639,7 @@ export default function HearingAidGuide() {
                 questionText="이전에 보청기 지원금을 받은 적이 있나요?"
                 selectedLabel={q4Label}
                 onEdit={() => {
+                  followQuestionRef.current = true;
                   setQ4(null);
                   setQ5(null);
                 }}
@@ -4203,7 +3665,7 @@ export default function HearingAidGuide() {
                 num={5}
                 questionText="주민센터에서 이번 보청기 지원 신청 결과를 안내받았나요?"
                 selectedLabel={q5Label}
-                onEdit={() => setQ5(null)}
+                onEdit={() => { followQuestionRef.current = true; setQ5(null); }}
               />
             )}
             {q5IsOpen && (
@@ -4220,6 +3682,8 @@ export default function HearingAidGuide() {
             {/* Result */}
             {currentStep === "done" && resultCode && (
               <ResultSection
+                key={[q1,q2,q3,q4,q5].join("|")}
+                medicalAid={q2 === "medical-aid"}
                 code={resultCode}
                 info={getResultInfo(resultCode, q2, q4, q5)}
                 facts={computeFacts(q1, q2, q3, q4, q5)}
@@ -4239,6 +3703,15 @@ export default function HearingAidGuide() {
                 onBenefitModeChange={setBenefitMode}
               />
             )}
+            </div><aside className="p03-sidebar" aria-labelledby="p03-sidebar-heading">
+              <h2 id="p03-sidebar-heading">알아두세요</h2>
+              <p>최종 급여 자격을 판정하는 페이지가 아닙니다. 개인별 적용은 공단에서 확인해요.</p>
+              <p>보호자가 대신 확인한다면, 보청기를 사용할 분의 등록 상태와 보험 자격을 기준으로 답해 주세요.</p>
+              <p>답변과 체크는 서버에 저장·전송되지 않으며 새로고침하면 사라져요.</p>
+              <button type="button" id="p03-sidebar-summary" aria-haspopup="dialog" className="iyum-text-link" onClick={() => goTo("summary", "p03-sidebar-summary")}>30초 요약</button>
+              <button type="button" id="p03-sidebar-reference" aria-haspopup="dialog" className="iyum-text-link" onClick={() => goTo("reference", "p03-sidebar-reference")}>전체 기준 보기 →</button>
+              <button type="button" id="p03-sidebar-bilateral" aria-haspopup="dialog" className="iyum-text-link" onClick={() => goTo("bilateral", "p03-sidebar-bilateral")}>아동·청소년 양쪽 지원 →</button>
+            </aside></div>
           </div>
         )}
       </div>

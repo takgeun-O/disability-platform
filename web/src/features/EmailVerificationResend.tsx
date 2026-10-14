@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState, type FormEvent } from "react";
 import Link from "@/components/AppLink";
+import { useNavigationRequest } from "@/components/NavigationGuard";
 import AuthFrame from "@/components/auth/AuthFrame";
 import { getCsrfToken, SignupApiError } from "@/lib/signup-api";
 import { validateEmail } from "@/lib/signup-form";
@@ -24,6 +25,7 @@ export default function EmailVerificationResend() {
   const [email, setEmail] = useState("");
   const [state, setState] = useState<ResendState>({ kind: "idle" });
   const inFlightRef = useRef(false);
+  const focusScope = useNavigationRequest();
   const mountedRef = useRef(false);
   const emailRef = useRef<HTMLInputElement>(null);
   const feedbackRef = useRef<HTMLParagraphElement>(null);
@@ -36,10 +38,11 @@ export default function EmailVerificationResend() {
   }, []);
 
   useEffect(() => {
+    if (!focusScope.isActive()) return;
     if (state.kind === "error" && state.emailInvalid) emailRef.current?.focus();
     else if (state.kind === "error" || state.kind === "accepted")
       feedbackRef.current?.focus();
-  }, [state]);
+  }, [state, focusScope]);
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     // 브라우저의 기본 폼 제출로 페이지가 새로 열리는 동작을 막는다.

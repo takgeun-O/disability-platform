@@ -1,0 +1,11 @@
+{
+  "branch": "main",
+  "head": "1ceb848723b3aee16c6c77d056c2af863c52184e",
+  "initialGitStatus": "clean",
+  "productionSourceModified": false,
+  "assets": {
+    "web/public/images/logo/IYUM_logo.png": "325bde93e31dafa42246cbdc6bef919f147ee09e96f178a270c4162487581487",
+    "web/public/images/logo/iyum-symbol-reference-v1.svg": "f3a563358d398cdf927ca6b7e0a33712ab6d1e8af08dc10060f2132afbc6833e",
+    "web/src/features/HearingAidGuide.tsx": "9b745740231f641618eceed395c37afc8eb67fddce3b94fe12245dff3d4bc211"
+  }
+}

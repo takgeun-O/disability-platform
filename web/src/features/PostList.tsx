@@ -5,6 +5,8 @@ import { useEffect, useId, useRef, useState, type FormEvent } from "react"
 import { usePathname, useSearchParams } from "next/navigation"
 import Link from "@/components/AppLink"
 import CommunityDialog from "@/components/community/CommunityDialog"
+import { useNavigationGuard } from "@/components/NavigationGuard"
+import { focusForReading } from "@/lib/reading-focus"
 import {
   BestPosts,
   CommunityBanner,
@@ -112,10 +114,13 @@ export default function PostList({ initial }: { initial: InitialPostList }) {
     error: initial.error?.message ?? null,
   })
   const [filterOpen, setFilterOpen] = useState(false)
+  const mobileFilterButton = useRef<HTMLButtonElement>(null)
+  const { getApprovalVersion } = useNavigationGuard()
+  const keyboardInteraction = useRef(false)
   const generation = useRef(0)
   const firstRequest = useRef(true)
   const heading = useRef<HTMLHeadingElement>(null)
-  const movement = useRef<{ href: string; kind: "start" | "history"; y?: number } | null>(null)
+  const movement = useRef<{ href: string; kind: "start" | "history"; y?: number; keyboard?: boolean; navigationVersion?: number; owner?: Element | null } | null>(null)
   const entryPositions = useRef(new Map<string, number>())
   const entryId = useRef("")
   useEffect(() => {
@@ -200,8 +205,11 @@ export default function PostList({ initial }: { initial: InitialPostList }) {
         if (movement.current !== pending) return
         movement.current = null
         if (pending.kind === "start") {
+          if (pending.navigationVersion !== getApprovalVersion()) return
           clearListScroll(href)
-          heading.current?.focus({ preventScroll: true })
+          if (heading.current && pending.keyboard &&
+              (document.activeElement === pending.owner || document.activeElement === document.body))
+            focusForReading(heading.current, true)
           heading.current?.scrollIntoView({ block: "start", behavior: "instant" })
         } else if (pending.y !== undefined) {
           window.scrollTo({ top: pending.y, behavior: "instant" })
@@ -211,13 +219,13 @@ export default function PostList({ initial }: { initial: InitialPostList }) {
     }
     // 상세에서 명시적으로 기록한 복귀 위치만 사용한다. 초기 진입에는 이동하지 않는다.
     return restoreListScroll(href)
-  }, [loading, error, snapshot, href])
+  }, [loading, error, snapshot, href, getApprovalVersion])
 
   function navigate(next: PostQuery) {
     generation.current++
     firstRequest.current = false
     const destination = listHref(next, pathname)
-    movement.current = { href: destination, kind: "start" }
+    movement.current = { href: destination, kind: "start", keyboard: keyboardInteraction.current, navigationVersion: getApprovalVersion(), owner: filterOpen ? mobileFilterButton.current : document.activeElement }
     entryPositions.current.set(entryId.current, window.scrollY)
     if (destination === href) setRetry((value) => value + 1)
     else {
@@ -236,7 +244,11 @@ export default function PostList({ initial }: { initial: InitialPostList }) {
   const currentPage = displayedQuery.page
   const firstPage = Math.max(0, Math.min(currentPage - 1, totalPages - 3))
   return (
-    <main id="main-content" className="community-screen">
+    <main id="main-content" className="community-screen"
+      onPointerDownCapture={() => { keyboardInteraction.current = false }}
+      onKeyDownCapture={() => { keyboardInteraction.current = true }}
+      onClickCapture={event => { keyboardInteraction.current = event.detail === 0 }}
+    >
       <CommunityBanner writeHref={`/community/posts/create?${createQuery}`} />
       <div className="iyum-container community-grid">
         <BestPosts />
@@ -247,6 +259,7 @@ export default function PostList({ initial }: { initial: InitialPostList }) {
           <div className="community-mobile-filters iyum-card">
             <span>{queryLabel(displayedQuery)}</span>
             <button
+              ref={mobileFilterButton}
               className="iyum-button iyum-button-outline"
               aria-haspopup="dialog"
               onClick={() => setFilterOpen(true)}
@@ -287,7 +300,7 @@ export default function PostList({ initial }: { initial: InitialPostList }) {
               </p>
               <button
                 className="iyum-button iyum-button-outline"
-                onClick={() => setRetry((value) => value + 1)}
+                onClick={() => navigate(query)}
               >
                 다시 시도
               </button>

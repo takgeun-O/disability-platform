@@ -113,4 +113,3 @@
 }
 
 #community-results-heading { scroll-margin-top: 110px; border-radius: 3px; }
-#community-results-heading:focus-visible { outline: 3px solid var(--iyum-primary); outline-offset: 5px; }

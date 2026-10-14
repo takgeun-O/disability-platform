@@ -1,0 +1,129 @@
+{
+  "date": "2026-10-15",
+  "branch": "refactor/info-pages",
+  "head": "1ceb848723b3aee16c6c77d056c2af863c52184e",
+  "dialog": {
+    "base": "http://127.0.0.1:8451",
+    "scope": "P03 Next UI; anonymous header /me mocked; no API writes",
+    "results": [
+      {
+        "name": "30초 요약: 승인된 간결한 내용·기존 소개 화면 제거·설문과 URL 유지",
+        "status": "passed"
+      },
+      {
+        "name": "질문 진행 중 안내 열기: 양쪽 모드·목차 이동 후 질문/답변/스크롤 복귀",
+        "status": "passed"
+      },
+      {
+        "name": "결과의 모든 안내 버튼: 체크·펼침·내용 유지, 요약→전체 기준도 원래 버튼으로 복귀",
+        "status": "passed"
+      },
+      {
+        "name": "키보드 순환·배경 초점 차단·모달 바깥 클릭 시 답변 보존",
+        "status": "passed"
+      },
+      {
+        "name": "모달 내부 이동과 스크롤만 변경, 닫기 버튼은 긴 안내에서도 항상 접근",
+        "status": "passed"
+      },
+      {
+        "name": "기존 query/hash 직접 진입: 목표 설명 모달·미선택 설문·닫은 뒤 바로 질문",
+        "status": "passed"
+      },
+      {
+        "name": "1440·390·320 모달 캡처·가로 넘침 없음·리사이즈 후 닫기와 설문 보존",
+        "status": "passed"
+      },
+      {
+        "name": "브라우저 뒤로 가기/페이지 이탈은 스크롤 잠금 정리, 다시 진입·반복 열기 정상",
+        "status": "passed"
+      },
+      {
+        "name": "런타임 오류 없음",
+        "status": "passed"
+      }
+    ],
+    "errors": []
+  },
+  "infoPages": {
+    "base": "http://127.0.0.1:8451",
+    "scope": "Next service UI; anonymous /me mock; no Spring writes",
+    "results": [
+      {
+        "name": "소개·복지 초기 HTML과 JavaScript 없는 실제 본문·링크, metadata/noindex",
+        "status": "passed"
+      },
+      {
+        "name": "1440/390/320 메뉴 순서·하위 3개·현재 표시·Escape 초점",
+        "status": "passed"
+      },
+      {
+        "name": "첫 진입·새로고침 미선택, 답변 후 다음 질문·결과 초점, 단계 색상/토글",
+        "status": "passed"
+      },
+      {
+        "name": "28개 실제 결과 조합: 정책 안내·의료급여/모름/이력·금액 조건·링크·센터 질문 범위",
+        "status": "passed"
+      },
+      {
+        "name": "개인 체크·양식 복사·복사 실패 직접 선택 대안",
+        "status": "passed"
+      },
+      {
+        "name": "전체 기준: 절차 우선·목적지 펼침·체크/답변/스크롤/초점 복원",
+        "status": "passed"
+      },
+      {
+        "name": "R08 청구 연결·직접 청구 설명, 실제 제품 검색/선택 및 추가 질문 유지",
+        "status": "passed"
+      },
+      {
+        "name": "답변 수정은 이후 답변/체크 초기화, 같은 코드라도 서로 다른 이력 메모 재사용 없음",
+        "status": "passed"
+      },
+      {
+        "name": "안내·목록·소개 키보드 본문 바로가기: 현재 화면/답변/체크 유지",
+        "status": "passed"
+      },
+      {
+        "name": "기존 query/hash 직접 진입 및 한쪽/양쪽 기준 보존",
+        "status": "passed"
+      },
+      {
+        "name": "기본 목록은 안내 1건·필터/가상 공고 없음, 홈 앵커와 준비 중 페이지",
+        "status": "passed"
+      },
+      {
+        "name": "1440/390/320 실제 서비스 캡처·가로 넘침·미구현 시안 요소 비노출",
+        "status": "passed"
+      },
+      {
+        "name": "새 소개·복지 메뉴의 작성 이탈 취소/승인과 키보드 초점 복귀",
+        "status": "passed"
+      },
+      {
+        "name": "일반 모션은 답변 뒤 부드러운 이동, 모바일 절차 토글/리사이즈 접근 유지",
+        "status": "passed"
+      },
+      {
+        "name": "런타임 오류 없음",
+        "status": "passed"
+      }
+    ],
+    "errors": []
+  },
+  "unit": {
+    "passed": 167,
+    "failed": 0,
+    "skipped": 0
+  },
+  "typecheck": "passed",
+  "lint": "passed",
+  "productionBuild": "passed in isolated no-env copy",
+  "policyParity": "25 declarations and 3 shared components unchanged from HEAD",
+  "limitations": [
+    "Chromium viewport emulation only; no physical phone, Safari, Firefox or screen-reader audio validation",
+    "Header /me mocked anonymous; no new Spring auth or DB writes",
+    "Existing community no-JS 404 two failures unchanged and not rerun"
+  ]
+}
