@@ -127,6 +127,16 @@ try {
     await page.getByRole('checkbox', { name: /개인정보 수집/ }).check(); await page.getByRole('button', { name: '다음', exact: true }).click();
     await page.waitForURL('**/register/info'); assert(await page.locator('input[autocomplete=nickname]').isVisible());
   });
+  let authenticated = true;
+  await page.route(api + '/api/v1/auth/**', route => {
+    const endpoint = new URL(route.request().url()).pathname.split('/').at(-1);
+    if (endpoint === 'csrf') return route.fulfill({ json: { headerName: 'X-CSRF-TOKEN', token: 'mock-ui-only' } });
+    if (endpoint === 'logout') { authenticated = false; return route.fulfill({ status: 204 }); }
+    return route.fulfill(authenticated ? { json: { memberId: 123, email: 'ui@example.test', nickname: '긴닉네임디자인검토회원', role: 'USER' } } : {
+      status: 401,
+      json: { code: 'AUTHENTICATION_REQUIRED', message: '로그인이 필요합니다.', fieldErrors: [] },
+    });
+  });
   await check('모바일 메뉴에서 작성 중 이탈 취소 시 입력·링크 초점 유지', async () => {
     await visit('/community/posts/create');
     const title = page.getByPlaceholder('제목을 입력하세요.'); await title.fill('보존할 작성 내용');
@@ -143,16 +153,6 @@ try {
     await guide.click(); await page.getByRole('button', { name: '나가기 — 입력한 내용이 사라집니다', exact: true }).click();
     await page.waitForURL('**/validation/hearing-aid-health-insurance');
     assert.equal(await page.locator('.iyum-nav-items').isVisible(), false);
-  });
-  let authenticated = true;
-  await page.route(api + '/api/v1/auth/**', route => {
-    const endpoint = new URL(route.request().url()).pathname.split('/').at(-1);
-    if (endpoint === 'csrf') return route.fulfill({ json: { headerName: 'X-CSRF-TOKEN', token: 'mock-ui-only' } });
-    if (endpoint === 'logout') { authenticated = false; return route.fulfill({ status: 204 }); }
-    return route.fulfill(authenticated ? { json: { memberId: 123, email: 'ui@example.test', nickname: '긴닉네임디자인검토회원', role: 'USER' } } : {
-      status: 401,
-      json: { code: 'AUTHENTICATION_REQUIRED', message: '로그인이 필요합니다.', fieldErrors: [] },
-    });
   });
   for (const width of [390, 320, 1440]) {
     await page.setViewportSize({ width, height: width < 600 ? 844 : 1000 }); await visit();

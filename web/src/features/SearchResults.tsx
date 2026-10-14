@@ -329,12 +329,12 @@ function CommunityResultItem({ item }: { item: CommunityResult }) {
         )}
       </div>
       <Link
-        href={`/community/posts/${item.id}`}
+        href="/community/posts"
         style={{ display: 'block', fontSize: 15, fontWeight: 500, color: '#1A1918', textDecoration: 'none', marginBottom: 4, lineHeight: 1.4 }}
         onMouseEnter={(e) => { e.currentTarget.style.color = '#1E3A8A'; e.currentTarget.style.textDecoration = 'underline' }}
         onMouseLeave={(e) => { e.currentTarget.style.color = '#1A1918'; e.currentTarget.style.textDecoration = 'none' }}
       >
-        {item.title}
+        {item.title}<span className="sr-only"> — 예시, 실제 커뮤니티 목록으로 이동</span>
       </Link>
       <p style={{ fontSize: 13, color: '#4A4845', lineHeight: 1.55, margin: 0, marginBottom: 6 }}>{item.snippet}</p>
       <div className="flex items-center gap-1.5">

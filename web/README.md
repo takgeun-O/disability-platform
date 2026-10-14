@@ -1,6 +1,6 @@
 # IYUM 통합 웹
 
-기존 Figma Make React/Vite 통합본을 **Next.js 16.3.6 App Router**로 이전한 현재 개발 앱입니다. React/React DOM 19.2.4, TypeScript 5.9.3, Tailwind 4.2.2를 사용합니다. 디자인·P03 정책·제품 데이터는 기존 로컬 구현이 기준입니다. 회원가입은 로컬 Spring Boot REST API에 연결되어 실제 DB에 PENDING 회원을 저장합니다. 커뮤니티와 로그인은 기존 모의 구현입니다. 이메일 인증·메일 발송·회원 로그인은 아직 구현하지 않았습니다.
+기존 Figma Make React/Vite 통합본을 **Next.js 16.3.6 App Router**로 이전한 현재 개발 앱입니다. React/React DOM 19.2.4, TypeScript 5.9.3, Tailwind 4.2.2를 사용합니다. 디자인·P03 정책·제품 데이터는 기존 로컬 구현이 기준입니다. 회원가입·이메일 인증·재전송·로그인·로그아웃과 커뮤니티 게시글 작성·목록·상세는 로컬 Spring Boot REST API에 연결되어 있습니다. 커뮤니티 베스트글·댓글 등은 준비 중이며, 홈과 검색의 콘텐츠 예시는 실제 커뮤니티 목록으로 연결됩니다. 최신 구조와 실제/모의 검증의 구분은 [커뮤니티 통합 기록](docs/Community-API-Integration-2026-10-14.md), [React 학습 문서](docs/Community-React-Learning-2026-10-14.md)를 참고하세요.
 
 ## 로컬 실행
 
@@ -30,17 +30,17 @@ pnpm start
 - `src/app/**/page.tsx`: 기존 공개 URL마다 개별 App Router 엔트리.
 - `src/features/`: 기존 `src/pages/`의 화면과 P03 콘텐츠. 화면 수정은 이 폴더에서 진행합니다.
 - `src/components/`: 공통 UI, Next Link, 작성 중 이탈 방지, 검색/내비게이션.
-- `src/lib/`: URL 쿼리·안전한 내부 복귀·모의 게시글 상태.
+- `src/lib/`: URL 쿼리·안전한 내부 복귀·실제 인증/커뮤니티 API와 입력 검증.
 - `src/data/hearingAidProducts.json`: 기존 제품 206개 스냅샷.
 - `src/index.css`, `src/features/HearingAidGuide.css`: 기존 스타일; Tailwind는 PostCSS로 처리합니다. Google Fonts CSS 연결은 유지했습니다.
 
-홈·커뮤니티 시작·복지·공통 레이아웃은 Server Component를 사용합니다. 검색/목록/로그인 등 쿼리를 읽는 화면은 요청 시 서버 렌더링되며, 상호작용 부분만 Client Component입니다. P03은 기존 상호작용 컴포넌트를 서버에서 사전 렌더링합니다. 전체 기준과 보호자 안내 본문도 초기 HTML에 포함하고 선택하지 않은 영역은 `hidden`으로 감춥니다. 전체 앱을 브라우저 전용으로 렌더링하지 않습니다.
+홈·복지·공통 레이아웃은 Server Component를 사용합니다. 검색/목록/로그인 등 쿼리를 읽는 화면은 요청 시 서버 렌더링되며, 상호작용 부분은 Client Component입니다. 커뮤니티 진입과 목록은 같은 실제 API 화면을 사용합니다. 초기 HTML에는 화면 구조와 로딩 안내가 있고 게시글 데이터는 브라우저에서 Spring API로 조회합니다. P03은 기존 상호작용 컴포넌트를 서버에서 사전 렌더링합니다. 전체 기준과 보호자 안내 본문도 초기 HTML에 포함하고 선택하지 않은 영역은 `hidden`으로 감춥니다. 전체 앱을 브라우저 전용으로 렌더링하지 않습니다.
 
 유지한 경로: `/`, `/community`, `/community/posts`, `/community/posts/create`, `/community/posts/[postId]`, `/search`, `/login`, `/register`, `/register/info`, `/register/verify`, `/welfare`, `/validation/hearing-aid-health-insurance`, `/forgot-password`, `/hospitals`, `/devices`. 준비 중 화면도 기존 경로를 유지하며, 그 외 없는 경로는 HTTP 404입니다.
 
 P03 안내 왕복은 같은 페이지 안의 상태 전환입니다. 답변·현재 단계·선택 제품·한쪽/양쪽 보기 상태를 유지하지만 새로고침하면 설문 답변은 초기화됩니다. `#one-or-two`, `#registration-help`, `#benefit`, `#center-product-check` 등의 직접 진입을 지원합니다. 다른 앱 경로로 나갔다가 재진입할 때 답변을 영구 보관하는 기능은 없습니다.
 
-임시 게시글은 React 상태와 현재 브라우저 방문 기록에만 유지합니다. 서버에 저장하지 않으며, 다른 기기나 새 탭에 공유해도 실제 저장된 게시글이 되지 않습니다. 임시 댓글은 새로고침하면 사라집니다. 모의 로그인은 실제 인증이 아닙니다.
+게시글은 Spring API의 유효한 201 응답을 확인한 후 상세 화면으로 이동하며 DB에 저장됩니다. 목록/상세는 비로그인으로도 조회할 수 있습니다. 작성 중 초안은 화면 메모리에 있으며, 저장 실패·세션 만료 시 유지하고 화면 이탈 시 확인합니다. 이동이나 새로고침에 동의한 뒤의 초안 영구 보존 기능은 없습니다. 댓글·좋아요·이미지 첨부·베스트글은 준비 중입니다.
 
 ## 환경변수
 
@@ -61,7 +61,7 @@ cd /Users/tackeunoh/Developer/iyum/server/iyum-api
 
 다른 터미널에서 `web/`의 `pnpm dev`를 실행하고 **http://127.0.0.1:8443/register**를 엽니다. 이미 서버가 실행 중이면 중복 실행하지 마세요.
 
-`dev` 프로필은 `http://127.0.0.1:8443` Origin에서 오는 가입·CSRF 요청만 쿠키와 함께 허용합니다. 프론트엔드 주소를 바꾸면 백엔드의 `IYUM_WEB_ORIGIN`도 정확한 Origin으로 지정해야 합니다. `localhost`와 `127.0.0.1`은 다른 호스트이므로 혼용하지 않습니다. 기본 예시는 양쪽 모두 `127.0.0.1`을 사용합니다.
+`dev` 프로필은 `http://127.0.0.1:8443` Origin에서 오는 기존 인증 및 커뮤니티 GET/POST 요청을 쿠키와 함께 허용합니다. 프론트엔드 주소를 바꾸면 백엔드의 `IYUM_WEB_ORIGIN`도 정확한 Origin으로 지정해야 합니다. `localhost`와 `127.0.0.1`은 다른 호스트이므로 혼용하지 않습니다. 기본 예시는 양쪽 모두 `127.0.0.1`을 사용합니다.
 
 브라우저가 CSRF 토큰을 자동 조회하며 쿠키를 유지합니다. 가입 완료 화면은 실제 `201 / PENDING` 응답이 있을 때만 성공을 표시합니다. 약관 선택·가입 결과는 가입 경로의 메모리에만 있으므로 새로고침하면 초기화되며, 완료 URL 직접 방문으로 가입 성공을 만들지 않습니다.
 
@@ -121,3 +121,5 @@ npx vercel --prod --scope iyum
 ## 검증 및 남은 한계
 
 실행 결과·브라우저 검증·기존 화면 문제는 [이전 기록](docs/Next-App-Router-Migration-2026-09-29.md)에 구분했습니다. 회원가입의 실제 API 연결 결과는 [2026-10-05 통합 기록](docs/Signup-API-Integration-2026-10-05.md)에 추가했습니다. 실제 인증 완료 또는 서비스 출시 준비 완료를 뜻하지 않습니다.
+
+커뮤니티 후속 리뷰: [SSR·탐색·모바일 개선과 검증](docs/Community-Review-Fixes-2026-10-14.md).

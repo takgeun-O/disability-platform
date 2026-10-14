@@ -1,0 +1,23 @@
+{
+  "mode": "real local Spring / PostgreSQL / Mailpit, no response mocking",
+  "checks": [
+    "실제 비로그인 목록·상세 공개 조회와 없는 게시글 404",
+    "실제 필터 선택 대기·적용·URL·정상 빈 결과·390px 취소",
+    "실제 회원가입 PENDING→Mailpit 인증→로그인 수동 수행",
+    "실제 CSRF+쿠키 글 작성 201·중복 제출 방지·상세 저장 내용",
+    "실제 작성 글 필터 목록·새로고침·모바일 적용·상세 복귀",
+    "실제 CSRF 누락 403 및 서버 로그아웃 후 작성 401·입력 보존",
+    "실제 작성 기록은 로그아웃 후에도 공개 조회·추가 글 저장 없음"
+  ],
+  "created": {
+    "email": "iyum-community-mv7nnnbi@example.test",
+    "nickname": "UI_mv7nnnbi",
+    "memberStatus": "ACTIVE",
+    "mailCount": 1,
+    "memberId": 20,
+    "postId": 2
+  },
+  "errors": [],
+  "existingServersPreserved": true,
+  "deletedData": false
+}

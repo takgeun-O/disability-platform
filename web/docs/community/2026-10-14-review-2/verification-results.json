@@ -1,0 +1,34 @@
+{
+  "date": "2026-10-14",
+  "branch": "feat/community-posts-ui",
+  "head": "88650cf1443f635bc0d36e9bd20c83c607576c6f",
+  "unit": {
+    "passed": 162,
+    "failed": 0
+  },
+  "communityMock": {
+    "passed": 47,
+    "failed": 0
+  },
+  "authMock": {
+    "passed": 38,
+    "failed": 0
+  },
+  "realSpring": {
+    "passed": 7,
+    "createdMemberId": 22,
+    "createdPostId": 4,
+    "deletedData": false
+  },
+  "production404": {
+    "passed": 5,
+    "failed": 2,
+    "unresolved": "JavaScript disabled: missing post document body is empty; no heading/link, navigation cannot be tested"
+  },
+  "typecheck": "passed",
+  "lint": "passed",
+  "build": "passed",
+  "productionSmoke": "passed (15 routes + robots/unknown404 + actual Spring content/metadata/browser-bot404)",
+  "gitDiffCheck": "passed",
+  "commitPushDeploy": false
+}

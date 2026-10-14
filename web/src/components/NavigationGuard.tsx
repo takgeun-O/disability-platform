@@ -3,6 +3,7 @@ import { createContext, useCallback, useContext, useEffect, useLayoutEffect, use
 
 type Guard = {
   isDirty: () => boolean;
+  getApprovalVersion: () => number;
   setDirty: (value: boolean) => void;
   request: (action: () => void) => void;
   pending: (() => void) | null;
@@ -14,6 +15,9 @@ const INDEX = '__iyumNavigationIndex';
 
 export function NavigationGuardProvider({children}: {children: ReactNode}) {
   const dirty = useRef(false);
+  // 경로 전환/언마운트보다 먼저 확정된 이탈을 비동기 요청에서도 식별한다.
+  const approvalVersion = useRef(0);
+  const getApprovalVersion = useCallback(() => approvalVersion.current, []);
   const [pending, setPending] = useState<(() => void) | null>(null);
   const request = useCallback((action: () => void) => {
     if (dirty.current) setPending(() => action);
@@ -63,9 +67,13 @@ export function NavigationGuardProvider({children}: {children: ReactNode}) {
   }, []);
 
   return <Context.Provider value={{
-    isDirty: () => dirty.current, setDirty, request, pending,
+    isDirty: () => dirty.current, getApprovalVersion, setDirty, request, pending,
     cancel: () => setPending(null),
-    proceed: () => {dirty.current = false; setPending(null); pending?.();},
+    proceed: () => {
+      if (!pending) return;
+      approvalVersion.current += 1;
+      dirty.current = false; setPending(null); pending();
+    },
   }}>{children}</Context.Provider>;
 }
 export function useNavigationGuard() {
@@ -80,5 +88,5 @@ export function useUnsavedChanges(isDirty: boolean) {
   // proceed가 dirty를 초기화한 뒤에도 같은 폼의 새 편집은 다시 보호해야 한다.
   // isDirty가 이미 true이면 위 effect가 재실행되지 않으므로 편집 이벤트에서도 알린다.
   return {state: guard.pending ? 'blocked' : 'unblocked', reset: guard.cancel, proceed: guard.proceed, request: guard.request,
-    markDirty: () => setDirty(true)};
+    getApprovalVersion: guard.getApprovalVersion, markDirty: () => setDirty(true)};
 }
