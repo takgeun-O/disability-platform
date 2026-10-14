@@ -1,3 +1,4 @@
+import { topicByPath, isPostListPath } from "./community-topics"
 // 서버의 PostType / PostTopic / PostInputPolicy와 대응한다. 표시 문구와 전송 값을 분리한다.
 export const POST_TYPES = {
   GENERAL: "일반",
@@ -65,24 +66,31 @@ export function listHref(
   query: PostQuery,
   pathname = "/community/posts",
 ): string {
-  const search = postQueryString(query)
+  const space = topicByPath(pathname)
+  const search = postQueryString(space ? { ...query, topic: "" } : query)
   return `${pathname}${search ? "?" + search : ""}`
 }
-export function safeListReturn(value: string | null): string {
-  // 기존 목록 두 경로와 검증한 조건만 복귀 주소로 허용한다.
-  if (!value) return "/community/posts"
+export function listQuery(params: Pick<URLSearchParams, "get">, pathname: string): PostQuery {
+  const query = parsePostQuery(params)
+  const space = topicByPath(pathname)
+  return space ? { ...query, topic: space.topic } : query
+}
+export function safeListReturn(value: string | null, fallback = "/community/posts"): string {
+  const defaultPath = isPostListPath(fallback) ? fallback : "/community/posts"
+  // 알려진 목록/주제 경로와 검증한 조건만 허용한다. 상세·작성·미등록 slug는 제외한다.
+  if (!value) return defaultPath
   try {
     const url = new URL(value, "https://iyum.invalid")
     if (
       !value.startsWith("/") ||
       url.origin !== "https://iyum.invalid" ||
-      !["/community", "/community/posts"].includes(url.pathname) ||
+      !isPostListPath(url.pathname) ||
       /[\\\u0000-\u001f]/.test(value)
     )
-      return "/community/posts"
-    return listHref(parsePostQuery(url.searchParams), url.pathname)
+      return defaultPath
+    return listHref(listQuery(url.searchParams, url.pathname), url.pathname)
   } catch {
-    return "/community/posts"
+    return defaultPath
   }
 }
 export function queryLabel(query: PostQuery): string {
@@ -138,8 +146,8 @@ let returningToList: string | null = null
 export function requestListScrollRestore(href: string): void { returningToList = href }
 export function listenForListReturn(): () => void {
   const pop = () => {
-    if (["/community", "/community/posts"].includes(location.pathname))
-      requestListScrollRestore(listHref(parsePostQuery(new URLSearchParams(location.search)), location.pathname))
+    if (isPostListPath(location.pathname))
+      requestListScrollRestore(listHref(listQuery(new URLSearchParams(location.search), location.pathname), location.pathname))
   }
   window.addEventListener("popstate", pop)
   return () => window.removeEventListener("popstate", pop)

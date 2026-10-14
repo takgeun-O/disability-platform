@@ -1,0 +1,41 @@
+{
+  "date": "2026-10-15",
+  "branch": "feat/community-topics",
+  "head": "919e891f1a776d7f1be6fabf908d9dba3e28f656",
+  "startTree": "clean",
+  "unit": {
+    "passed": 174,
+    "failed": 0,
+    "skipped": 0
+  },
+  "typecheck": "PASS",
+  "lint": "PASS",
+  "productionBuild": "PASS: isolated copy, no env files",
+  "diffCheck": "PASS",
+  "topicBrowser": {
+    "passed": 23,
+    "failed": 1,
+    "failure": "unknown topic HTTP 404 body is blank with JavaScript disabled",
+    "exitCode": 1
+  },
+  "communityBrowser": {
+    "passed": 49
+  },
+  "loginBrowser": {
+    "passed": 38,
+    "mode": "mock API"
+  },
+  "realSpring": {
+    "publicFilteredGETs": 7,
+    "status": 200,
+    "writes": 0,
+    "authenticatedFlow": "not run"
+  },
+  "existingPostNoJs404": "known 2 failures, not rerun or changed",
+  "servers": {
+    "8443": "existing retained",
+    "8082": "existing retained",
+    "8451": "temporary stopped after validation",
+    "8856": "test mock closed"
+  }
+}

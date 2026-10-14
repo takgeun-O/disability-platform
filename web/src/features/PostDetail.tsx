@@ -14,10 +14,11 @@ import {
 import { isMissingPost, type InitialPostDetail, type ReadError } from "@/lib/community-load"
 import { postDate, safeListReturn, requestListScrollRestore, listenForListReturn } from "@/lib/community-posts"
 
+import { topicByValue, topicPath } from "@/lib/community-topics"
+
 export default function PostDetail({ initial }: { initial: InitialPostDetail }) {
   const { postId } = useParams<{ postId: string }>()
   const params = useSearchParams()
-  const back = safeListReturn(params.get("from"))
   useEffect(listenForListReturn, [])
   const [retry, setRetry] = useState(0)
   const key = `${postId}:${retry}`
@@ -52,6 +53,8 @@ export default function PostDetail({ initial }: { initial: InitialPostDetail }) 
   const loading = result.key !== key
   const post = !loading ? result.post : undefined
   const error = !loading ? result.error : undefined
+  const space = post && topicByValue(post.topic)
+  const back = safeListReturn(params.get("from"), space ? topicPath(space) : "/community/posts")
   return (
     <main id="main-content" className="community-screen">
       <CommunityBanner

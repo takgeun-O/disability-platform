@@ -1,0 +1,14 @@
+[
+  {
+    "js": false,
+    "httpStatus": 404,
+    "visibleHeading": false,
+    "bodyEmpty": true
+  },
+  {
+    "js": true,
+    "httpStatus": 404,
+    "visibleHeading": true,
+    "bodyEmpty": false
+  }
+]

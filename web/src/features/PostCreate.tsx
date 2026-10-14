@@ -16,6 +16,7 @@ import {
   POST_TOPICS,
   parsePostQuery,
   safeListReturn,
+  requestListScrollRestore,
   listHref,
   characterCount,
   normalizeTitle,
@@ -25,6 +26,8 @@ import {
   type PostFieldErrors,
 } from "@/lib/community-posts"
 
+import { topicByPath, topicByValue, topicPath } from "@/lib/community-topics"
+
 export default function PostCreate() {
   const router = useRouter()
   const params = useSearchParams()
@@ -32,7 +35,9 @@ export default function PostCreate() {
   const back = safeListReturn(params.get("from"))
   const [values, setValues] = useState<PostForm>(() => {
     const { type, topic } = parsePostQuery(params)
-    return { type, topic, title: "", content: "" }
+    const origin = new URL(back, "https://iyum.invalid")
+    const inherited = parsePostQuery(origin.searchParams)
+    return { type: type || inherited.type, topic: topic || topicByPath(origin.pathname)?.topic || inherited.topic, title: "", content: "" }
   })
   const [errors, setErrors] = useState<PostFieldErrors>({})
   const [feedback, setFeedback] = useState<CommunityApiError | null>(null)
@@ -88,7 +93,9 @@ export default function PostCreate() {
     const submitted = { ...values }
     const approvalVersion = blocker.getApprovalVersion()
     const canHandleResult = () => mounted.current && blocker.getApprovalVersion() === approvalVersion
-    setSubmittedListHref(listHref({ type: submitted.type, topic: submitted.topic, page: 0 }))
+    const submittedSpace = topicByValue(submitted.topic)
+    setSubmittedListHref(listHref({ type: submitted.type, topic: submitted.topic, page: 0 },
+      topicByPath(new URL(back, "https://iyum.invalid").pathname) && submittedSpace ? topicPath(submittedSpace) : "/community/posts"))
     inFlight.current = true
     setSubmitting(true)
     try {
@@ -152,9 +159,11 @@ export default function PostCreate() {
           className="iyum-text-link community-back"
           href={back}
           scroll={false}
+          onNavigate={() => requestListScrollRestore(back)}
         >
           ← 목록으로
         </Link>
+        {values.topic && <p className="community-writing-context">작성 주제: <strong>{POST_TOPICS[values.topic]}</strong> · 작성 화면에서 주제를 변경할 수 있어요.</p>}
         {auth.status === "checking" && (
           <p className="community-session-note" role="status">
             로그인 상태를 확인하고 있습니다.
@@ -290,7 +299,7 @@ export default function PostCreate() {
                 type="button"
                 className="iyum-button iyum-button-outline"
                 onClick={() =>
-                  blocker.request(() => router.push(back, { scroll: false }))
+                  blocker.request(() => { requestListScrollRestore(back); router.push(back, { scroll: false }) })
                 }
               >
                 취소
