@@ -16,7 +16,7 @@ import { CommunityApiError, getPosts, type PostPage } from "@/lib/community-api"
 import {
   POST_TYPES,
   POST_TOPICS,
-  parsePostQuery,
+  listQuery,
   listHref,
   queryLabel,
   postDate,
@@ -26,12 +26,19 @@ import {
   type PostQuery,
 } from "@/lib/community-posts"
 
+import { TopicHeader, TopicSpaces } from "@/components/community/TopicSpaces"
+import type { CommunityTopic } from "@/lib/community-topics"
+
+import { pageIsOutOfRange, type InitialPostList } from "@/lib/community-load"
+
 function FilterForm({
   initial,
   onApply,
   onCancel,
+  fixedTopic,
 }: {
   initial: PostQuery
+  fixedTopic?: CommunityTopic
   onApply: (query: PostQuery) => void
   onCancel?: () => void
 }) {
@@ -40,7 +47,7 @@ function FilterForm({
   const id = useId()
   function submit(event: FormEvent) {
     event.preventDefault()
-    onApply({ type, topic, page: 0 })
+    onApply({ type, topic: fixedTopic?.topic ?? topic, page: 0 })
   }
   return (
     <form
@@ -64,7 +71,7 @@ function FilterForm({
           ))}
         </select>
       </div>
-      <div>
+      {!fixedTopic && <div>
         <label htmlFor={`${id}-topic`}>주제</label>
         <select
           id={`${id}-topic`}
@@ -78,7 +85,7 @@ function FilterForm({
             </option>
           ))}
         </select>
-      </div>
+      </div>}
       <div className="community-filter-actions">
         {onCancel && (
           <button
@@ -97,14 +104,13 @@ function FilterForm({
   )
 }
 
-import { pageIsOutOfRange, type InitialPostList } from "@/lib/community-load"
 
 type Snapshot = { key: string; query: PostQuery; page: PostPage }
 type Result = { key: string; snapshot: Snapshot | null; error: string | null }
-export default function PostList({ initial }: { initial: InitialPostList }) {
+export default function PostList({ initial, space }: { initial: InitialPostList; space?: CommunityTopic }) {
   const params = useSearchParams()
   const pathname = usePathname()
-  const query = parsePostQuery(params)
+  const query = listQuery(params, pathname)
   const href = listHref(query, pathname)
   const [retry, setRetry] = useState(0)
   const requestKey = `${href}:${retry}`
@@ -132,7 +138,7 @@ export default function PostList({ initial }: { initial: InitialPostList }) {
     const pop = () => {
       generation.current++
       entryId.current = window.history.state?.iyumListEntry ?? ""
-      movement.current = { href: listHref(parsePostQuery(new URLSearchParams(location.search)), location.pathname),
+      movement.current = { href: listHref(listQuery(new URLSearchParams(location.search), location.pathname), location.pathname),
         kind: "history", y: entryPositions.current.get(entryId.current) }
     }
     window.addEventListener("scroll", remember, { passive: true })
@@ -244,17 +250,18 @@ export default function PostList({ initial }: { initial: InitialPostList }) {
   const currentPage = displayedQuery.page
   const firstPage = Math.max(0, Math.min(currentPage - 1, totalPages - 3))
   return (
-    <main id="main-content" className="community-screen"
+    <main id="main-content" className={`community-screen${space ? " community-topic-screen" : ""}`}
       onPointerDownCapture={() => { keyboardInteraction.current = false }}
       onKeyDownCapture={() => { keyboardInteraction.current = true }}
       onClickCapture={event => { keyboardInteraction.current = event.detail === 0 }}
     >
-      <CommunityBanner writeHref={`/community/posts/create?${createQuery}`} />
+      {space ? <TopicHeader space={space} /> : <><CommunityBanner writeHref={`/community/posts/create?${createQuery}`} /><TopicSpaces /></>}
       <div className="iyum-container community-grid">
-        <BestPosts />
+        {!space && <BestPosts />}
         <section className="community-list-column" aria-label="게시글 탐색">
+          {space && <div className="topic-list-actions"><p>{space.name}의 질문과 경험</p><Link className="iyum-button iyum-button-primary" onNavigate={() => rememberListScroll(returnHref)} href={`/community/posts/create?${createQuery}`}>＋ 글쓰기</Link></div>}
           <div className="community-desktop-filters">
-            <FilterForm key={href} initial={query} onApply={navigate} />
+            <FilterForm key={href} initial={query} onApply={navigate} fixedTopic={space} />
           </div>
           <div className="community-mobile-filters iyum-card">
             <span>{queryLabel(displayedQuery)}</span>
@@ -269,7 +276,7 @@ export default function PostList({ initial }: { initial: InitialPostList }) {
           </div>
           <div className="community-list-heading">
             <div>
-              <h2 ref={heading} tabIndex={-1} id="community-results-heading" aria-describedby="community-result-status">전체 게시글</h2>
+              <h2 ref={heading} tabIndex={-1} id="community-results-heading" aria-describedby="community-result-status">{space ? `${space.name} 게시글` : "전체 게시글"}</h2>
               <p className="community-applied">{queryLabel(displayedQuery)}</p>
             </div>
             <span>최신순</span>
@@ -341,12 +348,13 @@ export default function PostList({ initial }: { initial: InitialPostList }) {
             {snapshot && !outOfRange && snapshot.page.items.length === 0 && (
               <div className="community-empty">
                 <h3>아직 표시할 게시글이 없어요.</h3>
-                <p>다른 조건으로 살펴보거나 첫 이야기를 나눠 주세요.</p>
+                <p>{space ? `${space.name}에 관한 첫 이야기를 나눠 주세요. 글 유형을 바꿔 다른 글을 살펴볼 수도 있어요.` : "다른 조건으로 살펴보거나 첫 이야기를 나눠 주세요."}</p>
+                {space && <Link className="iyum-button iyum-button-primary" onNavigate={() => rememberListScroll(returnHref)} href={`/community/posts/create?${createQuery}`}>이 주제로 글쓰기</Link>}
                 <button
                   className="iyum-button iyum-button-outline"
-                  onClick={() => navigate({ type: "", topic: "", page: 0 })}
+                  onClick={() => navigate({ type: "", topic: space?.topic ?? "", page: 0 })}
                 >
-                  전체 게시글 보기
+                  {space ? "이 주제의 모든 글 유형 보기" : "전체 게시글 보기"}
                 </button>
               </div>
             )}
@@ -392,6 +400,7 @@ export default function PostList({ initial }: { initial: InitialPostList }) {
             </nav>
           )}
         </section>
+        {space && <TopicSpaces current={space} />}
       </div>
       {filterOpen && (
         <CommunityDialog
@@ -402,6 +411,7 @@ export default function PostList({ initial }: { initial: InitialPostList }) {
           <p>조건을 선택하고 적용해 주세요.</p>
           <FilterForm
             initial={query}
+            fixedTopic={space}
             onApply={navigate}
             onCancel={() => setFilterOpen(false)}
           />

@@ -1,0 +1,8 @@
+{
+  "mode": "existing Next dev + real public API reads, no writes",
+  "checks": [
+    "1440px: 전체 게시글 링크·필터 초기화·뒤로 가기·가로 넘침 없음",
+    "390px: 전체 게시글 링크·필터 초기화·뒤로 가기·가로 넘침 없음",
+    "320px: 전체 게시글 링크·필터 초기화·뒤로 가기·가로 넘침 없음·키보드 Enter"
+  ]
+}

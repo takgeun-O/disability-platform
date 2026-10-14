@@ -230,7 +230,7 @@ try {
   await check('공개 상세의 줄바꿈·HTML 비실행·긴 문자열·직접 진입 기본 복귀', async () => {
     await page.goto(base + '/community/posts/1'); await page.locator('.community-post-body').waitFor();
     assert.match(await page.locator('.community-post-body').innerText(), /첫 줄\n\n둘째 줄/); assert.equal(await page.evaluate(() => window.communityXss), undefined); assert.equal(await page.locator('.community-post-body script').count(), 0);
-    assert.equal(await page.getByRole('link', { name: '← 목록으로', exact: true }).getAttribute('href'), '/community/posts');
+    assert.equal(await page.getByRole('link', { name: '← 목록으로', exact: true }).getAttribute('href'), '/community/topics/hearing-aid');
     for (const width of [320, 390, 1440]) { await page.setViewportSize({ width, height: width < 600 ? 844 : 1000 }); await noOverflow(page); if (width !== 320) await shot(page, `mock-detail-${width}`); }
   });
   for (const [name, handler, expected] of [

@@ -1,0 +1,74 @@
+{
+  "mode": "Real existing Spring API and 8443 Next dev, public read only",
+  "writes": 0,
+  "authenticatedFlows": "not run; browser mocks cover these",
+  "results": [
+    {
+      "slug": "hearing-aid",
+      "topic": "HEARING_AID",
+      "type": "QUESTION",
+      "status": 200,
+      "totalElements": 1,
+      "itemCount": 1
+    },
+    {
+      "slug": "cochlear-implant",
+      "topic": "COCHLEAR_IMPLANT",
+      "type": "QUESTION",
+      "status": 200,
+      "totalElements": 0,
+      "itemCount": 0
+    },
+    {
+      "slug": "daily",
+      "topic": "DAILY",
+      "type": "QUESTION",
+      "status": 200,
+      "totalElements": 0,
+      "itemCount": 0
+    },
+    {
+      "slug": "treatment-rehabilitation",
+      "topic": "TREATMENT_REHABILITATION",
+      "type": "QUESTION",
+      "status": 200,
+      "totalElements": 0,
+      "itemCount": 0
+    },
+    {
+      "slug": "communication",
+      "topic": "COMMUNICATION",
+      "type": "QUESTION",
+      "status": 200,
+      "totalElements": 0,
+      "itemCount": 0
+    },
+    {
+      "slug": "employment",
+      "topic": "EMPLOYMENT",
+      "type": "QUESTION",
+      "status": 200,
+      "totalElements": 0,
+      "itemCount": 0
+    },
+    {
+      "slug": "welfare-life",
+      "topic": "WELFARE_LIFE",
+      "type": "QUESTION",
+      "status": 200,
+      "totalElements": 0,
+      "itemCount": 0
+    },
+    {
+      "liveDevServer": "http://127.0.0.1:8443",
+      "currentTopicUI": true,
+      "matchingRealApi": true,
+      "widths": [
+        1440,
+        390,
+        320
+      ],
+      "mobileMenuKeyboard": true
+    }
+  ]
+}

@@ -1,0 +1,5 @@
+{
+  "httpStatus": 404,
+  "visibleGuidance": false,
+  "result": "FAIL: HTTP 404 but no visible guidance without JavaScript"
+}

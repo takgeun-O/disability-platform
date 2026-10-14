@@ -1,0 +1,38 @@
+{
+  "mode": "real Spring public reads, production browser DOM with/without JavaScript",
+  "base": "http://127.0.0.1:8451",
+  "results": [
+    {
+      "name": "browser: 무JS 실제 HTTP404·noindex",
+      "status": "passed"
+    },
+    {
+      "name": "browser: 무JS 표시 본문·목록 앵커·클릭 이동",
+      "status": "failed",
+      "message": "실제 표시되는 404 제목이 없습니다."
+    },
+    {
+      "name": "crawler: 무JS 실제 HTTP404·noindex",
+      "status": "passed"
+    },
+    {
+      "name": "crawler: 무JS 표시 본문·목록 앵커·클릭 이동",
+      "status": "failed",
+      "message": "실제 표시되는 404 제목이 없습니다."
+    },
+    {
+      "name": "JS 활성: 안전한 from 조건·스크롤 복귀 및 외부 주소 차단",
+      "status": "passed"
+    },
+    {
+      "name": "무JS 정상 목록·상세는 실제 Spring 제목·본문·작성자 표시",
+      "status": "passed"
+    },
+    {
+      "name": "JS 404 복귀의 런타임 오류 없음",
+      "status": "passed"
+    }
+  ],
+  "errors": [],
+  "writes": 0
+}
