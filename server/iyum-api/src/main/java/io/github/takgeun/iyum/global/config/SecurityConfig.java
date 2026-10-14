@@ -121,7 +121,9 @@ public class SecurityConfig {
                             // 비로그인 사용자가 로그인·회원가입 요청에 필요한 CSRF 토큰을 미리 받을 수 있도록 하는 설정
                             .requestMatchers(
                                     HttpMethod.GET,
-                                    "/api/v1/auth/csrf"
+                                    "/api/v1/auth/csrf",
+                                    "/api/v1/community/posts",
+                                    "/api/v1/community/posts/*"
                             )
                             .permitAll();
 

@@ -71,6 +71,9 @@ public class DevCorsConfig {
         source.registerCorsConfiguration("/api/v1/auth/me", cors);
         source.registerCorsConfiguration("/api/v1/auth/logout", cors);
 
+        source.registerCorsConfiguration("/api/v1/community/posts", cors);
+        source.registerCorsConfiguration("/api/v1/community/posts/*", cors);
+
         return source;
     }
 }
