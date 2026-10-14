@@ -55,7 +55,7 @@ try {
     const messages = await waitFor(async () => { const res = await fetch(mailpit + '/api/v1/search?query=' + encodeURIComponent('to:' + email)); const messages = (await res.json()).messages ?? []; return messages.length ? messages : null; });
     const message = await (await fetch(mailpit + '/api/v1/message/' + messages[0].ID)).json();
     const token = String(message.Text).match(/token=([A-Za-z0-9_-]{43})/)?.[1]; assert.ok(token);
-    await page.goto(base + '/register/verify?token=' + token); await page.getByRole('button', { name: '이메일 인증하기', exact: true }).click(); await page.getByText('이메일 인증이 완료되었습니다.', { exact: false }).waitFor();
+    await page.goto(base + '/register/verify?token=' + token); await page.getByRole('button', { name: '이메일 인증하기', exact: true }).click(); await page.waitForURL('**/login'); await page.getByText('이메일 인증이 완료되었습니다. 로그인해 주세요.', { exact: true }).waitFor();
     created.memberStatus = 'ACTIVE'; created.mailCount = messages.length;
     await page.goto(base + '/login?from=' + encodeURIComponent(createPath)); await page.locator('input[name=email]').fill(email); await page.locator('input[name=password]').fill(password);
     await page.getByRole('main').getByRole('button', { name: '로그인', exact: true }).click(); await page.waitForURL(url => url.pathname === '/community/posts/create'); await page.getByRole('form', { name: '게시글 작성' }).waitFor();

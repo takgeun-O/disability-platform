@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState, type FormEvent } from "react";
 import Link from "@/components/AppLink";
+import AuthFrame from "@/components/auth/AuthFrame";
 import { getCsrfToken, SignupApiError } from "@/lib/signup-api";
 import { validateEmail } from "@/lib/signup-form";
 import {
@@ -107,146 +108,30 @@ export default function EmailVerificationResend() {
 
   const isSubmitting = state.kind === "submitting";
   return (
-    <main>
-      <div
-        style={{ maxWidth: 500, margin: "0 auto", padding: "60px 24px 80px" }}
-      >
-        <h1
-          style={{
-            fontSize: 22,
-            fontWeight: 700,
-            color: "#1A1918",
-            marginBottom: 16,
-          }}
-        >
-          인증 메일 재전송
-        </h1>
-        <p
-          id="resend-help"
-          style={{
-            fontSize: 13,
-            color: "#4A4845",
-            lineHeight: 1.7,
-            marginBottom: 24,
-          }}
-        >
-          메일을 받지 못했거나 인증 링크를 사용할 수 없다면 가입한 이메일을
-          입력해 주세요. 새 메일이 발급되면 이전 인증 링크는 사용할 수 없습니다.
-        </p>
-        <form onSubmit={handleSubmit} noValidate aria-busy={isSubmitting}>
-          <label
-            htmlFor="resend-email"
-            style={{ display: "block", fontSize: 14, marginBottom: 8 }}
-          >
-            이메일
-          </label>
-          <input
-            id="resend-email"
-            ref={emailRef}
-            type="email"
-            name="email"
-            autoComplete="email"
-            autoCapitalize="none"
-            spellCheck={false}
-            required
-            value={email}
-            disabled={isSubmitting}
-            onChange={(event) => {
-              setEmail(event.target.value);
-              setState({ kind: "idle" });
-            }}
+    <AuthFrame title="인증 메일 재전송">
+      <p id="resend-help" className="auth-copy">
+        메일을 받지 못했거나 인증 링크를 사용할 수 없다면 가입한 이메일을 입력해 주세요. 새 메일이 발급되면 이전 인증 링크는 사용할 수 없습니다.
+      </p>
+      <form onSubmit={handleSubmit} noValidate aria-busy={isSubmitting}>
+        <div className="auth-field">
+          <label htmlFor="resend-email" className="auth-label">이메일</label>
+          <input id="resend-email" className="auth-input" ref={emailRef} type="email" name="email" autoComplete="email"
+            autoCapitalize="none" spellCheck={false} required value={email} disabled={isSubmitting}
+            onChange={event => { setEmail(event.target.value); setState({ kind: 'idle' }); }}
             aria-invalid={state.kind === "error" && state.emailInvalid}
-            aria-describedby={
-              state.kind === "error"
-                ? "resend-help resend-feedback"
-                : "resend-help"
-            }
-            style={{
-              width: "100%",
-              boxSizing: "border-box",
-              padding: "12px 14px",
-              fontSize: 14,
-              border: "1px solid #C8C5C0",
-              borderRadius: 2,
-              marginBottom: 16,
-              fontFamily: "inherit",
-            }}
-          />
-          {state.kind === "error" && (
-            <p
-              id="resend-feedback"
-              ref={feedbackRef}
-              tabIndex={-1}
-              role="alert"
-              style={{
-                color: "#B91C1C",
-                fontSize: 13,
-                lineHeight: 1.7,
-                marginBottom: 16,
-              }}
-            >
-              {state.message}
-            </p>
-          )}
-          {state.kind === "accepted" && (
-            <p
-              id="resend-feedback"
-              ref={feedbackRef}
-              tabIndex={-1}
-              role="status"
-              aria-live="polite"
-              style={{
-                color: "#4A4845",
-                fontSize: 14,
-                lineHeight: 1.7,
-                marginBottom: 16,
-              }}
-            >
-              {acceptedMessage}
-            </p>
-          )}
-          {isSubmitting && (
-            <p
-              role="status"
-              aria-live="polite"
-              style={{ fontSize: 13, marginBottom: 12 }}
-            >
-              재전송 요청을 처리하고 있습니다.
-            </p>
-          )}
-          <button
-            type="submit"
-            disabled={isSubmitting}
-            style={{
-              width: "100%",
-              padding: "12px 16px",
-              border: "none",
-              borderRadius: 2,
-              backgroundColor: "#1A1918",
-              color: "#FFFFFF",
-              fontSize: 14,
-              fontWeight: 600,
-              fontFamily: "inherit",
-              cursor: isSubmitting ? "wait" : "pointer",
-              opacity: isSubmitting ? 0.6 : 1,
-            }}
-          >
-            {isSubmitting ? "요청 중…" : "인증 메일 재전송 요청"}
-          </button>
-        </form>
-        <div
-          style={{
-            display: "flex",
-            gap: 24,
-            marginTop: 24,
-            fontSize: 13,
-            textDecoration: "underline",
-          }}
-        >
-          <Link href="/register/verify">인증 안내로 돌아가기</Link>
-          <Link href="/login">로그인 화면으로 이동</Link>
+            aria-describedby={state.kind === "error" ? "resend-help resend-feedback" : "resend-help"} />
         </div>
-      </div>
-    </main>
+        {state.kind === "error" && <p id="resend-feedback" ref={feedbackRef} tabIndex={-1} role="alert" className="auth-feedback is-error">{state.message}</p>}
+        {state.kind === "accepted" && <p id="resend-feedback" ref={feedbackRef} tabIndex={-1} role="status" aria-live="polite" className="auth-feedback">{acceptedMessage}</p>}
+        {isSubmitting && <p role="status" aria-live="polite" className="auth-status">재전송 요청을 처리하고 있습니다.</p>}
+        <button type="submit" disabled={isSubmitting} className="iyum-button iyum-button-primary auth-submit">
+          {isSubmitting ? "요청 중…" : "인증 메일 재전송 요청"}
+        </button>
+      </form>
+      <nav className="auth-links" aria-label="인증 관련 이동">
+        <Link href="/register/verify" className="iyum-text-link">인증 안내로 돌아가기</Link>
+        <Link href="/login" className="iyum-text-link">로그인 화면으로 이동</Link>
+      </nav>
+    </AuthFrame>
   );
 }

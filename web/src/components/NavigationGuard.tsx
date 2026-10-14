@@ -1,9 +1,12 @@
 'use client';
 import { createContext, useCallback, useContext, useEffect, useLayoutEffect, useRef, useState, type ReactNode } from 'react';
 
+import { createNavigationRequestScope } from '@/lib/navigation-request';
+
 type Guard = {
   isDirty: () => boolean;
   getApprovalVersion: () => number;
+  notifyNavigation: () => void;
   setDirty: (value: boolean) => void;
   request: (action: () => void) => void;
   pending: (() => void) | null;
@@ -18,11 +21,12 @@ export function NavigationGuardProvider({children}: {children: ReactNode}) {
   // 경로 전환/언마운트보다 먼저 확정된 이탈을 비동기 요청에서도 식별한다.
   const approvalVersion = useRef(0);
   const getApprovalVersion = useCallback(() => approvalVersion.current, []);
+  const notifyNavigation = useCallback(() => { approvalVersion.current += 1; }, []);
   const [pending, setPending] = useState<(() => void) | null>(null);
   const request = useCallback((action: () => void) => {
     if (dirty.current) setPending(() => action);
-    else action();
-  }, []);
+    else { notifyNavigation(); action(); }
+  }, [notifyNavigation]);
   const setDirty = useCallback((value: boolean) => {dirty.current = value;}, []);
 
   useEffect(() => {
@@ -45,9 +49,13 @@ export function NavigationGuardProvider({children}: {children: ReactNode}) {
     const onPop = (event: PopStateEvent) => {
       const target = event.state?.[INDEX];
       if (restoring) {restoring = false; event.stopImmediatePropagation(); return;}
-      if (typeof target !== 'number') return;
+      if (typeof target !== 'number') { notifyNavigation(); return; }
       const delta = target - index;
-      if (!dirty.current || bypass || delta === 0) {index = target; bypass = false; return;}
+      if (!dirty.current || bypass || delta === 0) {
+        // proceed에서 이미 알린 pop은 중복 처리하지 않는다. 복원용 pop도 위에서 제외한다.
+        if (!bypass && delta !== 0) notifyNavigation();
+        index = target; bypass = false; return;
+      }
       event.stopImmediatePropagation();
       restoring = true;
       history.go(-delta);
@@ -64,14 +72,14 @@ export function NavigationGuardProvider({children}: {children: ReactNode}) {
       if (history.pushState === indexedPush) history.pushState = push;
       if (history.replaceState === indexedReplace) history.replaceState = replace;
     };
-  }, []);
+  }, [notifyNavigation]);
 
   return <Context.Provider value={{
-    isDirty: () => dirty.current, getApprovalVersion, setDirty, request, pending,
+    isDirty: () => dirty.current, getApprovalVersion, notifyNavigation, setDirty, request, pending,
     cancel: () => setPending(null),
     proceed: () => {
       if (!pending) return;
-      approvalVersion.current += 1;
+      notifyNavigation();
       dirty.current = false; setPending(null); pending();
     },
   }}>{children}</Context.Provider>;
@@ -89,4 +97,15 @@ export function useUnsavedChanges(isDirty: boolean) {
   // isDirty가 이미 true이면 위 effect가 재실행되지 않으므로 편집 이벤트에서도 알린다.
   return {state: guard.pending ? 'blocked' : 'unblocked', reset: guard.cancel, proceed: guard.proceed, request: guard.request,
     getApprovalVersion: guard.getApprovalVersion, markDirty: () => setDirty(true)};
+}
+
+// 언마운트뿐 아니라 승인된 탐색 시점부터 이전 화면 요청의 후속 처리를 차단한다.
+export function useNavigationRequest() {
+  const { getApprovalVersion } = useNavigationGuard();
+  const [scope] = useState(() => createNavigationRequestScope(getApprovalVersion));
+  useLayoutEffect(() => {
+    scope.activate();
+    return () => scope.deactivate();
+  }, [scope]);
+  return scope;
 }

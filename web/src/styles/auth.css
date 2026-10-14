@@ -1,0 +1,62 @@
+/* 인증 화면만 적용. API 상태/초점/제출 정책은 각 feature에 그대로 둔다. */
+.auth-screen { padding: 40px 20px 56px; background: linear-gradient(180deg, var(--iyum-mist), white 360px); color: var(--iyum-ink); line-height: 1.7; }
+.auth-panel { width: 100%; max-width: 520px; margin-inline: auto; padding: 32px; box-shadow: var(--iyum-shadow); }
+.auth-heading { margin-bottom: 24px; }
+.auth-heading h1 { margin: 0; font-size: 28px; line-height: 1.4; font-weight: 700; letter-spacing: -.03em; word-break: keep-all; overflow-wrap: anywhere; }
+.auth-heading > p { margin-top: 8px; color: var(--iyum-muted); font-size: 15px; }
+.auth-steps { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 8px; margin: 0 0 24px; padding: 0 0 16px; border-bottom: 1px solid var(--iyum-border); list-style: none; }
+.auth-steps li { display: flex; align-items: center; gap: 6px; color: var(--iyum-muted); font-size: 13px; }
+.auth-steps li > span { display: inline-flex; align-items: center; justify-content: center; width: 24px; height: 24px; border-radius: 50%; background: var(--iyum-mist); }
+.auth-steps [aria-current=step] { color: var(--iyum-primary); font-weight: 700; }
+.auth-steps [aria-current=step] > span { color: white; background: var(--iyum-primary); }
+.auth-screen fieldset { min-width: 0; padding: 0; margin: 0; border: 0; }
+.auth-field { margin-bottom: 20px; }
+.auth-label { display: block; margin-bottom: 7px; font-size: 15px; font-weight: 600; }
+.auth-required { color: var(--iyum-muted); font-size: 13px; font-weight: 400; }
+.auth-input { display: block; width: 100%; min-width: 0; min-height: 48px; padding: 11px 12px; border: 1px solid #7493a6; border-radius: var(--iyum-radius); background: var(--iyum-surface); color: var(--iyum-ink); font-size: 16px; line-height: 1.5; font-family: inherit; }
+.auth-input::placeholder { color: var(--iyum-muted); opacity: 1; }
+.auth-input[aria-invalid=true] { border-color: var(--iyum-danger); }
+.auth-screen :focus-visible, .auth-screen [tabindex="-1"]:focus { outline: 3px solid var(--iyum-blue); outline-offset: 3px; }
+.auth-input:disabled { background: var(--iyum-mist); color: var(--iyum-muted); cursor: wait; }
+.auth-field-error { margin: 6px 0 0; color: var(--iyum-danger); font-size: 14px; overflow-wrap: anywhere; }
+.auth-hint, .auth-copy { color: var(--iyum-muted); font-size: 14px; overflow-wrap: anywhere; }
+.auth-hint { margin-top: 6px; }
+.auth-copy { margin-bottom: 20px; }
+.auth-password { position: relative; }
+.auth-password .auth-input { padding-right: 70px; }
+.auth-password-toggle { position: absolute; top: 2px; right: 3px; min-width: 60px; min-height: 44px; padding: 6px; border-radius: 4px; background: transparent; color: var(--iyum-primary); font-size: 14px; font-weight: 600; cursor: pointer; }
+.auth-password-toggle:hover { background: var(--iyum-mist); }
+.auth-password-toggle:disabled { cursor: wait; }
+.auth-screen .iyum-button { min-height: 48px; border-radius: var(--iyum-radius); font-size: 16px; white-space: normal; text-align: center; }
+.auth-submit { width: 100%; }
+.auth-actions { display: flex; align-items: stretch; gap: 12px; margin-top: 24px; }
+.auth-actions > .iyum-button { flex: 1; }
+.auth-actions > .iyum-button-primary { flex: 2; }
+.auth-links { display: flex; align-items: center; justify-content: center; flex-wrap: wrap; gap: 0 24px; margin-top: 24px; padding-top: 16px; border-top: 1px solid var(--iyum-border); }
+.auth-screen .iyum-text-link { font-size: 14px; white-space: normal; }
+.auth-feedback { margin: 0 0 20px; padding: 14px 16px; border: 1px solid var(--iyum-border); border-left: 4px solid var(--iyum-primary); border-radius: var(--iyum-radius); background: var(--iyum-mist); color: var(--iyum-ink); font-size: 15px; line-height: 1.7; overflow-wrap: anywhere; }
+.auth-feedback p { margin: 0; }
+.auth-feedback p + p { margin-top: 8px; }
+.auth-feedback.is-error { border-color: #ddb3b3; border-left-color: var(--iyum-danger); background: #fff7f7; color: var(--iyum-danger); }
+.auth-feedback-title { display: block; font-weight: 600; }
+.auth-status { color: var(--iyum-muted); font-size: 14px; margin-bottom: 12px; }
+.auth-verification { margin-bottom: 20px; }
+.auth-consent-row { display: flex; align-items: center; gap: 12px; min-height: 58px; border-bottom: 1px solid var(--iyum-border); }
+.auth-consent-row input { flex: 0 0 auto; width: 20px; height: 20px; margin-left: 2px; accent-color: var(--iyum-primary); cursor: pointer; }
+.auth-consent-row label { flex: 1; display: flex; align-items: center; flex-wrap: wrap; gap: 4px 8px; min-height: 58px; padding-block: 12px; font-size: 15px; cursor: pointer; }
+.auth-consent-row label > span { color: var(--iyum-muted); font-size: 13px; }
+.auth-consent-row.is-all { padding-inline: 14px; margin-bottom: 8px; border: 1px solid #7493a6; border-radius: var(--iyum-radius); background: var(--iyum-mist); font-weight: 600; }
+.auth-consent-row:has(input:disabled) label { color: var(--iyum-muted); cursor: default; }
+.auth-consent-row:has([aria-invalid=true]) { border-bottom-color: var(--iyum-danger); }
+.auth-consent-note { margin-top: 16px; }
+@media (max-width: 600px) {
+  .auth-screen { padding-block: 24px 40px; background: white; }
+  .auth-panel { padding: 0; border: 0; box-shadow: none; }
+  .auth-heading { margin-bottom: 24px; }
+  .auth-heading h1 { font-size: 26px; }
+  .auth-steps { margin-bottom: 20px; gap: 6px; }
+  .auth-steps li { font-size: 12px; gap: 4px; }
+  .auth-steps li > span { width: 22px; height: 22px; }
+  .auth-actions { gap: 10px; }
+  .auth-feedback { padding: 12px; }
+}

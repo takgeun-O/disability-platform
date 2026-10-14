@@ -49,7 +49,7 @@ function FeedbackNotice({ feedback, onDismiss }: { feedback: Feedback; onDismiss
 
   return <div ref={noticeRef} role={feedback.error ? 'alert' : 'status'} aria-atomic="true"
     className={`iyum-auth-notice${feedback.error ? ' is-error' : ''}`}>
-    <span style={{ flex: 1 }}>{feedback.message}</span>
+    <span className="iyum-notice-message">{feedback.message}</span>
     <button type="button" aria-label="알림 닫기" onClick={() => onDismiss(feedback.id)}
       className="iyum-notice-close">닫기</button>
   </div>;
@@ -108,14 +108,14 @@ export default function AuthControls() {
     <div className="iyum-auth-controls">
       <div className="iyum-member-menu" aria-label="회원 메뉴">
         {auth.status === 'checking' || (auth.pending === 'login' && auth.status !== 'authenticated') ? (
-          <span role="status" className="text-sm" style={{ color: '#4A4845' }}>
+          <span role="status" className="iyum-auth-status">
             {auth.pending === 'login' ? '로그인 처리 중…' : '로그인 확인 중…'}
           </span>
         ) : auth.status === 'error' ? (
-          <div className="text-xs" role="status">
+          <div className="iyum-auth-status" role="status">
             <p>로그인 상태를 확인하지 못했습니다.</p>
             <button type="button" onClick={() => { setFeedback(null); void auth.refresh(); }} disabled={!!auth.pending}
-              style={{ textDecoration: 'underline', cursor: 'pointer' }}>상태 다시 확인</button>
+              className="iyum-auth-status-retry">상태 다시 확인</button>
           </div>
         ) : auth.status === 'authenticated' && auth.member ? (
           <>

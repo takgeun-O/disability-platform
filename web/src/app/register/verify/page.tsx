@@ -2,6 +2,7 @@ import type { Metadata } from 'next';
 import { Suspense } from 'react';
 
 import SignupVerify from '@/features/SignupVerify';
+import AuthFrame from '@/components/auth/AuthFrame';
 
 export const metadata: Metadata = {
     // 이 페이지에서 나가는 요청의 Referer 헤더에
@@ -12,19 +13,9 @@ export const metadata: Metadata = {
 function VerificationFallback() {
     // 준비 중에 보여줄 화면을 정의한다. (임시 안내 화면)
   return (
-    <main>
-      <div
-        style={{
-          maxWidth: 500,
-          margin: '0 auto',
-          padding: '60px 24px 80px',
-        }}
-      >
-        <p role="status" aria-live="polite">
-          인증 정보를 확인하고 있습니다.
-        </p>
-      </div>
-    </main>
+    <AuthFrame title="이메일 인증 안내" step={3}>
+      <p role="status" aria-live="polite" className="auth-status">인증 정보를 확인하고 있습니다.</p>
+    </AuthFrame>
   );
 }
 

@@ -1,0 +1,601 @@
+{
+  "checks": [
+    {
+      "mode": "mock",
+      "name": "로그인 1440/390/320: 입력·버튼 크기·상단 배치·키보드 비밀번호 토글"
+    },
+    {
+      "mode": "mock",
+      "name": "로그인 입력 오류: 요청 없음·첫 오류 초점·설명 연결"
+    },
+    {
+      "mode": "mock",
+      "name": "본문·입력·placeholder·주 버튼·초점의 대비"
+    },
+    {
+      "mode": "mock",
+      "name": "약관 키보드 Space·부분 동의·필수 오류·모바일"
+    },
+    {
+      "mode": "mock",
+      "name": "가입 오류 필드와 초점 연결·표시 토글·약관 유지"
+    },
+    {
+      "mode": "mock",
+      "name": "가입 서버 필드 오류·CSRF 복구 후 수동 재시도만 허용"
+    },
+    {
+      "mode": "mock",
+      "name": "가입 요청 중 비활성·중복 차단·201/PENDING만 대기·자동 로그인 없음"
+    },
+    {
+      "mode": "mock",
+      "name": "이메일 인증 대기·진행·성공·실패와 초점·재전송 연결"
+    },
+    {
+      "mode": "mock",
+      "name": "재전송 오류·진행·접수의 구분·새 CSRF·입력 보존"
+    },
+    {
+      "mode": "real",
+      "name": "실제 가입201/PENDING → Mailpit 인증 → ACTIVE"
+    },
+    {
+      "mode": "real",
+      "name": "실제 수동 로그인·새로고침 세션 복원·로그아웃 알림·초점 일시정지"
+    },
+    {
+      "mode": "real",
+      "name": "브라우저 런타임 오류 없음"
+    }
+  ],
+  "createdMembers": [
+    {
+      "email": "iyum-auth-ui-mv7zpon2@example.test",
+      "nickname": "AU_mv7zpon2",
+      "status": "ACTIVE",
+      "memberId": 27
+    }
+  ],
+  "errors": [],
+  "layout": [
+    {
+      "mode": "mock",
+      "name": "login",
+      "width": 1440,
+      "headingTop": 162,
+      "firstInputTop": 291.1875,
+      "inputFont": 16,
+      "inputHeight": 48,
+      "primaryHeight": 48
+    },
+    {
+      "mode": "mock",
+      "name": "login",
+      "width": 390,
+      "headingTop": 140,
+      "firstInputTop": 266.390625,
+      "inputFont": 16,
+      "inputHeight": 48,
+      "primaryHeight": 48
+    },
+    {
+      "mode": "mock",
+      "name": "login",
+      "width": 320,
+      "headingTop": 140,
+      "firstInputTop": 266.390625,
+      "inputFont": 16,
+      "inputHeight": 48,
+      "primaryHeight": 48
+    },
+    {
+      "mode": "mock",
+      "name": "login-validation",
+      "width": 1440,
+      "headingTop": 162,
+      "firstInputTop": 291.1875,
+      "inputFont": 16,
+      "inputHeight": 48,
+      "primaryHeight": 48
+    },
+    {
+      "mode": "mock",
+      "name": "login-validation",
+      "width": 390,
+      "headingTop": 140,
+      "firstInputTop": 266.390625,
+      "inputFont": 16,
+      "inputHeight": 48,
+      "primaryHeight": 48
+    },
+    {
+      "mode": "mock",
+      "name": "login-validation",
+      "width": 320,
+      "headingTop": 140,
+      "firstInputTop": 266.390625,
+      "inputFont": 16,
+      "inputHeight": 48,
+      "primaryHeight": 48
+    },
+    {
+      "mode": "mock",
+      "name": "consent",
+      "width": 1440,
+      "headingTop": 227,
+      "inputFont": null,
+      "primaryHeight": 48
+    },
+    {
+      "mode": "mock",
+      "name": "consent",
+      "width": 390,
+      "headingTop": 199,
+      "inputFont": null,
+      "primaryHeight": 48
+    },
+    {
+      "mode": "mock",
+      "name": "consent",
+      "width": 320,
+      "headingTop": 199,
+      "inputFont": null,
+      "primaryHeight": 48
+    },
+    {
+      "mode": "mock",
+      "name": "signup-info",
+      "width": 1440,
+      "headingTop": 227,
+      "firstInputTop": 399.984375,
+      "inputFont": 16,
+      "inputHeight": 48,
+      "primaryHeight": 48
+    },
+    {
+      "mode": "mock",
+      "name": "signup-info",
+      "width": 390,
+      "headingTop": 199,
+      "firstInputTop": 394.6875,
+      "inputFont": 16,
+      "inputHeight": 48,
+      "primaryHeight": 48
+    },
+    {
+      "mode": "mock",
+      "name": "signup-info",
+      "width": 320,
+      "headingTop": 199,
+      "firstInputTop": 418.484375,
+      "inputFont": 16,
+      "inputHeight": 48,
+      "primaryHeight": 48
+    },
+    {
+      "mode": "mock",
+      "name": "signup-validation",
+      "width": 1440,
+      "headingTop": 227,
+      "firstInputTop": 399.984375,
+      "inputFont": 16,
+      "inputHeight": 48,
+      "primaryHeight": 48
+    },
+    {
+      "mode": "mock",
+      "name": "signup-validation",
+      "width": 390,
+      "headingTop": 199,
+      "firstInputTop": 394.6875,
+      "inputFont": 16,
+      "inputHeight": 48,
+      "primaryHeight": 48
+    },
+    {
+      "mode": "mock",
+      "name": "signup-validation",
+      "width": 320,
+      "headingTop": 199,
+      "firstInputTop": 418.484375,
+      "inputFont": 16,
+      "inputHeight": 48,
+      "primaryHeight": 48
+    },
+    {
+      "mode": "mock",
+      "name": "signup-processing",
+      "width": 1440,
+      "headingTop": 227,
+      "firstInputTop": 399.984375,
+      "inputFont": 16,
+      "inputHeight": 48,
+      "primaryHeight": 48
+    },
+    {
+      "mode": "mock",
+      "name": "signup-processing",
+      "width": 390,
+      "headingTop": 199,
+      "firstInputTop": 394.6875,
+      "inputFont": 16,
+      "inputHeight": 48,
+      "primaryHeight": 48
+    },
+    {
+      "mode": "mock",
+      "name": "signup-processing",
+      "width": 320,
+      "headingTop": 199,
+      "firstInputTop": 418.484375,
+      "inputFont": 16,
+      "inputHeight": 48,
+      "primaryHeight": 48
+    },
+    {
+      "mode": "mock",
+      "name": "signup-pending",
+      "width": 1440,
+      "headingTop": 227,
+      "inputFont": null
+    },
+    {
+      "mode": "mock",
+      "name": "signup-pending",
+      "width": 390,
+      "headingTop": 199,
+      "inputFont": null
+    },
+    {
+      "mode": "mock",
+      "name": "signup-pending",
+      "width": 320,
+      "headingTop": 199,
+      "inputFont": null
+    },
+    {
+      "mode": "mock",
+      "name": "verification-missing",
+      "width": 1440,
+      "headingTop": 227,
+      "inputFont": null
+    },
+    {
+      "mode": "mock",
+      "name": "verification-missing",
+      "width": 390,
+      "headingTop": 199,
+      "inputFont": null
+    },
+    {
+      "mode": "mock",
+      "name": "verification-missing",
+      "width": 320,
+      "headingTop": 199,
+      "inputFont": null
+    },
+    {
+      "mode": "mock",
+      "name": "verification-invalid-link",
+      "width": 1440,
+      "headingTop": 227,
+      "inputFont": null
+    },
+    {
+      "mode": "mock",
+      "name": "verification-invalid-link",
+      "width": 390,
+      "headingTop": 199,
+      "inputFont": null
+    },
+    {
+      "mode": "mock",
+      "name": "verification-invalid-link",
+      "width": 320,
+      "headingTop": 199,
+      "inputFont": null
+    },
+    {
+      "mode": "mock",
+      "name": "verification-ready",
+      "width": 1440,
+      "headingTop": 227,
+      "inputFont": null,
+      "primaryHeight": 48
+    },
+    {
+      "mode": "mock",
+      "name": "verification-ready",
+      "width": 390,
+      "headingTop": 199,
+      "inputFont": null,
+      "primaryHeight": 48
+    },
+    {
+      "mode": "mock",
+      "name": "verification-ready",
+      "width": 320,
+      "headingTop": 199,
+      "inputFont": null,
+      "primaryHeight": 48
+    },
+    {
+      "mode": "mock",
+      "name": "verification-processing",
+      "width": 1440,
+      "headingTop": 227,
+      "inputFont": null,
+      "primaryHeight": 48
+    },
+    {
+      "mode": "mock",
+      "name": "verification-processing",
+      "width": 390,
+      "headingTop": 199,
+      "inputFont": null,
+      "primaryHeight": 48
+    },
+    {
+      "mode": "mock",
+      "name": "verification-processing",
+      "width": 320,
+      "headingTop": 199,
+      "inputFont": null,
+      "primaryHeight": 48
+    },
+    {
+      "mode": "mock",
+      "name": "verification-success",
+      "width": 1440,
+      "headingTop": 162,
+      "firstInputTop": 366.6875,
+      "inputFont": 16,
+      "inputHeight": 48,
+      "primaryHeight": 48
+    },
+    {
+      "mode": "mock",
+      "name": "verification-success",
+      "width": 390,
+      "headingTop": 140,
+      "firstInputTop": 337.890625,
+      "inputFont": 16,
+      "inputHeight": 48,
+      "primaryHeight": 48
+    },
+    {
+      "mode": "mock",
+      "name": "verification-success",
+      "width": 320,
+      "headingTop": 140,
+      "firstInputTop": 363.390625,
+      "inputFont": 16,
+      "inputHeight": 48,
+      "primaryHeight": 48
+    },
+    {
+      "mode": "mock",
+      "name": "verification-expired",
+      "width": 1440,
+      "headingTop": 227,
+      "inputFont": null
+    },
+    {
+      "mode": "mock",
+      "name": "verification-expired",
+      "width": 390,
+      "headingTop": 199,
+      "inputFont": null
+    },
+    {
+      "mode": "mock",
+      "name": "verification-expired",
+      "width": 320,
+      "headingTop": 199,
+      "inputFont": null
+    },
+    {
+      "mode": "mock",
+      "name": "resend",
+      "width": 1440,
+      "headingTop": 162,
+      "firstInputTop": 325.28125,
+      "inputFont": 16,
+      "inputHeight": 48,
+      "primaryHeight": 48
+    },
+    {
+      "mode": "mock",
+      "name": "resend",
+      "width": 390,
+      "headingTop": 140,
+      "firstInputTop": 324.28125,
+      "inputFont": 16,
+      "inputHeight": 48,
+      "primaryHeight": 48
+    },
+    {
+      "mode": "mock",
+      "name": "resend",
+      "width": 320,
+      "headingTop": 140,
+      "firstInputTop": 324.28125,
+      "inputFont": 16,
+      "inputHeight": 48,
+      "primaryHeight": 48
+    },
+    {
+      "mode": "mock",
+      "name": "resend-validation",
+      "width": 1440,
+      "headingTop": 162,
+      "firstInputTop": 325.28125,
+      "inputFont": 16,
+      "inputHeight": 48,
+      "primaryHeight": 48
+    },
+    {
+      "mode": "mock",
+      "name": "resend-validation",
+      "width": 390,
+      "headingTop": 140,
+      "firstInputTop": 324.28125,
+      "inputFont": 16,
+      "inputHeight": 48,
+      "primaryHeight": 48
+    },
+    {
+      "mode": "mock",
+      "name": "resend-validation",
+      "width": 320,
+      "headingTop": 140,
+      "firstInputTop": 324.28125,
+      "inputFont": 16,
+      "inputHeight": 48,
+      "primaryHeight": 48
+    },
+    {
+      "mode": "mock",
+      "name": "resend-processing",
+      "width": 1440,
+      "headingTop": 162,
+      "firstInputTop": 325.28125,
+      "inputFont": 16,
+      "inputHeight": 48,
+      "primaryHeight": 48
+    },
+    {
+      "mode": "mock",
+      "name": "resend-processing",
+      "width": 390,
+      "headingTop": 140,
+      "firstInputTop": 324.28125,
+      "inputFont": 16,
+      "inputHeight": 48,
+      "primaryHeight": 48
+    },
+    {
+      "mode": "mock",
+      "name": "resend-processing",
+      "width": 320,
+      "headingTop": 140,
+      "firstInputTop": 324.28125,
+      "inputFont": 16,
+      "inputHeight": 48,
+      "primaryHeight": 48
+    },
+    {
+      "mode": "mock",
+      "name": "resend-accepted",
+      "width": 1440,
+      "headingTop": 162,
+      "firstInputTop": 325.28125,
+      "inputFont": 16,
+      "inputHeight": 48,
+      "primaryHeight": 48
+    },
+    {
+      "mode": "mock",
+      "name": "resend-accepted",
+      "width": 390,
+      "headingTop": 140,
+      "firstInputTop": 324.28125,
+      "inputFont": 16,
+      "inputHeight": 48,
+      "primaryHeight": 48
+    },
+    {
+      "mode": "mock",
+      "name": "resend-accepted",
+      "width": 320,
+      "headingTop": 140,
+      "firstInputTop": 324.28125,
+      "inputFont": 16,
+      "inputHeight": 48,
+      "primaryHeight": 48
+    },
+    {
+      "mode": "mock",
+      "name": "resend-error",
+      "width": 1440,
+      "headingTop": 162,
+      "firstInputTop": 325.28125,
+      "inputFont": 16,
+      "inputHeight": 48,
+      "primaryHeight": 48
+    },
+    {
+      "mode": "mock",
+      "name": "resend-error",
+      "width": 390,
+      "headingTop": 140,
+      "firstInputTop": 324.28125,
+      "inputFont": 16,
+      "inputHeight": 48,
+      "primaryHeight": 48
+    },
+    {
+      "mode": "mock",
+      "name": "resend-error",
+      "width": 320,
+      "headingTop": 140,
+      "firstInputTop": 324.28125,
+      "inputFont": 16,
+      "inputHeight": 48,
+      "primaryHeight": 48
+    },
+    {
+      "mode": "real",
+      "name": "signup-pending",
+      "width": 1440,
+      "headingTop": 227,
+      "inputFont": null
+    },
+    {
+      "mode": "real",
+      "name": "signup-pending",
+      "width": 390,
+      "headingTop": 199,
+      "inputFont": null
+    },
+    {
+      "mode": "real",
+      "name": "signup-pending",
+      "width": 320,
+      "headingTop": 199,
+      "inputFont": null
+    },
+    {
+      "mode": "real",
+      "name": "verification-success",
+      "width": 1440,
+      "headingTop": 162,
+      "firstInputTop": 366.6875,
+      "inputFont": 16,
+      "inputHeight": 48,
+      "primaryHeight": 48
+    },
+    {
+      "mode": "real",
+      "name": "verification-success",
+      "width": 390,
+      "headingTop": 140,
+      "firstInputTop": 337.890625,
+      "inputFont": 16,
+      "inputHeight": 48,
+      "primaryHeight": 48
+    },
+    {
+      "mode": "real",
+      "name": "verification-success",
+      "width": 320,
+      "headingTop": 140,
+      "firstInputTop": 363.390625,
+      "inputFont": 16,
+      "inputHeight": 48,
+      "primaryHeight": 48
+    }
+  ],
+  "completed": true
+}

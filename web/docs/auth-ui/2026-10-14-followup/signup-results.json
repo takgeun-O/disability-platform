@@ -1,0 +1,26 @@
+{
+  "results": [
+    "direct completion URL does not claim an unconfirmed signup",
+    "required consent and invalid input prevent requests",
+    "real CSRF + signup returns 201/PENDING; double submit is blocked; no password persistence",
+    "real normalized email conflict is shown on email input",
+    "real nickname conflict ignores case and is shown on nickname input",
+    "real server validation fieldErrors connect to password confirmation",
+    "real terms policy missing is displayed in form alert",
+    "real terms policy notAccepted is displayed in form alert",
+    "real terms policy version is displayed in form alert",
+    "real CSRF 403 refreshes token once; only manual resubmit sends the second POST",
+    "aborted POST releases loading state without automatic retry",
+    "HTML 500 response displays safe error and enables manual retry"
+  ],
+  "createdMembers": [
+    {
+      "email": "iyum-integration-mv7zonoo@example.com",
+      "nickname": "IT_mv7zonoo"
+    },
+    {
+      "email": "iyum-csrf-mv7zonoo@example.com",
+      "nickname": "CS_mv7zonoo"
+    }
+  ]
+}

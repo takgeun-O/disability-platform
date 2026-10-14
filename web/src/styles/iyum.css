@@ -49,8 +49,11 @@
 .iyum-member-name { min-width: 0; max-width: 140px; overflow-wrap: anywhere; }
 .iyum-auth-login, .iyum-auth-logout { color: var(--iyum-ink); }
 .iyum-auth-login:hover, .iyum-auth-logout:hover { background: var(--iyum-mist); }
-.iyum-auth-notice { position: absolute; z-index: 60; right: 0; top: calc(100% + 10px); display: flex; align-items: flex-start; gap: 12px; width: min(360px, calc(100vw - 40px)); padding: 16px; border: 1px solid var(--iyum-border); border-left: 4px solid var(--iyum-primary); border-radius: 10px; background: white; box-shadow: 0 10px 32px rgb(9 35 74 / 14%); font-size: 14px; line-height: 1.7; color: var(--iyum-ink); }
-.iyum-auth-notice.is-error { color: var(--iyum-danger); border-left-color: var(--iyum-danger); }
+.iyum-auth-notice { position: absolute; z-index: 60; right: 0; top: calc(100% + 10px); display: flex; align-items: flex-start; gap: 12px; width: min(360px, calc(100vw - 40px)); padding: 16px; border: 1px solid var(--iyum-border); border-left: 4px solid var(--iyum-primary); border-radius: var(--iyum-radius); background: var(--iyum-mist); box-shadow: 0 10px 32px rgb(9 35 74 / 14%); font-size: 14px; line-height: 1.7; color: var(--iyum-ink); }
+.iyum-auth-notice.is-error { color: var(--iyum-danger); border-color: #ddb3b3; border-left-color: var(--iyum-danger); background: #fff7f7; }
+.iyum-notice-message { flex: 1; min-width: 0; overflow-wrap: anywhere; }
+.iyum-auth-status { color: var(--iyum-muted); font-size: 14px; line-height: 1.6; }
+.iyum-auth-status-retry { min-height: 44px; color: var(--iyum-primary); text-decoration: underline; cursor: pointer; }
 .iyum-notice-close { flex-shrink: 0; min-width: 44px; min-height: 44px; color: var(--iyum-muted); text-decoration: underline; cursor: pointer; }
 .iyum-home { line-height: 1.7; }
 .iyum-home h1, .iyum-home h2, .iyum-home h3 { word-break: keep-all; overflow-wrap: anywhere; color: var(--iyum-ink); }
