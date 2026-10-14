@@ -4,6 +4,9 @@ import io.github.takgeun.iyum.auth.emailverification.application.InvalidEmailVer
 import io.github.takgeun.iyum.auth.signup.application.SignupConflictException;
 import io.github.takgeun.iyum.auth.signup.application.SignupTermsException;
 import io.github.takgeun.iyum.auth.security.EmailVerificationRequiredException;
+import io.github.takgeun.iyum.community.post.application.PostCreateException;
+import io.github.takgeun.iyum.community.post.application.PostReadException;
+import org.springframework.beans.TypeMismatchException;
 import org.springframework.http.*;
 import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.springframework.security.access.AccessDeniedException;
@@ -69,6 +72,23 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
         ApiErrorResponse body = ApiErrorResponse.of(
                 "INVALID_REQUEST_BODY",
                 "요청 본문의 JSON 형식과 필드 값을 확인해 주세요."
+        );
+
+        return new ResponseEntity<>(body, headers, status);
+    }
+
+    // URL 파라미터 형식 오류 처리
+    // 예를 들어 GET /api/v1/community/posts?page=abc 이렇게 잘못된 요청을 처리할 때 사용
+    @Override
+    protected ResponseEntity<Object> handleTypeMismatch(
+            TypeMismatchException exception,
+            HttpHeaders headers,
+            HttpStatusCode status,
+            WebRequest request
+    ) {
+        ApiErrorResponse body = ApiErrorResponse.of(
+                "INVALID_REQUEST_PARAMETER",
+                "요청 파라미터의 형식과 값을 확인해 주세요."
         );
 
         return new ResponseEntity<>(body, headers, status);
@@ -220,6 +240,49 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
                 .body(ApiErrorResponse.of(
                         "INTERNAL_SERVER_ERROR",
                         "서버 오류가 발생했습니다. 잠시 후 다시 시도해 주세요."
+                ));
+    }
+
+    // 게시글 작성 예외를 HTTP 응답으로 연결하기
+    @ExceptionHandler(PostCreateException.class)
+    public ResponseEntity<ApiErrorResponse> handlePostCreate(
+            PostCreateException exception
+    ) {
+        return switch (exception.getCode()) {
+
+            case AUTHOR_NOT_FOUND -> ResponseEntity
+                    .status(HttpStatus.UNAUTHORIZED)
+                    .cacheControl(CacheControl.noStore())
+                    .body(ApiErrorResponse.of(
+                            "AUTHENTICATION_REQUIRED",
+                            "로그인이 필요합니다."
+                    ));
+
+            case AUTHOR_NOT_ACTIVE -> ResponseEntity
+                    .status(HttpStatus.FORBIDDEN)
+                    .cacheControl(CacheControl.noStore())
+                    .body(ApiErrorResponse.of(
+                            "POST_WRITE_NOT_ALLOWED",
+                            exception.getMessage()
+                    ));
+        };
+    }
+
+    @ExceptionHandler(PostReadException.class)
+    public ResponseEntity<ApiErrorResponse> handlePostRead(
+            PostReadException exception
+    ) {
+        HttpStatus status = switch (exception.getCode()) {
+            case INVALID_PAGE_REQUEST -> HttpStatus.BAD_REQUEST;
+            case POST_NOT_FOUND -> HttpStatus.NOT_FOUND;
+        };
+
+        return ResponseEntity
+                .status(status)
+                .cacheControl(CacheControl.noStore())
+                .body(ApiErrorResponse.of(
+                        exception.getCode().name(),
+                        exception.getMessage()
                 ));
     }
 
