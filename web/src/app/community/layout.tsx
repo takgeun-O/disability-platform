@@ -1,2 +1,8 @@
-import {MockPostsProvider} from '@/lib/mock-posts';
-export default function CommunityLayout({children}: {children: React.ReactNode}) {return <MockPostsProvider>{children}</MockPostsProvider>;}
+import "@/styles/community.css"
+export default function CommunityLayout({
+  children,
+}: {
+  children: React.ReactNode
+}) {
+  return children
+}

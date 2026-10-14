@@ -1,810 +1,399 @@
-"use client";
+"use client"
+// 입력 중인 조건은 이 폼의 로컬 상태다. 적용하기 전에는 URL이나 목록 요청을 바꾸지 않는다.
+// URL 전환이 커밋되기 전에도 이전 응답을 무효화한다.
+import { useEffect, useId, useRef, useState, type FormEvent } from "react"
+import { usePathname, useSearchParams } from "next/navigation"
+import Link from "@/components/AppLink"
+import CommunityDialog from "@/components/community/CommunityDialog"
+import {
+  BestPosts,
+  CommunityBanner,
+  PostTags,
+} from "@/components/community/CommunityParts"
+import { CommunityApiError, getPosts, type PostPage } from "@/lib/community-api"
+import {
+  POST_TYPES,
+  POST_TOPICS,
+  parsePostQuery,
+  listHref,
+  queryLabel,
+  postDate,
+  rememberListScroll,
+  restoreListScroll,
+  clearListScroll,
+  type PostQuery,
+} from "@/lib/community-posts"
 
-import { useState, useCallback } from 'react'
-import Link from '@/components/AppLink';
-import { useQueryParams } from '@/lib/useQueryParams';
-
-// ─── Data ────────────────────────────────────────────────────────────────────
-
-type PostType = '일반' | '질문·답변' | '경험·후기'
-type Topic =
-  | '자유·일상'
-  | '보청기'
-  | '인공와우'
-  | '치료·재활'
-  | '의사소통'
-  | '취업·직장'
-  | '복지·생활'
-
-type QuestionStatus = '답변 대기' | '답변 있음' | '해결됨'
-
-interface Post {
-  id: number
-  type: PostType
-  topic: Topic
-  title: string
-  author: string
-  date: string
-  comments: number
-  pinned?: boolean
-  notice?: boolean
-  questionStatus?: QuestionStatus
-}
-
-const ALL_POSTS: Post[] = [
-  // Notices / pinned (always at top)
-  {
-    id: 0,
-    type: '일반',
-    topic: '자유·일상',
-    title: '커뮤니티 이용 규칙 안내 (2026년 8월 개정)',
-    author: '운영팀',
-    date: '2026.08.01',
-    comments: 0,
-    notice: true,
-  },
-  {
-    id: 100,
-    type: '일반',
-    topic: '자유·일상',
-    title: '게시글 신고 및 처리 절차 변경 안내',
-    author: '운영팀',
-    date: '2026.07.15',
-    comments: 2,
-    pinned: true,
-  },
-  // Regular posts
-  {
-    id: 1,
-    type: '질문·답변',
-    topic: '보청기',
-    title: '보청기 보험 급여 기준이 바뀐 것 같은데, 혹시 아시는 분 계세요?',
-    author: '이○○',
-    date: '2026.08.15',
-    comments: 14,
-    questionStatus: '답변 대기',
-  },
-  {
-    id: 2,
-    type: '경험·후기',
-    topic: '인공와우',
-    title: '세브란스병원 인공와우 수술 후기 공유합니다 (6개월 경과)',
-    author: '김○○',
-    date: '2026.08.15',
-    comments: 23,
-  },
-  {
-    id: 3,
-    type: '질문·답변',
-    topic: '취업·직장',
-    title: '직장에서 청각장애를 고지해야 할 때 어떻게 하셨나요?',
-    author: '박○○',
-    date: '2026.08.14',
-    comments: 31,
-    questionStatus: '해결됨',
-  },
-  {
-    id: 4,
-    type: '경험·후기',
-    topic: '복지·생활',
-    title: '2026 장애인 보조기기 교부사업 신청 완료했어요. 생각보다 간단했습니다.',
-    author: '최○○',
-    date: '2026.08.14',
-    comments: 8,
-  },
-  {
-    id: 5,
-    type: '질문·답변',
-    topic: '의사소통',
-    title: '수어 통역 앱 중에 실제로 쓸 만한 게 있나요?',
-    author: '정○○',
-    date: '2026.08.13',
-    comments: 17,
-    questionStatus: '답변 있음',
-  },
-  {
-    id: 6,
-    type: '질문·답변',
-    topic: '치료·재활',
-    title: '청능재활 치료 몇 회쯤 받으면 효과가 느껴지나요?',
-    author: '윤○○',
-    date: '2026.08.13',
-    comments: 9,
-    questionStatus: '해결됨',
-  },
-  {
-    id: 7,
-    type: '일반',
-    topic: '보청기',
-    title: '오티콘 모어 vs 스타키 에볼브 AI, 어느 쪽 쓰시나요?',
-    author: '강○○',
-    date: '2026.08.12',
-    comments: 20,
-  },
-  {
-    id: 8,
-    type: '일반',
-    topic: '자유·일상',
-    title: '오늘 아이 첫 보청기 착용했어요. 많이 낯설어하더라고요.',
-    author: '조○○',
-    date: '2026.08.12',
-    comments: 12,
-  },
-  {
-    id: 9,
-    type: '경험·후기',
-    topic: '치료·재활',
-    title: '언어치료 1년 후기 — 아이의 발음이 많이 좋아졌습니다',
-    author: '임○○',
-    date: '2026.08.11',
-    comments: 5,
-  },
-  {
-    id: 10,
-    type: '질문·답변',
-    topic: '인공와우',
-    title: '인공와우 수술 후 소리 적응에 얼마나 걸리셨나요?',
-    author: '한○○',
-    date: '2026.08.11',
-    comments: 19,
-    questionStatus: '해결됨',
-  },
-  {
-    id: 11,
-    type: '일반',
-    topic: '복지·생활',
-    title: '장애인 복지카드 사용처가 생각보다 다양하네요',
-    author: '오○○',
-    date: '2026.08.10',
-    comments: 7,
-  },
-  {
-    id: 12,
-    type: '경험·후기',
-    topic: '취업·직장',
-    title: '공공기관 장애인 채용 전형 준비 경험 공유합니다',
-    author: '서○○',
-    date: '2026.08.10',
-    comments: 28,
-  },
-  {
-    id: 13,
-    type: '질문·답변',
-    topic: '보청기',
-    title: '보청기 건전지 vs 충전식, 장기적으로 어느 게 더 편한가요?',
-    author: '권○○',
-    date: '2026.08.09',
-    comments: 11,
-    questionStatus: '답변 대기',
-  },
-  {
-    id: 14,
-    type: '일반',
-    topic: '의사소통',
-    title: '직장 동료에게 청각장애를 설명할 때 어떤 표현을 쓰시나요?',
-    author: '황○○',
-    date: '2026.08.09',
-    comments: 16,
-  },
-  {
-    id: 15,
-    type: '경험·후기',
-    topic: '자유·일상',
-    title: '처음으로 수어 수업을 들었어요 — 생각보다 재미있어서 놀랐습니다',
-    author: '안○○',
-    date: '2026.08.08',
-    comments: 6,
-  },
-  {
-    id: 16,
-    type: '질문·답변',
-    topic: '복지·생활',
-    title: '청각장애 2급에서 1급으로 재판정받으려면 어떤 절차가 필요한가요?',
-    author: '신○○',
-    date: '2026.08.08',
-    comments: 3,
-    questionStatus: '답변 대기',
-  },
-  {
-    id: 17,
-    type: '일반',
-    topic: '인공와우',
-    title: '인공와우 착용 후 음악 감상이 가능해진 분 계세요?',
-    author: '유○○',
-    date: '2026.08.07',
-    comments: 22,
-  },
-  {
-    id: 18,
-    type: '경험·후기',
-    topic: '의사소통',
-    title: '음성 인식 자막 앱을 6개월 써본 솔직한 후기',
-    author: '전○○',
-    date: '2026.08.07',
-    comments: 13,
-  },
-]
-
-const POST_TYPES: Array<'전체' | PostType> = ['전체', '일반', '질문·답변', '경험·후기']
-const TOPICS: Array<'전체' | Topic> = [
-  '전체',
-  '자유·일상',
-  '보청기',
-  '인공와우',
-  '치료·재활',
-  '의사소통',
-  '취업·직장',
-  '복지·생활',
-]
-
-const PAGE_SIZE = 10
-
-// ─── Helpers ─────────────────────────────────────────────────────────────────
-
-function filterPosts(
-  posts: Post[],
-  type: string,
-  topic: string,
-  keyword: string,
-): Post[] {
-  return posts.filter((p) => {
-    if (p.notice || p.pinned) return false
-    if (type !== '전체' && p.type !== type) return false
-    if (topic !== '전체' && p.topic !== topic) return false
-    if (keyword.trim()) {
-      const q = keyword.trim().toLowerCase()
-      if (!p.title.toLowerCase().includes(q) && !p.type.includes(q) && !p.topic.includes(q)) return false
-    }
-    return true
-  })
-}
-
-// ─── Sub-components ───────────────────────────────────────────────────────────
-
-function FilterChip({
-  label,
-  selected,
-  onClick,
+function FilterForm({
+  initial,
+  onApply,
+  onCancel,
 }: {
-  label: string
-  selected: boolean
-  onClick: () => void
+  initial: PostQuery
+  onApply: (query: PostQuery) => void
+  onCancel?: () => void
 }) {
+  const [type, setType] = useState(initial.type)
+  const [topic, setTopic] = useState(initial.topic)
+  const id = useId()
+  function submit(event: FormEvent) {
+    event.preventDefault()
+    onApply({ type, topic, page: 0 })
+  }
   return (
-    <button
-      type="button"
-      onClick={onClick}
-      aria-pressed={selected}
-      style={{
-        fontSize: 13,
-        fontWeight: selected ? 600 : 400,
-        padding: '4px 11px',
-        border: selected ? '1.5px solid #1A1918' : '1px solid #C8C5BF',
-        borderRadius: 2,
-        backgroundColor: selected ? '#1A1918' : '#FAFAF8',
-        color: selected ? '#FAFAF8' : '#1A1918',
-        cursor: 'pointer',
-        transition: 'background-color 0.12s, border-color 0.12s',
-        fontFamily: 'inherit',
-      }}
+    <form
+      className="community-filter-form"
+      onSubmit={submit}
+      aria-label="게시글 필터"
     >
-      {label}
-    </button>
-  )
-}
-
-function NoticeItem({ post }: { post: Post }) {
-  return (
-    <li style={{ borderTop: '1px solid #E8E6E1', backgroundColor: '#F6F4EF' }}>
-      <div style={{ padding: '12px 0', display: 'flex', alignItems: 'baseline', gap: 10 }}>
-        <span
-          style={{
-            flexShrink: 0,
-            fontSize: 11,
-            fontWeight: 600,
-            padding: '2px 6px',
-            border: '1px solid #908D88',
-            color: '#4A4845',
-            borderRadius: 2,
-            letterSpacing: '0.02em',
-          }}
-          aria-label={post.notice ? '공지' : '고정'}
+      <div>
+        <label htmlFor={`${id}-type`}>글 유형</label>
+        <select
+          data-initial-focus
+          id={`${id}-type`}
+          value={type}
+          onChange={(e) => setType(e.target.value as PostQuery["type"])}
         >
-          {post.notice ? '공지' : '고정'}
-        </span>
-        <Link
-          href={`/community/posts/${post.id}`}
-          style={{
-            fontSize: 14,
-            fontWeight: 500,
-            color: '#1A1918',
-            textDecoration: 'none',
-            lineHeight: 1.4,
-          }}
-          onMouseEnter={(e) => {
-            e.currentTarget.style.color = '#1E3A8A'
-            e.currentTarget.style.textDecoration = 'underline'
-          }}
-          onMouseLeave={(e) => {
-            e.currentTarget.style.color = '#1A1918'
-            e.currentTarget.style.textDecoration = 'none'
-          }}
-        >
-          {post.title}
-        </Link>
-        <span style={{ marginLeft: 'auto', flexShrink: 0, fontSize: 12, color: '#908D88' }}>
-          {post.date}
-        </span>
+          <option value="">전체 유형</option>
+          {Object.entries(POST_TYPES).map(([key, label]) => (
+            <option key={key} value={key}>
+              {label}
+            </option>
+          ))}
+        </select>
       </div>
-    </li>
-  )
-}
-
-function PostItem({ post }: { post: Post }) {
-  return (
-    <li style={{ borderTop: '1px solid #E8E6E1' }}>
-      <div style={{ padding: '14px 0' }}>
-        {/* Type · Topic */}
-        <div className="flex items-center gap-1.5" style={{ marginBottom: 5 }}>
-          <span style={{ fontSize: 12, fontWeight: 500, color: '#1E3A8A' }}>{post.type}</span>
-          <span style={{ color: '#D0CEC9', fontSize: 11 }} aria-hidden="true">·</span>
-          <span style={{ fontSize: 12, color: '#908D88' }}>{post.topic}</span>
-          {post.type === '질문·답변' && post.questionStatus && (
-            <>
-              <span style={{ color: '#D0CEC9', fontSize: 11 }} aria-hidden="true">·</span>
-              <span
-                style={{
-                  fontSize: 11,
-                  fontWeight: 500,
-                  padding: '1px 6px',
-                  border: post.questionStatus === '해결됨'
-                    ? '1px solid #166534'
-                    : post.questionStatus === '답변 있음'
-                    ? '1px solid #1E3A8A'
-                    : '1px solid #92400E',
-                  color: post.questionStatus === '해결됨'
-                    ? '#166534'
-                    : post.questionStatus === '답변 있음'
-                    ? '#1E3A8A'
-                    : '#92400E',
-                  borderRadius: 2,
-                }}
-                aria-label={`질문 상태: ${post.questionStatus}`}
-              >
-                {post.questionStatus}
-              </span>
-            </>
-          )}
-        </div>
-
-        {/* Title link */}
-        <Link
-          href={`/community/posts/${post.id}${post.questionStatus ? `?questionStatus=${encodeURIComponent(post.questionStatus)}` : ""}`}
-          style={{
-            display: 'block',
-            fontSize: 15,
-            fontWeight: 500,
-            color: '#1A1918',
-            textDecoration: 'none',
-            lineHeight: 1.45,
-            marginBottom: 6,
-          }}
-          onMouseEnter={(e) => {
-            e.currentTarget.style.color = '#1E3A8A'
-            e.currentTarget.style.textDecoration = 'underline'
-          }}
-          onMouseLeave={(e) => {
-            e.currentTarget.style.color = '#1A1918'
-            e.currentTarget.style.textDecoration = 'none'
-          }}
+      <div>
+        <label htmlFor={`${id}-topic`}>주제</label>
+        <select
+          id={`${id}-topic`}
+          value={topic}
+          onChange={(e) => setTopic(e.target.value as PostQuery["topic"])}
         >
-          {post.title}
-        </Link>
-
-        {/* Metadata */}
-        <div className="flex items-center gap-1.5">
-          <span style={{ fontSize: 12, color: '#908D88' }}>{post.author}</span>
-          <span style={{ color: '#D0CEC9', fontSize: 11 }} aria-hidden="true">·</span>
-          <time style={{ fontSize: 12, color: '#908D88' }} dateTime={post.date.replace(/\./g, '-')}>
-            {post.date}
-          </time>
-          <span style={{ color: '#D0CEC9', fontSize: 11 }} aria-hidden="true">·</span>
-          <span style={{ fontSize: 12, color: '#908D88' }} aria-label={`댓글 ${post.comments}개`}>
-            댓글 {post.comments}
-          </span>
-        </div>
+          <option value="">전체 주제</option>
+          {Object.entries(POST_TOPICS).map(([key, label]) => (
+            <option key={key} value={key}>
+              {label}
+            </option>
+          ))}
+        </select>
       </div>
-    </li>
-  )
-}
-
-function Pagination({
-  current,
-  total,
-  onChange,
-}: {
-  current: number
-  total: number
-  onChange: (p: number) => void
-}) {
-  if (total <= 1) return null
-
-  const pages = Array.from({ length: total }, (_, i) => i + 1)
-
-  return (
-    <nav aria-label="페이지 탐색" style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', gap: 4, paddingTop: 32, paddingBottom: 8 }}>
-      <button
-        onClick={() => onChange(current - 1)}
-        disabled={current === 1}
-        aria-label="이전 페이지"
-        style={{
-          width: 36,
-          height: 36,
-          border: '1px solid #D0CEC9',
-          borderRadius: 2,
-          backgroundColor: 'transparent',
-          cursor: current === 1 ? 'not-allowed' : 'pointer',
-          color: current === 1 ? '#C8C5BF' : '#1A1918',
-          fontSize: 14,
-          fontFamily: 'inherit',
-        }}
-      >
-        ‹
-      </button>
-
-      {pages.map((p) => (
-        <button
-          key={p}
-          onClick={() => onChange(p)}
-          aria-label={`${p}페이지`}
-          aria-current={p === current ? 'page' : undefined}
-          style={{
-            width: 36,
-            height: 36,
-            border: p === current ? '1.5px solid #1A1918' : '1px solid #D0CEC9',
-            borderRadius: 2,
-            backgroundColor: p === current ? '#1A1918' : 'transparent',
-            color: p === current ? '#FAFAF8' : '#1A1918',
-            fontWeight: p === current ? 600 : 400,
-            fontSize: 14,
-            cursor: 'pointer',
-            fontFamily: 'inherit',
-          }}
-        >
-          {p}
-        </button>
-      ))}
-
-      <button
-        onClick={() => onChange(current + 1)}
-        disabled={current === total}
-        aria-label="다음 페이지"
-        style={{
-          width: 36,
-          height: 36,
-          border: '1px solid #D0CEC9',
-          borderRadius: 2,
-          backgroundColor: 'transparent',
-          cursor: current === total ? 'not-allowed' : 'pointer',
-          color: current === total ? '#C8C5BF' : '#1A1918',
-          fontSize: 14,
-          fontFamily: 'inherit',
-        }}
-      >
-        ›
-      </button>
-    </nav>
-  )
-}
-
-// ─── Screen ──────────────────────────────────────────────────────────────────
-
-export default function PostList() {
-  const [searchParams, setSearchParams] = useQueryParams()
-
-  const typeFilter = searchParams.get('type') ?? '전체';
-  const topicFilter = searchParams.get('topic') ?? '전체';
-  const page = Math.max(1, Number(searchParams.get('page') ?? '1') || 1);
-  const [searchInput, setSearchInput] = useState('');
-  const [activeKeyword, setActiveKeyword] = useState('');
-
-  const updateParams = useCallback(
-    (type: string, topic: string, p: number) => {
-      const params: Record<string, string> = {}
-      if (type !== '전체') params.type = type
-      if (topic !== '전체') params.topic = topic
-      if (p > 1) params.page = String(p)
-      setSearchParams(params, { replace: true })
-    },
-    [setSearchParams],
-  )
-
-  const handleTypeChange = (t: string) => {
-    updateParams(t, topicFilter, 1)
-  }
-
-  const handleTopicChange = (tp: string) => {
-    updateParams(typeFilter, tp, 1)
-  }
-
-  const handleSearch = (e: React.FormEvent) => {
-    e.preventDefault()
-    setActiveKeyword(searchInput)
-    updateParams(typeFilter, topicFilter, 1)
-  }
-
-  const clearKeyword = () => {
-    setSearchInput('')
-    setActiveKeyword('')
-    updateParams(typeFilter, topicFilter, 1)
-  }
-
-  const handlePageChange = (p: number) => {
-    updateParams(typeFilter, topicFilter, p)
-    window.scrollTo({ top: 0, behavior: 'smooth' })
-  }
-
-  // Derive list
-  const notices = ALL_POSTS.filter((p) => p.notice || p.pinned)
-  const filtered = filterPosts(ALL_POSTS, typeFilter, topicFilter, activeKeyword)
-  const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE))
-  const safePage = Math.min(page, totalPages)
-  const paginated = filtered.slice((safePage - 1) * PAGE_SIZE, safePage * PAGE_SIZE)
-
-  const hasActiveFilter = typeFilter !== '전체' || topicFilter !== '전체' || activeKeyword
-
-  // Derive heading: use topic name when topic is filtered, otherwise "전체 게시글"
-  const pageTitle = topicFilter !== '전체' ? topicFilter : '전체 게시글'
-
-  return (
-    <main id="main-content">
-
-      {/* ─── PAGE HEADER ──────────────────────────────────────────── */}
-      <div style={{ borderBottom: '1px solid #D0CEC9', backgroundColor: '#F0EEE9', paddingTop: 28, paddingBottom: 28 }}>
-        <div className="max-w-6xl mx-auto px-6">
-          <div className="flex items-center justify-between gap-6">
-            <div>
-              <h1 className="font-bold" style={{ fontSize: 24, lineHeight: 1.25, color: '#1A1918' }}>
-                {pageTitle}
-              </h1>
-              {topicFilter !== '전체' && (
-                <p style={{ fontSize: 13, color: '#908D88', marginTop: 4 }}>커뮤니티 · {topicFilter} 주제 게시글</p>
-              )}
-            </div>
-            <Link
-              href={`/community/posts/create${
-                typeFilter !== '전체' || topicFilter !== '전체'
-                  ? `?${new URLSearchParams([
-                      ...(typeFilter !== '전체' ? [['type', typeFilter]] : []),
-                      ...(topicFilter !== '전체' ? [['topic', topicFilter]] : []),
-                    ]).toString()}`
-                  : ''
-              }`}
-              style={{
-                flexShrink: 0,
-                backgroundColor: '#1E3A8A',
-                color: '#FFFFFF',
-                borderRadius: 2,
-                padding: '10px 20px',
-                fontSize: 14,
-                fontWeight: 600,
-                marginTop: 2,
-                textDecoration: 'none',
-                display: 'inline-block',
-              }}
-            >
-              글쓰기
-            </Link>
-          </div>
-        </div>
-      </div>
-
-      {/* ─── SEARCH + FILTERS ─────────────────────────────────────── */}
-      <div style={{ borderBottom: '1px solid #D0CEC9', paddingTop: 18, paddingBottom: 18 }}>
-        <div className="max-w-6xl mx-auto px-6">
-
-          {/* Community Search */}
-          <form onSubmit={handleSearch} role="search" aria-label="커뮤니티 게시글 검색" style={{ marginBottom: 16 }}>
-            <label
-              htmlFor="community-search"
-              style={{ display: 'block', fontSize: 12, fontWeight: 500, color: '#4A4845', marginBottom: 6, letterSpacing: '0.01em' }}
-            >
-              커뮤니티 게시글 검색
-            </label>
-            <div style={{ display: 'flex', maxWidth: 560 }}>
-              <div style={{ position: 'relative', flex: 1 }}>
-                <input
-                  id="community-search"
-                  type="search"
-                  value={searchInput}
-                  onChange={(e) => setSearchInput(e.target.value)}
-                  placeholder="제목, 본문, 글 유형, 주제 검색"
-                  style={{
-                    width: '100%',
-                    border: '1.5px solid #1A1918',
-                    borderRight: 'none',
-                    borderRadius: '2px 0 0 2px',
-                    padding: '9px 36px 9px 12px',
-                    fontSize: 14,
-                    backgroundColor: '#FAFAF8',
-                    color: '#1A1918',
-                    outline: 'none',
-                    fontFamily: 'inherit',
-                  }}
-                />
-                {searchInput && (
-                  <button
-                    type="button"
-                    onClick={() => setSearchInput('')}
-                    aria-label="검색어 지우기"
-                    style={{
-                      position: 'absolute',
-                      right: 10,
-                      top: '50%',
-                      transform: 'translateY(-50%)',
-                      background: 'none',
-                      border: 'none',
-                      cursor: 'pointer',
-                      color: '#908D88',
-                      fontSize: 16,
-                      lineHeight: 1,
-                      padding: 0,
-                    }}
-                  >
-                    ✕
-                  </button>
-                )}
-              </div>
-              <button
-                type="submit"
-                style={{
-                  backgroundColor: '#1A1918',
-                  color: '#FAFAF8',
-                  border: '1.5px solid #1A1918',
-                  borderRadius: '0 2px 2px 0',
-                  padding: '9px 18px',
-                  fontSize: 14,
-                  fontWeight: 600,
-                  cursor: 'pointer',
-                  whiteSpace: 'nowrap',
-                  fontFamily: 'inherit',
-                }}
-              >
-                검색
-              </button>
-            </div>
-          </form>
-
-          {/* Filters row */}
-          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 16, alignItems: 'flex-start' }}>
-
-            {/* Post Type filter */}
-            <fieldset style={{ border: 'none', padding: 0, margin: 0 }}>
-              <legend style={{ fontSize: 12, fontWeight: 500, color: '#4A4845', marginBottom: 8, letterSpacing: '0.01em' }}>
-                글 유형
-              </legend>
-              <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
-                {POST_TYPES.map((t) => (
-                  <FilterChip
-                    key={t}
-                    label={t}
-                    selected={typeFilter === t}
-                    onClick={() => handleTypeChange(t)}
-                  />
-                ))}
-              </div>
-            </fieldset>
-
-            {/* Divider */}
-            <div style={{ width: 1, height: 48, backgroundColor: '#D0CEC9', alignSelf: 'center', flexShrink: 0 }} aria-hidden="true" />
-
-            {/* Topic filter */}
-            <fieldset style={{ border: 'none', padding: 0, margin: 0, flex: 1 }}>
-              <legend style={{ fontSize: 12, fontWeight: 500, color: '#4A4845', marginBottom: 8, letterSpacing: '0.01em' }}>
-                주요 주제
-              </legend>
-              <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
-                {TOPICS.map((tp) => (
-                  <FilterChip
-                    key={tp}
-                    label={tp}
-                    selected={topicFilter === tp}
-                    onClick={() => handleTopicChange(tp)}
-                  />
-                ))}
-              </div>
-            </fieldset>
-          </div>
-        </div>
-      </div>
-
-      {/* ─── POST LIST ────────────────────────────────────────────── */}
-      <div className="max-w-6xl mx-auto px-6" style={{ paddingTop: 20, paddingBottom: 56 }}>
-
-        {/* List meta: result count + sort */}
-        <div
-          style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', marginBottom: 4 }}
-        >
-          <p style={{ fontSize: 13, color: '#908D88' }}>
-            {hasActiveFilter
-              ? `${filtered.length}개의 게시글`
-              : `전체 ${filtered.length}개의 게시글`}
-            {activeKeyword && (
-              <>
-                {' — "'}
-                <strong style={{ color: '#1A1918', fontWeight: 500 }}>{activeKeyword}</strong>
-                {'" 검색 결과 '}
-                <button
-                  onClick={clearKeyword}
-                  style={{ fontSize: 12, color: '#1E3A8A', background: 'none', border: 'none', cursor: 'pointer', padding: 0, fontFamily: 'inherit', textDecoration: 'underline' }}
-                  aria-label="검색어 초기화"
-                >
-                  검색어 초기화
-                </button>
-              </>
-            )}
-          </p>
-          <span style={{ fontSize: 12, color: '#908D88' }} aria-label="정렬 기준: 최신순">
-            최신순
-          </span>
-        </div>
-
-        {/* Notices — always shown regardless of filter state (unless search keyword hides them) */}
-        {!activeKeyword && typeFilter === '전체' && topicFilter === '전체' && (
-          <ol aria-label="공지 및 고정 게시글">
-            {notices.map((post) => (
-              <NoticeItem key={post.id} post={post} />
-            ))}
-          </ol>
+      <div className="community-filter-actions">
+        {onCancel && (
+          <button
+            type="button"
+            className="iyum-button iyum-button-outline"
+            onClick={onCancel}
+          >
+            취소
+          </button>
         )}
+        <button className="iyum-button iyum-button-primary" type="submit">
+          적용
+        </button>
+      </div>
+    </form>
+  )
+}
 
-        {/* Regular posts */}
-        {paginated.length > 0 ? (
-          <ol aria-label="게시글 목록">
-            {paginated.map((post) => (
-              <PostItem key={post.id} post={post} />
-            ))}
-          </ol>
-        ) : (
+import { pageIsOutOfRange, type InitialPostList } from "@/lib/community-load"
+
+type Snapshot = { key: string; query: PostQuery; page: PostPage }
+type Result = { key: string; snapshot: Snapshot | null; error: string | null }
+export default function PostList({ initial }: { initial: InitialPostList }) {
+  const params = useSearchParams()
+  const pathname = usePathname()
+  const query = parsePostQuery(params)
+  const href = listHref(query, pathname)
+  const [retry, setRetry] = useState(0)
+  const requestKey = `${href}:${retry}`
+  const [result, setResult] = useState<Result>({
+    key: `${listHref(initial.query, pathname)}:0`,
+    snapshot: initial.data ? { key: listHref(initial.query, pathname), query: initial.query, page: initial.data } : null,
+    error: initial.error?.message ?? null,
+  })
+  const [filterOpen, setFilterOpen] = useState(false)
+  const generation = useRef(0)
+  const firstRequest = useRef(true)
+  const heading = useRef<HTMLHeadingElement>(null)
+  const movement = useRef<{ href: string; kind: "start" | "history"; y?: number } | null>(null)
+  const entryPositions = useRef(new Map<string, number>())
+  const entryId = useRef("")
+  useEffect(() => {
+    // Next가 사용하는 history.state는 보존하고 이 목록의 entry 식별자만 추가한다.
+    const id = window.history.state?.iyumListEntry ?? crypto.randomUUID()
+    window.history.replaceState({ ...window.history.state, iyumListEntry: id }, "")
+    entryId.current = id
+    const remember = () => entryPositions.current.set(entryId.current, window.scrollY)
+    const pop = () => {
+      generation.current++
+      entryId.current = window.history.state?.iyumListEntry ?? ""
+      movement.current = { href: listHref(parsePostQuery(new URLSearchParams(location.search)), location.pathname),
+        kind: "history", y: entryPositions.current.get(entryId.current) }
+    }
+    window.addEventListener("scroll", remember, { passive: true })
+    window.addEventListener("popstate", pop)
+    return () => {
+      window.removeEventListener("scroll", remember)
+      window.removeEventListener("popstate", pop)
+    }
+  }, [])
+  const loading =
+    result.key !==
+    requestKey
+  const snapshot = result.snapshot
+  const displayedQuery =
+    snapshot?.query ??
+    query
+  const error = !loading ? result.error : null
+  const queryType = query.type,
+    queryTopic = query.topic,
+    queryPage = query.page
+
+  useEffect(() => {
+    // Strict Mode에서도 초기 SSR 결과를 다시 요청하지 않는다.
+    if (firstRequest.current && requestKey === `${listHref(initial.query, pathname)}:0`) return
+    firstRequest.current = false
+    const ticket = ++generation.current
+    const controller = new AbortController()
+    const requested = { type: queryType, topic: queryTopic, page: queryPage }
+    getPosts(requested, controller.signal)
+      .then((page) => {
+        if (
+          ticket ===
+            generation.current &&
+          !controller.signal.aborted
+        ) {
+          setResult({
+            key: requestKey,
+            snapshot: { key: href, query: requested, page },
+            error: null,
+          })
+        }
+      })
+      .catch((error) => {
+        if (
+          ticket ===
+            generation.current &&
+          !controller.signal.aborted
+        ) {
+          setResult((previous) => ({
+            key: requestKey,
+            snapshot: previous.snapshot,
+            error:
+              error instanceof
+              CommunityApiError
+                ? error.message
+                : "게시글을 불러오지 못했습니다. 다시 시도해 주세요.",
+          }))
+        }
+      })
+    return () => {
+      controller.abort()
+    }
+  }, [href, requestKey, queryType, queryTopic, queryPage, initial.query, pathname])
+
+  useEffect(() => {
+    if (loading || error || snapshot?.key !== href) return
+    const pending = movement.current
+    if (pending?.href === href) {
+      const frame = requestAnimationFrame(() => {
+        if (movement.current !== pending) return
+        movement.current = null
+        if (pending.kind === "start") {
+          clearListScroll(href)
+          heading.current?.focus({ preventScroll: true })
+          heading.current?.scrollIntoView({ block: "start", behavior: "instant" })
+        } else if (pending.y !== undefined) {
+          window.scrollTo({ top: pending.y, behavior: "instant" })
+        }
+      })
+      return () => cancelAnimationFrame(frame)
+    }
+    // 상세에서 명시적으로 기록한 복귀 위치만 사용한다. 초기 진입에는 이동하지 않는다.
+    return restoreListScroll(href)
+  }, [loading, error, snapshot, href])
+
+  function navigate(next: PostQuery) {
+    generation.current++
+    firstRequest.current = false
+    const destination = listHref(next, pathname)
+    movement.current = { href: destination, kind: "start" }
+    entryPositions.current.set(entryId.current, window.scrollY)
+    if (destination === href) setRetry((value) => value + 1)
+    else {
+      entryId.current = crypto.randomUUID()
+      // Next와 동기화되는 History API: 이 화면 안의 조회는 브라우저에서 한 번만 실행한다.
+      window.history.pushState({ iyumListEntry: entryId.current }, "", destination)
+    }
+    setFilterOpen(false)
+  }
+  const returnHref = snapshot?.key ?? href
+  const createQuery = new URLSearchParams({ from: returnHref })
+  if (displayedQuery.type) createQuery.set("type", displayedQuery.type)
+  if (displayedQuery.topic) createQuery.set("topic", displayedQuery.topic)
+  const totalPages = snapshot?.page.totalPages ?? 0
+  const outOfRange = snapshot ? pageIsOutOfRange(snapshot.page) : false
+  const currentPage = displayedQuery.page
+  const firstPage = Math.max(0, Math.min(currentPage - 1, totalPages - 3))
+  return (
+    <main id="main-content" className="community-screen">
+      <CommunityBanner writeHref={`/community/posts/create?${createQuery}`} />
+      <div className="iyum-container community-grid">
+        <BestPosts />
+        <section className="community-list-column" aria-label="게시글 탐색">
+          <div className="community-desktop-filters">
+            <FilterForm key={href} initial={query} onApply={navigate} />
+          </div>
+          <div className="community-mobile-filters iyum-card">
+            <span>{queryLabel(displayedQuery)}</span>
+            <button
+              className="iyum-button iyum-button-outline"
+              aria-haspopup="dialog"
+              onClick={() => setFilterOpen(true)}
+            >
+              <span aria-hidden="true">☷</span> 필터
+            </button>
+          </div>
+          <div className="community-list-heading">
+            <div>
+              <h2 ref={heading} tabIndex={-1} id="community-results-heading" aria-describedby="community-result-status">전체 게시글</h2>
+              <p className="community-applied">{queryLabel(displayedQuery)}</p>
+            </div>
+            <span>최신순</span>
+          </div>
           <div
-            style={{
-              borderTop: '1px solid #D0CEC9',
-              borderBottom: '1px solid #D0CEC9',
-              padding: '48px 0',
-              textAlign: 'center',
-            }}
+            id="community-result-status"
+            className="community-request-status"
             role="status"
             aria-live="polite"
           >
-            <p style={{ fontSize: 15, color: '#4A4845', marginBottom: 8 }}>
-              {activeKeyword
-                ? `"${activeKeyword}"에 해당하는 게시글이 없습니다.`
-                : '해당 조건에 맞는 게시글이 없습니다.'}
-            </p>
-            <div style={{ display: 'flex', gap: 8, justifyContent: 'center', marginTop: 16 }}>
-              {activeKeyword && (
-                <button
-                  onClick={clearKeyword}
-                  style={{ fontSize: 13, padding: '6px 14px', border: '1px solid #D0CEC9', borderRadius: 2, background: '#FAFAF8', cursor: 'pointer', color: '#1A1918', fontFamily: 'inherit' }}
-                >
-                  검색어 초기화
-                </button>
-              )}
-              {(typeFilter !== '전체' || topicFilter !== '전체') && (
-                <button
-                  onClick={() => { handleTypeChange('전체'); handleTopicChange('전체') }}
-                  style={{ fontSize: 13, padding: '6px 14px', border: '1px solid #D0CEC9', borderRadius: 2, background: '#FAFAF8', cursor: 'pointer', color: '#1A1918', fontFamily: 'inherit' }}
-                >
-                  필터 초기화
-                </button>
-              )}
-            </div>
+            {loading
+              ? `${queryLabel(query)} 게시글을 불러오고 있습니다.${
+                  snapshot ? " 이전 결과를 보여드리고 있어요." : ""
+                }`
+              : !error && snapshot
+                ? outOfRange ? "요청한 페이지가 현재 목록 범위를 벗어났습니다." : `${snapshot.page.totalElements}개의 글 · ${
+                    snapshot.page.totalPages ? snapshot.page.page + 1 : 0
+                  } / ${snapshot.page.totalPages}페이지`
+                : ""}
           </div>
-        )}
-
-        <Pagination current={safePage} total={totalPages} onChange={handlePageChange} />
+          {error && (
+            <div className="community-error" role="alert">
+              <p>{error}</p>
+              <p>
+                {queryLabel(query)} · {query.page + 1}페이지 조회에
+                실패했습니다.
+                {snapshot ? " 아래 목록은 이전 조회 결과입니다." : ""}
+              </p>
+              <button
+                className="iyum-button iyum-button-outline"
+                onClick={() => setRetry((value) => value + 1)}
+              >
+                다시 시도
+              </button>
+            </div>
+          )}
+          <div aria-busy={loading}>
+            {snapshot && snapshot.page.items.length > 0 && (
+              <ol className="community-post-list" aria-label="게시글 목록">
+                {snapshot.page.items.map((post) => (
+                  <li key={post.id}>
+                    <PostTags type={post.type} topic={post.topic} />
+                    <Link
+                      href={`/community/posts/${post.id}?from=${encodeURIComponent(returnHref)}`}
+                      onClick={() => rememberListScroll(returnHref)}
+                    >
+                      {post.title}
+                    </Link>
+                    <div className="community-post-meta">
+                      <span>{post.author.nickname}</span>
+                      <span aria-hidden="true">·</span>
+                      <time dateTime={post.createdAt}>
+                        {postDate(post.createdAt)}
+                      </time>
+                    </div>
+                  </li>
+                ))}
+              </ol>
+            )}
+            {snapshot && outOfRange && (
+              <div className="community-empty">
+                <h3>요청한 페이지를 표시할 수 없어요.</h3>
+                <p>게시글이 삭제되었거나 페이지 범위를 벗어났습니다. 같은 조건의 첫 페이지에서 다시 확인해 주세요.</p>
+                <button className="iyum-button iyum-button-outline" onClick={() => navigate({ ...displayedQuery, page: 0 })}>
+                  같은 조건의 첫 페이지로
+                </button>
+              </div>
+            )}
+            {snapshot && !outOfRange && snapshot.page.items.length === 0 && (
+              <div className="community-empty">
+                <h3>아직 표시할 게시글이 없어요.</h3>
+                <p>다른 조건으로 살펴보거나 첫 이야기를 나눠 주세요.</p>
+                <button
+                  className="iyum-button iyum-button-outline"
+                  onClick={() => navigate({ type: "", topic: "", page: 0 })}
+                >
+                  전체 게시글 보기
+                </button>
+              </div>
+            )}
+            {!snapshot && loading && (
+              <div className="community-loading" aria-hidden="true">
+                목록을 준비하고 있어요.
+              </div>
+            )}
+          </div>
+          {totalPages > 0 && !outOfRange && (
+            <nav className="community-pagination" aria-label="게시글 페이지">
+              <button
+                disabled={currentPage === 0}
+                aria-label="이전 페이지"
+                onClick={() =>
+                  navigate({ ...displayedQuery, page: currentPage - 1 })
+                }
+              >
+                ‹
+              </button>
+              {Array.from(
+                { length: Math.min(3, totalPages) },
+                (_, index) => firstPage + index,
+              ).map((page) => (
+                <button
+                  key={page}
+                  aria-label={`${page + 1}페이지`}
+                  aria-current={page === currentPage ? "page" : undefined}
+                  onClick={() => navigate({ ...displayedQuery, page })}
+                >
+                  {page + 1}
+                </button>
+              ))}
+              <button
+                disabled={!snapshot?.page.hasNext}
+                aria-label="다음 페이지"
+                onClick={() =>
+                  navigate({ ...displayedQuery, page: currentPage + 1 })
+                }
+              >
+                ›
+              </button>
+            </nav>
+          )}
+        </section>
       </div>
-
+      {filterOpen && (
+        <CommunityDialog
+          titleId="community-filter-heading"
+          onCancel={() => setFilterOpen(false)}
+        >
+          <h2 id="community-filter-heading">게시글 필터</h2>
+          <p>조건을 선택하고 적용해 주세요.</p>
+          <FilterForm
+            initial={query}
+            onApply={navigate}
+            onCancel={() => setFilterOpen(false)}
+          />
+        </CommunityDialog>
+      )}
     </main>
   )
 }

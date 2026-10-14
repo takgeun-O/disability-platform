@@ -375,7 +375,7 @@ try {
       await waitFor(() => calls.logout === 1);
       await page.getByRole('navigation', { name: '주 메뉴' }).getByRole('link', { name: '커뮤니티', exact: true }).click();
       await main(page).getByRole('link', { name: '글쓰기', exact: true }).click();
-      await page.waitForURL('**/community/posts/create');
+      await page.waitForURL(url => url.pathname === '/community/posts/create');
       await titleInput(page).fill('응답 대기 중 시작한 글');
       await bodyInput(page).fill('이 내용과 현재 초점이 유지되어야 합니다.');
       release();
@@ -402,7 +402,7 @@ try {
       await context.close();
     });
   }
-  for (const change of ['추가 본문', '추가 본문 후 이동 허용', '첨부 삭제', '빈 폼의 첫 입력']) {
+  for (const change of ['추가 본문', '추가 본문 후 이동 허용', '주제 변경', '빈 폼의 첫 입력']) {
     await check('로그아웃 회귀: 같은 작성 화면의 ' + change + ' 후 이탈 확인과 비로그인 상태 유지', async () => {
       const { context, page } = await newPage();
       let release;
@@ -413,14 +413,10 @@ try {
       await page.goto(base + '/community/posts/create');
       await signOut(page).waitFor();
       if (change !== '빈 폼의 첫 입력') await titleInput(page).fill('동의 전 입력');
-      if (change === '첨부 삭제') await page.locator('input[type=file]').setInputFiles({
-        name: 'guard.png', mimeType: 'image/png',
-        buffer: Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+jX1sAAAAASUVORK5CYII=', 'base64'),
-      });
       await signOut(page).click();
       if (change !== '빈 폼의 첫 입력') await leave(page).click();
       await waitFor(() => calls.logout === 1);
-      if (change === '첨부 삭제') await page.getByRole('button', { name: 'guard.png 삭제' }).click();
+      if (change === '주제 변경') await page.getByLabel('주제', { exact: true }).selectOption('HEARING_AID');
       else await bodyInput(page).fill('처음 확인한 뒤 새로 쓴 내용');
       release();
       await anonymousMenu(page).waitFor();
@@ -436,7 +432,7 @@ try {
         return;
       }
       await keepWriting(page).click();
-      if (change === '첨부 삭제') assert.equal(await page.getByRole('button', { name: 'guard.png 삭제' }).count(), 0);
+      if (change === '주제 변경') assert.equal(await page.getByLabel('주제', { exact: true }).inputValue(), 'HEARING_AID');
       else assert.equal(await bodyInput(page).inputValue(), '처음 확인한 뒤 새로 쓴 내용');
       await anonymousMenu(page).waitFor();
       assert.equal(calls.logout, 1);

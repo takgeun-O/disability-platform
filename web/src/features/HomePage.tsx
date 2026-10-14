@@ -50,10 +50,10 @@ export default function HomePage() {
       <section className="iyum-community-preview" aria-labelledby="community-heading">
         <div className="iyum-section-heading"><div className="iyum-community-title"><h2 id="community-heading">최근 질문과 경험</h2><span className="iyum-badge">예시</span></div>
           <Link className="iyum-button iyum-button-outline" href="/community/posts/create?type=질문·답변">질문 남기기</Link></div>
-        <p className="sr-only">현재 커뮤니티는 예시 게시글로 구성되어 있습니다.</p>
+        <p className="iyum-community-note">홈의 글은 예시입니다. 선택하면 실제 커뮤니티 목록으로 이동합니다.</p>
         <div className="iyum-community-toolbar"><span>최근 게시글</span><Link className="iyum-text-link" href="/community">전체 보기 <span aria-hidden="true">→</span></Link></div>
         <ol className="iyum-posts" aria-label="최근 게시글 목록">{COMMUNITY_POSTS.map(post => <li key={post.id}>
-          <Link href={`/community/posts/${post.id}`}><span className="iyum-post-category">{post.category}</span>
+          <Link href="/community/posts"><span className="iyum-post-category">{post.category}</span>
             <span className="iyum-post-content"><strong>{post.title}</strong><time dateTime={post.date.replace(/\./g, '-')}>{post.date}</time></span>
             <span className="iyum-post-comments" aria-label={`댓글 ${post.comments}개`}>댓글 {post.comments}</span>
           </Link></li>)}</ol>
