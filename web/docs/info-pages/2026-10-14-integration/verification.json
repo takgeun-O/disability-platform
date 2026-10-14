@@ -1,0 +1,330 @@
+{
+  "date": "2026-10-14",
+  "branch": "refactor/info-pages",
+  "head": "1ceb848723b3aee16c6c77d056c2af863c52184e",
+  "unit": {
+    "passed": 167,
+    "failed": 0,
+    "skipped": 0
+  },
+  "typecheck": "passed",
+  "lint": "passed",
+  "productionBuild": "passed",
+  "diffCheck": "passed",
+  "service": {
+    "base": "http://127.0.0.1:8451",
+    "scope": "Next service UI; anonymous /me mock; no Spring writes",
+    "results": [
+      {
+        "name": "소개·복지 초기 HTML과 JavaScript 없는 실제 본문·링크, metadata/noindex",
+        "status": "passed"
+      },
+      {
+        "name": "1440/390/320 메뉴 순서·하위 3개·현재 표시·Escape 초점",
+        "status": "passed"
+      },
+      {
+        "name": "첫 진입·새로고침 미선택, 답변 후 다음 질문·결과 초점, 단계 색상/토글",
+        "status": "passed"
+      },
+      {
+        "name": "28개 실제 결과 조합: 정책 안내·의료급여/모름/이력·금액 조건·링크·센터 질문 범위",
+        "status": "passed"
+      },
+      {
+        "name": "개인 체크·양식 복사·복사 실패 직접 선택 대안",
+        "status": "passed"
+      },
+      {
+        "name": "전체 기준: 절차 우선·목적지 펼침·체크/답변/스크롤/초점 복원",
+        "status": "passed"
+      },
+      {
+        "name": "R08 청구 연결·직접 청구 설명, 실제 제품 검색/선택 및 추가 질문 유지",
+        "status": "passed"
+      },
+      {
+        "name": "답변 수정은 이후 답변/체크 초기화, 같은 코드라도 서로 다른 이력 메모 재사용 없음",
+        "status": "passed"
+      },
+      {
+        "name": "안내·목록·소개 키보드 본문 바로가기: 현재 화면/답변/체크 유지",
+        "status": "passed"
+      },
+      {
+        "name": "기존 query/hash 직접 진입 및 한쪽/양쪽 기준 보존",
+        "status": "passed"
+      },
+      {
+        "name": "기본 목록은 안내 1건·필터/가상 공고 없음, 홈 앵커와 준비 중 페이지",
+        "status": "passed"
+      },
+      {
+        "name": "1440/390/320 실제 서비스 캡처·가로 넘침·미구현 시안 요소 비노출",
+        "status": "passed"
+      },
+      {
+        "name": "새 소개·복지 메뉴의 작성 이탈 취소/승인과 키보드 초점 복귀",
+        "status": "passed"
+      },
+      {
+        "name": "일반 모션은 답변 뒤 부드러운 이동, 모바일 절차 토글/리사이즈 접근 유지",
+        "status": "passed"
+      },
+      {
+        "name": "런타임 오류 없음",
+        "status": "passed"
+      }
+    ],
+    "errors": []
+  },
+  "mockLoginLogout": {
+    "passed": 38,
+    "checks": [
+      "확인 중 공개 콘텐츠 표시, /me 장애와 정상 401 구분 및 수동 복구",
+      "필수값·UTF-8 길이 검증, 오류 초점, 로그인 유지·모의 계정 제거",
+      "연속 제출은 POST 1회, 새 CSRF 실패 후 회원·비밀번호 정리, 수동 GET 복구와 복귀 경로",
+      "늦은 초기 /me (anonymous)가 로그인·로그아웃 결과를 덮어쓰지 않음",
+      "늦은 초기 /me (member)가 로그인·로그아웃 결과를 덮어쓰지 않음",
+      "늦은 초기 /me (failure)가 로그인·로그아웃 결과를 덮어쓰지 않음",
+      "잘못된 비밀번호 안전한 안내, 자동 POST 재시도 없음",
+      "인증 대기 안전한 안내, 자동 POST 재시도 없음",
+      "로그인 불가 안전한 안내, 자동 POST 재시도 없음",
+      "CSRF 오류 안전한 안내, 자동 POST 재시도 없음",
+      "입력 오류 안전한 안내, 자동 POST 재시도 없음",
+      "HTML 200 안전한 안내, 자동 POST 재시도 없음",
+      "손상 JSON 안전한 안내, 자동 POST 재시도 없음",
+      "불완전 회원 안전한 안내, 자동 POST 재시도 없음",
+      "서버 장애 안전한 안내, 자동 POST 재시도 없음",
+      "네트워크 장애 안전한 안내, 자동 POST 재시도 없음",
+      "로그인 응답 유실 시 /me로 회원 확인, 로그인 POST 자동 반복 없음",
+      "로그아웃 CSRF 오류는 로그인 유지, GET 갱신 후 수동 재시도만 204 처리",
+      "로그아웃 응답 유실 → /me authenticated에 맞는 상태와 안내",
+      "로그아웃 응답 유실 → /me anonymous에 맞는 상태와 안내",
+      "로그아웃 응답 유실 → /me unknown에 맞는 상태와 안내",
+      "작성 중 로그아웃 취소는 POST 없음, 실패 후에도 이탈 경고 유지, 중복 로그아웃 차단",
+      "로그아웃 대기 중 다른 화면으로 이동한 뒤 실패해도 이전 글의 이탈 방지를 되살리지 않음",
+      "로그아웃 회귀: logout 지연 성공 중 다른 작성 화면의 입력·초점 보존",
+      "로그아웃 회귀: me 지연 성공 중 다른 작성 화면의 입력·초점 보존",
+      "로그아웃 회귀: 같은 작성 화면의 추가 본문 후 이탈 확인과 비로그인 상태 유지",
+      "로그아웃 회귀: 같은 작성 화면의 추가 본문 후 이동 허용 후 이탈 확인과 비로그인 상태 유지",
+      "로그아웃 회귀: 같은 작성 화면의 주제 변경 후 이탈 확인과 비로그인 상태 유지",
+      "로그아웃 회귀: 같은 작성 화면의 빈 폼의 첫 입력 후 이탈 확인과 비로그인 상태 유지",
+      "로그아웃 회귀: 깨끗한 폼에서 시작한 요청이 실패해도 대기 중 새 입력 보호",
+      "로그아웃 회귀: logout 성공 알림은 5초 후 닫히고 비로그인 유지",
+      "로그아웃 회귀: me 성공 알림은 5초 후 닫히고 비로그인 유지",
+      "로그아웃 회귀: 성공 알림 수동 닫기는 인증·경로를 바꾸지 않음",
+      "로그아웃 회귀: 오류 알림 수동 닫기는 인증·경로를 바꾸지 않음",
+      "로그아웃 회귀: 결과 미확인 알림 수동 닫기는 인증·경로를 바꾸지 않음",
+      "로그아웃 회귀: 닫기 버튼 키보드 초점 동안 타이머 일시 정지 후 남은 시간 재개",
+      "로그아웃 회귀: 이전 성공 타이머가 새 성공 알림을 지우지 않음",
+      "로그아웃 회귀: 이전 성공 타이머가 새 오류 알림을 지우지 않음"
+    ]
+  },
+  "mockAuthFlow": {
+    "mode": "browser API mocks; no real DB writes",
+    "checks": [
+      "가입 csrf 대기 중 로고 이탈: 목적지 RSC 지연·기존 폼 마운트·후속 처리 무효",
+      "가입 signup-success 대기 중 로고 이탈: 목적지 RSC 지연·기존 폼 마운트·후속 처리 무효",
+      "가입 signup-failure 대기 중 로고 이탈: 목적지 RSC 지연·기존 폼 마운트·후속 처리 무효",
+      "가입 signup-csrf-error 대기 중 로고 이탈: 목적지 RSC 지연·기존 폼 마운트·후속 처리 무효",
+      "가입 csrf-refresh 대기 중 로고 이탈: 목적지 RSC 지연·기존 폼 마운트·후속 처리 무효",
+      "가입 이탈·새 가입 화면 재진입 후 이전 성공이 새 입력/가입 상태를 변경하지 않음",
+      "가입 CSRF 대기 중 브라우저 뒤로 가기: 새 POST 없음",
+      "약관 취소 마우스: 홈 이동·기존 세션 유지",
+      "약관 취소 키보드: 홈 이동·기존 세션 유지",
+      "새 탭 수동 인증 → 200/ACTIVE → replace 로그인·일회성 안내·키보드·320/390/1440",
+      "기존 로그인 세션: 인증 계정과 동일하다고 추정하지 않음·자동 로그인/로그아웃 없음",
+      "인증 만료: 오류 초점·전환 없음·완료 안내 없음·자동 재시도 없음",
+      "인증 CSRF: 오류 초점·전환 없음·완료 안내 없음·자동 재시도 없음",
+      "인증 네트워크: 오류 초점·전환 없음·완료 안내 없음·자동 재시도 없음",
+      "인증 HTML: 오류 초점·전환 없음·완료 안내 없음·자동 재시도 없음",
+      "인증 손상 JSON: 오류 초점·전환 없음·완료 안내 없음·자동 재시도 없음",
+      "인증 201 ACTIVE: 오류 초점·전환 없음·완료 안내 없음·자동 재시도 없음",
+      "인증 200 PENDING: 오류 초점·전환 없음·완료 안내 없음·자동 재시도 없음",
+      "인증 200 빈 객체: 오류 초점·전환 없음·완료 안내 없음·자동 재시도 없음",
+      "인증 CSRF 조회 실패: 인증 POST 없음·수동 재시도 유지",
+      "형식 오류 링크: 재전송·조건부 로그인 안내, 인증 POST 없음",
+      "인증 csrf 대기 중 이탈: 목적지 지연·폼 마운트 상태에도 늦은 응답 무효",
+      "인증 success 대기 중 이탈: 목적지 지연·폼 마운트 상태에도 늦은 응답 무효",
+      "인증 failure 대기 중 이탈: 목적지 지연·폼 마운트 상태에도 늦은 응답 무효",
+      "직접 /login 또는 임의 verified 쿼리는 완료 안내를 만들지 않음",
+      "런타임 오류 없음"
+    ],
+    "errors": [],
+    "completed": true
+  },
+  "mockCommunity": {
+    "mode": "server public GET + browser API mocks, not real DB verification",
+    "checks": [
+      "SSR 목록/상세 HTML·metadata·쿠키 비전달·없는 글 HTTP 404",
+      "초기 hydration에서 목록/상세 API 중복 조회 없음·초점 강제 이동 없음",
+      "범위 밖 99페이지/마지막 페이지 소멸·필터 유지 첫 페이지·실제 빈 조건 구분",
+      "비로그인 진입·실제 목록 계약·공개 GET에 CSRF 없음·베스트 준비",
+      "선택만 하면 요청·URL·기존 목록 불변",
+      "적용 전환 동안 기존 목록·조건 보존, 성공 후 URL·새 목록 일치",
+      "페이지 이동·새로고침·신규 조건 적용 시 첫 페이지",
+      "상세 왕복 필터·페이지·스크롤 복원 / 브라우저 Back·Forward",
+      "직접 진입은 상세 진입 때 남긴 과거 스크롤을 복원하지 않음",
+      "필터 500은 기존 목록·표시 조건·선택값 보존 및 재시도",
+      "빠른 적용 시 느린 이전 성공/실패가 최신 결과를 덮지 않음",
+      "조회 중 뒤로 가면 늦은 응답을 무시하고 이전 URL 결과 복원",
+      "긴 목록 하단 다음 페이지·키보드 초점·목록 간 Back/Forward 위치",
+      "페이지 조회 실패는 이전 결과를 유지하고 목록 시작으로 이동/초점 강제 이동 안 함",
+      "390px 모바일 베스트 숨김·필터 취소·Escape·초점·Tab 가두기",
+      "모바일 필터 적용과 320px 목록/패널 가로 넘침 없음",
+      "공개 상세의 줄바꿈·HTML 비실행·긴 문자열·직접 진입 기본 복귀",
+      "상세 404 오류 및 모의 본문 대체 없음",
+      "상세 손상 404 오류 및 모의 본문 대체 없음",
+      "상세 500 오류 및 모의 본문 대체 없음",
+      "상세 네트워크 오류 및 모의 본문 대체 없음",
+      "상세 HTML 오류 및 모의 본문 대체 없음",
+      "서버 타임아웃은 404가 아닌 재시도 가능한 오류",
+      "세션 확인 중 비로그인으로 오인하지 않음·로그인 후 작성 복귀",
+      "작성 필드 오류와 초점·연결·Unicode 길이 검증",
+      "작성 입력 오류: 자동 재전송 없음·입력 및 dirty 보존",
+      "작성 CSRF 오류: 자동 재전송 없음·입력 및 dirty 보존",
+      "작성 권한 부족: 자동 재전송 없음·입력 및 dirty 보존",
+      "작성 서버 오류: 자동 재전송 없음·입력 및 dirty 보존",
+      "작성 응답 손상 및 네트워크 장애: 불확실 안내·새 탭 확인·입력 보존",
+      "세션 만료 401: 로그인 상태 갱신·작성 내용 보존",
+      "유효한 201 ID만 상세 이동·중복 등록 방지·성공 후 이탈 확인 해제",
+      "결과 확인은 제출 당시 유형·주제 첫 페이지, 일반 복귀는 이전 조건·뒷페이지",
+      "취소 이탈 승인 후 목적지 지연 중 늦은 201: 기존 폼 마운트·선택한 이동 유지",
+      "취소 이탈 승인 후 목적지 지연 중 늦은 401: 기존 폼 마운트·선택한 이동 유지",
+      "취소 이탈 승인 후 목적지 지연 중 늦은 500: 기존 폼 마운트·선택한 이동 유지",
+      "목록 링크 이탈 승인 후 목적지 지연 중 늦은 201: 기존 폼 마운트·선택한 이동 유지",
+      "목록 링크 이탈 승인 후 목적지 지연 중 늦은 401: 기존 폼 마운트·선택한 이동 유지",
+      "목록 링크 이탈 승인 후 목적지 지연 중 늦은 500: 기존 폼 마운트·선택한 이동 유지",
+      "헤더 링크 이탈 승인 후 목적지 지연 중 늦은 201: 기존 폼 마운트·선택한 이동 유지",
+      "헤더 링크 이탈 승인 후 목적지 지연 중 늦은 401: 기존 폼 마운트·선택한 이동 유지",
+      "헤더 링크 이탈 승인 후 목적지 지연 중 늦은 500: 기존 폼 마운트·선택한 이동 유지",
+      "브라우저 뒤로 가기 계속 작성 후 늦은 등록 결과",
+      "브라우저 뒤로 가기 이탈 승인 후 늦은 등록 결과",
+      "취소 확인창에서 계속 작성하면 지연 등록 성공이 정상 상세 이동",
+      "홈·검색 예시 게시글에서 가짜 ID 상세로 연결하지 않음",
+      "브라우저 런타임 오류 없음"
+    ],
+    "errors": []
+  },
+  "prototypeReviewFixes": {
+    "scope": "prototype only",
+    "results": [
+      "PASS about keyboard skip: route, answers, checks and result preserved",
+      "PASS welfare keyboard skip: route, answers, checks and result preserved",
+      "PASS guide keyboard skip: route, answers, checks and result preserved",
+      "PASS mobile → desktop → mobile → desktop: closed filter access, pending and applied conditions preserved"
+    ]
+  },
+  "prototypeRevision6": {
+    "date": "2026-10-14",
+    "scope": "독립 검토 시안. 실제 인증/신청/API 검증 아님",
+    "results": [
+      {
+        "name": "첫 진입·과거 결과예시 주소·새로고침: 답변/체크/결과를 자동 선택하지 않음",
+        "status": "passed"
+      },
+      {
+        "name": "결과 예시는 도구 모음에서 직접 불러올 때만 선택; 목록→안내 재진입 초기화",
+        "status": "passed"
+      },
+      {
+        "name": "홈·소개에서 안내 진입 역시 미선택",
+        "status": "passed"
+      },
+      {
+        "name": "문의 후 확인 2개·준비 3개: 키보드 Space·레이블 클릭·해제·절차 색상 독립",
+        "status": "passed"
+      },
+      {
+        "name": "복사 양식: 현재상황·질문·체크 목록·다음 단계, 실제 체크 상태 반영",
+        "status": "passed"
+      },
+      {
+        "name": "상세 설명 왕복: 체크·답변 유지, 링크 원위치/초점 복귀",
+        "status": "passed"
+      },
+      {
+        "name": "클립보드 거절 시 정리된 양식을 수동 복사할 수 있고 초점 이동",
+        "status": "passed"
+      },
+      {
+        "name": "28개 완료 조합: 일괄 상세 링크 제거·R08 청구 링크만 유지·체크/문구/조건/온라인 문의 보존",
+        "status": "passed",
+        "details": {
+          "combinations": 28
+        }
+      },
+      {
+        "name": "R08 청구 안내 링크: 전체 기준 검수·청구 및 직접청구 서류 펼침",
+        "status": "passed"
+      },
+      {
+        "name": "알아두세요 전체 기준: 두 개 중간 카드 없이 첫 절차 설명을 바로 표시",
+        "status": "passed"
+      },
+      {
+        "name": "양쪽 지원 링크/금액 모드: 기존 조건·예시·출처 유지, 키보드 전환",
+        "status": "passed"
+      },
+      {
+        "name": "양쪽 지원의 상담 질문 복사·거절 시 직접 복사, 기존 원문과 일치",
+        "status": "passed"
+      },
+      {
+        "name": "직접 청구 도착 후 키보드 토글·탭 순서 유지",
+        "status": "passed"
+      },
+      {
+        "name": "같은 상세 목표라도 누른 링크로 정확히 초점 복귀",
+        "status": "passed"
+      },
+      {
+        "name": "모든 상세 연결 목표 존재·접힌 목표 표시·공식 링크/제품 검색 연결",
+        "status": "passed"
+      },
+      {
+        "name": "1440/390/320: 처음 화면·체크리스트·전체 기준·청구·양쪽 지원 캡처, 가로 넘침 없음",
+        "status": "passed"
+      },
+      {
+        "name": "체크리스트·강조 문구 실제 대비 4.5:1 이상",
+        "status": "passed",
+        "details": {
+          "minRatio": 5.215003378905334
+        }
+      },
+      {
+        "name": "R08에서만 유지한 청구 연결: 1440/390/320 캡처·목표·가로 넘침",
+        "status": "passed"
+      },
+      {
+        "name": "개인 메모 서버 전송/저장 없음·런타임 오류 없음",
+        "status": "passed"
+      }
+    ],
+    "errors": [],
+    "apiCalls": 0
+  },
+  "supplementary": {
+    "checks": [
+      "PASS existing :8443 /about: current implementation",
+      "PASS existing :8443 /welfare: current implementation",
+      "PASS existing :8443 /validation/hearing-aid-health-insurance: current implementation",
+      "PASS action text contrast minimum 5.00:1"
+    ]
+  },
+  "realAPI": {
+    "scope": "Existing Spring public community GET/initial HTML comparison only; production-smoke.mjs passed",
+    "writes": 0
+  },
+  "unchangedPolicyDeclarations": 25,
+  "knownIssues": [
+    "Existing community no-JavaScript 404 body/link failures (2); not rerun or changed in this task."
+  ],
+  "notRun": [
+    "Real signup/email/login/post writes",
+    "External policy freshness review",
+    "Safari/Firefox/physical mobile/screen-reader speech"
+  ]
+}

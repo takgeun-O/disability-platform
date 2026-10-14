@@ -18,7 +18,7 @@ Active integrated IYUM application: Next.js App Router, React 19, Tailwind CSS 4
 - `src/features/`: existing screens/content moved from `src/pages/` without redesign. Do not create a top-level `src/pages/` for feature files: Next would interpret it as Pages Router.
 - `src/components/Shell.tsx`: server header/footer; GlobalNav and HomeSearch are interactive client components.
 - `src/components/AppLink.tsx`, `NavigationGuard.tsx`: Next Link and existing unsaved-post confirmation. Preserve browser history state owned by Next.
-- `src/lib/useQueryParams.ts`: query-driven filters; `mock-posts.tsx`: local-only community prototype state, not a backend.
+- `src/lib/useQueryParams.ts`: query-driven filters; `mock-posts.tsx`: historical/local example data, not the active community API.
 - `src/features/HearingAidGuide.tsx`: P03 questions/results/navigation/copy, browser interactions in handlers/effects. Reference and guardian views render into initial HTML and are hidden until selected. Keep hidden sections out of visible focus order.
 - `src/features/HearingAidBenefits.tsx`, `RegistryCheck.tsx`, `DirectClaimGuide.tsx`: shared P03 benefits, product/store confirmation and direct-claim explanation.
 - `src/data/hearingAidProducts.json`: existing 206-product snapshot; retain source/freshness notices.
@@ -35,6 +35,16 @@ Active integrated IYUM application: Next.js App Router, React 19, Tailwind CSS 4
 - P03 currently includes medical-aid history Q4 and application Q5. Preserve the actual code, not the older 15-result handoff alone.
 - P03 answers, selected products and the benefit view are local state; do not transmit or persist answers as part of unrelated work.
 - Keep medical-aid/insurance-unknown amount visibility rules, history yes/unknown distinction and conditional existing-device wording.
-- Authentication, posts and comments are still mocks. Future real authentication/business logic belongs to the planned Spring Boot API; do not add it implicitly to Next route handlers.
+- Authentication and community post creation/list/detail use the Spring Boot API. Comments and best-post aggregation remain unimplemented; home example data is labelled separately. Preserve existing API/session/CSRF contracts; do not add backend logic implicitly to Next route handlers.
 - Do not print `.env` values or Vercel credentials. Only explicitly public browser configuration may use NEXT_PUBLIC_.
 - Do not commit, push or deploy unless requested.
+
+<!-- BEGIN:nextjs-agent-rules -->
+
+# This is NOT the Next.js you know
+
+This version has breaking changes — APIs, conventions, and file structure may all differ from your training data. Read the relevant guide in `node_modules/next/dist/docs/` (resolved from this file's directory; in monorepos the `next` package may not be visible from the repo root) before writing any code. Heed deprecation notices.
+
+This block is written and re-added by `next dev` — verify at `node_modules/next/dist/server/lib/generate-agent-files.js`. Removing it from a diff only re-creates the uncommitted change; committing it with your work keeps the tree clean.
+
+<!-- END:nextjs-agent-rules -->

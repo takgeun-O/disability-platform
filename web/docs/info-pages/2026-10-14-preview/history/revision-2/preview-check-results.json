@@ -1,0 +1,47 @@
+{
+  "scope": "isolated prototype, not production integration verification",
+  "results": [
+    {
+      "name": "PC/390/320 모든 대표 화면 가로 넘침 없음",
+      "status": "passed"
+    },
+    {
+      "name": "PC 메뉴 순서·3개 정보 분류·Escape 초점",
+      "status": "passed"
+    },
+    {
+      "name": "모바일 메뉴·준비 중 경로·접근 가능한 닫기",
+      "status": "passed"
+    },
+    {
+      "name": "현재 목록 한 건·불필요한 필터/D-day 없음",
+      "status": "passed"
+    },
+    {
+      "name": "확장 필터 선택/적용 구분·빈 결과·초기화·모집 상태 구분",
+      "status": "passed"
+    },
+    {
+      "name": "P03 질문→실제 스냅샷 R08·복사·상세→결과·이전 질문",
+      "status": "passed"
+    },
+    {
+      "name": "P03 의료급여 Q4/Q5·모름·금액 미노출",
+      "status": "passed"
+    },
+    {
+      "name": "1280px 이상/390px 주 메뉴·안내 CTA 최소44px 및 포커스",
+      "status": "passed"
+    },
+    {
+      "name": "시안 API 호출·브라우저 저장소 사용·런타임 오류 없음",
+      "status": "passed"
+    },
+    {
+      "name": "목록 재진입 후 초기화: 선택/적용/검색어 동시 해제",
+      "status": "passed"
+    }
+  ],
+  "errors": [],
+  "apiCalls": 0
+}

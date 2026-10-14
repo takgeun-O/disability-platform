@@ -1,6 +1,7 @@
 "use client";
 
-import { useRef, useState, type RefObject } from "react"
+import { useRef, type RefObject } from "react"
+import { useGuidanceClipboard } from "./useGuidanceClipboard"
 
 export type BenefitMode = "single" | "bilateral"
 
@@ -547,7 +548,6 @@ export function BilateralQuestions({
           fontWeight: 700,
           color: "#1A1918",
           marginBottom: 10,
-          outline: "none",
           scrollMarginTop: 20,
         }}
       >
@@ -833,24 +833,7 @@ function BilateralCopyButton({
   copyText: string
   successMsg: string
 }) {
-  const [status, setStatus] = useState<"idle" | "success" | "fail">("idle")
-  const [showFallback, setShowFallback] = useState(false)
-  const fallbackRef = useRef<HTMLTextAreaElement>(null)
-
-  async function handleCopy() {
-    try {
-      await navigator.clipboard.writeText(copyText)
-      setStatus("success")
-      setShowFallback(false)
-    } catch {
-      setStatus("fail")
-      setShowFallback(true)
-      setTimeout(() => {
-        fallbackRef.current?.focus()
-        fallbackRef.current?.select()
-      }, 50)
-    }
-  }
+  const { status, showFallback, fallbackRef, handleCopy } = useGuidanceClipboard(copyText)
 
   return (
     <div style={{ marginTop: 12 }}>

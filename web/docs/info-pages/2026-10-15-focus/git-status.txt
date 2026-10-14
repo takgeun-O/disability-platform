@@ -1,0 +1,34 @@
+ M AGENTS.md
+ M web/AGENTS.md
+ M web/src/app/layout.tsx
+ M web/src/app/welfare/page.tsx
+ M web/src/components/GlobalNav.tsx
+ M web/src/components/Shell.tsx
+ M web/src/features/EmailVerificationResend.tsx
+ M web/src/features/HearingAidBenefits.tsx
+ M web/src/features/HearingAidGuide.css
+ M web/src/features/HearingAidGuide.tsx
+ M web/src/features/HomePage.tsx
+ M web/src/features/Login.tsx
+ M web/src/features/PostList.tsx
+ M web/src/features/WelfarePage.tsx
+ M web/src/index.css
+ M web/src/styles/community.css
+ M web/tests/community-browser.mjs
+?? docs/PRODUCT-CONTEXT.md
+?? web/docs/Info-Pages-Integration-2026-10-14.md
+?? web/docs/info-pages/
+?? web/src/app/about/
+?? web/src/data/hearingAidActionGuidance.ts
+?? web/src/features/AboutPage.tsx
+?? web/src/features/HearingAidActions.tsx
+?? web/src/features/HearingAidReferenceDialog.tsx
+?? web/src/features/useGuidanceClipboard.ts
+?? web/src/lib/hearing-aid-notes.ts
+?? web/src/lib/reading-focus.ts
+?? web/src/styles/info.css
+?? web/tests/focus-scroll-browser.mjs
+?? web/tests/hearing-aid-dialog-browser.mjs
+?? web/tests/hearing-aid-notes.test.mjs
+?? web/tests/info-pages-browser.mjs
+?? web/tests/reading-focus.test.mjs

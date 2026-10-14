@@ -6,7 +6,6 @@ import Link from './AppLink';
 import { useNavigationGuard } from './NavigationGuard';
 
 const INFORMATION = [
-  { label: '이용 가이드', href: '/validation/hearing-aid-health-insurance', description: '보청기 건강보험 안내' },
   { label: '복지·지원정보', href: '/welfare', description: '지원 안내 살펴보기' },
   { label: '기기 정보', href: '/devices', description: '준비 중' },
   { label: '병원·전문기관', href: '/hospitals', description: '준비 중' },
@@ -63,8 +62,13 @@ export default function GlobalNav() {
         <span>메뉴</span><span aria-hidden="true">{mobileOpen ? '닫기 ×' : '☰'}</span>
       </button>
       <div id="iyum-navigation" className="iyum-nav-items">
+        <Link className="iyum-nav-link" href="/about" onClick={close}
+          aria-current={pathname === '/about' ? 'page' : undefined}>IYUM 소개</Link>
+        <Link className="iyum-nav-link" href="/community" onClick={close}
+          aria-current={pathname.startsWith('/community') ? 'page' : undefined}>커뮤니티</Link>
         <div ref={infoRef} className="iyum-information">
           <button ref={infoButton} type="button" className="iyum-nav-link" aria-expanded={infoOpen} aria-controls="iyum-information-menu"
+            aria-current={INFORMATION.some(item => pathname === item.href) || pathname.startsWith('/validation/') ? true : undefined}
             onClick={() => setExpanded({ path: pathname, mobile: mobileOpen, info: !infoOpen })}>
             정보 찾기 <span className={infoOpen ? 'iyum-chevron is-open' : 'iyum-chevron'} aria-hidden="true">⌄</span>
           </button>
@@ -75,9 +79,6 @@ export default function GlobalNav() {
             </Link>)}
           </div>
         </div>
-        <Link className="iyum-nav-link" href="/community" onClick={close}
-          aria-current={pathname.startsWith('/community') ? 'page' : undefined}>커뮤니티</Link>
-        <Link className="iyum-nav-link" href="/#iyum-about" onClick={close}>IYUM 소개</Link>
       </div>
     </nav>
   );

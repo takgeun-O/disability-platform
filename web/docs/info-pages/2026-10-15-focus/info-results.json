@@ -1,0 +1,67 @@
+{
+  "base": "http://127.0.0.1:8451",
+  "scope": "Next service UI; anonymous /me mock; no Spring writes",
+  "results": [
+    {
+      "name": "소개·복지 초기 HTML과 JavaScript 없는 실제 본문·링크, metadata/noindex",
+      "status": "passed"
+    },
+    {
+      "name": "1440/390/320 메뉴 순서·하위 3개·현재 표시·Escape 초점",
+      "status": "passed"
+    },
+    {
+      "name": "첫 진입·새로고침 미선택, 답변 후 다음 질문·결과 초점, 단계 색상/토글",
+      "status": "passed"
+    },
+    {
+      "name": "28개 실제 결과 조합: 정책 안내·의료급여/모름/이력·금액 조건·링크·센터 질문 범위",
+      "status": "passed"
+    },
+    {
+      "name": "개인 체크·양식 복사·복사 실패 직접 선택 대안",
+      "status": "passed"
+    },
+    {
+      "name": "전체 기준: 절차 우선·목적지 펼침·체크/답변/스크롤/초점 복원",
+      "status": "passed"
+    },
+    {
+      "name": "R08 청구 연결·직접 청구 설명, 실제 제품 검색/선택 및 추가 질문 유지",
+      "status": "passed"
+    },
+    {
+      "name": "답변 수정은 이후 답변/체크 초기화, 같은 코드라도 서로 다른 이력 메모 재사용 없음",
+      "status": "passed"
+    },
+    {
+      "name": "안내·목록·소개 키보드 본문 바로가기: 현재 화면/답변/체크 유지",
+      "status": "passed"
+    },
+    {
+      "name": "기존 query/hash 직접 진입 및 한쪽/양쪽 기준 보존",
+      "status": "passed"
+    },
+    {
+      "name": "기본 목록은 안내 1건·필터/가상 공고 없음, 홈 앵커와 준비 중 페이지",
+      "status": "passed"
+    },
+    {
+      "name": "1440/390/320 실제 서비스 캡처·가로 넘침·미구현 시안 요소 비노출",
+      "status": "passed"
+    },
+    {
+      "name": "새 소개·복지 메뉴의 작성 이탈 취소/승인과 키보드 초점 복귀",
+      "status": "passed"
+    },
+    {
+      "name": "일반 모션은 답변 뒤 부드러운 이동, 모바일 절차 토글/리사이즈 접근 유지",
+      "status": "passed"
+    },
+    {
+      "name": "런타임 오류 없음",
+      "status": "passed"
+    }
+  ],
+  "errors": []
+}

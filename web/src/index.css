@@ -32,6 +32,20 @@ body {
   outline-offset: 2px;
 }
 
+/* Explicit, non-interactive reading anchors only. Controls retain :focus-visible.
+   A small side marker replaces the full-width rectangle for keyboard reading. */
+[data-reading-focus]:focus {
+  transition-property: none;
+  outline: 2px solid transparent;
+  outline-offset: 2px;
+}
+[data-reading-focus="keyboard"]:focus {
+  box-shadow: -4px 0 0 var(--color-primary);
+}
+@media (forced-colors: active) {
+  [data-reading-focus="keyboard"]:focus { outline-color: Highlight; }
+}
+
 /* Hide scrollbar until hover */
 ::-webkit-scrollbar { width: 6px; }
 ::-webkit-scrollbar-track { background: transparent; }

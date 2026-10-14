@@ -1,0 +1,8 @@
+import {fileURLToPath} from 'node:url';import fs from 'node:fs/promises';import assert from 'node:assert/strict';
+const {chromium}=await import(process.env.PLAYWRIGHT_MODULE??'playwright');const root=fileURLToPath(new URL('../',import.meta.url)).replace(/\/$/,'');const b=await chromium.launch({channel:'chrome',headless:true});
+try{const p=await b.newPage();await p.goto('http://127.0.0.1:8450/?revision=4&contrast=1#result-registration');await p.locator('.action-sequence').waitFor();
+const pairs=await p.evaluate(()=>{const selectors=['.action-number','.action-label h3','.place-heading p','.action-context','.action-question blockquote','.preparation-note strong','.after-heading'];return selectors.flatMap(s=>[...document.querySelectorAll(s)].map(e=>{let node=e,bg='rgba(0, 0, 0, 0)';while(node&&bg==='rgba(0, 0, 0, 0)'){bg=getComputedStyle(node).backgroundColor;node=node.parentElement;}return{selector:s,fg:getComputedStyle(e).color,bg};}));});
+const lum=s=>{const c=s.match(/[\d.]+/g).slice(0,3).map(n=>Number(n)/255).map(v=>v<=.04045?v/12.92:((v+.055)/1.055)**2.4);return c[0]*.2126+c[1]*.7152+c[2]*.0722;};
+for(const p of pairs){const a=lum(p.fg),b=lum(p.bg);p.ratio=(Math.max(a,b)+.05)/(Math.min(a,b)+.05);assert(p.ratio>=4.5,`${p.selector} contrast ${p.ratio}`);}
+const file=root+'/revision-4-check-results.json',r=JSON.parse(await fs.readFile(file,'utf8'));r.results=r.results.filter(x=>x.name!=='4단계 번호·제목·기관·문의·준비 문구의 실제 계산 대비 4.5:1 이상');r.results.push({name:'4단계 번호·제목·기관·문의·준비 문구의 실제 계산 대비 4.5:1 이상',status:'passed',detail:pairs});await fs.writeFile(file,JSON.stringify(r,null,2));console.log('PASS contrast checks',pairs.length,'minimum',Math.min(...pairs.map(x=>x.ratio)).toFixed(2));
+}finally{await b.close();}

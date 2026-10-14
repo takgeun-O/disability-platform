@@ -1,0 +1,10 @@
+{
+  "resultFocus": {
+    "id": "p03-result-heading",
+    "outline": "rgb(9, 35, 74) none 3px",
+    "scrollY": 1111
+  },
+  "summaryTabIndex": "-1",
+  "next": "p03-reference-journey-step-5",
+  "previous": "p03-reference-journey-step-3"
+}
