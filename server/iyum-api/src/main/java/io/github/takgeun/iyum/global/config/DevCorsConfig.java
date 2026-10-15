@@ -72,7 +72,14 @@ public class DevCorsConfig {
         source.registerCorsConfiguration("/api/v1/auth/logout", cors);
 
         source.registerCorsConfiguration("/api/v1/community/posts", cors);
-        source.registerCorsConfiguration("/api/v1/community/posts/*", cors);
+        // 기존 Origin·쿠키·허용 헤더·캐시 설정을 복사
+        // new CorsConfiguration(cors): 기존 설정을 복사하는 생성자 (복사한 객체의 허용 메서드만 바꾸고자 하는 의도)
+        CorsConfiguration postDetailCors = new CorsConfiguration(cors);
+        // 게시글 상세 경로에만 PUT을 추가한다.
+        postDetailCors.setAllowedMethods(
+                List.of("GET", "POST", "PUT", "OPTIONS")
+        );
+        source.registerCorsConfiguration("/api/v1/community/posts/*", postDetailCors);
 
         return source;
     }

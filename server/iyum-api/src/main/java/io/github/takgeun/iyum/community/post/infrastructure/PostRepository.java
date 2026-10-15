@@ -3,10 +3,12 @@ package io.github.takgeun.iyum.community.post.infrastructure;
 import io.github.takgeun.iyum.community.post.domain.Post;
 import io.github.takgeun.iyum.community.post.domain.PostTopic;
 import io.github.takgeun.iyum.community.post.domain.PostType;
+import jakarta.persistence.LockModeType;
 import org.jspecify.annotations.Nullable;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Lock;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
@@ -63,6 +65,22 @@ public interface PostRepository extends JpaRepository<Post, Long> {
               and p.deletedAt is null
             """)
     Optional<Post> findVisiblePostById(
+            @Param("postId") Long postId
+    );
+
+    // 조회한 게시글 행을 현재 트랜잭션에서 수행하는 동안
+    // 다른 트랜잭션의 충돌하는 변경이 기다리도록 비관적 쓰기 잠금 사용
+    // 잠금 순서는 회원 -> 게시글 (삭제도 이 순서로 통일)
+    // 참고로 이 잠금은 DB에서 실행되는 변경을 조정하는 장치임.
+    // 그러니까 두 편집 화면에서 순서대로 저장했을 때 충돌을 알리는 기능까지 제공하는 건 아님
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("""
+            select p
+            from Post p
+            where p.id = :postId
+                and p.deletedAt is null
+            """)
+    Optional<Post> findVisiblePostByIdForUpdate(
             @Param("postId") Long postId
     );
 }

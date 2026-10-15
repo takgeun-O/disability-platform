@@ -1,11 +1,6 @@
 package io.github.takgeun.iyum.community.post.api;
 
-import io.github.takgeun.iyum.community.post.application.PostAuthorResult;
-import io.github.takgeun.iyum.community.post.application.PostCreateService;
-import io.github.takgeun.iyum.community.post.application.PostDetailResult;
-import io.github.takgeun.iyum.community.post.application.PostReadException;
-import io.github.takgeun.iyum.community.post.application.PostReadService;
-import io.github.takgeun.iyum.community.post.application.PostSummaryResult;
+import io.github.takgeun.iyum.community.post.application.*;
 import io.github.takgeun.iyum.community.post.domain.PostTopic;
 import io.github.takgeun.iyum.community.post.domain.PostType;
 import io.github.takgeun.iyum.global.config.DevCorsConfig;
@@ -72,6 +67,9 @@ class PostReadControllerTest {
 
     @MockitoBean
     PostCreateService postCreateService;
+
+    @MockitoBean
+    PostUpdateService postUpdateService;
 
     @Test
     void 비로그인으로_기본_목록을_조회할_수_있다()

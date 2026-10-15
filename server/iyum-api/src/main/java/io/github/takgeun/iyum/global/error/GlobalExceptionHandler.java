@@ -6,6 +6,7 @@ import io.github.takgeun.iyum.auth.signup.application.SignupTermsException;
 import io.github.takgeun.iyum.auth.security.EmailVerificationRequiredException;
 import io.github.takgeun.iyum.community.post.application.PostCreateException;
 import io.github.takgeun.iyum.community.post.application.PostReadException;
+import io.github.takgeun.iyum.community.post.application.PostUpdateException;
 import org.springframework.beans.TypeMismatchException;
 import org.springframework.http.*;
 import org.springframework.http.converter.HttpMessageNotReadableException;
@@ -147,19 +148,19 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
 
     /**
      * 이메일 인증 처리 중 발생한 예외를 클라이언트가 이해할 수 있는 HTTP 400 오류 응답으로 바꾸는 역할
-     *
+     * <p>
      * 1. 클라이언트가 이메일 인증 요청 보냄
-     *      프론트엔드가 이메일 링크에서 얻은 토큰을 요청 본문에 담아 서버로 보낸다.
-     *      -> 해당 요청은 제일 먼저 Spring Security 필터를 거친다.
-     *      -> CSRF 등 보안 검사를 통과하면 Spring MVC가 해당 요청을 처리할 컨트롤러를 찾아 실행한다.
+     * 프론트엔드가 이메일 링크에서 얻은 토큰을 요청 본문에 담아 서버로 보낸다.
+     * -> 해당 요청은 제일 먼저 Spring Security 필터를 거친다.
+     * -> CSRF 등 보안 검사를 통과하면 Spring MVC가 해당 요청을 처리할 컨트롤러를 찾아 실행한다.
      * 2.컨트롤러가 인증 서비스를 호출한다.
-     *      서비스는 토큰의 해시로 DB 기록을 찾고, 회원 상태와 토큰의 만료·사용·폐기 여부를 검사한다.
+     * 서비스는 토큰의 해시로 DB 기록을 찾고, 회원 상태와 토큰의 만료·사용·폐기 여부를 검사한다.
      * 3. 서비스에서 사용할 수 없는 토큰을 발견하고 예외를 던진다. (InvalidEmailVerificationTokenException)
-     *      이 시점부터 정상 처리 흐름은 중단된다. 컨트롤러도 정상 결과를 받지 못하므로 성공 응답을 만드는 코드로 진행하지 않는다.
-     *      이 예외가 RuntimeException을 상속하고 기본 @Transactional 설정을 사용한다면, 서비스 트랜잭션의 변경 사항도 롤백 대상이 된다.
+     * 이 시점부터 정상 처리 흐름은 중단된다. 컨트롤러도 정상 결과를 받지 못하므로 성공 응답을 만드는 코드로 진행하지 않는다.
+     * 이 예외가 RuntimeException을 상속하고 기본 @Transactional 설정을 사용한다면, 서비스 트랜잭션의 변경 사항도 롤백 대상이 된다.
      * 4. Spring이 해당 예외를 처리할 메서드를 찾는다.
-     *      Spring MVC는 처리되지 않은 예외에 맞는 @ExceptionHandler를 찾아 호출한다. -> @ExceptionHandler(InvalidEmailVerificationTokenException.class) 발견!
-     *      파라미터 exception에는 실제 발생한 예외 객체(InvalidEmailVerificationTokenException)가 전달된다.
+     * Spring MVC는 처리되지 않은 예외에 맞는 @ExceptionHandler를 찾아 호출한다. -> @ExceptionHandler(InvalidEmailVerificationTokenException.class) 발견!
+     * 파라미터 exception에는 실제 발생한 예외 객체(InvalidEmailVerificationTokenException)가 전달된다.
      * 5. 응답 본문 객체를 생성한다.
      * 6. HTTP 상태·헤더·본문을 조합해서 반환
      */
@@ -283,6 +284,38 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
                 .body(ApiErrorResponse.of(
                         exception.getCode().name(),
                         exception.getMessage()
+                ));
+    }
+
+    @ExceptionHandler(PostUpdateException.class)
+    public ResponseEntity<ApiErrorResponse> handlePostUpdate(
+            PostUpdateException exception
+    ) {
+        // 참고로 비로그인 요청에 CSRF 토큰까지 없으면 CSRF 검사에서 먼저 403이 나올 수 있음.
+        HttpStatus status = switch (exception.getCode()) {
+            case MEMBER_NOT_FOUND -> HttpStatus.UNAUTHORIZED;
+            case MEMBER_NOT_ACTIVE, NOT_POST_AUTHOR -> HttpStatus.FORBIDDEN;
+            case POST_NOT_FOUND -> HttpStatus.NOT_FOUND;
+        };
+
+        String responseCode = switch (exception.getCode()) {
+            case MEMBER_NOT_FOUND -> "AUTHENTICATION_REQUIRED";
+            case MEMBER_NOT_ACTIVE -> "POST_WRITE_NOT_ALLOWED";
+            case NOT_POST_AUTHOR -> "ACCESS_DENIED";
+            case POST_NOT_FOUND -> "POST_NOT_FOUND";
+        };
+
+        String message =
+                exception.getCode() == PostUpdateException.Code.MEMBER_NOT_FOUND
+                        ? "로그인이 필요합니다."
+                        : exception.getMessage();
+
+        return ResponseEntity
+                .status(status)
+                .cacheControl(CacheControl.noStore())
+                .body(ApiErrorResponse.of(
+                        responseCode,
+                        message
                 ));
     }
 

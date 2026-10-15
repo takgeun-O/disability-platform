@@ -75,6 +75,9 @@ class PostControllerTest {
     @MockitoBean
     PostReadService postReadService;
 
+    @MockitoBean
+    PostUpdateService postUpdateService;
+
     @Test
     void 인증된_회원_ID로_작성하고_201을_반환한다()
             throws Exception {
