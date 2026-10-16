@@ -1,0 +1,32 @@
+{
+  "checks": [
+    "author id only; checking/anonymous/other member hidden",
+    "direct edit/reload; original fields; revert dirty; cancel",
+    "anonymous login return and non-author direct edit denied",
+    "PUT all fields + 204, duplicate prevention, latest detail and topic list",
+    "dirty cancel, logo leave, beforeunload and keyboard keep editing",
+    "PUT VALIDATION_FAILED input preserved",
+    "PUT AUTHENTICATION_REQUIRED input preserved",
+    "PUT ACCESS_DENIED input preserved",
+    "PUT POST_WRITE_NOT_ALLOWED input preserved",
+    "PUT CSRF_TOKEN_INVALID input preserved",
+    "PUT POST_NOT_FOUND input preserved",
+    "uncertain PUT/DELETE no automatic retry, new-tab confirmation",
+    "delete modal safe focus, Escape, retry error, busy close and successful list exclusion",
+    "approved leave while destination delayed: csrf",
+    "approved leave while destination delayed: put-success",
+    "approved leave while destination delayed: put-failure",
+    "continue editing preserves pending successful request",
+    "edit missing post has no editable form",
+    "read outage distinguished from 404; retry fills form once",
+    "DELETE AUTHENTICATION_REQUIRED keeps dialog and does not replay",
+    "DELETE POST_WRITE_NOT_ALLOWED keeps dialog and does not replay",
+    "DELETE CSRF_TOKEN_INVALID keeps dialog and does not replay",
+    "DELETE POST_NOT_FOUND keeps dialog and does not replay",
+    "1440/390/320 edit + delete layout and Tab loop"
+  ],
+  "pageErrors": [],
+  "passed": 24,
+  "failed": false,
+  "mocked": true
+}

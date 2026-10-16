@@ -8,18 +8,16 @@ import { useRouter, useSearchParams } from "next/navigation"
 import Link from "@/components/AppLink"
 import { useAuth } from "@/components/AuthProvider"
 import { useUnsavedChanges } from "@/components/NavigationGuard"
+import PostFields from "@/components/community/PostFields"
 import CommunityDialog from "@/components/community/CommunityDialog"
 import { CommunityBanner } from "@/components/community/CommunityParts"
 import { CommunityApiError, createPost } from "@/lib/community-api"
 import {
-  POST_TYPES,
   POST_TOPICS,
   parsePostQuery,
   safeListReturn,
   requestListScrollRestore,
   listHref,
-  characterCount,
-  normalizeTitle,
   validatePostForm,
   type PostForm,
   type PostField,
@@ -135,18 +133,6 @@ export default function PostCreate() {
       if (mounted.current) setSubmitting(false)
     }
   }
-  const field = (name: PostField) => ({
-    id: `post-${name}`,
-    name,
-    "aria-invalid": !!errors[name],
-    "aria-describedby": errors[name] ? `post-${name}-error` : undefined,
-  })
-  const errorText = (name: PostField) =>
-    errors[name] && (
-      <p className="iyum-field-error" id={`post-${name}-error`}>
-        {errors[name]}
-      </p>
-    )
   const showForm = auth.status === "authenticated" || dirty
   return (
     <main id="main-content" className="community-screen">
@@ -224,72 +210,7 @@ export default function PostCreate() {
                 )}
               </div>
             )}
-            <fieldset disabled={submitting}>
-              <legend className="sr-only">게시글 내용</legend>
-              <div className="community-form-grid">
-                <div>
-                  <label htmlFor="post-type">글 유형</label>
-                  <select
-                    {...field("type")}
-                    value={values.type}
-                    onChange={(e) => edit("type", e.target.value)}
-                  >
-                    <option value="">선택해 주세요</option>
-                    {Object.entries(POST_TYPES).map(([key, label]) => (
-                      <option key={key} value={key}>
-                        {label}
-                      </option>
-                    ))}
-                  </select>
-                  {errorText("type")}
-                </div>
-                <div>
-                  <label htmlFor="post-topic">주제</label>
-                  <select
-                    {...field("topic")}
-                    value={values.topic}
-                    onChange={(e) => edit("topic", e.target.value)}
-                  >
-                    <option value="">선택해 주세요</option>
-                    {Object.entries(POST_TOPICS).map(([key, label]) => (
-                      <option key={key} value={key}>
-                        {label}
-                      </option>
-                    ))}
-                  </select>
-                  {errorText("topic")}
-                </div>
-              </div>
-              <div>
-                <div className="community-field-heading">
-                  <label htmlFor="post-title">제목</label>
-                  <span>
-                    {characterCount(normalizeTitle(values.title))} / 120자
-                  </span>
-                </div>
-                <input
-                  {...field("title")}
-                  value={values.title}
-                  placeholder="제목을 입력하세요."
-                  onChange={(e) => edit("title", e.target.value)}
-                />
-                {errorText("title")}
-              </div>
-              <div>
-                <div className="community-field-heading">
-                  <label htmlFor="post-content">내용</label>
-                  <span>{characterCount(values.content)} / 10,000자</span>
-                </div>
-                <textarea
-                  {...field("content")}
-                  value={values.content}
-                  rows={12}
-                  placeholder="내용을 입력하세요."
-                  onChange={(e) => edit("content", e.target.value)}
-                />
-                {errorText("content")}
-              </div>
-            </fieldset>
+            <PostFields values={values} errors={errors} disabled={submitting} onChange={edit} />
             <p className="community-help">
               줄바꿈은 그대로 저장됩니다. 개인정보나 연락처가 포함되지 않았는지
               확인해 주세요.

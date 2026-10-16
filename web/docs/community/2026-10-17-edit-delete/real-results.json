@@ -1,0 +1,18 @@
+{
+  "checks": [
+    "실제 회원가입 PENDING→Mailpit 인증→로그인 수동 수행",
+    "실제 CSRF+쿠키 글 작성 201·중복 제출 방지·상세 저장 내용",
+    "실제 PUT 204·수정 내용·새로고침·원래 주제 목록 반영",
+    "실제 DELETE 204·취소·목록 제외·상세404·재삭제/수정404"
+  ],
+  "created": {
+    "email": "iyum-community-mvb7o0d3@example.test",
+    "nickname": "UI_mvb7o0d3",
+    "memberStatus": "ACTIVE",
+    "mailCount": 1,
+    "memberId": 29,
+    "postId": 8,
+    "postStatus": "soft-deleted"
+  },
+  "failed": false
+}

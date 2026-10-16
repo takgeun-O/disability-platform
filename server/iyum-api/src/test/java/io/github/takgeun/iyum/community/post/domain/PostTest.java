@@ -3,6 +3,8 @@ package io.github.takgeun.iyum.community.post.domain;
 import io.github.takgeun.iyum.member.domain.Member;
 import org.junit.jupiter.api.Test;
 
+import java.time.Instant;
+
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
@@ -92,6 +94,197 @@ class PostTest {
         )
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessage("본문은 필수입니다.");
+    }
+
+    @Test
+    void 게시글을_수정하면_입력값을_반영하고_작성자는_유지한다() {
+        Member author = createAuthor();
+
+        Post post = Post.create(
+                author,
+                PostType.QUESTION,
+                PostTopic.HEARING_AID,
+                "기존 제목",
+                "기존 본문"
+        );
+
+        String updatedContent = "  첫 번째 줄\n\n두 번째 줄  ";
+
+        post.update(
+                PostType.REVIEW,
+                PostTopic.COCHLEAR_IMPLANT,
+                "  인공와우 사용 후기  ",
+                updatedContent
+        );
+
+        assertThat(post.getType())
+                .isEqualTo(PostType.REVIEW);
+
+        assertThat(post.getTopic())
+                .isEqualTo(PostTopic.COCHLEAR_IMPLANT);
+
+        assertThat(post.getTitle())
+                .isEqualTo("인공와우 사용 후기");
+
+        assertThat(post.getContent())
+                .isEqualTo(updatedContent);
+
+        assertThat(post.getAuthor())
+                .isSameAs(author);
+
+        assertThat(post.getDeletedAt())
+                .isNull();
+    }
+
+    @Test
+    void 본문_검증에_실패하면_기존_게시글_내용을_변경하지_않는다() {
+        Member author = createAuthor();
+
+        Post post = Post.create(
+                author,
+                PostType.QUESTION,
+                PostTopic.HEARING_AID,
+                "기존 제목",
+                "기존 본문"
+        );
+
+        assertThatThrownBy(() ->
+                post.update(
+                        PostType.REVIEW,
+                        PostTopic.COCHLEAR_IMPLANT,
+                        "변경하려던 제목",
+                        "   "
+                )
+        )
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessage("본문은 필수입니다.");
+
+        assertThat(post.getType())
+                .isEqualTo(PostType.QUESTION);
+
+        assertThat(post.getTopic())
+                .isEqualTo(PostTopic.HEARING_AID);
+
+        assertThat(post.getTitle())
+                .isEqualTo("기존 제목");
+
+        assertThat(post.getContent())
+                .isEqualTo("기존 본문");
+
+        assertThat(post.getAuthor())
+                .isSameAs(author);
+    }
+
+    @Test
+    void 글_유형이나_주제가_없으면_수정할_수_없다() {
+        Post post = Post.create(
+                createAuthor(),
+                PostType.QUESTION,
+                PostTopic.HEARING_AID,
+                "기존 제목",
+                "기존 본문"
+        );
+
+        assertThatThrownBy(() ->
+                post.update(
+                        null,
+                        PostTopic.DAILY,
+                        "변경 제목",
+                        "변경 본문"
+                )
+        )
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessage("글 유형은 필수입니다.");
+
+        assertThatThrownBy(() ->
+                post.update(
+                        PostType.GENERAL,
+                        null,
+                        "변경 제목",
+                        "변경 본문"
+                )
+        )
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessage("주제는 필수입니다.");
+
+        assertThat(post.getType())
+                .isEqualTo(PostType.QUESTION);
+
+        assertThat(post.getTopic())
+                .isEqualTo(PostTopic.HEARING_AID);
+
+        assertThat(post.getTitle())
+                .isEqualTo("기존 제목");
+
+        assertThat(post.getContent())
+                .isEqualTo("기존 본문");
+    }
+
+    @Test
+    void 게시글을_삭제하면_삭제_시각을_기록하고_기존_내용을_보존한다() {
+        Member author = createAuthor();
+
+        Post post = Post.create(
+                author,
+                PostType.QUESTION,
+                PostTopic.HEARING_AID,
+                "보청기 질문입니다",
+                "기존 본문입니다"
+        );
+
+        Instant deletedAt = Instant.parse(
+                "2026-10-16T12:00:00Z"
+        );
+
+        post.delete(deletedAt);
+
+        assertThat(post.getDeletedAt()).isEqualTo(deletedAt);
+        assertThat(post.getAuthor()).isSameAs(author);
+        assertThat(post.getType()).isEqualTo(PostType.QUESTION);
+        assertThat(post.getTopic()).isEqualTo(PostTopic.HEARING_AID);
+        assertThat(post.getTitle()).isEqualTo("보청기 질문입니다");
+        assertThat(post.getContent()).isEqualTo("기존 본문입니다");
+    }
+
+    @Test
+    void 삭제_시각이_없으면_삭제할_수_없다() {
+        Post post = Post.create(
+                createAuthor(),
+                PostType.GENERAL,
+                PostTopic.DAILY,
+                "제목",
+                "본문"
+        );
+
+        assertThatThrownBy(() -> post.delete(null))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessage("삭제 시각은 필수입니다.");
+
+        assertThat(post.getDeletedAt()).isNull();
+    }
+
+    @Test
+    void 이미_삭제된_게시글은_최초_삭제_시각을_유지한다() {
+        Post post = Post.create(
+                createAuthor(),
+                PostType.GENERAL,
+                PostTopic.DAILY,
+                "제목",
+                "본문"
+        );
+
+        Instant firstDeletedAt = Instant.parse(
+                "2026-10-16T12:00:00Z"
+        );
+
+        Instant secondDeletedAt = Instant.parse(
+                "2026-10-16T13:00:00Z"
+        );
+
+        post.delete(firstDeletedAt);
+        post.delete(secondDeletedAt);
+
+        assertThat(post.getDeletedAt()).isEqualTo(firstDeletedAt);
     }
 
     private Member createAuthor() {

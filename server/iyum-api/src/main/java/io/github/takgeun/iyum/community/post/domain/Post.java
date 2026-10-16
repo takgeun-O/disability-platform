@@ -84,7 +84,7 @@ public class Post {
             );
         }
 
-        if(topic == null) {
+        if (topic == null) {
             throw new IllegalArgumentException(
                     "주제는 필수입니다."
             );
@@ -97,6 +97,7 @@ public class Post {
         this.content = PostInputPolicy.validateContent(content);
     }
 
+    // 객체가 아직 없는 상태에서 create()를 호출하므로 static 선언
     public static Post create(
             Member author,
             PostType type,
@@ -105,5 +106,61 @@ public class Post {
             String content
     ) {
         return new Post(author, type, topic, title, content);
+    }
+
+    // update()는 수정할 객체가 이미 있는 상태에서 호출하므로 static 선언 X
+    public void update(
+            PostType type,
+            PostTopic topic,
+            String title,
+            String content
+    ) {
+        if (type == null) {
+            throw new IllegalArgumentException(
+                    "글 유형은 필수입니다."
+            );
+        }
+
+        if (topic == null) {
+            throw new IllegalArgumentException(
+                    "주제는 필수입니다."
+            );
+        }
+
+        // 모든 검증을 먼저 마친다.
+        String normalizedTitle =
+                PostInputPolicy.normalizeTitle(title);
+
+        String validatedContent =
+                PostInputPolicy.validateContent(content);
+
+        // 검증에 모두 성공했을 때만 기존 값 변경
+        // this.title = PostInputPolicy.normalizeTitle(title);
+        // this.content = PostInputPolicy.validateContent(content);
+        // 위처럼 변경하면 제목은 정상이라 변경됐는데 content 검증에서 예외가 발생할 경우 메모리에 있는 객체는 제목만 바뀐 상태가 되어버린다.
+        // 아래 방식은 객체 내부의 변경 순서를 안전하게 만드는 것일 뿐 DB 트랜잭션 처리는 서비스에서 별도로 구현해야 한다.
+
+        // 또한 updatedAt은 여기서 직접 대입하지 않고, @LastModifiedDate와 JPA Auditing을 활용할 것.
+        // JPA가 변경 사항을 DB에 반영하는 flush 과정에서 updatedAt이 갱신될 것. (전제 : JPA Auditing 활성화되어 있고 트랜잭션 안에서 JPA가 관리하는 엔티티를 수정하는 경우)
+        this.type = type;
+        this.topic = topic;
+        this.title = normalizedTitle;
+        this.content = validatedContent;
+    }
+
+    // 실제 요청을 처리할 때는 서버의 서비스가 삭제 시각을 전달할 것 (사용자가 요청 본문으로 보내는 값은 아님)
+    public void delete(Instant deletedAt) {
+        if (deletedAt == null) {
+            throw new IllegalArgumentException(
+                    "삭제 시각은 필수입니다."
+            );
+        }
+
+        // 중복 삭제 요청 시 최초 삭제 시각 유지
+        if (this.deletedAt != null) {
+            return;
+        }
+
+        this.deletedAt = deletedAt;
     }
 }

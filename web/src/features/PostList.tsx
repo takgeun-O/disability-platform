@@ -1,6 +1,7 @@
 "use client"
 // 입력 중인 조건은 이 폼의 로컬 상태다. 적용하기 전에는 URL이나 목록 요청을 바꾸지 않는다.
 // URL 전환이 커밋되기 전에도 이전 응답을 무효화한다.
+import { usePostVersion } from "@/lib/community-mutations"
 import { useEffect, useId, useRef, useState, type FormEvent } from "react"
 import { usePathname, useSearchParams } from "next/navigation"
 import Link from "@/components/AppLink"
@@ -113,9 +114,10 @@ export default function PostList({ initial, space }: { initial: InitialPostList;
   const query = listQuery(params, pathname)
   const href = listHref(query, pathname)
   const [retry, setRetry] = useState(0)
-  const requestKey = `${href}:${retry}`
+  const mutation = usePostVersion("list")
+  const requestKey = `${href}:${retry}:${mutation}`
   const [result, setResult] = useState<Result>({
-    key: `${listHref(initial.query, pathname)}:0`,
+    key: `${listHref(initial.query, pathname)}:0:0`,
     snapshot: initial.data ? { key: listHref(initial.query, pathname), query: initial.query, page: initial.data } : null,
     error: initial.error?.message ?? null,
   })
@@ -151,7 +153,7 @@ export default function PostList({ initial, space }: { initial: InitialPostList;
   const loading =
     result.key !==
     requestKey
-  const snapshot = result.snapshot
+  const snapshot = result.key.endsWith(`:${mutation}`) ? result.snapshot : null
   const displayedQuery =
     snapshot?.query ??
     query
@@ -162,7 +164,7 @@ export default function PostList({ initial, space }: { initial: InitialPostList;
 
   useEffect(() => {
     // Strict Mode에서도 초기 SSR 결과를 다시 요청하지 않는다.
-    if (firstRequest.current && requestKey === `${listHref(initial.query, pathname)}:0`) return
+    if (firstRequest.current && requestKey === `${listHref(initial.query, pathname)}:0:0`) return
     firstRequest.current = false
     const ticket = ++generation.current
     const controller = new AbortController()
@@ -189,7 +191,7 @@ export default function PostList({ initial, space }: { initial: InitialPostList;
         ) {
           setResult((previous) => ({
             key: requestKey,
-            snapshot: previous.snapshot,
+            snapshot: previous.key.endsWith(`:${mutation}`) ? previous.snapshot : null,
             error:
               error instanceof
               CommunityApiError
@@ -201,7 +203,7 @@ export default function PostList({ initial, space }: { initial: InitialPostList;
     return () => {
       controller.abort()
     }
-  }, [href, requestKey, queryType, queryTopic, queryPage, initial.query, pathname])
+  }, [href, requestKey, queryType, queryTopic, queryPage, initial.query, pathname, mutation])
 
   useEffect(() => {
     if (loading || error || snapshot?.key !== href) return
