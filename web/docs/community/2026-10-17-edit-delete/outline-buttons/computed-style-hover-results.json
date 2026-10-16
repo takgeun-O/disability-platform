@@ -1,0 +1,9 @@
+{
+  "checks": [
+    "header text actions at 1440/390/320, long content, touch targets and keyboard return"
+  ],
+  "pageErrors": [],
+  "passed": 1,
+  "failed": false,
+  "mocked": true
+}

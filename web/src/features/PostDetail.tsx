@@ -1,4 +1,6 @@
 "use client"
+import PostActions from "@/components/community/PostActions"
+import { usePostVersion } from "@/lib/community-mutations"
 import { useEffect, useState } from "react"
 import { useParams, useSearchParams } from "next/navigation"
 import Link from "@/components/AppLink"
@@ -21,14 +23,15 @@ export default function PostDetail({ initial }: { initial: InitialPostDetail }) 
   const params = useSearchParams()
   useEffect(listenForListReturn, [])
   const [retry, setRetry] = useState(0)
-  const key = `${postId}:${retry}`
+  const mutation = usePostVersion(postId)
+  const key = `${postId}:${retry}:${mutation}`
   const [result, setResult] = useState<{
     key: string
     post?: Detail
     error?: ReadError
-  }>({ key, post: initial.data ?? undefined, error: initial.error ?? undefined })
+  }>({ key: `${postId}:0:0`, post: initial.data ?? undefined, error: initial.error ?? undefined })
   useEffect(() => {
-    if (retry === 0) return
+    if (retry === 0 && mutation === 0) return
     const controller = new AbortController()
     getPost(postId, controller.signal)
       .then((post) => {
@@ -49,7 +52,7 @@ export default function PostDetail({ initial }: { initial: InitialPostDetail }) 
           })
       })
     return () => controller.abort()
-  }, [postId, key, retry])
+  }, [postId, key, retry, mutation])
   const loading = result.key !== key
   const post = !loading ? result.post : undefined
   const error = !loading ? result.error : undefined
@@ -98,12 +101,15 @@ export default function PostDetail({ initial }: { initial: InitialPostDetail }) 
             <header>
               <PostTags type={post.type} topic={post.topic} />
               <h2>{post.title}</h2>
+              <div className="community-article-meta-row">
               <div className="community-post-meta">
                 <span>{post.author.nickname}</span>
                 <span aria-hidden="true">·</span>
                 <time dateTime={post.createdAt}>
                   {postDate(post.createdAt)}
                 </time>
+              </div>
+              <PostActions post={post} back={back} />
               </div>
             </header>
             <div className="community-post-body">{post.content}</div>

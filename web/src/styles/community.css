@@ -169,3 +169,14 @@
 .topic-spaces:not(.topic-spaces-side) img { width: 28px; }
 .topic-spaces:not(.topic-spaces-side) a > span:last-child { display: none; }
 .topic-spaces a > span { word-break: keep-all; }
+
+.community-article-meta-row { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 16px; }
+.community-article-meta-row > .community-post-meta { flex: 1 1 180px; min-width: 0; margin: 0; }
+.community-owner-actions { display: flex; flex: 0 0 auto; gap: 8px; margin-left: auto; }
+/* 상세 헤더에만 적용하며 삭제 확인창의 위험 동작 스타일은 유지한다. */
+.community-owner-action { display: inline-flex; align-items: center; justify-content: center; min-width: 44px; min-height: 44px; padding: 8px 12px; border: 1px solid color-mix(in srgb, var(--iyum-muted) 55%, var(--iyum-border)); border-radius: 6px; background: var(--iyum-surface); color: var(--iyum-muted); font: inherit; font-size: 15px; font-weight: 600; text-decoration: none; cursor: pointer; }
+.community-owner-action-edit { color: var(--iyum-primary); border-color: color-mix(in srgb, var(--iyum-primary) 65%, var(--iyum-border)); }
+.community-owner-action:hover { border-color: currentColor; background: var(--iyum-mist); }
+.community-article header h2 { overflow-wrap: anywhere; }
+.community-danger { color: #a32727; border: 1px solid #c16c6c; background: #fff; }
+.community-danger:hover:not(:disabled) { background: #fff1f1; }

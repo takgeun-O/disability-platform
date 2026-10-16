@@ -1,0 +1,11 @@
+{
+  "checks": [
+    "author id only; checking/anonymous/other member hidden",
+    "1440/390/320 edit + delete layout and Tab loop",
+    "header text actions at 1440/390/320, long content, touch targets and keyboard return"
+  ],
+  "pageErrors": [],
+  "passed": 3,
+  "failed": false,
+  "mocked": true
+}

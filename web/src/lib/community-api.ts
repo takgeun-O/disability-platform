@@ -235,6 +235,7 @@ async function request(
   }
   let body: unknown = null
   if (
+    response.status !== 204 &&
     /^application\/json(?:;|$)/i.test(
       response.headers.get("content-type") ?? "",
     )
@@ -318,4 +319,30 @@ export async function createPost(values: PostForm): Promise<{ id: number }> {
   if (response.status !== 201 || !object(body) || !positiveId(body.id))
     throw responseError(response.status, body, true)
   return { id: body.id }
+}
+
+// 수정·삭제는 매번 CSRF를 조회하며 변경 요청을 자동 재전송하지 않는다.
+export async function changePost(id: string, method: "PUT" | "DELETE", values: PostForm | undefined,
+  isCurrent: () => boolean = () => true): Promise<boolean> {
+  let csrf
+  try { csrf = await getCsrfContext() }
+  catch { throw new CommunityApiError(0, "CSRF_PREPARATION_FAILED", "보안 확인 정보를 가져오지 못해 요청을 보내지 않았습니다. 다시 시도해 주세요.") }
+  // CSRF 대기 중 확정된 이탈 뒤에는 변경 요청을 새로 보내지 않는다.
+  if (!isCurrent()) return false
+  try {
+    const { response, body } = await request("/" + id, {
+      method,
+      headers: { [csrf.headerName]: csrf.token, ...(method === "PUT" ? { "Content-Type": "application/json" } : {}) },
+      ...(method === "PUT" && values ? { body: JSON.stringify({ type: values.type, topic: values.topic, title: normalizeTitle(values.title), content: values.content }) } : {}),
+    }, true)
+    if (response.status !== 204) throw responseError(response.status, body, true)
+    return true
+  } catch (error) {
+    if (!(error instanceof CommunityApiError)) throw error
+    if (error.uncertain) error.message = `${method === "PUT" ? "수정" : "삭제"} 결과를 확인하지 못했습니다. 이미 처리되었을 수 있으니 새 탭에서 게시글을 먼저 확인해 주세요.`
+    else if (error.code === "CSRF_TOKEN_INVALID") error.message = "보안 확인 정보가 만료되었습니다. 다시 시도하면 새 정보로 요청합니다. 입력 내용은 유지됩니다."
+    else if (error.code === "ACCESS_DENIED") error.message = "이 게시글을 변경할 권한이 없습니다. 작성자 계정을 확인해 주세요."
+    else if (error.code === "POST_WRITE_NOT_ALLOWED") error.message = "현재 계정 상태에서는 게시글을 변경할 수 없습니다."
+    throw error
+  }
 }

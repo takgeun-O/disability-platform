@@ -1,0 +1,14 @@
+{
+  "checks": [],
+  "pageErrors": [],
+  "passed": 0,
+  "failed": true,
+  "mocked": true,
+  "observation": {
+    "scenario": "PUT 지연 → 이탈 승인 → 동일 수정 화면 재진입 → 네 필드 새 입력 → 이전 PUT 204 해제",
+    "assertion": "late PUT must not unmount the new editor",
+    "actual_isConnected": false,
+    "expected_isConnected": true,
+    "scope": "수정 전 프로덕션 복사본 + 제어 가능한 모의 API"
+  }
+}
