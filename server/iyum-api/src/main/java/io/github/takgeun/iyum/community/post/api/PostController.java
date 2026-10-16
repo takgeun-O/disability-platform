@@ -33,6 +33,7 @@ public class PostController {
     private final PostCreateService postCreateService;
     private final PostReadService postReadService;
     private final PostUpdateService postUpdateService;
+    private final PostDeleteService postDeleteService;
 
     @Operation(
             summary = "게시글 작성",
@@ -326,6 +327,113 @@ public class PostController {
 
         return ResponseEntity
                 .noContent()
+                .cacheControl(CacheControl.noStore())
+                .build();
+    }
+
+    @Operation(
+            summary = "게시글 삭제",
+            description = """
+                로그인한 작성자가 자신의 게시글을 논리 삭제합니다.
+                DB의 현재 회원 상태가 ACTIVE인 경우에만 허용합니다.
+                존재하지 않거나 이미 삭제된 게시글은 404를 반환합니다.
+                로그인 후 발급받은 CSRF 토큰과 같은 세션 쿠키가 필요합니다.
+                요청 본문은 사용하지 않습니다.
+                """,
+            parameters = @Parameter(
+                    name = "X-CSRF-TOKEN",
+                    in = ParameterIn.HEADER,
+                    required = true,
+                    description = "로그인 후 GET /api/v1/auth/csrf로 받은 토큰",
+                    schema = @Schema(type = "string")
+            )
+    )
+    @ApiResponses({
+            @ApiResponse(
+                    responseCode = "204",
+                    description = "게시글 삭제 완료",
+                    content = @Content
+            ),
+            @ApiResponse(
+                    responseCode = "400",
+                    description = "게시글 ID 형식 오류",
+                    content = @Content(
+                            mediaType = MediaType.APPLICATION_JSON_VALUE,
+                            schema = @Schema(
+                                    implementation = ApiErrorResponse.class
+                            )
+                    )
+            ),
+            @ApiResponse(
+                    responseCode = "401",
+                    description = "로그인 필요 또는 현재 회원 정보 확인 불가",
+                    content = @Content(
+                            mediaType = MediaType.APPLICATION_JSON_VALUE,
+                            schema = @Schema(
+                                    implementation = ApiErrorResponse.class
+                            )
+                    )
+            ),
+            @ApiResponse(
+                    responseCode = "403",
+                    description = "CSRF 검증 실패, 삭제 불가 상태 또는 작성자 불일치",
+                    content = @Content(
+                            mediaType = MediaType.APPLICATION_JSON_VALUE,
+                            schema = @Schema(
+                                    implementation = ApiErrorResponse.class
+                            )
+                    )
+            ),
+            @ApiResponse(
+                    responseCode = "404",
+                    description = "존재하지 않거나 이미 삭제된 게시글",
+                    content = @Content(
+                            mediaType = MediaType.APPLICATION_JSON_VALUE,
+                            schema = @Schema(
+                                    implementation = ApiErrorResponse.class
+                            )
+                    )
+            ),
+            @ApiResponse(
+                    responseCode = "500",
+                    description = "처리하지 못한 서버 오류",
+                    content = @Content(
+                            mediaType = MediaType.APPLICATION_JSON_VALUE,
+                            schema = @Schema(
+                                    implementation = ApiErrorResponse.class
+                            )
+                    )
+            )
+    })
+    // 삭제 메서드는 수정 API와 달리 입력할 제목이나 본문이 없으므로 삭제 요청 DTO나 입력 검증기는 만들지 않아도 된다.
+    // 또한 요청 본문이 없는 API이기 때문에 consumes = APPLICATION_JSON_VALUE를 지정하지 않음.
+    @DeleteMapping("/{postId}")
+    public ResponseEntity<Void> delete( // Void : 응답 본문이 없다는 의미 (204 응답 반환할 것)
+            @Parameter(hidden = true)
+            @AuthenticationPrincipal MemberPrincipal principal,
+
+            @Parameter(description = "게시글 ID", example = "123")
+            @PathVariable("postId") Long postId
+    ) {
+
+        if(principal == null) {
+            throw new PostDeleteException(
+                    PostDeleteException.Code.MEMBER_NOT_FOUND
+            );
+        }
+
+        postDeleteService.delete(
+                principal.getMemberId(),
+                postId
+        );
+
+        return ResponseEntity
+                .noContent()
+                // Cache-Control: no-store
+                // 이전에 받은 응답을 보관했다가 재사용하여 서버 요청과 대기 시간을 줄이는 기능
+                // 개인정보를 응답에 담거나, 매번 현재 상태를 확인해야 하는 응답의 경우 재사용하는 것은 적절하지 않으니 no-store 사용
+                // 다만 백엔드에서의 이 설정이 삭제 후 옛날 글이 화면에 남는 문제를 해결해 주는 설정은 아님.
+                // 삭제 후 옛날 글이 화면에 남는 문제는 프론트엔드에서 게시글 목록을 다시 조회하는 식으로 해서 해결해야 함.
                 .cacheControl(CacheControl.noStore())
                 .build();
     }

@@ -77,9 +77,11 @@ public class DevCorsConfig {
         CorsConfiguration postDetailCors = new CorsConfiguration(cors);
         // 게시글 상세 경로에만 PUT을 추가한다.
         postDetailCors.setAllowedMethods(
-                List.of("GET", "POST", "PUT", "OPTIONS")
+                List.of("GET", "POST", "PUT", "DELETE", "OPTIONS")
         );
-        source.registerCorsConfiguration("/api/v1/community/posts/*", postDetailCors);
+        source.registerCorsConfiguration(
+                "/api/v1/community/posts/*",
+                postDetailCors);
 
         return source;
     }

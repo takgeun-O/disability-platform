@@ -5,6 +5,7 @@ import io.github.takgeun.iyum.auth.signup.application.SignupConflictException;
 import io.github.takgeun.iyum.auth.signup.application.SignupTermsException;
 import io.github.takgeun.iyum.auth.security.EmailVerificationRequiredException;
 import io.github.takgeun.iyum.community.post.application.PostCreateException;
+import io.github.takgeun.iyum.community.post.application.PostDeleteException;
 import io.github.takgeun.iyum.community.post.application.PostReadException;
 import io.github.takgeun.iyum.community.post.application.PostUpdateException;
 import org.springframework.beans.TypeMismatchException;
@@ -317,6 +318,34 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
                         responseCode,
                         message
                 ));
+    }
+
+    @ExceptionHandler(PostDeleteException.class)
+    public ResponseEntity<ApiErrorResponse> handlePostDelete(
+            PostDeleteException exception
+    ) {
+        HttpStatus status = switch (exception.getCode()) {
+            case MEMBER_NOT_FOUND -> HttpStatus.UNAUTHORIZED;
+            case MEMBER_NOT_ACTIVE, NOT_POST_AUTHOR -> HttpStatus.FORBIDDEN;
+            case POST_NOT_FOUND -> HttpStatus.NOT_FOUND;
+        };
+
+        String code = switch (exception.getCode()) {
+            case MEMBER_NOT_FOUND -> "AUTHENTICATION_REQUIRED";
+            case MEMBER_NOT_ACTIVE -> "POST_WRITE_NOT_ALLOWED";
+            case NOT_POST_AUTHOR -> "ACCESS_DENIED";
+            case POST_NOT_FOUND -> "POST_NOT_FOUND";
+        };
+
+        String message =
+                exception.getCode() == PostDeleteException.Code.MEMBER_NOT_FOUND
+                        ? "로그인이 필요합니다."
+                        : exception.getMessage();
+
+        return ResponseEntity
+                .status(status)
+                .cacheControl(CacheControl.noStore())
+                .body(ApiErrorResponse.of(code, message));
     }
 
     @ExceptionHandler(Exception.class)

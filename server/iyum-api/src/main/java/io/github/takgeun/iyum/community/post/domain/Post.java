@@ -84,7 +84,7 @@ public class Post {
             );
         }
 
-        if(topic == null) {
+        if (topic == null) {
             throw new IllegalArgumentException(
                     "주제는 필수입니다."
             );
@@ -115,13 +115,13 @@ public class Post {
             String title,
             String content
     ) {
-        if(type == null) {
+        if (type == null) {
             throw new IllegalArgumentException(
                     "글 유형은 필수입니다."
             );
         }
 
-        if(topic == null) {
+        if (topic == null) {
             throw new IllegalArgumentException(
                     "주제는 필수입니다."
             );
@@ -146,5 +146,21 @@ public class Post {
         this.topic = topic;
         this.title = normalizedTitle;
         this.content = validatedContent;
+    }
+
+    // 실제 요청을 처리할 때는 서버의 서비스가 삭제 시각을 전달할 것 (사용자가 요청 본문으로 보내는 값은 아님)
+    public void delete(Instant deletedAt) {
+        if (deletedAt == null) {
+            throw new IllegalArgumentException(
+                    "삭제 시각은 필수입니다."
+            );
+        }
+
+        // 중복 삭제 요청 시 최초 삭제 시각 유지
+        if (this.deletedAt != null) {
+            return;
+        }
+
+        this.deletedAt = deletedAt;
     }
 }

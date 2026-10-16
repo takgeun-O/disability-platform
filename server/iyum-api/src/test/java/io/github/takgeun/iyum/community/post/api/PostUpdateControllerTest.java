@@ -1,11 +1,7 @@
 package io.github.takgeun.iyum.community.post.api;
 
 import io.github.takgeun.iyum.auth.security.MemberPrincipal;
-import io.github.takgeun.iyum.community.post.application.PostCreateService;
-import io.github.takgeun.iyum.community.post.application.PostReadService;
-import io.github.takgeun.iyum.community.post.application.PostUpdateCommand;
-import io.github.takgeun.iyum.community.post.application.PostUpdateException;
-import io.github.takgeun.iyum.community.post.application.PostUpdateService;
+import io.github.takgeun.iyum.community.post.application.*;
 import io.github.takgeun.iyum.community.post.domain.PostTopic;
 import io.github.takgeun.iyum.community.post.domain.PostType;
 import io.github.takgeun.iyum.global.config.DevCorsConfig;
@@ -82,6 +78,9 @@ class PostUpdateControllerTest {
 
     @MockitoBean
     PostUpdateService postUpdateService;
+
+    @MockitoBean
+    PostDeleteService postDeleteService;
 
     @Test
     void 로그인_회원_ID와_수정_내용을_전달하고_204를_반환한다()

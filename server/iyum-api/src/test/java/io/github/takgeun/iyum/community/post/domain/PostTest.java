@@ -3,6 +3,8 @@ package io.github.takgeun.iyum.community.post.domain;
 import io.github.takgeun.iyum.member.domain.Member;
 import org.junit.jupiter.api.Test;
 
+import java.time.Instant;
+
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
@@ -216,6 +218,73 @@ class PostTest {
 
         assertThat(post.getContent())
                 .isEqualTo("기존 본문");
+    }
+
+    @Test
+    void 게시글을_삭제하면_삭제_시각을_기록하고_기존_내용을_보존한다() {
+        Member author = createAuthor();
+
+        Post post = Post.create(
+                author,
+                PostType.QUESTION,
+                PostTopic.HEARING_AID,
+                "보청기 질문입니다",
+                "기존 본문입니다"
+        );
+
+        Instant deletedAt = Instant.parse(
+                "2026-10-16T12:00:00Z"
+        );
+
+        post.delete(deletedAt);
+
+        assertThat(post.getDeletedAt()).isEqualTo(deletedAt);
+        assertThat(post.getAuthor()).isSameAs(author);
+        assertThat(post.getType()).isEqualTo(PostType.QUESTION);
+        assertThat(post.getTopic()).isEqualTo(PostTopic.HEARING_AID);
+        assertThat(post.getTitle()).isEqualTo("보청기 질문입니다");
+        assertThat(post.getContent()).isEqualTo("기존 본문입니다");
+    }
+
+    @Test
+    void 삭제_시각이_없으면_삭제할_수_없다() {
+        Post post = Post.create(
+                createAuthor(),
+                PostType.GENERAL,
+                PostTopic.DAILY,
+                "제목",
+                "본문"
+        );
+
+        assertThatThrownBy(() -> post.delete(null))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessage("삭제 시각은 필수입니다.");
+
+        assertThat(post.getDeletedAt()).isNull();
+    }
+
+    @Test
+    void 이미_삭제된_게시글은_최초_삭제_시각을_유지한다() {
+        Post post = Post.create(
+                createAuthor(),
+                PostType.GENERAL,
+                PostTopic.DAILY,
+                "제목",
+                "본문"
+        );
+
+        Instant firstDeletedAt = Instant.parse(
+                "2026-10-16T12:00:00Z"
+        );
+
+        Instant secondDeletedAt = Instant.parse(
+                "2026-10-16T13:00:00Z"
+        );
+
+        post.delete(firstDeletedAt);
+        post.delete(secondDeletedAt);
+
+        assertThat(post.getDeletedAt()).isEqualTo(firstDeletedAt);
     }
 
     private Member createAuthor() {

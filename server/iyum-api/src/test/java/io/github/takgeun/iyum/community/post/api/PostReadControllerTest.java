@@ -71,6 +71,9 @@ class PostReadControllerTest {
     @MockitoBean
     PostUpdateService postUpdateService;
 
+    @MockitoBean
+    PostDeleteService postDeleteService;
+
     @Test
     void 비로그인으로_기본_목록을_조회할_수_있다()
             throws Exception {
