@@ -4,6 +4,7 @@ import io.github.takgeun.iyum.auth.emailverification.application.InvalidEmailVer
 import io.github.takgeun.iyum.auth.signup.application.SignupConflictException;
 import io.github.takgeun.iyum.auth.signup.application.SignupTermsException;
 import io.github.takgeun.iyum.auth.security.EmailVerificationRequiredException;
+import io.github.takgeun.iyum.community.comment.application.CommentCreateException;
 import io.github.takgeun.iyum.community.comment.application.CommentReadException;
 import io.github.takgeun.iyum.community.post.application.PostCreateException;
 import io.github.takgeun.iyum.community.post.application.PostDeleteException;
@@ -367,6 +368,37 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
                 .body(ApiErrorResponse.of(
                         exception.getCode().name(),
                         exception.getMessage()
+                ));
+    }
+
+    @ExceptionHandler(CommentCreateException.class)
+    public ResponseEntity<ApiErrorResponse> handleCommentCreate(
+            CommentCreateException exception
+    ) {
+        HttpStatus status = switch (exception.getCode()) {
+            case AUTHOR_NOT_FOUND -> HttpStatus.UNAUTHORIZED;
+            case AUTHOR_NOT_ACTIVE -> HttpStatus.FORBIDDEN;
+            case POST_NOT_FOUND -> HttpStatus.NOT_FOUND;
+        };
+
+        String code = switch (exception.getCode()) {
+            case AUTHOR_NOT_FOUND -> "AUTHENTICATION_REQUIRED";
+            case AUTHOR_NOT_ACTIVE -> "COMMENT_WRITE_NOT_ALLOWED";
+            case POST_NOT_FOUND -> "POST_NOT_FOUND";
+        };
+
+        String message =
+                exception.getCode()
+                        == CommentCreateException.Code.AUTHOR_NOT_FOUND
+                        ? "로그인이 필요합니다."
+                        : exception.getMessage();
+
+        return ResponseEntity
+                .status(status)
+                .cacheControl(CacheControl.noStore())
+                .body(ApiErrorResponse.of(
+                        code,
+                        message
                 ));
     }
 
