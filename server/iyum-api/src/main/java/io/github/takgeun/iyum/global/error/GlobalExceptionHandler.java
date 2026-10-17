@@ -4,6 +4,7 @@ import io.github.takgeun.iyum.auth.emailverification.application.InvalidEmailVer
 import io.github.takgeun.iyum.auth.signup.application.SignupConflictException;
 import io.github.takgeun.iyum.auth.signup.application.SignupTermsException;
 import io.github.takgeun.iyum.auth.security.EmailVerificationRequiredException;
+import io.github.takgeun.iyum.community.comment.application.CommentReadException;
 import io.github.takgeun.iyum.community.post.application.PostCreateException;
 import io.github.takgeun.iyum.community.post.application.PostDeleteException;
 import io.github.takgeun.iyum.community.post.application.PostReadException;
@@ -346,6 +347,27 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
                 .status(status)
                 .cacheControl(CacheControl.noStore())
                 .body(ApiErrorResponse.of(code, message));
+    }
+
+    @ExceptionHandler(CommentReadException.class)
+    public ResponseEntity<ApiErrorResponse> handleCommentRead(
+            CommentReadException exception
+    ) {
+        HttpStatus status = switch (exception.getCode()) {
+            case INVALID_PAGE_REQUEST, INVALID_CURSOR ->
+                    HttpStatus.BAD_REQUEST;
+
+            case POST_NOT_FOUND ->
+                    HttpStatus.NOT_FOUND;
+        };
+
+        return ResponseEntity
+                .status(status)
+                .cacheControl(CacheControl.noStore())
+                .body(ApiErrorResponse.of(
+                        exception.getCode().name(),
+                        exception.getMessage()
+                ));
     }
 
     @ExceptionHandler(Exception.class)

@@ -123,7 +123,8 @@ public class SecurityConfig {
                                     HttpMethod.GET,
                                     "/api/v1/auth/csrf",
                                     "/api/v1/community/posts",
-                                    "/api/v1/community/posts/*"
+                                    "/api/v1/community/posts/*",
+                                    "/api/v1/community/posts/*/comments"
                             )
                             .permitAll();
 
