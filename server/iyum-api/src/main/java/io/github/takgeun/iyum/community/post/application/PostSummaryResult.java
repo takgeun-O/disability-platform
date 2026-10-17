@@ -13,17 +13,22 @@ public record PostSummaryResult(
         PostTopic topic,
         String title,
         PostAuthorResult author,
-        Instant createdAt
+        Instant createdAt,
+        long commentCount   // 댓글이 없으면 0으로 표현해야 하니 null이 없는 기본형 사용
 ) {
 
-    public static PostSummaryResult from(Post post) {
+    public static PostSummaryResult from(
+            Post post,
+            long commentCount
+    ) {
         return new PostSummaryResult(
                 post.getId(),
                 post.getType(),
                 post.getTopic(),
                 post.getTitle(),
                 PostAuthorResult.from(post.getAuthor()),
-                post.getCreatedAt()
+                post.getCreatedAt(),
+                commentCount
         );
     }
 }

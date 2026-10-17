@@ -79,4 +79,25 @@ public interface CommentRepository
             @Param("postId") Long postId,
             @Param("commentId") Long commentId
     );
+
+    /**
+     * 전달 받은 게시글들의 공개 댓글 수를 한번에 집계한다.
+     * 댓글이 없는 게시글은 결과에 포함되지 않는다.
+     *
+     * p.id in :postIds -> 현재 목록에 표시할 게시글들만 대상으로 조회
+     * group by p.id -> 게시글별로 묶어서 댓글 수 계산
+     */
+    @Query("""
+            select p.id as postId,
+                count(c.id) as commentCount
+            from Comment c
+            join c.post p
+            where p.id in :postIds
+                and p.deletedAt is null
+                and c.deletedAt is null
+            group by p.id
+            """)
+    List<PostCommentCount> countVisibleCommentsByPostIds(
+            @Param("postIds") List<Long> postIds
+    );
 }

@@ -333,6 +333,7 @@ export default function PostList({ initial, space }: { initial: InitialPostList;
                       <time dateTime={post.createdAt}>
                         {postDate(post.createdAt)}
                       </time>
+                      <span className="community-comment-count">댓글 {post.commentCount}</span>
                     </div>
                   </li>
                 ))}

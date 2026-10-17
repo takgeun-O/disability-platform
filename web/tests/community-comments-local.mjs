@@ -63,6 +63,21 @@ async function waitFor(predicate) {
   }
   throw Error("Condition not reached")
 }
+// Only reads and navigates around the post created by this run.
+async function verifyListCount(expected) {
+  const response = await page.request.get(api + "/api/v1/community/posts?type=GENERAL&topic=WELFARE_LIFE&page=0&size=20")
+  assert.equal(response.status(), 200)
+  const own = (await response.json()).items.find(p => p.id === created.postId)
+  assert(own, "new test post must be on latest page")
+  assert.equal(own.commentCount, expected)
+  await page.locator(".community-back").click()
+  const link = page.getByRole("link", { name: textTitle, exact: true })
+  await link.waitFor()
+  assert(await link.locator("xpath=ancestor::li").getByText(`댓글 ${expected}`, { exact: true }).isVisible())
+  await shot(`real-list-count-${expected}`)
+  await link.click()
+  await page.locator(".community-post-body").waitFor()
+}
 async function shot(name) {
   await page.evaluate(() => document.fonts.ready)
   await page.screenshot({
@@ -225,6 +240,7 @@ try {
   await check(
     "실제 댓글 POST 201 → PUT 204 → SSR 새로고침 → DELETE 204",
     async () => {
+      await verifyListCount(0)
       const text = "  [로컬 댓글 검증 예시] 😀\n줄바꿈 보존"
       await page.locator("#comment-draft").fill(text)
       const response = page.waitForResponse(
@@ -241,6 +257,7 @@ try {
         await row.locator(".community-comment-body").textContent(),
         text,
       )
+      await verifyListCount(1)
       await row.getByRole("button", { name: "댓글 수정", exact: true }).click()
       await page
         .locator("#comment-edit-" + created.commentId)
@@ -253,6 +270,7 @@ try {
       await page.getByRole("button", { name: "댓글 저장", exact: true }).click()
       assert.equal((await update).status(), 204)
       await page.getByText(text + "\n수정 확인", { exact: true }).waitFor()
+      await verifyListCount(1)
       await page.reload()
       await row.waitFor()
       assert.equal(
@@ -287,6 +305,7 @@ try {
       await page.getByText("댓글을 삭제했습니다.", { exact: true }).waitFor()
       assert.equal(await row.count(), 0)
       created.commentStatus = "soft-deleted"
+      await verifyListCount(0)
       await page.reload()
       await page
         .getByText("아직 댓글이 없습니다. 첫 이야기를 나눠 주세요.", {

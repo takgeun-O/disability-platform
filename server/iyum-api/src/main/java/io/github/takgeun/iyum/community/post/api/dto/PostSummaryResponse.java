@@ -14,7 +14,14 @@ public record PostSummaryResponse(
         PostTopic topic,
         String title,
         PostAuthorResponse author,
-        Instant createdAt
+        Instant createdAt,
+
+        @Schema(
+                description = "논리 삭제되지 않은 댓글 수",
+                example = "3",
+                minimum = "0"
+        )
+        long commentCount
 ) {
 
     public static PostSummaryResponse from(
@@ -26,7 +33,8 @@ public record PostSummaryResponse(
                 result.topic(),
                 result.title(),
                 PostAuthorResponse.from(result.author()),
-                result.createdAt()
+                result.createdAt(),
+                result.commentCount()
         );
     }
 }

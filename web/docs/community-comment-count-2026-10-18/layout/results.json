@@ -1,0 +1,9 @@
+{
+  "kind": "mock",
+  "results": [
+    {
+      "name": "list count SSR/noJS: zero, positive, large; no per-post comment fetch",
+      "status": "passed"
+    }
+  ]
+}

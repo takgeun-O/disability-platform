@@ -12,7 +12,7 @@ import {
   type PostQuery,
 } from "./community-posts"
 
-export type PostSummary = {
+type PostCommon = {
   id: number
   type: PostType
   topic: PostTopic
@@ -20,7 +20,8 @@ export type PostSummary = {
   author: { memberId: number; nickname: string }
   createdAt: string
 }
-export type PostDetail = PostSummary & { content: string; updatedAt: string }
+export type PostSummary = PostCommon & { commentCount: number }
+export type PostDetail = PostCommon & { content: string; updatedAt: string }
 export type PostPage = {
   items: PostSummary[]
   page: number
@@ -51,7 +52,7 @@ const instant = (v: unknown): v is string =>
   typeof v === "string" &&
   /^\d{4}-\d\d-\d\dT.+Z$/.test(v) &&
   Number.isFinite(Date.parse(v))
-function isSummary(v: unknown): v is PostSummary {
+function isCommon(v: unknown): v is PostCommon {
   return (
     object(v) &&
     positiveId(v.id) &&
@@ -67,6 +68,9 @@ function isSummary(v: unknown): v is PostSummary {
     !!v.author.nickname.trim() &&
     instant(v.createdAt)
   )
+}
+function isSummary(v: unknown): v is PostSummary {
+  return object(v) && nonnegative(v.commentCount) && isCommon(v)
 }
 function isPage(v: unknown, query: PostQuery): v is PostPage {
   return (
@@ -282,7 +286,7 @@ export async function getPost(
     typeof body.content !== "string" ||
     !normalizeTitle(body.content) ||
     !instant(body.updatedAt) ||
-    !isSummary(body) ||
+    !isCommon(body) ||
     body.id !== Number(id)
   )
     throw responseError(response.status, body, false)

@@ -28,6 +28,7 @@ import java.util.List;
 import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.tuple;
 import static org.mockito.Mockito.when;
 
 @SpringBootTest(properties = {
@@ -541,6 +542,144 @@ class CommentRepositoryTest {
                         commentId
                 )
         ).isEmpty();
+    }
+
+    @Test
+    void 요청한_게시글들의_댓글_개수를_게시글별로_집계한다() {
+        Member author = saveActiveMember(
+                "count-group@example.com",
+                "집계회원"
+        );
+
+        Post firstPost = savePost(author, "첫 번째 게시글");
+        Post secondPost = savePost(author, "두 번째 게시글");
+        Post otherPost = savePost(author, "요청하지 않은 게시글");
+
+        saveCommentAt(
+                firstPost, author, "첫 번째 글의 댓글 1", CREATED_TIME
+        );
+        saveCommentAt(
+                firstPost, author, "첫 번째 글의 댓글 2", CREATED_TIME
+        );
+        saveCommentAt(
+                secondPost, author, "두 번째 글의 댓글", CREATED_TIME
+        );
+        saveCommentAt(
+                otherPost, author, "집계 대상이 아닌 댓글", CREATED_TIME
+        );
+
+        Long firstPostId = firstPost.getId();
+        Long secondPostId = secondPost.getId();
+
+        entityManager.flush();
+        entityManager.clear();
+
+        List<PostCommentCount> result = commentRepository.countVisibleCommentsByPostIds(
+                List.of(firstPostId, secondPostId)
+        );
+
+        assertThat(result)
+                .extracting(
+                        PostCommentCount::getPostId,
+                        PostCommentCount::getCommentCount
+                )
+                .containsExactlyInAnyOrder(
+                        // tuple(): 게시글 ID와 댓글 수를 한 쌍으로 비교하기 위해 사용
+                        tuple(firstPostId, 2L),
+                        tuple(secondPostId, 1L)
+                );
+    }
+
+    @Test
+    void 삭제된_댓글과_삭제된_게시글의_댓글은_개수에서_제외한다() {
+        Member author = saveActiveMember(
+                "count-deleted@example.com",
+                "삭제집계회원"
+        );
+
+        Post visiblePost = savePost(author, "공개 게시글");
+        Post deletedPost = savePost(author, "삭제할 게시글");
+
+        saveCommentAt(
+                visiblePost, author, "남아 있는 댓글", CREATED_TIME
+        );
+
+        Comment deletedComment = saveCommentAt(
+                visiblePost, author, "삭제할 댓글", CREATED_TIME
+        );
+
+        Comment commentOnDeletedPost = saveCommentAt(
+                deletedPost, author, "삭제된 글에 남을 댓글", CREATED_TIME
+        );
+
+        Long visiblePostId = visiblePost.getId();
+        Long deletedPostId = deletedPost.getId();
+        Long deletedCommentId = deletedComment.getId();
+        Long commentOnDeletedPostId = commentOnDeletedPost.getId();
+
+        // 댓글, 게시글 소프트 삭제
+        deletedComment.delete(UPDATED_TIME);
+        deletedPost.delete(UPDATED_TIME);
+
+        entityManager.flush();
+        entityManager.clear();
+
+        List<PostCommentCount> result = commentRepository.countVisibleCommentsByPostIds(
+                List.of(visiblePostId, deletedPostId)
+        );
+
+        assertThat(result)
+                .extracting(
+                        PostCommentCount::getPostId,
+                        PostCommentCount::getCommentCount
+                )
+                .containsExactly(
+                        tuple(visiblePostId, 1L)
+                );
+
+        // 삭제된 댓글은 DB에 남아있지만 집계에서는 제외
+        assertThat(
+                commentRepository.findById(deletedCommentId)
+                        .orElseThrow()
+                        .getDeletedAt()
+        ).isEqualTo(UPDATED_TIME);
+
+        // 댓글 자체가 삭제되지 않았더라도 부모 게시글이 삭제되면 제외된다.
+        assertThat(
+                commentRepository.findById(commentOnDeletedPostId)
+                        .orElseThrow()
+                        .getDeletedAt()
+        ).isNull();
+    }
+
+    @Test
+    void 댓글이_없거나_모두_삭제된_게시글은_집계_결과에_포함되지_않는다() {
+        Member author = saveActiveMember(
+                "count-empty@example.com",
+                "빈집계회원"
+        );
+
+        Post emptyPost = savePost(author, "댓글 없는 게시글");
+        Post allDeletedPost = savePost(author, "댓글이 모두 삭제된 게시글");
+
+        Comment deletedComment = saveCommentAt(
+                allDeletedPost, author, "삭제할 댓글", CREATED_TIME
+        );
+
+        Long emptyPostId = emptyPost.getId();
+        Long allDeletedPostId = allDeletedPost.getId();
+
+        deletedComment.delete(UPDATED_TIME);
+
+        entityManager.flush();
+        entityManager.clear();
+
+        List<PostCommentCount> result =
+                commentRepository.countVisibleCommentsByPostIds(
+                        List.of(emptyPostId, allDeletedPostId)
+                );
+
+        assertThat(result).isEmpty();
     }
 
     private Comment saveComment(String content) {

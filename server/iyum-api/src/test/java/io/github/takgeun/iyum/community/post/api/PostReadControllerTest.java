@@ -380,14 +380,57 @@ class PostReadControllerTest {
         );
     }
 
+    @Test
+    void 목록_응답에_댓글_개수를_숫자로_포함한다()
+            throws Exception {
+        when(postReadService.getPosts(null, null, 0, 20))
+                .thenReturn(new PageImpl<>(
+                        List.of(
+                                summary(123L, 3L),
+                                summary(124L, 0L)
+                        ),
+                        PageRequest.of(0, 20),
+                        2
+                ));
+
+        // 로그인 쿠키나 CSRF 토큰 없이 공개 조회한다.
+        mockMvc.perform(get(BASE))
+                .andExpect(status().isOk())
+                .andExpect(content().contentTypeCompatibleWith(
+                        MediaType.APPLICATION_JSON
+                ))
+                .andExpect(jsonPath("$.items.length()").value(2))
+                .andExpect(jsonPath("$.items[0].id").value(123))
+                .andExpect(jsonPath("$.items[0].commentCount")
+                        .isNumber())
+                .andExpect(jsonPath("$.items[0].commentCount")
+                        .value(3))
+                .andExpect(jsonPath("$.items[1].id").value(124))
+                .andExpect(jsonPath("$.items[1].commentCount")
+                        .isNumber())
+                .andExpect(jsonPath("$.items[1].commentCount")
+                        .value(0))
+                .andExpect(jsonPath("$.totalElements").value(2));
+
+        verify(postReadService).getPosts(null, null, 0, 20);
+    }
+
     private PostSummaryResult summary(Long postId) {
+        return summary(postId, 0L);
+    }
+
+    private PostSummaryResult summary(
+            Long postId,
+            long commentCount
+    ) {
         return new PostSummaryResult(
                 postId,
                 PostType.QUESTION,
                 PostTopic.HEARING_AID,
                 "보청기 적응 질문",
                 new PostAuthorResult(7L, "질문작성자"),
-                CREATED_AT
+                CREATED_AT,
+                commentCount
         );
     }
 }

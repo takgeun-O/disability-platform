@@ -8,6 +8,11 @@ export function postChanged(id: string) {
     versions.set(key, (versions.get(key) ?? 0) + 1)
   listeners.forEach((listener) => listener())
 }
+// 댓글 변경은 상세 버전을 건드리지 않는다. 편집 중인 폼/초점을 유지한다.
+export function postListChanged() {
+  versions.set("list", (versions.get("list") ?? 0) + 1)
+  listeners.forEach((listener) => listener())
+}
 const subscribe = (listener: () => void) => {
   listeners.add(listener)
   return () => {

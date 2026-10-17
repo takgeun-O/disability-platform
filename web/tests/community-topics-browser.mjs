@@ -27,7 +27,7 @@ const items = Array.from({ length: 441 }, (_, index) => ({ id: index + 1, type: 
 function listBody(url) {
   const q = new URL(url).searchParams, page = Number(q.get('page') ?? 0), size = Number(q.get('size') ?? 20);
   const filtered = items.filter(item => (!q.get('type') || item.type === q.get('type')) && (!q.get('topic') || item.topic === q.get('topic')));
-  return { items: filtered.slice(page * size, (page + 1) * size), page, size, totalElements: filtered.length, totalPages: Math.ceil(filtered.length / size), hasNext: (page + 1) * size < filtered.length };
+  return { items: filtered.slice(page * size, (page + 1) * size).map(item => ({ ...item, commentCount: item.id % 5 })), page, size, totalElements: filtered.length, totalPages: Math.ceil(filtered.length / size), hasNext: (page + 1) * size < filtered.length };
 }
 async function mock(options = {}) {
   const context = await browser.newContext({ viewport: { width: 1440, height: 1000 }, locale: 'ko-KR', reducedMotion: 'reduce' });
@@ -76,7 +76,13 @@ const form = page => page.getByRole('form', { name: '게시글 작성' });
 const title = page => page.getByPlaceholder('제목을 입력하세요.');
 const content = page => page.getByPlaceholder('내용을 입력하세요.');
 const register = page => form(page).getByRole('button', { name: '등록', exact: true });
-async function listReady(page) { await page.waitForFunction(() => document.querySelector('.community-list-column [aria-busy]')?.getAttribute('aria-busy') === 'false'); }
+async function listReady(page) {
+  await page.waitForFunction(() => document.querySelector('.community-list-column [aria-busy]')?.getAttribute('aria-busy') === 'false');
+  for (const row of await posts(page).all()) {
+    const id = Number(new URL(await row.locator('a').getAttribute('href'), base).pathname.split('/').at(-1));
+    assert.equal(await row.locator('.community-comment-count').innerText(), `댓글 ${id % 5}`);
+  }
+}
 async function noOverflow(page) { assert(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)); }
 async function shot(page, name) { await page.evaluate(() => document.fonts.ready); await page.screenshot({ path: path.join(output, name + '.png'), fullPage: true }); await page.evaluate(()=>scrollTo(0,0)); await page.screenshot({path:path.join(output,name+'-viewport.png')}); }
 async function fillPost(page) {

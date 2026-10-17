@@ -39,6 +39,7 @@ const failure = (code) => ({
   message: "do not expose private message",
   fieldErrors: [],
 })
+let listCountOverride = null, ssrCommentRequests = 0
 let comments = [],
   readFail = false
 function read(url) {
@@ -64,7 +65,7 @@ function read(url) {
     return {
       status: 200,
       json: {
-        items: [post],
+        items: [{ ...post, commentCount: listCountOverride ?? comments.length }],
         page: 0,
         size: 20,
         totalElements: 1,
@@ -79,6 +80,7 @@ const server = http.createServer(async (req, res) => {
   if (req.url.includes("/comments")) {
     assert.equal(req.headers.cookie, undefined)
     assert.equal(req.headers.authorization, undefined)
+    ssrCommentRequests++
     ssrReadReached = true
     if (ssrGate) await ssrGate
   }
@@ -127,7 +129,7 @@ async function fixture(identity = member, count = 22) {
         const created = comments.length
           ? Math.max(...comments.map((c) => c.commentId)) + 1
           : 1
-        comments.push({ ...item(created), content: req.postDataJSON().content })
+        comments.push({ ...item(created), author: { memberId: member.memberId, nickname: member.nickname }, content: req.postDataJSON().content })
         return r.fulfill({ status: 201, json: { commentId: created } })
       }
       if (method === "PUT")
@@ -173,6 +175,105 @@ async function until(fn) {
   throw Error("controlled request was not reached")
 }
 try {
+  await check("list count SSR/noJS: zero, positive, large; no per-post comment fetch",async()=>{
+    for(const count of [0,3,Number.MAX_SAFE_INTEGER]){
+      comments=Array.from({length:count===3?3:0},(_,i)=>item(i+1));readFail=false
+      listCountOverride=count
+      const originalTitle=post.title,originalNickname=post.author.nickname
+      if(count===Number.MAX_SAFE_INTEGER){post.title="긴 제목 ".repeat(24);post.author.nickname="긴작성자이름".repeat(8)}
+      const ctx=await browser.newContext({javaScriptEnabled:false}),p=await ctx.newPage()
+      try {for(const route of ["/community","/community/topics/hearing-aid"]){
+        ssrCommentRequests=0
+        await p.goto(base+route)
+        assert(await p.getByText(`댓글 ${count}`,{exact:true}).isVisible())
+        assert.equal(ssrCommentRequests,0)
+        for(const width of [1440,390,320]){
+          await p.setViewportSize({width,height:950})
+          assert(await p.evaluate(()=>document.documentElement.scrollWidth<=innerWidth))
+          if(count===Number.MAX_SAFE_INTEGER)await p.screenshot({path:output+`/count-${route.includes("topics")?"topic":"all"}-${width}.png`,fullPage:true})
+        }
+      }}finally{listCountOverride=null;post.title=originalTitle;post.author.nickname=originalNickname;await ctx.close()}
+    }
+  })
+  await check("count POST/PUT/DELETE uses server list; back/link preserve context and drafts",async()=>{
+    const {ctx,p,state}=await fixture(member,1)
+    try{
+      await p.goto(base+"/community/topics/hearing-aid?type=QUESTION")
+      await p.getByText("댓글 1",{exact:true}).waitFor()
+      await p.locator(".community-post-list a").first().scrollIntoViewIfNeeded()
+      const returnY=await p.evaluate(()=>scrollY)
+      await p.locator(".community-post-list a").first().click()
+      await p.locator("#comment-draft").fill("추가 댓글")
+      await p.getByRole("button",{name:"댓글 등록",exact:true}).click()
+      await p.getByText("댓글을 등록했습니다.",{exact:true}).waitFor()
+      await p.locator("#comment-edit-button-1").click()
+      await p.locator("#comment-edit-1").fill("내용만 수정")
+      await p.getByRole("button",{name:"댓글 저장",exact:true}).click()
+      await p.getByText("댓글을 수정했습니다.",{exact:true}).waitFor()
+      await p.goBack()
+      await p.getByText("댓글 2",{exact:true}).waitFor()
+      await p.waitForFunction(y=>Math.abs(scrollY-y)<5,returnY)
+      assert.equal(new URL(p.url()).searchParams.get("type"),"QUESTION")
+      await p.locator(".community-post-list a").first().click()
+      await p.locator("#comment-draft").fill("보존할 작성 초안")
+      await p.locator("#comment-edit-button-1").click()
+      await p.locator("#comment-edit-1").fill("보존할 수정 초안")
+      await p.locator("#comment-2").getByRole("button",{name:"댓글 삭제",exact:true}).click()
+      await p.getByRole("button",{name:"댓글 삭제하기",exact:true}).click()
+      await p.getByText("댓글을 삭제했습니다.",{exact:true}).waitFor()
+      assert.equal(await p.locator("#comment-draft").inputValue(),"보존할 작성 초안")
+      assert.equal(await p.locator("#comment-edit-1").inputValue(),"보존할 수정 초안")
+      await p.locator(".community-back").click()
+      await p.getByRole("button",{name:"나가기",exact:true}).click()
+      await p.getByText("댓글 1",{exact:true}).waitFor()
+      assert.equal(new URL(p.url()).searchParams.get("type"),"QUESTION")
+      assert.equal(state.calls.filter(c=>c.method==="POST").length,1)
+    }finally{await ctx.close()}
+  })
+  await check("late POST success invalidates list; superseded GET cannot overwrite count",async()=>{
+    const {ctx,p,state}=await fixture(member,1)
+    let release,releaseRead
+    try{
+      state.write=async r=>{await new Promise(resolve=>release=resolve);comments.push(item(2));await r.fulfill({status:201,json:{commentId:2}})}
+      await p.locator("#comment-draft").fill("늦은 저장")
+      await p.getByRole("button",{name:"댓글 등록",exact:true}).click();await until(()=>release)
+      await p.locator(".community-back").click();await p.getByRole("button",{name:"나가기",exact:true}).click()
+      await p.getByText("댓글 1",{exact:true}).waitFor()
+      const location=p.url()
+      state.get=async(r,u)=>{
+        if(u.pathname!=="/api/v1/community/posts")return r.fulfill(read(u))
+        const old=read(u);state.get=null
+        await new Promise(resolve=>releaseRead=resolve)
+        await r.fulfill(old).catch(()=>{})
+      }
+      // A new type selection starts an old GET, then late mutation forces a newer generation.
+      await p.getByLabel("글 유형",{exact:true}).selectOption("QUESTION")
+      await p.getByRole("button",{name:"적용",exact:true}).click();await until(()=>releaseRead)
+      release();await p.getByText("댓글 2",{exact:true}).waitFor()
+      releaseRead();await p.waitForTimeout(100)
+      assert(await p.getByText("댓글 2",{exact:true}).isVisible())
+      assert.equal(new URL(p.url()).pathname,new URL(location).pathname)
+      assert.equal(state.calls.filter(c=>c.method==="POST").length,1)
+    }finally{release?.();releaseRead?.();await ctx.close()}
+  })
+  for(const code of ["COMMENT_NOT_FOUND","SERVER_ERROR"]) await check(`count reconciliation after ${code}; no automatic mutation replay`,async()=>{
+    const {ctx,p,state}=await fixture(member,1)
+    try{
+      await p.goto(base+"/community/topics/hearing-aid")
+      await p.getByText("댓글 1",{exact:true}).waitFor()
+      await p.locator(".community-post-list a").first().click()
+      await p.locator("#comment-edit-button-1").click()
+      await p.locator("#comment-edit-1").fill("유지할 초안")
+      state.write=async r=>{comments=[];await r.fulfill({status:code === "COMMENT_NOT_FOUND"?404:500,json:failure(code)})}
+      await p.getByRole("button",{name:"댓글 저장",exact:true}).click()
+      if(code === "COMMENT_NOT_FOUND")await p.getByText("수정 초안을 보관하고 있어요",{exact:true}).waitFor()
+      else await p.locator(".community-comments .community-error").waitFor()
+      assert.equal(await p.locator("#comment-edit-1").inputValue(),"유지할 초안")
+      await p.locator(".community-back").click();await p.getByRole("button",{name:"나가기",exact:true}).click()
+      await p.getByText("댓글 0",{exact:true}).waitFor()
+      assert.equal(state.calls.filter(c=>c.method === "PUT").length,1)
+    }finally{await ctx.close()}
+  })
   // Design change: await first comments on the server so no-JS readers see real content.
   for (const fail of [false, true]) await check(`delayed server comments resolve before render; failure=${fail}`, async () => {
     comments=[item(1)];readFail=false;ssrReadReached=false
