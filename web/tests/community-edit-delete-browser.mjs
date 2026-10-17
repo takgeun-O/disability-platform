@@ -37,6 +37,8 @@ const failure = (code, fields = []) => ({
 })
 let post, readFailure
 function read(url) {
+  // 게시글 회귀 fixture: 댓글은 별도 계약의 빈 목록으로 응답한다.
+  if (url.pathname.endsWith("/comments")) return { status: 200, json: { items: [], hasNext: false, nextCursor: null } }
   if (readFailure) return { status: 503, json: failure("SERVER_ERROR") }
   if (url.pathname === "/api/v1/community/posts") {
     const page = Number(url.searchParams.get("page") ?? 0),

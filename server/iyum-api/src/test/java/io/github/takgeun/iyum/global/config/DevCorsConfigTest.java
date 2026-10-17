@@ -5,6 +5,10 @@ import io.github.takgeun.iyum.auth.signup.api.SignupController;
 import io.github.takgeun.iyum.auth.signup.application.SignupResult;
 import io.github.takgeun.iyum.auth.signup.application.SignupService;
 import io.github.takgeun.iyum.member.domain.MemberStatus;
+import io.github.takgeun.iyum.community.comment.api.CommentController;
+import io.github.takgeun.iyum.community.comment.application.*;
+import java.util.List;
+import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.user;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
@@ -25,7 +29,7 @@ import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
 
-@WebMvcTest(controllers = {SignupController.class, CsrfController.class}, properties = "spring.config.import=")
+@WebMvcTest(controllers = {SignupController.class, CsrfController.class, CommentController.class}, properties = "spring.config.import=")
 @Import({SecurityConfig.class, DevCorsConfig.class})
 @ActiveProfiles("dev")
 class DevCorsConfigTest {
@@ -33,6 +37,50 @@ class DevCorsConfigTest {
     @Autowired MockMvc mockMvc;
     @Autowired ObjectMapper objectMapper;
     @MockitoBean SignupService signupService;
+    @MockitoBean CommentReadService commentReadService;
+    @MockitoBean CommentCreateService commentCreateService;
+    @MockitoBean CommentUpdateService commentUpdateService;
+    @MockitoBean CommentDeleteService commentDeleteService;
+
+    @Test
+    void commentCorsAndCsrfBoundaries() throws Exception {
+        String collection = "/api/v1/community/posts/7/comments";
+        String item = collection + "/10";
+        for (String method : List.of("GET", "POST")) {
+            mockMvc.perform(options(collection).header(HttpHeaders.ORIGIN, ORIGIN)
+                    .header(HttpHeaders.ACCESS_CONTROL_REQUEST_METHOD, method)
+                    .header(HttpHeaders.ACCESS_CONTROL_REQUEST_HEADERS, "content-type,x-csrf-token"))
+                .andExpect(status().isOk()).andExpect(header().string(HttpHeaders.ACCESS_CONTROL_ALLOW_ORIGIN, ORIGIN))
+                .andExpect(header().string(HttpHeaders.ACCESS_CONTROL_ALLOW_CREDENTIALS, "true"))
+                .andExpect(header().string(HttpHeaders.ACCESS_CONTROL_ALLOW_HEADERS, "content-type, x-csrf-token"));
+        }
+        for (String method : List.of("PUT", "DELETE")) {
+            mockMvc.perform(options(item).header(HttpHeaders.ORIGIN, ORIGIN)
+                    .header(HttpHeaders.ACCESS_CONTROL_REQUEST_METHOD, method)
+                    .header(HttpHeaders.ACCESS_CONTROL_REQUEST_HEADERS, "content-type,x-csrf-token"))
+                .andExpect(status().isOk()).andExpect(header().string(HttpHeaders.ACCESS_CONTROL_ALLOW_METHODS, "PUT,DELETE,OPTIONS"));
+        }
+        mockMvc.perform(options(collection).header(HttpHeaders.ORIGIN, "https://evil.example")
+                .header(HttpHeaders.ACCESS_CONTROL_REQUEST_METHOD, "POST"))
+            .andExpect(status().isForbidden()).andExpect(header().doesNotExist(HttpHeaders.ACCESS_CONTROL_ALLOW_ORIGIN));
+        mockMvc.perform(options(collection).header(HttpHeaders.ORIGIN, ORIGIN).header(HttpHeaders.ACCESS_CONTROL_REQUEST_METHOD, "DELETE"))
+            .andExpect(status().isForbidden());
+        mockMvc.perform(options(item).header(HttpHeaders.ORIGIN, ORIGIN).header(HttpHeaders.ACCESS_CONTROL_REQUEST_METHOD, "GET"))
+            .andExpect(status().isForbidden());
+        when(commentReadService.getComments(7L, null, null, 20)).thenReturn(new CommentListResult(List.of(), false, null));
+        mockMvc.perform(get(collection).header(HttpHeaders.ORIGIN, ORIGIN))
+            .andExpect(status().isOk()).andExpect(header().string(HttpHeaders.ACCESS_CONTROL_ALLOW_ORIGIN, ORIGIN));
+        mockMvc.perform(post(collection).with(user("test-only")).header(HttpHeaders.ORIGIN, ORIGIN)
+                .contentType(MediaType.APPLICATION_JSON).content("{\"content\":\"test\"}"))
+            .andExpect(status().isForbidden()).andExpect(jsonPath("$.code").value("CSRF_TOKEN_INVALID"));
+        mockMvc.perform(put(item).with(user("test-only")).header(HttpHeaders.ORIGIN, ORIGIN)
+                .contentType(MediaType.APPLICATION_JSON).content("{\"content\":\"test\"}"))
+            .andExpect(status().isForbidden()).andExpect(jsonPath("$.code").value("CSRF_TOKEN_INVALID"));
+        mockMvc.perform(delete(item).with(user("test-only")).header(HttpHeaders.ORIGIN, ORIGIN))
+            .andExpect(status().isForbidden()).andExpect(jsonPath("$.code").value("CSRF_TOKEN_INVALID"));
+        verifyNoInteractions(commentCreateService, commentUpdateService, commentDeleteService);
+    }
+
 
     @Test
     void signupPreflightAllowsOnlyConfiguredOriginWithCredentialsAndRequiredHeaders() throws Exception {
