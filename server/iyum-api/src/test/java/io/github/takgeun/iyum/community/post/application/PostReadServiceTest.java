@@ -1,5 +1,7 @@
 package io.github.takgeun.iyum.community.post.application;
 
+import io.github.takgeun.iyum.community.comment.domain.Comment;
+import io.github.takgeun.iyum.community.comment.infrastructure.CommentRepository;
 import io.github.takgeun.iyum.community.post.domain.Post;
 import io.github.takgeun.iyum.community.post.domain.PostTopic;
 import io.github.takgeun.iyum.community.post.domain.PostType;
@@ -17,13 +19,16 @@ import org.springframework.data.domain.Page;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
+import org.springframework.test.context.bean.override.mockito.MockitoSpyBean;
 import org.springframework.transaction.support.TransactionSynchronizationManager;
 import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
 import org.testcontainers.postgresql.PostgreSQLContainer;
 
-import static org.assertj.core.api.Assertions.assertThat;
-import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import java.time.Instant;
+
+import static org.assertj.core.api.Assertions.*;
+import static org.mockito.Mockito.*;
 
 @SpringBootTest(properties = {
         "spring.config.import=",
@@ -68,6 +73,11 @@ class PostReadServiceTest {
     @Autowired
     MemberRepository memberRepository;
 
+    // 실제 Repository를 실행하면서 호출 횟수와 전달값도 확인하기 위해 사용
+    // 집계 결과를 가짜로 지정하지 않고 실제 Testcontainers DB에서 조회할 것
+    @MockitoSpyBean
+    CommentRepository commentRepository;
+
     @Autowired
     JdbcTemplate jdbcTemplate;
 
@@ -77,7 +87,8 @@ class PostReadServiceTest {
 
     @BeforeEach
     void setUp() {
-        // 이 테스트 전용 컨테이너의 데이터를 초기화한다.
+        // 테스트 전용 DB: 외래키 관계에 따라 댓글부터 삭제한다.
+        commentRepository.deleteAllInBatch();
         postRepository.deleteAllInBatch();
         memberRepository.deleteAllInBatch();
 
@@ -218,10 +229,10 @@ class PostReadServiceTest {
     void 삭제된_게시글은_목록과_상세에서_조회되지_않는다() {
         jdbcTemplate.update(
                 """
-                UPDATE community_posts
-                SET deleted_at = CURRENT_TIMESTAMP
-                WHERE id = ?
-                """,
+                        UPDATE community_posts
+                        SET deleted_at = CURRENT_TIMESTAMP
+                        WHERE id = ?
+                        """,
                 firstQuestionId
         );
 
@@ -291,6 +302,93 @@ class PostReadServiceTest {
                                         .INVALID_PAGE_REQUEST
                         )
         );
+    }
+
+    @Test
+    void 목록에_공개_댓글_수를_연결하고_댓글이_없으면_0을_반환한다() {
+        Member author = memberRepository.findById(authorId)
+                .orElseThrow();
+
+        Post firstPost = postRepository.findById(firstQuestionId)
+                .orElseThrow();
+
+        commentRepository.saveAndFlush(
+                Comment.create(firstPost, author, "공개 댓글 1")
+        );
+        commentRepository.saveAndFlush(
+                Comment.create(firstPost, author, "공개 댓글 2")
+        );
+
+        Comment deleted = Comment.create(
+                firstPost,
+                author,
+                "집계에서 제외할 댓글"
+        );
+        deleted.delete(Instant.now());
+        commentRepository.saveAndFlush(deleted);
+
+        // 준비 과정의 저장·삭제 호출 기록을 제외한다. (Mockito의 호출 기록만 초기화)
+        // DB 데이터는 지우지 않음.
+        clearInvocations(commentRepository);
+
+        Page<PostSummaryResult> result =
+                postReadService.getPosts(
+                        PostType.QUESTION,
+                        PostTopic.HEARING_AID,
+                        0,
+                        20
+                );
+
+        assertThat(result.getContent())
+                .extracting(
+                        PostSummaryResult::postId,
+                        PostSummaryResult::commentCount
+                )
+                .containsExactlyInAnyOrder(
+                        tuple(firstQuestionId, 2L),
+                        tuple(secondQuestionId, 0L)
+                );
+
+        assertThat(result.getTotalElements()).isEqualTo(2);
+        assertThat(result.getTotalPages()).isEqualTo(1);
+        assertThat(result.hasNext()).isFalse();
+
+        // 댓글 집계 메서드는 정확히 한번 호출
+        verify(commentRepository, times(1))
+                .countVisibleCommentsByPostIds(anyList());
+
+        // 필터에 맞는 현재 페이지의 게시글 ID만 전달
+        verify(commentRepository)
+                .countVisibleCommentsByPostIds(argThat(ids ->
+                        ids.size() == 2
+                                && ids.contains(firstQuestionId)
+                                && ids.contains(secondQuestionId)
+                ));
+    }
+
+    @Test
+    void 범위를_벗어난_빈_페이지는_댓글_집계를_생략하고_전체_개수를_유지한다() {
+        clearInvocations(commentRepository);
+
+        Page<PostSummaryResult> result =
+                postReadService.getPosts(
+                        PostType.QUESTION,
+                        PostTopic.HEARING_AID,
+                        10,
+                        1
+                );
+
+        assertThat(result.getContent()).isEmpty();
+
+        // 요청한 페이지는 비어도 조건에 맞는 게시글은 총 2개다.
+        assertThat(result.getNumber()).isEqualTo(10);
+        assertThat(result.getSize()).isEqualTo(1);
+        assertThat(result.getTotalElements()).isEqualTo(2);
+        assertThat(result.getTotalPages()).isEqualTo(2);
+        assertThat(result.hasNext()).isFalse();
+
+        // 빈 ID 목록으로 집계 쿼리를 실행하지 않는다.
+        verifyNoInteractions(commentRepository);
     }
 
     private Long savePost(

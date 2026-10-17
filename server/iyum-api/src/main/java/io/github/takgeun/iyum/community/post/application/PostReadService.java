@@ -1,5 +1,7 @@
 package io.github.takgeun.iyum.community.post.application;
 
+import io.github.takgeun.iyum.community.comment.infrastructure.CommentRepository;
+import io.github.takgeun.iyum.community.comment.infrastructure.PostCommentCount;
 import io.github.takgeun.iyum.community.post.domain.Post;
 import io.github.takgeun.iyum.community.post.domain.PostTopic;
 import io.github.takgeun.iyum.community.post.domain.PostType;
@@ -11,6 +13,10 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
 
 @Service
 @RequiredArgsConstructor
@@ -24,6 +30,7 @@ public class PostReadService {
     private static final int MAX_PAGE_SIZE = 50;
 
     private final PostRepository postRepository;
+    private final CommentRepository commentRepository;
 
     public Page<PostSummaryResult> getPosts(
             @Nullable PostType type,
@@ -41,8 +48,39 @@ public class PostReadService {
                 pageable
         );
 
-        // 페이지 안의 각 Post를 PostSummaryResult로 변환
-        return posts.map(PostSummaryResult::from);
+        // 현재 페이지에 게시글이 없으면 댓글 집계 쿼리 실행 X
+        // 원래 Page의 전체 개수와 페이지 정보는 그대로 유지
+        if(!posts.hasContent()) {
+            return posts.map(
+                    post -> PostSummaryResult.from(post, 0L)
+            );
+        }
+
+        // 현재 페이지에 포함된 게시글 ID만 추출한다.
+        List<Long> postIds = posts.getContent()
+                .stream()
+                .map(Post::getId)
+                .toList();
+
+        // 게시글마다 조회하지 않고 한번에 집계한다.
+        List<PostCommentCount> counts =
+                commentRepository.countVisibleCommentsByPostIds(postIds);
+
+        // 게시글 ID로 댓글 수를 찾을 수 있도록 Map으로 반환
+        Map<Long, Long> commentCounts = new HashMap<>();
+
+        for (PostCommentCount count : counts) {
+            commentCounts.put(
+                    count.getPostId(),
+                    count.getCommentCount()
+            );
+        }
+
+        // 댓글이 없는 게시글은 집계 결과에 없으므로 0으로 채운다.
+        return posts.map(post -> PostSummaryResult.from(
+                post,
+                commentCounts.getOrDefault(post.getId(), 0L)
+        ));
     }
 
     public PostDetailResult getPost(Long postId) {
