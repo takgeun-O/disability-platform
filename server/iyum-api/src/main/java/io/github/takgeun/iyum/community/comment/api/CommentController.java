@@ -37,6 +37,7 @@ public class CommentController {
     private final CommentReadService commentReadService;
     private final CommentCreateService commentCreateService;
     private final CommentUpdateService commentUpdateService;
+    private final CommentDeleteService commentDeleteService;
 
     @GetMapping(produces = MediaType.APPLICATION_JSON_VALUE)
     @Operation(
@@ -306,6 +307,102 @@ public class CommentController {
                 postId,
                 commentId,
                 request.toCommand()
+        );
+
+        return ResponseEntity
+                .noContent()
+                .cacheControl(CacheControl.noStore())
+                .build();
+    }
+
+    @DeleteMapping("/{commentId}")
+    @Operation(
+            summary = "댓글 삭제",
+            description = """
+                로그인한 회원이 본인이 작성한 댓글을 삭제합니다.
+                DB의 현재 회원 상태가 ACTIVE인 경우에만 허용합니다.
+                게시글 작성자라도 다른 회원의 댓글을 삭제할 수 없습니다.
+                DB 행은 유지하고 삭제 시각을 기록하며, 댓글 목록에서 제외합니다.
+                이미 삭제된 댓글에 다시 요청하면 404를 반환합니다.
+                요청 본문은 필요하지 않습니다.
+                성공하면 응답 본문 없이 204를 반환합니다.
+                로그인 후 발급받은 CSRF 토큰과 같은 세션 쿠키가 필요합니다.
+                """,
+            parameters = @Parameter(
+                    name = "X-CSRF-TOKEN",
+                    in = ParameterIn.HEADER,
+                    required = true,
+                    description = "로그인 후 GET /api/v1/auth/csrf로 받은 토큰",
+                    schema = @Schema(type = "string")
+            )
+    )
+    @ApiResponses({
+            @ApiResponse(
+                    responseCode = "204",
+                    description = "댓글 삭제 완료. 응답 본문 없음",
+                    content = @Content
+            ),
+            @ApiResponse(
+                    responseCode = "400",
+                    description = "게시글 ID 또는 댓글 ID 형식 오류",
+                    content = @Content(
+                            mediaType = MediaType.APPLICATION_JSON_VALUE,
+                            schema = @Schema(
+                                    implementation = ApiErrorResponse.class
+                            )
+                    )
+            ),
+            @ApiResponse(
+                    responseCode = "401",
+                    description = "로그인 필요 또는 회원 정보 확인 불가",
+                    content = @Content(
+                            mediaType = MediaType.APPLICATION_JSON_VALUE,
+                            schema = @Schema(
+                                    implementation = ApiErrorResponse.class
+                            )
+                    )
+            ),
+            @ApiResponse(
+                    responseCode = "403",
+                    description = "CSRF 검증 실패, 삭제 불가 회원 상태 또는 작성자 불일치",
+                    content = @Content(
+                            mediaType = MediaType.APPLICATION_JSON_VALUE,
+                            schema = @Schema(
+                                    implementation = ApiErrorResponse.class
+                            )
+                    )
+            ),
+            @ApiResponse(
+                    responseCode = "404",
+                    description = "게시글·댓글이 없거나 삭제됨 또는 게시글과 댓글 불일치",
+                    content = @Content(
+                            mediaType = MediaType.APPLICATION_JSON_VALUE,
+                            schema = @Schema(
+                                    implementation = ApiErrorResponse.class
+                            )
+                    )
+            )
+    })
+    public ResponseEntity<Void> delete(
+            @Parameter(hidden = true)
+            @AuthenticationPrincipal MemberPrincipal principal,
+
+            @Parameter(description = "게시글 ID", example = "123")
+            @PathVariable("postId") Long postId,
+
+            @Parameter(description = "댓글 ID", example = "10")
+            @PathVariable("commentId") Long commentId
+    ) {
+        if(principal == null) {
+            throw new CommentDeleteException(
+                    CommentDeleteException.Code.MEMBER_NOT_FOUND
+            );
+        }
+
+        commentDeleteService.delete(
+                principal.getMemberId(),
+                postId,
+                commentId
         );
 
         return ResponseEntity
