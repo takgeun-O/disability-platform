@@ -1,0 +1,15 @@
+{
+  "checks": [
+    "실제 회원가입 PENDING→Mailpit 인증→로그인 수동 수행",
+    "실제 CSRF+쿠키 글 작성 201·중복 제출 방지·상세 저장 내용"
+  ],
+  "created": {
+    "email": "iyum-community-mvcjoid8@example.test",
+    "nickname": "C_mvcjoid8",
+    "memberStatus": "ACTIVE",
+    "mailCount": 1,
+    "memberId": 31,
+    "postId": 11
+  },
+  "failed": true
+}

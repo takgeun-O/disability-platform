@@ -1,4 +1,7 @@
 "use client"
+import Comments from "@/components/community/Comments"
+import type { CommentPage } from "@/lib/community-comments"
+import type { PublicResult } from "@/lib/community-load"
 import PostActions from "@/components/community/PostActions"
 import { usePostVersion } from "@/lib/community-mutations"
 import { useEffect, useState } from "react"
@@ -18,7 +21,7 @@ import { postDate, safeListReturn, requestListScrollRestore, listenForListReturn
 
 import { topicByValue, topicPath } from "@/lib/community-topics"
 
-export default function PostDetail({ initial }: { initial: InitialPostDetail }) {
+export default function PostDetail({ initial, initialComments }: { initial: InitialPostDetail; initialComments: PublicResult<CommentPage> }) {
   const { postId } = useParams<{ postId: string }>()
   const params = useSearchParams()
   useEffect(listenForListReturn, [])
@@ -113,10 +116,11 @@ export default function PostDetail({ initial }: { initial: InitialPostDetail }) 
               </div>
             </header>
             <div className="community-post-body">{post.content}</div>
-            <p className="community-help community-feature-note">
-              댓글·좋아요 기능은 준비 중입니다.
-            </p>
+
           </article>
+        )}
+        {(initial.data || result.post) && (
+          <Comments key={postId} postId={postId} initial={initialComments} returnTo={`/community/posts/${postId}?from=${encodeURIComponent(back)}`} />
         )}
         {post && (
           <Link

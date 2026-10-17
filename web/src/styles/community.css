@@ -180,3 +180,25 @@
 .community-article header h2 { overflow-wrap: anywhere; }
 .community-danger { color: #a32727; border: 1px solid #c16c6c; background: #fff; }
 .community-danger:hover:not(:disabled) { background: #fff1f1; }
+
+/* Comment drafts are independent of post refreshes. Scoped styles preserve other forms. */
+.community-comments { margin-block: 32px; border-top: 1px solid var(--iyum-border); padding-top: 24px; overflow-wrap: anywhere; }
+.community-comments h2 { font-size: 24px; }
+.community-comment-list { list-style: none; margin: 16px 0; padding: 0; }
+.community-comment-list > li { border-bottom: 1px solid var(--iyum-border); padding: 20px 0; }
+.community-comment-meta { display: flex; align-items: baseline; gap: 8px 12px; flex-wrap: wrap; }
+.community-comment-meta time, .community-comment-meta > span { color: var(--iyum-muted); font-size: 14px; }
+.community-comment-body { white-space: pre-wrap; overflow-wrap: anywhere; margin-block: 12px; }
+.community-comment-actions { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 8px; }
+.community-comment-form { display: grid; gap: 8px; margin-top: 24px; }
+.community-comment-form label { font-weight: 600; }
+.community-comment-form textarea { width: 100%; min-height: 112px; padding: 12px; border: 1px solid var(--iyum-border); border-radius: 6px; background: white; color: var(--iyum-ink); font: inherit; resize: vertical; }
+.community-comment-form textarea[aria-invalid=true] { border-color: var(--iyum-danger); }
+.community-comment-form > span { color: var(--iyum-muted); font-size: 14px; }
+.community-comment-form > button { justify-self: end; }
+.community-comments button { min-height: 44px; }
+
+.community-comments-refresh { display: inline-flex; align-items: center; gap: 6px; flex-shrink: 0; }
+.community-comment-field-error { color: var(--iyum-danger); font-size: 14px; margin: 0; }
+.community-comment-detached { margin-block: 20px; padding: 16px; border: 1px solid var(--iyum-border); border-radius: 8px; background: var(--iyum-surface, #f5f9fc); }
+.community-comment-detached h3 { font-size: 18px; }

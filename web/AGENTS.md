@@ -35,7 +35,7 @@ Active integrated IYUM application: Next.js App Router, React 19, Tailwind CSS 4
 - P03 currently includes medical-aid history Q4 and application Q5. Preserve the actual code, not the older 15-result handoff alone.
 - P03 answers, selected products and the benefit view are local state; do not transmit or persist answers as part of unrelated work.
 - Keep medical-aid/insurance-unknown amount visibility rules, history yes/unknown distinction and conditional existing-device wording.
-- Authentication and community post creation/list/detail use the Spring Boot API. Comments and best-post aggregation remain unimplemented; home example data is labelled separately. Preserve existing API/session/CSRF contracts; do not add backend logic implicitly to Next route handlers.
+- Authentication and community post creation/list/detail use the Spring Boot API. Community comments now use the Spring API for public cursor reads and authenticated create/update/delete; likes and best-post aggregation remain unimplemented; home example data is labelled separately. Preserve existing API/session/CSRF contracts; do not add backend logic implicitly to Next route handlers.
 - Do not print `.env` values or Vercel credentials. Only explicitly public browser configuration may use NEXT_PUBLIC_.
 - Do not commit, push or deploy unless requested.
 

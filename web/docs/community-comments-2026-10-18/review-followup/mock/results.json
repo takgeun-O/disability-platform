@@ -1,0 +1,122 @@
+{
+  "kind": "mock",
+  "results": [
+    {
+      "name": "delayed comments stream independently of visible post; failure/retry",
+      "status": "passed"
+    },
+    {
+      "name": "delayed success is server HTML with no initial browser comment fetch",
+      "status": "passed"
+    },
+    {
+      "name": "field errors appear once immediately below each textarea; clear when valid",
+      "status": "passed"
+    },
+    {
+      "name": "missing edited comment retains accessible draft and releases only its dirty state: refresh",
+      "status": "passed"
+    },
+    {
+      "name": "missing edited comment retains accessible draft and releases only its dirty state: PUT404",
+      "status": "passed"
+    },
+    {
+      "name": "SSR visible comments without JS; isolated comments failure",
+      "status": "failed",
+      "message": "The expression evaluated to a falsy value:\n\n  assert(await p.getByText(\"댓글 예시 1\", { exact: false }).isVisible())\n"
+    },
+    {
+      "name": "cursor precision, more dedup/duplicate click, failed more retains list",
+      "status": "passed"
+    },
+    {
+      "name": "own controls; create >20, update, cancel/delete/focus, responsive",
+      "status": "passed"
+    },
+    {
+      "name": "anonymous cannot manage or submit; safe login return",
+      "status": "passed"
+    },
+    {
+      "name": "write success + refresh failure stays success and clears only submitted draft",
+      "status": "passed"
+    },
+    {
+      "name": "refresh never overwrites inline draft; combined dirty and discard",
+      "status": "passed"
+    },
+    {
+      "name": "approved departure while destination delayed: csrf",
+      "status": "passed"
+    },
+    {
+      "name": "approved departure while destination delayed: success",
+      "status": "passed"
+    },
+    {
+      "name": "approved departure while destination delayed: failure",
+      "status": "passed"
+    },
+    {
+      "name": "write error preserves input AUTHENTICATION_REQUIRED",
+      "status": "passed"
+    },
+    {
+      "name": "write error preserves input CSRF_TOKEN_INVALID",
+      "status": "passed"
+    },
+    {
+      "name": "write error preserves input COMMENT_WRITE_NOT_ALLOWED",
+      "status": "passed"
+    },
+    {
+      "name": "write error preserves input ACCESS_DENIED",
+      "status": "passed"
+    },
+    {
+      "name": "write error preserves input POST_NOT_FOUND",
+      "status": "passed"
+    },
+    {
+      "name": "write error preserves input SERVER_ERROR",
+      "status": "passed"
+    },
+    {
+      "name": "404 deleted comment removed without deleting other comments",
+      "status": "passed"
+    },
+    {
+      "name": "old successful PUT after reentry cannot overwrite new draft",
+      "status": "passed"
+    },
+    {
+      "name": "late GET cannot resurrect deleted item",
+      "status": "passed"
+    },
+    {
+      "name": "unicode validation, server field focus, cancel departure keeps request alive",
+      "status": "passed"
+    },
+    {
+      "name": "browser malformed/transport preserves draft: html",
+      "status": "passed"
+    },
+    {
+      "name": "browser malformed/transport preserves draft: broken-json",
+      "status": "passed"
+    },
+    {
+      "name": "browser malformed/transport preserves draft: network",
+      "status": "passed"
+    },
+    {
+      "name": "browser malformed/transport preserves draft: csrf-failure",
+      "status": "passed"
+    },
+    {
+      "name": "long content 1440/390/320, keyboard focus and dialog loop",
+      "status": "passed"
+    }
+  ]
+}

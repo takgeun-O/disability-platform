@@ -83,6 +83,11 @@ public class DevCorsConfig {
                 "/api/v1/community/posts/*",
                 postDetailCors);
 
+        source.registerCorsConfiguration("/api/v1/community/posts/*/comments", cors);
+        CorsConfiguration commentItemCors = new CorsConfiguration(cors);
+        commentItemCors.setAllowedMethods(List.of("PUT", "DELETE", "OPTIONS"));
+        source.registerCorsConfiguration("/api/v1/community/posts/*/comments/*", commentItemCors);
+
         return source;
     }
 }
