@@ -6,6 +6,7 @@ import io.github.takgeun.iyum.auth.signup.application.SignupTermsException;
 import io.github.takgeun.iyum.auth.security.EmailVerificationRequiredException;
 import io.github.takgeun.iyum.community.comment.application.CommentCreateException;
 import io.github.takgeun.iyum.community.comment.application.CommentReadException;
+import io.github.takgeun.iyum.community.comment.application.CommentUpdateException;
 import io.github.takgeun.iyum.community.post.application.PostCreateException;
 import io.github.takgeun.iyum.community.post.application.PostDeleteException;
 import io.github.takgeun.iyum.community.post.application.PostReadException;
@@ -26,6 +27,8 @@ import org.springframework.web.servlet.mvc.method.annotation.ResponseEntityExcep
 
 import java.util.Comparator;
 import java.util.List;
+
+import static io.github.takgeun.iyum.community.comment.application.CommentUpdateException.Code.COMMENT_NOT_FOUND;
 
 @RestControllerAdvice
 public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
@@ -400,6 +403,40 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
                         code,
                         message
                 ));
+    }
+
+    @ExceptionHandler(CommentUpdateException.class)
+    public ResponseEntity<ApiErrorResponse> handleCommentUpdate(
+            CommentUpdateException exception
+    ) {
+        HttpStatus status = switch (exception.getCode()) {
+            case MEMBER_NOT_FOUND -> HttpStatus.UNAUTHORIZED;
+
+            case MEMBER_NOT_ACTIVE, NOT_COMMENT_AUTHOR ->
+                    HttpStatus.FORBIDDEN;
+
+            case POST_NOT_FOUND, COMMENT_NOT_FOUND ->
+                    HttpStatus.NOT_FOUND;
+        };
+
+        String code = switch (exception.getCode()) {
+            case MEMBER_NOT_FOUND -> "AUTHENTICATION_REQUIRED";
+            case MEMBER_NOT_ACTIVE -> "COMMENT_WRITE_NOT_ALLOWED";
+            case NOT_COMMENT_AUTHOR -> "ACCESS_DENIED";
+            case POST_NOT_FOUND -> "POST_NOT_FOUND";
+            case COMMENT_NOT_FOUND -> "COMMENT_NOT_FOUND";
+        };
+
+        String message =
+                exception.getCode()
+                        == CommentUpdateException.Code.MEMBER_NOT_FOUND
+                        ? "로그인이 필요합니다."
+                        : exception.getMessage();
+
+        return ResponseEntity
+                .status(status)
+                .cacheControl(CacheControl.noStore())
+                .body(ApiErrorResponse.of(code, message));
     }
 
     @ExceptionHandler(Exception.class)

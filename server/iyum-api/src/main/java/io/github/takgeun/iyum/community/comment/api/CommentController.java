@@ -4,10 +4,8 @@ import io.github.takgeun.iyum.auth.security.MemberPrincipal;
 import io.github.takgeun.iyum.community.comment.api.dto.CommentCreateRequest;
 import io.github.takgeun.iyum.community.comment.api.dto.CommentCreateResponse;
 import io.github.takgeun.iyum.community.comment.api.dto.CommentListResponse;
-import io.github.takgeun.iyum.community.comment.application.CommentCreateException;
-import io.github.takgeun.iyum.community.comment.application.CommentCreateResult;
-import io.github.takgeun.iyum.community.comment.application.CommentCreateService;
-import io.github.takgeun.iyum.community.comment.application.CommentReadService;
+import io.github.takgeun.iyum.community.comment.api.dto.CommentUpdateRequest;
+import io.github.takgeun.iyum.community.comment.application.*;
 import io.github.takgeun.iyum.global.error.ApiErrorResponse;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
@@ -38,6 +36,7 @@ public class CommentController {
 
     private final CommentReadService commentReadService;
     private final CommentCreateService commentCreateService;
+    private final CommentUpdateService commentUpdateService;
 
     @GetMapping(produces = MediaType.APPLICATION_JSON_VALUE)
     @Operation(
@@ -196,7 +195,7 @@ public class CommentController {
             // 기존 handlerMethodArgumentNotValid()가 400 / VALIDATION_FAILED 응답을 만든다.
             @Valid @RequestBody CommentCreateRequest request
     ) {
-        if(principal == null) {
+        if (principal == null) {
             throw new CommentCreateException(
                     CommentCreateException.Code.AUTHOR_NOT_FOUND
             );
@@ -212,5 +211,106 @@ public class CommentController {
                 .status(HttpStatus.CREATED)
                 .cacheControl(CacheControl.noStore())
                 .body(CommentCreateResponse.from(result));
+    }
+
+    @PutMapping(
+            value = "/{commentId}",
+            consumes = MediaType.APPLICATION_JSON_VALUE
+    )
+    @Operation(
+            summary = "댓글 수정",
+            description = """
+                    로그인한 회원이 본인이 작성한 댓글을 수정합니다.
+                    DB의 현재 회원 상태가 ACTIVE인 경우에만 허용합니다.
+                    게시글 작성자라도 다른 회원의 댓글을 수정할 수 없습니다.
+                    존재하지 않거나 삭제된 게시글·댓글은 수정할 수 없습니다.
+                    동일한 본문으로 요청해도 정상 처리하며 수정 시각은 유지됩니다.
+                    성공하면 응답 본문 없이 204를 반환합니다.
+                    로그인 후 발급받은 CSRF 토큰과 같은 세션 쿠키가 필요합니다.
+                    """,
+            parameters = @Parameter(
+                    name = "X-CSRF-TOKEN",
+                    in = ParameterIn.HEADER,
+                    required = true,
+                    description = "로그인 후 GET /api/v1/auth/csrf로 받은 토큰",
+                    schema = @Schema(type = "string")
+            )
+    )
+    @ApiResponses({
+            @ApiResponse(
+                    responseCode = "204",
+                    description = "댓글 수정 완료. 응답 본문 없음",
+                    content = @Content
+            ),
+            @ApiResponse(
+                    responseCode = "400",
+                    description = "입력 검증 실패 또는 요청 형식 오류",
+                    content = @Content(
+                            mediaType = MediaType.APPLICATION_JSON_VALUE,
+                            schema = @Schema(
+                                    implementation = ApiErrorResponse.class
+                            )
+                    )
+            ),
+            @ApiResponse(
+                    responseCode = "401",
+                    description = "로그인 필요 또는 회원 정보 확인 불가",
+                    content = @Content(
+                            mediaType = MediaType.APPLICATION_JSON_VALUE,
+                            schema = @Schema(
+                                    implementation = ApiErrorResponse.class
+                            )
+                    )
+            ),
+            @ApiResponse(
+                    responseCode = "403",
+                    description = "CSRF 검증 실패, 수정 불가 회원 상태 또는 작성자 불일치",
+                    content = @Content(
+                            mediaType = MediaType.APPLICATION_JSON_VALUE,
+                            schema = @Schema(
+                                    implementation = ApiErrorResponse.class
+                            )
+                    )
+            ),
+            @ApiResponse(
+                    responseCode = "404",
+                    description = "게시글·댓글이 없거나 삭제됨 또는 게시글과 댓글 불일치",
+                    content = @Content(
+                            mediaType = MediaType.APPLICATION_JSON_VALUE,
+                            schema = @Schema(
+                                    implementation = ApiErrorResponse.class
+                            )
+                    )
+            )
+    })
+    public ResponseEntity<Void> update(
+            @Parameter(hidden = true)
+            @AuthenticationPrincipal MemberPrincipal principal,
+
+            @Parameter(description = "게시글 ID", example = "123")
+            @PathVariable("postId") Long postId,
+
+            @Parameter(description = "댓글 ID", example = "10")
+            @PathVariable("commentId") Long commentId,
+
+            @Valid @RequestBody CommentUpdateRequest request
+    ) {
+        if(principal == null) {
+            throw new CommentUpdateException(
+                    CommentUpdateException.Code.MEMBER_NOT_FOUND
+            );
+        }
+
+        commentUpdateService.update(
+                principal.getMemberId(),
+                postId,
+                commentId,
+                request.toCommand()
+        );
+
+        return ResponseEntity
+                .noContent()
+                .cacheControl(CacheControl.noStore())
+                .build();
     }
 }

@@ -8,6 +8,7 @@ import io.github.takgeun.iyum.community.post.infrastructure.PostRepository;
 import io.github.takgeun.iyum.member.domain.Member;
 import io.github.takgeun.iyum.member.infrastructure.MemberRepository;
 import jakarta.persistence.EntityManager;
+import jakarta.persistence.LockModeType;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -415,6 +416,129 @@ class CommentRepositoryTest {
                         cursorTime,
                         cursorId,
                         PageRequest.of(0, 20)
+                )
+        ).isEmpty();
+    }
+
+    @Test
+    void 수정할_댓글을_게시글_ID와_댓글_ID로_잠금_조회한다() {
+        Comment saved = saveComment("수정할 댓글");
+
+        Long commentId = saved.getId();
+        Long postId = saved.getPost().getId();
+        Long authorId = saved.getAuthor().getId();
+
+        entityManager.clear();
+
+        // 여기서 JPA는 DB에 잠금 조회를 요청하고, 조회된 found는 영속성 컨텍스트에서 관리된다.
+        Comment found = commentRepository
+                .findVisibleCommentByIdForUpdate(postId, commentId)
+                .orElseThrow();
+
+        assertThat(found.getId()).isEqualTo(commentId);
+        assertThat(found.getPost().getId()).isEqualTo(postId);
+        assertThat(found.getAuthor().getId()).isEqualTo(authorId);
+        assertThat(found.getContent()).isEqualTo("수정할 댓글");
+
+        // 관리 중인 엔티티에 적용된 잠금 모드를 확인한다.
+        assertThat(entityManager.getLockMode(found))
+                .isEqualTo(LockModeType.PESSIMISTIC_WRITE);
+    }
+
+    @Test
+    void 다른_게시글의_댓글은_수정용_조회에서_제외한다() {
+        Comment saved = saveComment("원래 게시글의 댓글");
+
+        Post otherPost = savePost(
+                saved.getPost().getAuthor(),
+                "다른 게시글"
+        );
+
+        Long commentId = saved.getId();
+        Long otherPostId = otherPost.getId();
+
+        entityManager.clear();
+
+        assertThat(
+                commentRepository.findVisibleCommentByIdForUpdate(
+                        otherPostId,
+                        commentId
+                )
+        ).isEmpty();
+    }
+
+    @Test
+    void 삭제된_댓글은_수정용_조회에서_제외한다() {
+        Comment saved = saveComment("삭제할 댓글");
+
+        Long commentId = saved.getId();
+        Long postId = saved.getPost().getId();
+
+        saved.delete(UPDATED_TIME);
+        entityManager.flush();
+        entityManager.clear();
+
+        assertThat(
+                commentRepository.findVisibleCommentByIdForUpdate(
+                        postId,
+                        commentId
+                )
+        ).isEmpty();
+
+        // 물리 삭제된 것이 아니라 조회 대상에서 제외된 것이다.
+        assertThat(
+                commentRepository.findById(commentId)
+                        .orElseThrow()
+                        .getDeletedAt()
+        ).isEqualTo(UPDATED_TIME);
+    }
+
+    @Test
+    void 게시글이_삭제되면_댓글도_수정용_조회에서_제외한다() {
+        Comment saved = saveComment("남아 있는 댓글");
+
+        Long commentId = saved.getId();
+        Long postId = saved.getPost().getId();
+
+        saved.getPost().delete(UPDATED_TIME);
+        entityManager.flush();
+        entityManager.clear();
+
+        assertThat(
+                commentRepository.findVisibleCommentByIdForUpdate(
+                        postId,
+                        commentId
+                )
+        ).isEmpty();
+
+        // 댓글 자체는 삭제되지 않았어도 부모 게시글이 삭제되면 제외한다.
+        assertThat(
+                commentRepository.findById(commentId)
+                        .orElseThrow()
+                        .getDeletedAt()
+        ).isNull();
+    }
+
+    @Test
+    void 게시글이나_댓글이_없으면_수정용_조회는_빈_결과를_반환한다() {
+        Comment saved = saveComment("기존 댓글");
+
+        Long commentId = saved.getId();
+        Long postId = saved.getPost().getId();
+
+        entityManager.clear();
+
+        assertThat(
+                commentRepository.findVisibleCommentByIdForUpdate(
+                        postId,
+                        Long.MAX_VALUE
+                )
+        ).isEmpty();
+
+        assertThat(
+                commentRepository.findVisibleCommentByIdForUpdate(
+                        Long.MAX_VALUE,
+                        commentId
                 )
         ).isEmpty();
     }
