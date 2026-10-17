@@ -6,7 +6,7 @@ const api = await loadTypeScript('../src/lib/community-api.ts', import.meta.url)
 const values = { type: 'QUESTION', topic: 'HEARING_AID', title: '  질문  ', content: '  첫 줄\n둘째 줄  ' };
 const item = { id: 7, type: 'QUESTION', topic: 'HEARING_AID', title: '질문', author: { memberId: 2, nickname: '검토회원' }, createdAt: '2026-10-14T00:00:00Z' };
 const query = { type: 'QUESTION', topic: 'HEARING_AID', page: 0 };
-const page = { items: [item], page: 0, size: 20, totalElements: 1, totalPages: 1, hasNext: false };
+const page = { items: [{ ...item, commentCount: 0 }], page: 0, size: 20, totalElements: 1, totalPages: 1, hasNext: false };
 const csrf = { headerName: 'X-CSRF-TOKEN', token: 'test-only' };
 function json(body, status = 200) { return new Response(JSON.stringify(body), { status, headers: { 'Content-Type': 'application/json;charset=UTF-8' } }); }
 async function withFetch(handler, run) {
@@ -55,12 +55,12 @@ test('POST는 새 CSRF를 먼저 받고 네 필드만 전송, 본문 원문 보�
 for (const [name, make] of [
   ['HTML', () => new Response('<html>login</html>', { status: 200, headers: { 'Content-Type': 'text/html' } })],
   ['깨진 JSON', () => new Response('{', { status: 200, headers: { 'Content-Type': 'application/json' } })],
-  ['누락 author', () => json({ ...page, items: [{ ...item, author: null }] })],
-  ['다른 필터 항목', () => json({ ...page, items: [{ ...item, type: 'GENERAL' }] })],
+  ['누락 author', () => json({ ...page, items: [{ ...item, commentCount: 0, author: null }] })],
+  ['다른 필터 항목', () => json({ ...page, items: [{ ...item, commentCount: 0, type: 'GENERAL' }] })],
   ['잘못된 페이징', () => json({ ...page, page: 1 })],
   ['잘못된 totalPages', () => json({ ...page, totalPages: 4 })],
-  ['잘못된 날짜', () => json({ ...page, items: [{ ...item, createdAt: 'yesterday' }] })],
-  ['unknown enum', () => json({ ...page, items: [{ ...item, topic: 'OTHER' }] })],
+  ['잘못된 날짜', () => json({ ...page, items: [{ ...item, commentCount: 0, createdAt: 'yesterday' }] })],
+  ['unknown enum', () => json({ ...page, items: [{ ...item, commentCount: 0, topic: 'OTHER' }] })],
   ['서버 500', () => json({ code: 'SERVER_ERROR', message: 'private', fieldErrors: [] }, 500)],
 ]) test(`목록 응답 거절: ${name}`, async () => withFetch(async () => make(), async () => {
   await assert.rejects(api.getPosts(query), error => error instanceof api.CommunityApiError && !error.uncertain && !error.message.includes('private'));
@@ -120,4 +120,11 @@ test('서버용 공개 조회는 지정한 내부 base만 사용하고 자격증
     assert.equal(options.credentials,'omit'); assert.equal(options.cache,'no-store');
     assert.deepEqual(options.headers,{Accept:'application/json'}); return json(page);
   },async()=>assert.deepEqual(await api.getPosts(query,undefined,'http://internal.example.test'),page));
+});
+
+for (const count of [0, 3, Number.MAX_SAFE_INTEGER]) test(`목록 commentCount 허용: ${count}`, async () => {
+  await withFetch(async () => json({...page, items:[{...item,commentCount:count}]}), async()=>assert.equal((await api.getPosts(query)).items[0].commentCount,count));
+});
+for (const count of [undefined, null, "3", -1, 1.5, Number.MAX_SAFE_INTEGER+1]) test(`목록 commentCount 거절: ${count}`, async () => {
+  await withFetch(async () => json({...page, items:[{...item,commentCount:count}]}), async()=>assert.rejects(api.getPosts(query),e=>e.code === 'UNEXPECTED_RESPONSE'));
 });

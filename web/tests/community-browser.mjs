@@ -27,7 +27,7 @@ const items = Array.from({ length: 63 }, (_, index) => ({ id: index + 1, type: t
 function listBody(url) {
   const q = new URL(url).searchParams, page = Number(q.get('page') ?? 0), size = Number(q.get('size') ?? 20);
   const filtered = items.filter(item => (!q.get('type') || item.type === q.get('type')) && (!q.get('topic') || item.topic === q.get('topic')));
-  return { items: filtered.slice(page * size, (page + 1) * size), page, size, totalElements: filtered.length, totalPages: Math.ceil(filtered.length / size), hasNext: (page + 1) * size < filtered.length };
+  return { items: filtered.slice(page * size, (page + 1) * size).map(item => ({ ...item, commentCount: item.id % 5 })), page, size, totalElements: filtered.length, totalPages: Math.ceil(filtered.length / size), hasNext: (page + 1) * size < filtered.length };
 }
 async function mock(options = {}) {
   const context = await browser.newContext({ viewport: { width: 1440, height: 1000 }, locale: 'ko-KR', reducedMotion: 'reduce' });
@@ -43,6 +43,7 @@ async function mock(options = {}) {
   });
   const handlePost = async route => {
     const request = route.request(); const url = new URL(request.url());
+    if (/^\/api\/v1\/community\/posts\/[^/]+\/comments$/.test(url.pathname)) return route.fulfill({ json: { items: [], hasNext: false, nextCursor: null } });
     if (request.method() === 'POST') {
       state.calls.post.push({ body: request.postDataJSON(), headers: request.headers() });
       return state.post ? state.post(route) : route.fulfill({ status: 201, json: { id: 1 } });

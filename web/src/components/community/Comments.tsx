@@ -1,6 +1,7 @@
 "use client"
 // Refresh the visible prefix, keeping editor snapshots separate from server data.
 import { useEffect, useRef, useState, type FormEvent } from "react"
+import { postListChanged } from "@/lib/community-mutations"
 import Link from "@/components/AppLink"
 import { useAuth } from "@/components/AuthProvider"
 import {
@@ -184,7 +185,10 @@ export default function Comments({
     let refresh = false
     try {
       const result = await changeComment(postId, method, id, content, current)
-      if (!current() || result === null) return
+      if (result === null) return
+      // 이미 보낸 요청의 성공은 이탈 후에도 목록에 반영하되 이전 폼은 건드리지 않는다.
+      if (method === "POST" || method === "DELETE") postListChanged()
+      if (!current()) return
       if (method === "DELETE") {
         removeItem(result)
         setNotice("댓글을 삭제했습니다.")
@@ -202,7 +206,6 @@ export default function Comments({
         refresh = true
       }
     } catch (e) {
-      if (!current()) return
       const failure =
         e instanceof CommentError
           ? e
@@ -213,6 +216,9 @@ export default function Comments({
               "",
               true,
             )
+      // 불확실한 결과/없어진 댓글은 서버 목록으로 확인한다. 변경 요청 재전송은 하지 않는다.
+      if (failure.uncertain || failure.code === "COMMENT_NOT_FOUND") postListChanged()
+      if (!current()) return
       if (failure.code === "COMMENT_NOT_FOUND" && id) {
         removeItem(id, method === "PUT")
         setNotice(method === "PUT" ? "서버에서 수정할 댓글을 찾지 못했습니다. 수정 초안은 유지했습니다." : "댓글이 없거나 이미 삭제되었습니다.")

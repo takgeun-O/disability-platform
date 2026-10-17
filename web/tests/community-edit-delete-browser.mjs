@@ -49,7 +49,7 @@ function read(url) {
         post.type === url.searchParams.get("type")) &&
       (!url.searchParams.get("topic") ||
         post.topic === url.searchParams.get("topic"))
-        ? [post]
+        ? [{ ...post, commentCount: 0 }]
         : []
     return {
       status: 200,
