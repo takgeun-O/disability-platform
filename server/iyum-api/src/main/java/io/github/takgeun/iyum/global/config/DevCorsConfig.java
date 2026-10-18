@@ -88,6 +88,19 @@ public class DevCorsConfig {
         commentItemCors.setAllowedMethods(List.of("PUT", "DELETE", "OPTIONS"));
         source.registerCorsConfiguration("/api/v1/community/posts/*/comments/*", commentItemCors);
 
+        // 내 프로필 조회: 기존 출처·쿠키·헤더 설정 유지
+        CorsConfiguration memberProfileCors =
+                new CorsConfiguration(cors);
+
+        memberProfileCors.setAllowedMethods(
+                List.of("GET", "OPTIONS")
+        );
+
+        source.registerCorsConfiguration(
+                "/api/v1/members/me",
+                memberProfileCors
+        );
+
         return source;
     }
 }

@@ -12,6 +12,7 @@ import io.github.takgeun.iyum.community.post.application.PostCreateException;
 import io.github.takgeun.iyum.community.post.application.PostDeleteException;
 import io.github.takgeun.iyum.community.post.application.PostReadException;
 import io.github.takgeun.iyum.community.post.application.PostUpdateException;
+import io.github.takgeun.iyum.member.application.MemberProfileException;
 import org.springframework.beans.TypeMismatchException;
 import org.springframework.http.*;
 import org.springframework.http.converter.HttpMessageNotReadableException;
@@ -475,6 +476,30 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
                 .status(status)
                 .cacheControl(CacheControl.noStore())
                 .body(ApiErrorResponse.of(code, message));
+    }
+
+    @ExceptionHandler(MemberProfileException.class)
+    public ResponseEntity<ApiErrorResponse> handleMemberProfile(
+            MemberProfileException exception
+    ) {
+        return switch (exception.getCode()) {
+
+            case MEMBER_NOT_FOUND -> ResponseEntity
+                    .status(HttpStatus.UNAUTHORIZED)
+                    .cacheControl(CacheControl.noStore())
+                    .body(ApiErrorResponse.of(
+                            "AUTHENTICATION_REQUIRED",
+                            "로그인이 필요합니다."
+                    ));
+
+            case MEMBER_NOT_ACTIVE -> ResponseEntity
+                    .status(HttpStatus.FORBIDDEN)
+                    .cacheControl(CacheControl.noStore())
+                    .body(ApiErrorResponse.of(
+                            "MEMBER_NOT_ACTIVE",
+                            exception.getMessage()
+                    ));
+        };
     }
 
     @ExceptionHandler(Exception.class)
