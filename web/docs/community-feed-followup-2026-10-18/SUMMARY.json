@@ -1,0 +1,93 @@
+{
+  "branch": "feat/community-post-cursor",
+  "head": "2adf11bff2e58394899d33157aa0a556df3306fa",
+  "checks": {
+    "mockFeed": {
+      "passed": 20,
+      "failed": 0,
+      "file": "mock-final/results.json"
+    },
+    "mockComments": {
+      "passed": 37,
+      "failed": 0,
+      "file": "comments/results.json"
+    },
+    "mockEditDelete": {
+      "passed": 29,
+      "failed": 0,
+      "file": "edit-delete/edit-delete-results.json"
+    },
+    "mockAuth": {
+      "passed": 38,
+      "failed": 0,
+      "file": "login/result.json"
+    },
+    "mock404Distinction": {
+      "passed": 10,
+      "failed": 0,
+      "file": "error-contract/results.json"
+    },
+    "realSeed": {
+      "passed": 7,
+      "failed": 0,
+      "file": "real/results.json"
+    },
+    "realPublic": {
+      "passed": 13,
+      "failed": 0,
+      "file": "public/real-read-results.json"
+    },
+    "productionPost404": {
+      "passed": 7,
+      "failed": 0,
+      "file": "final-404/404-results.json"
+    },
+    "productionTopic404": {
+      "passed": 7,
+      "failed": 0,
+      "file": "topic-404/topic-404-results.json"
+    }
+  },
+  "unit": {
+    "passed": 252,
+    "failed": 0
+  },
+  "lint": "passed without warnings",
+  "typecheck": "passed",
+  "build": "pnpm build (Next16.3.6 Turbopack, Node24.19.0) passed in isolated copy",
+  "seed": {
+    "createdMembers": 3,
+    "createdPosts": 85,
+    "initialComments": 107,
+    "visibleComments": 107,
+    "physicalOwnedComments": 109,
+    "softDeletedVerificationComments": [
+      114,
+      115
+    ],
+    "hearingAidSeedPosts": 65,
+    "existingHearingAidPostsPreserved": [
+      1,
+      3
+    ],
+    "actualHearingAidTotal": 67,
+    "representativePostComments": {
+      "14": 65,
+      "15": 0,
+      "16": 1,
+      "17": 20,
+      "18": 21
+    },
+    "rerunInsertedRows": 0,
+    "missingConfirmation": "refused before connection",
+    "cleanup": "not run; data retained"
+  },
+  "notRun": [
+    "backend full tests",
+    "actual signup/email-verification E2E",
+    "physical phone",
+    "forced tab-memory eviction",
+    "legacy page/modal suites community-browser/community-topics-browser in full"
+  ],
+  "noSecretsIncluded": true
+}

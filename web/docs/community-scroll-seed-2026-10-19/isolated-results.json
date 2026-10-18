@@ -1,0 +1,33 @@
+{
+  "database": "iyum_seed_test_1792336861",
+  "databaseDropped": true,
+  "results": [
+    {
+      "name": "create with changed IDs",
+      "pass": true,
+      "post": 1001,
+      "member": 501
+    },
+    {
+      "name": "initial ownership dry-run",
+      "pass": true
+    },
+    {
+      "name": "unrecorded soft-deleted row blocks cleanup",
+      "pass": true
+    },
+    {
+      "name": "exact intent recovers missing ID including logical deletion",
+      "pass": true,
+      "comment": 2108
+    },
+    {
+      "name": "unowned row rejects dry-run AND real cleanup without deleting 85 posts",
+      "pass": true
+    },
+    {
+      "name": "isolated complete cleanup includes owned logical-deleted row",
+      "pass": true
+    }
+  ]
+}

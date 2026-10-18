@@ -21,7 +21,7 @@ export default function CommunityDialog({
     dialog.querySelector<HTMLElement>("[data-initial-focus]")?.focus()
     return () => {
       dialog.close()
-      if (previous?.isConnected) previous.focus()
+      if (previous?.isConnected) previous.focus({ preventScroll: true })
     }
   }, [])
   return (

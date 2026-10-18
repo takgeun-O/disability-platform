@@ -204,3 +204,107 @@
 .community-comment-detached h3 { font-size: 18px; }
 
 .community-comment-count { white-space: nowrap; font-variant-numeric: tabular-nums; }
+
+/* 커서 피드: 상세·작성 화면 스타일과 분리한다. */
+.community-feed { background: #fff; }
+.feed-container { width: min(100% - 48px, 1040px); margin: 0 auto; padding: 28px 0 56px; }
+.feed-heading { display:flex; align-items:center; justify-content:space-between; gap:16px; margin-bottom:22px; }
+.feed-heading h1 { margin:0; font-size:32px; line-height:1.3; color:var(--iyum-ink); }
+.feed-heading p { max-width:680px; font-size:15px; line-height:1.65; margin:6px 0 0; color:var(--iyum-muted); }
+.feed-heading > a { flex-shrink:0; }
+.feed-navigation { display:flex; align-items:flex-start; gap:8px; background:#fff; border-bottom:1px solid var(--iyum-border); margin-bottom:20px; z-index:20; }
+.feed-tabs { display:flex; flex-wrap:wrap; gap:4px; flex:1; min-width:0; }
+.feed-tabs a { display:flex; align-items:center; justify-content:center; flex:1 1 auto; padding:10px 12px; min-height:44px; text-decoration:none; color:var(--iyum-ink); border-bottom:2px solid transparent; font-weight:600; }
+.feed-tabs a[aria-current=page] { color:var(--iyum-primary); border-bottom-color:var(--iyum-primary); }
+.feed-tabs a:hover { background:var(--iyum-surface); color:var(--iyum-primary); }
+.feed-expand { flex:0 0 44px; display:flex; align-items:center; justify-content:center; width:44px; height:44px; border:1px solid var(--iyum-border); border-radius:50%; background:var(--iyum-surface); color:var(--iyum-ink); cursor:pointer; }
+.feed-best { border:1px solid var(--iyum-border); background:linear-gradient(110deg,#effaff,#f6fbfd); border-radius:12px; padding:14px 18px; margin-bottom:22px; }
+.feed-best > div { display:flex; flex-wrap:wrap; align-items:center; gap:16px; }
+.feed-best h2 { font-size:20px; margin:0; color:var(--iyum-ink); }
+.feed-best button { font:inherit; font-size:13px; color:var(--iyum-muted); border:0; background:transparent; padding:4px 0; cursor:not-allowed; }
+.feed-best p { margin:7px 0 0; font-size:14px; color:var(--iyum-muted); }
+.feed-list-heading { display:flex; align-items:center; justify-content:space-between; gap:12px; }
+.feed-list-heading h2 { margin:0; font-size:23px; color:var(--iyum-ink); }
+.feed-list-heading > span { font-size:14px; color:var(--iyum-muted); }
+.feed-types { display:flex; gap:8px; flex-wrap:wrap; margin:0; }
+.feed-types a { display:inline-flex; align-items:center; min-height:44px; padding:8px 16px; border:1px solid var(--iyum-border); border-radius:24px; color:var(--iyum-muted); background:#f6f8fb; text-decoration:none; font-size:14px; }
+.feed-types a[aria-current=page] { background:var(--iyum-primary); color:white; border-color:var(--iyum-primary); font-weight:600; }
+.feed-tools { display:flex; flex-wrap:wrap; align-items:center; justify-content:space-between; gap:8px 16px; margin:12px 0 4px; }
+.feed-heading-actions { display:flex; align-items:center; gap:12px; }
+.feed-heading-actions > span { font-size:13px; color:var(--iyum-muted); }
+.feed-refresh { flex-shrink:0; }
+.feed-refresh-button { display:inline-flex; align-items:center; gap:6px; min-height:44px; padding:8px 4px; font-size:13px; font-weight:600; color:var(--iyum-primary); cursor:pointer; }
+.feed-refresh-button:hover { text-decoration:underline; text-underline-offset:4px; }
+.feed-refresh-button[aria-disabled=true] { opacity:.6; cursor:wait; }
+.feed-posts article { display:grid; grid-template-columns:42px minmax(0,1fr); column-gap:12px; }
+.feed-post-content { min-width:0; }
+.community-feed .community-help:empty { margin:0; }
+.feed-posts { list-style:none; margin:0; padding:0; }
+.feed-posts > li { padding:22px 0; border-bottom:1px solid var(--iyum-border); overflow-wrap:anywhere; scroll-margin-top:80px; }
+.feed-author { display:flex; flex-wrap:wrap; gap:2px 12px; align-items:baseline; padding-right:20px; min-height:24px; }
+
+.feed-author strong { color:var(--iyum-ink); font-size:15px; }
+.feed-avatar { background:linear-gradient(135deg,#d9f2f5,#e9eff9); border:1px solid #c8e1eb; color:#437e97; width:42px; height:42px; border-radius:50%; display:flex; align-items:center; justify-content:center; flex-shrink:0; }
+.feed-meta { display:flex; flex-wrap:wrap; gap:2px 0; color:var(--iyum-muted); font-size:13px; }
+.feed-meta > * + *::before { content:"·"; margin-inline:6px; }
+.feed-posts h3 { margin:4px 0 5px; font-size:19px; line-height:1.55; font-weight:700; color:var(--iyum-ink); }
+.feed-posts h3 a { color:inherit; text-decoration:none; }
+.feed-posts h3 a:hover { text-decoration:underline; text-underline-offset:4px; }
+.feed-preview { margin:0 0 10px; line-height:1.7; color:var(--iyum-muted); font-size:16px; display:-webkit-box; -webkit-box-orient:vertical; -webkit-line-clamp:3; overflow:hidden; }
+.feed-comment-count { display:inline-flex; align-items:center; gap:6px; font-size:14px; color:var(--iyum-muted); font-variant-numeric:tabular-nums; }
+.feed-end { padding:24px 0 4px; text-align:center; color:var(--iyum-muted); font-size:14px; }
+@media(min-width:768px) { .feed-expand { display:none; } }
+@media(max-width:767px) {
+  .feed-container { width:calc(100% - 32px); padding-top:20px; }
+  .feed-heading { margin-bottom:12px; }
+  .feed-heading h1 { font-size:26px; }
+  .feed-heading p { font-size:14px; }
+  .feed-heading .iyum-button { padding:10px 13px; min-height:44px; font-size:14px; }
+  .feed-navigation { position:sticky; top:0; padding:8px 0; margin-bottom:14px; }
+  .feed-tabs { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:4px; }
+  .feed-tabs:not(.is-expanded) a:not(.is-compact-primary) { display:none; }
+  .feed-tabs a { padding:9px 6px; border:1px solid transparent; border-radius:8px; background:#f2f8fb; font-size:14px; overflow-wrap:anywhere; }
+  .feed-tabs a[aria-current=page] { background:var(--iyum-primary); color:#fff; }
+  .feed-posts article { display:block; position:relative; }
+  .feed-posts article > .feed-avatar { position:absolute; left:0; top:0; }
+  .feed-author { margin-left:54px; min-height:42px; align-content:center; gap:2px 8px; padding-right:12px; }
+  .feed-posts h3 { margin-top:10px; }
+  .feed-heading { display:grid; grid-template-columns:minmax(0,1fr) auto; gap:8px 12px; }
+  .feed-heading > div { display:contents; }
+  .feed-heading h1 { grid-column:1; grid-row:1; align-self:center; }
+  .feed-heading p { grid-column:1 / -1; grid-row:2; margin:0; }
+  .feed-heading > a { grid-column:2; grid-row:1; }
+  .feed-best { padding:12px 14px; margin-bottom:16px; }
+  .feed-best h2 { font-size:18px; }
+  .feed-list-heading h2 { font-size:21px; }
+  .feed-heading-actions > span { display:none; }
+  .feed-list-heading { flex-wrap:wrap; gap:4px 10px; }
+  .feed-types { gap:6px; }
+  .feed-types a { padding:8px 12px; font-size:13px; }
+  .feed-posts > li { padding:18px 0; }
+  .feed-posts h3 { font-size:18px; }
+  .feed-meta { gap:2px 0; font-size:12px; }
+  .feed-preview { font-size:15px; -webkit-line-clamp:2; }
+}
+
+.feed-end button[aria-disabled="true"], .feed-refresh button[aria-disabled="true"] { opacity:.6; cursor:default; }
+
+.community-feed .community-help:empty { margin:0; }
+
+@media (min-width:380px) and (max-width:767px) {
+  .feed-tabs:not(.is-expanded) { grid-template-columns:repeat(3,minmax(0,1fr)); }
+  .feed-tabs:not(.is-expanded) a.is-compact-secondary { display:flex; }
+}
+
+/* 댓글 자동 조회의 감시점은 목록 끝에, 확인된 등록 내용은 작성 폼 가까이에 둔다. */
+.community-comment-sentinel { height:1px; }
+.community-comment-composer { margin-top:20px; }
+.community-comment-receipts { border:1px solid var(--iyum-border); border-radius:8px; padding:16px; background:var(--iyum-mist); margin-bottom:16px; overflow-wrap:anywhere; }
+.community-comment-receipts h3 { margin:0; font-size:17px; color:var(--iyum-ink); }
+.community-comment-receipts ul { list-style:none; margin:0; padding:0; }
+.community-comment-receipts li { padding-top:12px; }
+.community-comment-receipts li + li { margin-top:12px; border-top:1px solid var(--iyum-border); }
+.community-comment-receipts li > span { font-size:13px; font-weight:600; color:var(--iyum-primary); }
+
+/* 조회 상태 문구가 사라져도 입력 중인 폼의 위치를 밀지 않는다. */
+.community-comments-status { min-height: 1.6em; }

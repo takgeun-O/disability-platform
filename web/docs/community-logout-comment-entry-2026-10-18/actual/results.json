@@ -1,0 +1,23 @@
+{
+  "kind": "actual Spring API",
+  "results": [
+    {
+      "name": "actual Spring session login and detail",
+      "passed": true
+    },
+    {
+      "name": "actual logout 204, anonymous /me 401, detail and unsent draft preserved",
+      "passed": true
+    },
+    {
+      "name": "actual anonymous CTA mouse/keyboard, dirty cancel and 1440/390/320 layout",
+      "passed": true
+    },
+    {
+      "name": "actual reload stays on public detail and logged out; community writes zero",
+      "passed": true
+    }
+  ],
+  "createdData": 0,
+  "communityWrites": 0
+}

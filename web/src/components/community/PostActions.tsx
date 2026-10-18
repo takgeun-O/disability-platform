@@ -1,4 +1,5 @@
 "use client"
+import { requestListScrollRestore } from "@/lib/community-posts"
 // 확정된 서버 변경은 캐시에 반영하되 이전 화면의 후속 이동은 금지한다.
 import { useRef, useState } from "react"
 import { useRouter } from "next/navigation"
@@ -59,7 +60,8 @@ export default function PostActions({
         return
       }
       setOpen(false)
-      router.replace(back)
+      requestListScrollRestore(back)
+      router.replace(back, { scroll: false })
       postChanged(String(post.id))
     } catch (e) {
       if (!current()) return

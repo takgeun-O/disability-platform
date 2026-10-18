@@ -14,15 +14,15 @@ const page=await context.newPage();page.setDefaultTimeout(20000);
 const checks=[], errors=[], writes=[];
 page.on('pageerror',e=>errors.push(e.message));page.on('request',r=>{if(r.url().startsWith(api)&&r.method()!=='GET'&&r.method()!=='OPTIONS')writes.push(r.method());});
 async function check(name,run){await run();checks.push(name);console.log('PASS REAL READ',name);}
-async function ready(){await page.waitForFunction(()=>document.querySelector('.community-list-column [aria-busy]')?.getAttribute('aria-busy')==='false');}
+async function ready(){await page.waitForFunction(()=>document.querySelector('.feed-posts[aria-busy]')?.getAttribute('aria-busy')==='false');}
 async function shot(name){await page.evaluate(()=>document.fonts.ready);await page.screenshot({path:path.join(output,name+'.png'),fullPage:true});}
 try {
- const response=await fetch(api+'/api/v1/community/posts?page=0&size=20');assert.equal(response.status,200);const listing=await response.json();assert(listing.items.length>0);
+ const response=await fetch(api+'/api/v1/community/posts/feed?size=20');assert.equal(response.status,200);const listing=await response.json();assert(listing.items.length>0);
  const post=listing.items.find(p=>p.title.startsWith('[로컬 UI 검증]')) ?? listing.items[0];
  const query='type='+post.type+'&topic='+post.topic;
  await check('기존 DB 목록·초기 HTML·hydration 중복 요청 없음',async()=>{
   let publicReads=0;const count=r=>{if(r.url().includes('/api/v1/community/posts'))publicReads++;};page.on('request',count);
-  await page.goto(base+'/community/posts');await ready();assert.equal(await page.locator('.community-post-list > li').count(),listing.items.length);
+  await page.goto(base+'/community/posts');await ready();assert.equal(await page.locator('[data-feed-id]').count(),listing.items.length);
   await page.waitForTimeout(250);assert.equal(publicReads,0);page.off('request',count);
   const nojs=await browser.newContext({javaScriptEnabled:false});const p=await nojs.newPage();await p.goto(base+'/community/posts');assert(await p.getByRole('link',{name:post.title,exact:true}).isVisible());await nojs.close();
  });
@@ -31,21 +31,26 @@ try {
   assert.equal((await page.locator('.community-article h2').innerText()),post.title);await page.getByRole('link',{name:'← 목록으로',exact:true}).click();await ready();assert.equal(new URL(page.url()).search.slice(1),query);
   const nojs=await browser.newContext({javaScriptEnabled:false});const p=await nojs.newPage();await p.goto(base+'/community/posts/'+post.id);assert(await p.locator('.community-post-body').isVisible());assert((await p.locator('.community-article').innerText()).includes(post.author.nickname));await nojs.close();
  });
- await check('실제 범위 밖 페이지·같은 조건의 첫 페이지',async()=>{
-  await page.goto(base+'/community/posts?'+query+'&page=99');await page.getByRole('heading',{name:'요청한 페이지를 표시할 수 없어요.'}).waitFor();await page.getByRole('button',{name:'같은 조건의 첫 페이지로'}).click();await ready();assert.equal(new URL(page.url()).search.slice(1),query);assert((await page.locator('.community-post-list > li').count())>0);assert.equal(await page.getByRole('main').getByRole('alert').count(),0);
+ await check('과거 page=99 링크는 같은 조건의 첫 커서 피드로 정규화',async()=>{
+  await page.goto(base+'/community/posts?'+query+'&page=99');await page.waitForURL(u=>!u.searchParams.has('page'));await ready();assert.equal(new URL(page.url()).search.slice(1),query);assert((await page.locator('[data-feed-id]').count())>0);assert.equal(await page.getByRole('main').getByRole('alert').count(),0);
  });
  await check('실제 404 HTTP 상태·안내·복귀 필터',async()=>{
   const response=await page.goto(base+'/community/posts/999999999?from='+encodeURIComponent('/community/posts?'+query));assert.equal(response.status(),404);await page.getByRole('heading',{name:'게시글을 찾을 수 없어요.'}).waitFor();
   assert.equal(await page.getByRole('link',{name:'목록으로 돌아가기'}).getAttribute('href'),'/community/posts?'+query);
  });
- await check('1440/390/320 실제 목록·상세 레이아웃과 모바일 필터',async()=>{
+ await check('1440/390/320 실제 피드·상세·카테고리 펼침',async()=>{
   for(const width of [1440,390,320]){
    await page.setViewportSize({width,height:width>760?1000:844});await page.goto(base+'/community/posts?'+query);await ready();
-   assert(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth));assert.equal(await page.locator('.community-best').isVisible(),width>760);
-   assert(await page.getByRole('link',{name:'글쓰기',exact:true}).isVisible());await shot('real-list-'+width);
-   if(width<760){await page.getByRole('button',{name:'필터',exact:true}).click();await page.getByRole('dialog').waitFor();await page.keyboard.press('Escape');assert(await page.getByRole('button',{name:'필터',exact:true}).evaluate(el=>el===document.activeElement));}
+   assert(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth));assert(await page.locator('.feed-best').isVisible());assert(await page.locator('.feed-best button').isDisabled());
+   assert(await page.getByRole('link',{name:'＋ 글쓰기',exact:true}).isVisible());await shot('real-list-'+width);
+   if(width<760){await page.locator('.feed-expand').click();assert.equal(await page.locator('.feed-expand').getAttribute('aria-expanded'),'true');await page.keyboard.press('Escape');assert(await page.locator('.feed-expand').evaluate(el=>el===document.activeElement));assert(await page.locator('.feed-tabs').evaluate(el=>el.scrollWidth<=el.clientWidth));}
    if(width!==320){await page.goto(base+'/community/posts/'+post.id);await page.locator('.community-post-body').waitFor();await shot('real-detail-'+width);}
   }
+ });
+ const spaces=[['hearing-aid','HEARING_AID','보청기'],['cochlear-implant','COCHLEAR_IMPLANT','인공와우'],['daily','DAILY','자유·일상'],['treatment-rehabilitation','TREATMENT_REHABILITATION','치료·재활'],['communication','COMMUNICATION','의사소통'],['employment','EMPLOYMENT','취업·직장'],['welfare-life','WELFARE_LIFE','복지·생활']];
+ for(const[slug,topic,name]of spaces)await check('실제 주제 초기 HTML/무JS/새로고침 '+slug,async()=>{
+  const d=await(await fetch(api+'/api/v1/community/posts/feed?topic='+topic+'&size=20')).json();
+  const c=await browser.newContext({javaScriptEnabled:false}),p=await c.newPage();try{assert.equal((await p.goto(base+'/community/topics/'+slug)).status(),200);assert(await p.getByRole('heading',{name,exact:true}).isVisible());assert(await p.locator('.feed-heading p').isVisible());assert.equal(await p.locator('[data-feed-id]').count(),d.items.length);if(d.items.length){assert(await p.getByRole('link',{name:d.items[0].title,exact:true}).isVisible());assert.equal(await p.locator('[data-feed-id]').first().locator('.feed-comment-count').innerText(),'댓글 '+d.items[0].commentCount)}assert.equal((await p.reload()).status(),200)}finally{await c.close()}
  });
  await check('공개 비로그인 작성 안내·런타임 오류 없음·실제 쓰기 없음',async()=>{
   await page.goto(base+'/community/posts/create');await page.getByRole('link',{name:'로그인하고 글쓰기'}).waitFor();assert.deepEqual(writes,[]);assert.deepEqual(errors,[]);

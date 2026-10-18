@@ -1,0 +1,34 @@
+{
+  "database": "iyum_seed_test_1792338255",
+  "databaseDropped": true,
+  "results": [
+    {
+      "name": "legacy intent recovered and soft deleted ownership retained",
+      "pass": true
+    },
+    {
+      "name": "unowned row refuses cleanup, active manifest and journal unchanged",
+      "pass": true
+    },
+    {
+      "name": "post-commit archive failure blocks create and cleanup safely resumes archive",
+      "pass": true
+    },
+    {
+      "name": "same directory create-cleanup-create-recover-dry-run, previous journal archived",
+      "pass": true
+    },
+    {
+      "name": "second round missing response ID recovered exactly",
+      "pass": true
+    },
+    {
+      "name": "current round mismatched journal rejected, not skipped",
+      "pass": true
+    },
+    {
+      "name": "second cleanup preserves two archives and deletes only isolated owned data",
+      "pass": true
+    }
+  ]
+}

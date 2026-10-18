@@ -1,10 +1,11 @@
 "use client"
 // Refresh the visible prefix, keeping editor snapshots separate from server data.
-import { useEffect, useRef, useState, type FormEvent } from "react"
+import { useEffect, useEffectEvent, useRef, useState, type FormEvent } from "react"
 import { postListChanged } from "@/lib/community-mutations"
-import Link from "@/components/AppLink"
+import { useRouter } from "next/navigation"
 import { useAuth } from "@/components/AuthProvider"
 import {
+  useNavigationGuard,
   useNavigationRequest,
   useUnsavedChanges,
 } from "@/components/NavigationGuard"
@@ -32,6 +33,7 @@ export default function Comments({
   initial: PublicResult<CommentPage>
 }) {
   const auth = useAuth()
+  const router = useRouter(), guard = useNavigationGuard()
   const scope = useNavigationRequest()
   const reads = useRef(0),
     reading = useRef(false),
@@ -52,7 +54,13 @@ export default function Comments({
   const [busy, setBusy] = useState(false),
     [loading, setLoading] = useState(false)
   const [notice, setNotice] = useState("")
-  const [created, setCreated] = useState<number | null>(null)
+  const [created, setCreated] = useState<{ commentId: number; content: string }[]>([])
+  const [loginPrompt, setLoginPrompt] = useState(false)
+  const loginMoving = useRef(false)
+  const [readMore, setReadMore] = useState(false)
+  const section = useRef<HTMLElement>(null), sentinel = useRef<HTMLDivElement>(null), composer = useRef<HTMLDivElement>(null)
+  const buffered = useRef<{ cursor: string; page: CommentPage } | null>(null)
+  const [inputFocused, setInputFocused] = useState(false)
   const [deleting, setDeleting] = useState<Comment | null>(null)
   const [discard, setDiscard] = useState(false)
   const [focusTarget, setFocusTarget] = useState<{ id: string } | null>(null)
@@ -83,8 +91,35 @@ export default function Comments({
     [],
   )
 
-  async function load(more = false) {
+  function pauseAuto() {
+    // 입력 중 도착한 자동 GET도 폼을 밀어내지 않는다. 수동 추가는 명시적 조작이다.
+    const area = section.current
+    return !area || !!area.querySelector('dialog[open], textarea[id^="comment-edit-"]') ||
+      !!area.querySelector<HTMLTextAreaElement>('#comment-draft')?.value ||
+      !!area.querySelector('.community-comment-form:focus-within') ||
+      (composer.current?.getBoundingClientRect().top ?? Infinity) < window.innerHeight
+  }
+  const autoLoad = useEffectEvent(() => {
+    if (!pauseAuto()) void load(true, true)
+  })
+  useEffect(() => {
+    if (!page.hasNext || loading || busy || readError || draft || editor || inputFocused || loginPrompt || deleting || discard ||
+      !sentinel.current || !("IntersectionObserver" in window)) return
+    let near = false
+    const observer = new IntersectionObserver(entries => {
+      near = entries.some(entry => entry.isIntersecting)
+      if (near) autoLoad()
+    }, { rootMargin: "320px 0px" })
+    // 폼이 보일 때 멈춘 뒤 위로 이동하면, 감시 영역을 벗어나지 않아도 재평가한다.
+    const onScroll = () => { if (near) autoLoad() }
+    observer.observe(sentinel.current)
+    window.addEventListener("scroll", onScroll, { passive: true })
+    return () => { observer.disconnect(); window.removeEventListener("scroll", onScroll) }
+  }, [page.hasNext, page.nextCursor, loading, busy, readError, draft, editor, inputFocused, loginPrompt, deleting, discard])
+
+  async function load(more = false, automatic = false) {
     if (reading.current || writing.current || !scope.isActive()) return
+    if (more && (!page.hasNext || !page.nextCursor)) return
     reading.current = true
     const ticket = ++reads.current
     const current = () =>
@@ -93,14 +128,22 @@ export default function Comments({
         reads.current
     setLoading(true)
     setReadError("")
+    setReadMore(more)
     try {
       let result: CommentPage
       if (more) {
-        result = await getComments(postId, page.nextCursor)
+        const cursor = JSON.stringify(page.nextCursor)
+        result = buffered.current?.cursor === cursor ? buffered.current.page : await getComments(postId, page.nextCursor)
         if (!current()) return
+        if (automatic && pauseAuto()) {
+          buffered.current = { cursor, page: result }
+          return
+        }
+        buffered.current = null
         result = { ...result, items: mergeComments(page.items, result.items) }
         pageCount.current++
       } else {
+        buffered.current = null
         result = await getComments(postId)
         for (let n = 1; n < pageCount.current && result.hasNext; n++) {
           if (!current()) return
@@ -110,6 +153,7 @@ export default function Comments({
       }
       if (current()) {
         if (editor && !result.items.some(c => c.commentId === editor.id) && document.activeElement?.id === `comment-edit-${editor.id}`) requestFocus(`comment-edit-${editor.id}`)
+        setCreated(receipts => receipts.filter(receipt => !result.items.some(c => c.commentId === receipt.commentId)))
         setPage({
           ...result,
           items: result.items.filter((c) => !removed.current.has(c.commentId)),
@@ -146,7 +190,7 @@ export default function Comments({
   }
   function removeItem(id: number, preserveEditor = false) {
     removed.current.add(id)
-    if (created === id) setCreated(null)
+    setCreated(receipts => receipts.filter(receipt => receipt.commentId !== id))
     setPage((p) => ({ ...p, items: p.items.filter((c) => c.commentId !== id) }))
     setDeleting(null)
     if (editor?.id === id) {
@@ -174,6 +218,7 @@ export default function Comments({
       return
     }
     writing.current = true
+    buffered.current = null
     reads.current++
     reading.current = false
     setFields(f => ({ ...f, [id ?? "draft"]: "" }))
@@ -194,8 +239,8 @@ export default function Comments({
         setNotice("댓글을 삭제했습니다.")
       }
       if (method === "POST") {
-        setDraft("")
-        setCreated(result)
+        setDraft(value => value === content ? "" : value)
+        setCreated(receipts => [...receipts.filter(receipt => receipt.commentId !== result), { commentId: result, content }])
         setNotice("댓글을 등록했습니다.")
         refresh = true
       }
@@ -268,7 +313,9 @@ export default function Comments({
     </form>
   }
   return (
-    <section className="community-comments" aria-labelledby="comments-title">
+    <section ref={section} className="community-comments" aria-labelledby="comments-title"
+      onFocusCapture={e => setInputFocused(!!(e.target as HTMLElement).closest('.community-comment-form'))}
+      onBlurCapture={e => { if (!(e.relatedTarget instanceof HTMLElement) || !e.relatedTarget.closest('.community-comment-form')) setInputFocused(false) }}>
       <div className="community-list-heading">
         <h2 id="comments-title">댓글</h2>
         <button
@@ -283,25 +330,17 @@ export default function Comments({
       <p className="community-help">
         오래된 댓글부터 표시합니다. 좋아요 기능은 준비 중입니다.
       </p>
-      <p role="status">
+      <p role="status" className="community-comments-status">
         {notice}
         {loading ? " 댓글을 불러오고 있습니다." : ""}
       </p>
-      {created && !page.items.some((c) => c.commentId === created) && (
-        <p className="community-help">
-          등록한 댓글은 목록 뒤에 있습니다.{" "}
-          {page.hasNext
-            ? "아래 ‘댓글 더 보기’로 이어서 확인해 주세요."
-            : "목록 새로고침으로 확인해 주세요."}
-        </p>
-      )}
       {readError && (
         <div className="community-error" role="alert">
           <p>{readError} 기존 목록과 입력은 유지됩니다.</p>
           <button
             className="iyum-text-link"
             disabled={loading || busy}
-            onClick={() => void load()}
+            onClick={() => void load(readMore)}
           >
             댓글 조회 다시 시도
           </button>
@@ -351,6 +390,7 @@ export default function Comments({
           </li>
         ))}
       </ul>
+      {page.hasNext && <div ref={sentinel} className="community-comment-sentinel" aria-hidden="true" />}
       {detached && <aside className="community-comment-detached" aria-labelledby="comment-detached-title">
         <h3 id="comment-detached-title">수정 초안을 보관하고 있어요</h3>
         <p role="status">{editor?.notFound ? "서버에서 수정할 댓글을 찾지 못했습니다." : "현재 조회한 목록에서 수정 중인 댓글을 찾지 못했습니다. 이 결과만으로 삭제 여부를 확정할 수는 없습니다."} 입력한 내용은 아래에서 확인·복사하거나 편집을 종료할 수 있습니다.</p>
@@ -376,6 +416,18 @@ export default function Comments({
           )}
         </div>
       )}
+      <div ref={composer} className="community-comment-composer">
+      {created.some(receipt => !page.items.some(c => c.commentId === receipt.commentId)) && (
+        <section className="community-comment-receipts" aria-labelledby="comment-receipts-title">
+          <h3 id="comment-receipts-title">댓글을 등록했어요</h3>
+          <p className="community-help">방금 등록한 댓글입니다. 목록에서 불러오면 해당 위치에 함께 표시됩니다.</p>
+          <ul>{created.filter(receipt => !page.items.some(c => c.commentId === receipt.commentId)).map(receipt => (
+            <li key={receipt.commentId} data-created-comment-id={receipt.commentId}>
+              <span>방금 등록한 댓글</span><p className="community-comment-body">{receipt.content}</p>
+            </li>
+          ))}</ul>
+        </section>
+      )}
       <form
         className="community-comment-form"
         onSubmit={(e) => void mutate("POST", null, draft, e)}
@@ -387,7 +439,7 @@ export default function Comments({
           disabled={busy}
           aria-invalid={!!fieldFor(null)}
           aria-describedby={
-            fieldFor(null) ? "comment-count comment-draft-error" : "comment-count"
+            ["comment-count", fieldFor(null) && "comment-draft-error", !permitted && "comment-auth-help"].filter(Boolean).join(" ")
           }
           onChange={(e) => {
             blocker.markDirty()
@@ -398,30 +450,54 @@ export default function Comments({
         {fieldFor(null) && <p id="comment-draft-error" className="community-comment-field-error" role="alert">{fieldFor(null)}</p>}
         <span id="comment-count">{characterCount(draft)} / 2,000자</span>
         {!permitted && (
-          <p>
+          <p id="comment-auth-help" role="status">
             {auth.status === "checking" || auth.pending ? (
-              "로그인 상태를 확인하고 있습니다."
+              auth.pending === "logout" ? "로그아웃하고 있습니다. 입력한 내용은 유지됩니다." : "로그인 상태를 확인하고 있습니다."
+            ) : auth.status === "error" ? (
+              "로그인 상태를 확인하지 못했습니다. 다시 확인해 주세요. 입력한 내용은 유지됩니다."
             ) : (
-              <>
-                댓글을 남기려면{" "}
-                <Link
-                  className="iyum-text-link"
-                  href={`/login?from=${encodeURIComponent(returnTo)}`}
-                >
-                  로그인
-                </Link>
-                해 주세요. 화면을 떠나면 입력은 보관되지 않습니다.
-              </>
+              "댓글을 등록하려면 로그인해 주세요. 로그인 화면으로 이동하면 입력은 보관되지 않습니다."
             )}
           </p>
         )}
-        <button
-          className="iyum-button iyum-button-primary"
-          disabled={!permitted || busy}
-        >
-          {busy ? "처리 중…" : "댓글 등록"}
-        </button>
+        {auth.status === "anonymous" && !auth.pending ? (
+          <button type="button" className="iyum-button iyum-button-primary" aria-describedby="comment-auth-help"
+            onClick={() => { if (scope.isActive() && !loginMoving.current) setLoginPrompt(true) }}>
+            로그인하고 댓글 등록
+          </button>
+        ) : auth.status === "error" && !auth.pending ? (
+          <button type="button" className="iyum-button iyum-button-outline"
+            disabled={busy} onClick={() => void auth.refresh()} aria-describedby="comment-auth-help">
+            로그인 상태 다시 확인
+          </button>
+        ) : (
+          <button className="iyum-button iyum-button-primary" disabled={!permitted || busy}>
+            {busy ? "처리 중…" : auth.pending === "logout" ? "로그아웃 중…" : !permitted ? "로그인 확인 중…" : "댓글 등록"}
+          </button>
+        )}
       </form>
+      </div>
+      {loginPrompt && <CommunityDialog titleId="comment-login-title" descriptionId="comment-login-description" onCancel={() => setLoginPrompt(false)}>
+        <h2 id="comment-login-title">로그인이 필요해요</h2>
+        <div id="comment-login-description">
+          <p>{auth.status === "authenticated" && !auth.pending ? "이미 로그인되어 있어요. 현재 화면에서 댓글 작성을 계속할 수 있습니다." : "댓글을 등록하려면 로그인이 필요해요. 로그인 화면으로 이동할까요?"}</p>
+          {(draft.length > 0 || (editor && editor.value !== editor.original)) && <p>로그인 화면으로 이동하면 작성·수정 중인 댓글 입력은 보관되지 않습니다.</p>}
+          {(auth.status === "checking" || auth.pending) && <p role="status">로그인 상태를 확인하고 있습니다.</p>}
+          {auth.status === "error" && <p role="status">로그인 상태를 확인하지 못했습니다.</p>}
+        </div>
+        <div className="community-dialog-actions">
+          <button type="button" data-initial-focus className="iyum-button iyum-button-outline" onClick={() => setLoginPrompt(false)}>그대로 머무르기</button>
+          {auth.status === "error" ? <button type="button" className="iyum-button iyum-button-outline" onClick={() => void auth.refresh()}>로그인 상태 다시 확인</button> :
+            <button type="button" className="iyum-button iyum-button-primary" disabled={auth.status === "checking" || !!auth.pending} onClick={() => {
+              if (!scope.isActive() || auth.pending || loginMoving.current || auth.status === "checking") return
+              setLoginPrompt(false)
+              if (auth.status === "authenticated") { requestFocus("comment-draft"); return }
+              if (auth.status !== "anonymous") return
+              loginMoving.current = true
+              guard.confirmNavigation(() => router.push(`/login?from=${encodeURIComponent(returnTo)}`))
+            }}>{auth.status === "authenticated" ? "댓글 작성 계속하기" : "로그인하기"}</button>}
+        </div>
+      </CommunityDialog>}
       {deleting && (
         <CommunityDialog
           titleId="comment-delete-title"

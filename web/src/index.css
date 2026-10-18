@@ -17,7 +17,8 @@
 }
 
 html {
-  scroll-behavior: smooth;
+  /* Route changes are instant; in-page reading helpers opt into smooth scrolling. */
+  scroll-behavior: auto;
 }
 
 body {

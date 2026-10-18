@@ -26,3 +26,5 @@ export function usePostVersion(key: string) {
     () => 0,
   )
 }
+
+export const getPostVersion = (key: string) => versions.get(key) ?? 0

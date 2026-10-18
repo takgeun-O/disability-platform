@@ -1,0 +1,49 @@
+{
+  "kind": "actual Spring 8082 + current Next dev 8443",
+  "results": [
+    {
+      "name": "actual session login",
+      "pass": true
+    },
+    {
+      "name": "actual seed post14 auto 20/40/60/65 without duplicate",
+      "pass": true
+    },
+    {
+      "name": "actual seed 15: 0 boundary",
+      "pass": true
+    },
+    {
+      "name": "actual seed 16: 1 boundary",
+      "pass": true
+    },
+    {
+      "name": "actual seed 17: 20 boundary",
+      "pass": true
+    },
+    {
+      "name": "actual seed 18: 22 boundary",
+      "pass": true
+    },
+    {
+      "name": "actual two 201/id receipts without loading unseen middle",
+      "pass": true
+    },
+    {
+      "name": "only newly created comments deleted with 204",
+      "pass": true
+    },
+    {
+      "name": "actual logout keeps draft; modal cancel and single confirmed login at all widths",
+      "pass": true
+    }
+  ],
+  "createdCommentIds": [
+    119,
+    120
+  ],
+  "cleanedCommentIds": [
+    119,
+    120
+  ]
+}

@@ -1,0 +1,21 @@
+{
+  "branch": "feat/community-post-cursor",
+  "head": "2adf11bff2e58394899d33157aa0a556df3306fa",
+  "unit": {
+    "passed": 252,
+    "failed": 0
+  },
+  "lint": "passed",
+  "typecheck": "passed in isolated source copy",
+  "productionBuild": "passed Next16.3.6 Turbopack, Node24.19.0, isolated source copy",
+  "mockLogin": 38,
+  "mockComments": 42,
+  "actualSpring": 4,
+  "newAccountsPostsComments": 0,
+  "backendChanges": false,
+  "existingServersPreserved": [
+    8443,
+    8082
+  ],
+  "temporaryServerStopped": 8451
+}

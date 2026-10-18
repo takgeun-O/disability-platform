@@ -1,8 +1,8 @@
 import { getComments, CommentError, type CommentPage } from "./community-comments"
 import "server-only"
 import { cache } from "react"
-import { CommunityApiError, getPost, getPosts } from "./community-api"
-import type { PostQuery } from "./community-posts"
+import { CommunityApiError, getPost, getPosts, getFeed } from "./community-api"
+import type { PostQuery, PostCursor } from "./community-posts"
 import type { PublicResult } from "./community-load"
 
 // 내부 주소는 이 server-only 모듈에서만 읽는다. 쿠키/Authorization을 전달하지 않는다.
@@ -25,3 +25,5 @@ export async function readPublicComments(id: string): Promise<PublicResult<Comme
   try { return { data: await getComments(id, null, undefined, apiBase()), error: null } }
   catch (e) { return { data: null, error: { status: e instanceof CommentError ? e.status : 0, code: e instanceof CommentError ? e.code : "UNEXPECTED_RESPONSE", message: e instanceof CommentError ? e.message : "댓글을 불러오지 못했습니다." } } }
 }
+
+export const readPublicFeed = (query: PostQuery, cursor: PostCursor | null = null) => read(() => getFeed(query, cursor, undefined, apiBase()))

@@ -1,0 +1,58 @@
+{
+  "kind": "actual Spring + owned fixture",
+  "representative": 14,
+  "results": [
+    {
+      "name": "actual session login",
+      "pass": true
+    },
+    {
+      "name": "actual owned representative cursor count without duplicate",
+      "pass": true
+    },
+    {
+      "name": "actual seed 15: 0 boundary",
+      "pass": true
+    },
+    {
+      "name": "actual seed 16: 1 boundary",
+      "pass": true
+    },
+    {
+      "name": "actual seed 17: 20 boundary",
+      "pass": true
+    },
+    {
+      "name": "actual seed 18: 22 boundary",
+      "pass": true
+    },
+    {
+      "name": "actual two 201/id receipts without loading unseen middle",
+      "pass": true
+    },
+    {
+      "name": "only recorded newly created comments soft-deleted with 204; ownership retained",
+      "pass": true
+    },
+    {
+      "name": "actual logout keeps draft; modal cancel and single confirmed login at all widths",
+      "pass": true
+    }
+  ],
+  "createdCommentIds": [
+    125,
+    126
+  ],
+  "ownedCommentIds": [
+    125,
+    126
+  ],
+  "softDeletedCommentIds": [
+    125,
+    126
+  ],
+  "recoveryJournals": [
+    "/Users/tackeunoh/.local/share/iyum/feed-seed-v1/comment-journal/4ef20fac-2f0b-4f82-b090-b2482bb3ff58.properties",
+    "/Users/tackeunoh/.local/share/iyum/feed-seed-v1/comment-journal/c88403b0-920a-46da-a335-7d6ea030f45f.properties"
+  ]
+}

@@ -1,0 +1,33 @@
+{
+  "mode": "production Next + existing Spring public reads, no DB writes",
+  "results": [
+    {
+      "name": "무JS 1440px: 직접 진입·새로고침·HTTP404·실제 안내·키보드 복귀",
+      "status": "passed"
+    },
+    {
+      "name": "무JS 390px: 직접 진입·새로고침·HTTP404·실제 안내·키보드 복귀",
+      "status": "passed"
+    },
+    {
+      "name": "JS 1440px: 직접 진입·새로고침·HTTP404·실제 안내·키보드 복귀",
+      "status": "passed"
+    },
+    {
+      "name": "JS 390px: 직접 진입·새로고침·HTTP404·실제 안내·키보드 복귀",
+      "status": "passed"
+    },
+    {
+      "name": "크롤러 UA 무JS HTTP404·본문·복귀 링크",
+      "status": "passed"
+    },
+    {
+      "name": "안내 내부 경로 직접 접근도 HTTP404이며 정상 주제로 위장하지 않음",
+      "status": "passed"
+    },
+    {
+      "name": "정상 주제 HTTP200·무JS 제목/소개/게시글·충돌 쿼리 정규화",
+      "status": "passed"
+    }
+  ]
+}

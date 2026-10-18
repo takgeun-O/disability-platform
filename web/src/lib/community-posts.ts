@@ -65,9 +65,12 @@ export function postQueryString(query: PostQuery): string {
 export function listHref(
   query: PostQuery,
   pathname = "/community/posts",
+  cursor: PostCursor | null = null,
 ): string {
   const space = topicByPath(pathname)
-  const search = postQueryString(space ? { ...query, topic: "" } : query)
+  const params = new URLSearchParams(postQueryString({ ...query, topic: space ? "" : query.topic, page: 0 }))
+  if (cursor) { params.set("afterCreatedAt", cursor.createdAt); params.set("afterId", String(cursor.postId)) }
+  const search = params.toString()
   return `${pathname}${search ? "?" + search : ""}`
 }
 export function listQuery(params: Pick<URLSearchParams, "get">, pathname: string): PostQuery {
@@ -88,7 +91,7 @@ export function safeListReturn(value: string | null, fallback = "/community/post
       /[\\\u0000-\u001f]/.test(value)
     )
       return defaultPath
-    return listHref(listQuery(url.searchParams, url.pathname), url.pathname)
+    return listHref(listQuery(url.searchParams, url.pathname), url.pathname, parsePostCursor(url.searchParams))
   } catch {
     return defaultPath
   }
@@ -177,4 +180,17 @@ export function restoreListScroll(href: string): () => void {
 export function clearListScroll(href: string): void {
   if (returningToList === href) returningToList = null
   try { sessionStorage.removeItem(SCROLL_PREFIX + href) } catch { /* 저장소 제한 */ }
+}
+
+// URL/API 커서의 원문을 유지한다. page는 legacy page API용이며 피드 링크에는 쓰지 않는다.
+export type PostCursor = { createdAt: string; postId: number }
+export function parsePostCursor(params: Pick<URLSearchParams, "get">): PostCursor | null {
+  const createdAt = params.get("afterCreatedAt"), id = params.get("afterId")
+  return createdAt && /^\d{4}-\d\d-\d\dT\d\d:\d\d:\d\d(?:\.\d{1,9})?Z$/.test(createdAt) && Number.isFinite(Date.parse(createdAt)) &&
+    id && /^[1-9]\d*$/.test(id) && Number.isSafeInteger(Number(id)) ? { createdAt, postId: Number(id) } : null
+}
+export function consumeListReturn(href: string): boolean {
+  if (returningToList !== href) return false
+  returningToList = null
+  return true
 }

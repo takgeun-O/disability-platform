@@ -1,0 +1,19 @@
+// Apply only with: ./gradlew -I tools/community-seed.init.gradle seedCommunity ...
+// This source set/task never exists in normal bootRun/test/bootJar.
+afterProject { project ->
+    if (project == rootProject) {
+        def seed = project.sourceSets.create('communitySeed') {
+            java.srcDir 'tools/community-seed'
+            compileClasspath += project.sourceSets.main.output + project.sourceSets.main.runtimeClasspath
+            runtimeClasspath += output + compileClasspath
+        }
+        project.tasks.register('seedCommunity', JavaExec) {
+            dependsOn project.tasks.named('communitySeedClasses')
+            classpath = seed.runtimeClasspath
+            mainClass = 'devtools.CommunitySeed'
+            workingDir project.projectDir
+            javaLauncher = project.javaToolchains.launcherFor { languageVersion = JavaLanguageVersion.of(21) }
+            args project.findProperty('seedAction') ?: 'status', project.findProperty('seedConfirm') ?: ''
+        }
+    }
+}

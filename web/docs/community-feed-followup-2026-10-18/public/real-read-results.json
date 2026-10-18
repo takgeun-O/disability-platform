@@ -1,0 +1,20 @@
+{
+  "mode": "real existing Spring/PostgreSQL public reads; no data mutations",
+  "checks": [
+    "기존 DB 목록·초기 HTML·hydration 중복 요청 없음",
+    "실제 공개 상세·작성자/본문 초기 HTML·필터 복귀",
+    "과거 page=99 링크는 같은 조건의 첫 커서 피드로 정규화",
+    "실제 404 HTTP 상태·안내·복귀 필터",
+    "1440/390/320 실제 피드·상세·카테고리 펼침",
+    "실제 주제 초기 HTML/무JS/새로고침 hearing-aid",
+    "실제 주제 초기 HTML/무JS/새로고침 cochlear-implant",
+    "실제 주제 초기 HTML/무JS/새로고침 daily",
+    "실제 주제 초기 HTML/무JS/새로고침 treatment-rehabilitation",
+    "실제 주제 초기 HTML/무JS/새로고침 communication",
+    "실제 주제 초기 HTML/무JS/새로고침 employment",
+    "실제 주제 초기 HTML/무JS/새로고침 welfare-life",
+    "공개 비로그인 작성 안내·런타임 오류 없음·실제 쓰기 없음"
+  ],
+  "errors": [],
+  "writeRequests": 0
+}

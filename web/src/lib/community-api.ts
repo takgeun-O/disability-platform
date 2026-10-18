@@ -10,6 +10,7 @@ import {
   type PostForm,
   type PostFieldErrors,
   type PostQuery,
+  type PostCursor,
 } from "./community-posts"
 
 type PostCommon = {
@@ -22,6 +23,8 @@ type PostCommon = {
 }
 export type PostSummary = PostCommon & { commentCount: number }
 export type PostDetail = PostCommon & { content: string; updatedAt: string }
+export type FeedItem = PostSummary & { contentPreview: string }
+export type FeedPage = { items: FeedItem[]; hasNext: boolean; nextCursor: PostCursor | null }
 export type PostPage = {
   items: PostSummary[]
   page: number
@@ -160,6 +163,7 @@ function responseError(
       "INVALID_REQUEST_BODY",
       "INVALID_PAGE_REQUEST",
       "INVALID_REQUEST_PARAMETER",
+      "INVALID_CURSOR",
     ].includes(code)
   ) {
     const fields: PostFieldErrors = {}
@@ -349,4 +353,27 @@ export async function changePost(id: string, method: "PUT" | "DELETE", values: P
     else if (error.code === "POST_WRITE_NOT_ALLOWED") error.message = "현재 계정 상태에서는 게시글을 변경할 수 없습니다."
     throw error
   }
+}
+
+// 정렬 비교에만 소수점 자릿수를 맞춘다. 전송할 커서 원문은 바꾸지 않는다.
+function instantKey(value: string) { return value.replace(/(?:\.(\d+))?Z$/, (_, fraction) => "." + (fraction ?? "").padEnd(9, "0") + "Z") }
+export function olderThan(item: { createdAt: string; id: number }, cursor: PostCursor) {
+  const time = instantKey(item.createdAt), boundary = instantKey(cursor.createdAt)
+  return time < boundary || (time === boundary && item.id < cursor.postId)
+}
+export async function getFeed(query: PostQuery, cursor: PostCursor | null = null, signal?: AbortSignal, baseUrl?: string): Promise<FeedPage> {
+  const params = new URLSearchParams(postQueryString({ ...query, page: 0 }))
+  params.set("size", String(PAGE_SIZE))
+  if (cursor) { params.set("afterCreatedAt", cursor.createdAt); params.set("afterId", String(cursor.postId)) }
+  const { response, body } = await request("/feed?" + params, { method: "GET", signal }, false, baseUrl)
+  if (response.status !== 200 || !object(body) || !Array.isArray(body.items) || body.items.length > PAGE_SIZE ||
+    !body.items.every((v: unknown) => object(v) && typeof v.contentPreview === "string" && [...v.contentPreview].length <= 200 && isSummary(v)) ||
+    typeof body.hasNext !== "boolean") throw responseError(response.status, body, false)
+  const items = body.items as FeedItem[], last = items.at(-1)
+  if (new Set(items.map(p => p.id)).size !== items.length || items.some((p, i) =>
+    (query.type && p.type !== query.type) || (query.topic && p.topic !== query.topic) ||
+    (cursor && !olderThan(p, cursor)) || (i > 0 && !olderThan(p, { createdAt: items[i-1].createdAt, postId: items[i-1].id }))) ||
+    (body.hasNext ? (!last || !object(body.nextCursor) || body.nextCursor.createdAt !== last.createdAt || body.nextCursor.postId !== last.id) : body.nextCursor !== null))
+    throw responseError(response.status, null, false)
+  return body as FeedPage
 }
