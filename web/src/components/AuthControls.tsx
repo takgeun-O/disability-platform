@@ -1,10 +1,8 @@
 'use client';
 
-import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
-import { usePathname, useRouter } from 'next/navigation';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import Link from '@/components/AppLink';
 import { useAuth } from '@/components/AuthProvider';
-import { useNavigationGuard } from '@/components/NavigationGuard';
 import { AuthApiError } from '@/lib/auth-api';
 
 type Feedback = { id: number; message: string; error: boolean; memberId: number | null };
@@ -57,11 +55,6 @@ function FeedbackNotice({ feedback, onDismiss }: { feedback: Feedback; onDismiss
 
 export default function AuthControls() {
   const auth = useAuth();
-  const guard = useNavigationGuard();
-  const router = useRouter();
-  const pathname = usePathname();
-  const routeVersionRef = useRef(0);
-  useLayoutEffect(() => { routeVersionRef.current++; }, [pathname]);
   const [feedback, setFeedback] = useState<Feedback | null>(null);
   const feedbackIdRef = useRef(0);
   const dismissFeedback = useCallback((id: number) => {
@@ -76,26 +69,18 @@ export default function AuthControls() {
     return () => { mountedRef.current = false; };
   }, []);
 
-  async function handleLogout(restoreDirty: boolean) {
+  async function handleLogout() {
     if (inFlightRef.current || auth.pending) return;
     inFlightRef.current = true;
-    const routeVersion = routeVersionRef.current;
-    const restoreGuard = () => {
-      // 기다리는 동안 다른 화면으로 이동했다면 이전 작성 화면의 dirty를 되살리지 않는다.
-      if (restoreDirty && mountedRef.current && routeVersionRef.current === routeVersion) guard.setDirty(true);
-    };
+    // 로그아웃은 탐색이 아니다. 현재 폼의 dirty/요청 수명과 URL·스크롤을 유지한다.
     setFeedback(null);
     try {
       const result = await auth.signOut();
       if (!mountedRef.current) return;
-      if (result.kind === 'ignored') { restoreGuard(); return; }
+      if (result.kind === 'ignored') return;
       showFeedback({ error: false, memberId: null, message: result.confirmedBy === 'logout'
         ? '로그아웃되었습니다.' : '로그아웃 응답을 확인하지 못했지만 현재 비로그인 상태임을 확인했습니다.' });
-      // 요청 이후 이동한 화면은 유지한다. 같은 화면에서도 새 편집의 동의를 다시 받는다.
-      // 이 확인을 취소해도 서버에서 완료된 로그아웃 상태는 그대로 유지한다.
-      if (routeVersionRef.current === routeVersion) guard.request(() => router.replace('/'));
     } catch (error) {
-      restoreGuard();
       if (mountedRef.current) showFeedback({ error: true, memberId: auth.member?.memberId ?? null,
         message: error instanceof AuthApiError ? error.message : '로그아웃 결과를 확인하지 못했습니다. 로그인 상태를 다시 확인해 주세요.' });
     } finally { inFlightRef.current = false; }
@@ -120,12 +105,7 @@ export default function AuthControls() {
         ) : auth.status === 'authenticated' && auth.member ? (
           <>
             <span className="iyum-member-name">{auth.member.nickname}님</span>
-            <button type="button" disabled={!!auth.pending} onClick={() => {
-              if (inFlightRef.current || auth.pending) return;
-              // NavigationGuard의 기존 작성 중 확인창에서 취소하면 POST도 보내지 않는다.
-              const wasDirty = guard.isDirty();
-              guard.request(() => { void handleLogout(wasDirty); });
-            }} className="iyum-button iyum-auth-logout">
+            <button type="button" disabled={!!auth.pending} onClick={() => { void handleLogout(); }} className="iyum-button iyum-auth-logout">
               {auth.pending === 'logout' ? '로그아웃 중…' : '로그아웃'}
             </button>
           </>

@@ -153,7 +153,7 @@ try {
       csrf: (route, calls) => route.fulfill(calls.csrf === 2 ? { status: 500, body: 'unavailable' }
         : { status: 200, json: { headerName: 'X-CSRF-TOKEN', token: 'mock-csrf-' + calls.csrf } }),
     });
-    await page.goto(base + '/login?from=' + encodeURIComponent('/community?type=test#posts'));
+    await page.goto(base + '/login?from=' + encodeURIComponent('/community?type=QUESTION'));
     await fillLogin(page);
     await page.getByRole('form', { name: '로그인 양식' }).evaluate(form => { form.requestSubmit(); form.requestSubmit(); });
     await waitFor(() => calls.login === 1);
@@ -171,7 +171,7 @@ try {
     assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true);
     await page.screenshot({ path: path.join(artifacts, 'login-csrf-recovery-mobile.png'), fullPage: true });
     await main(page).getByRole('button', { name: '보안 정보 다시 확인' }).click();
-    await page.waitForURL(base + '/community?type=test#posts');
+    await page.waitForURL(base + '/community?type=QUESTION');
     assert.equal(calls.login, 1);
     assert.equal(calls.csrf, 3);
     await context.close();
@@ -287,7 +287,7 @@ try {
       await context.close();
     });
   }
-  await check('작성 중 로그아웃 취소는 POST 없음, 실패 후에도 이탈 경고 유지, 중복 로그아웃 차단', async () => {
+  await check('작성 중 로그아웃은 이동·입력 폐기 없이 처리, 실패 보호와 중복 차단 유지', async () => {
     const { context, page } = await newPage();
     let release;
     const gate = new Promise(resolve => { release = resolve; });
@@ -299,27 +299,25 @@ try {
     await signOut(page).waitFor();
     await page.getByPlaceholder('제목을 입력하세요.').fill('저장하지 않은 글');
     await signOut(page).click();
-    await page.getByRole('dialog').waitFor();
-    assert.equal(calls.logout, 0);
-    await page.getByRole('button', { name: '계속 작성', exact: true }).click();
-    assert.equal(calls.logout, 0);
-    await signOut(page).click();
-    await page.getByRole('button', { name: '나가기 — 입력한 내용이 사라집니다', exact: true }).click();
     await page.getByRole('banner').getByRole('alert').waitFor();
     assert.equal(await page.getByPlaceholder('제목을 입력하세요.').inputValue(), '저장하지 않은 글');
     await page.getByRole('banner').getByRole('link', { name: 'IYUM 홈으로 이동', exact: true }).click();
     await page.getByRole('dialog').waitFor();
     await page.getByRole('button', { name: '계속 작성', exact: true }).click();
     await signOut(page).click();
-    await page.getByRole('button', { name: '나가기 — 입력한 내용이 사라집니다', exact: true }).click();
     await waitFor(() => calls.logout === 2);
     const button = menu(page).getByRole('button', { name: '로그아웃 중…', exact: true });
     assert.equal(await button.isDisabled(), true);
     await button.evaluate(el => { el.click(); el.click(); });
     assert.equal(calls.logout, 2);
     release();
-    await page.waitForURL(base + '/');
     await menu(page).getByRole('link', { name: '로그인', exact: true }).waitFor();
+    assert.equal(new URL(page.url()).pathname, '/community/posts/create');
+    assert.equal(await page.getByPlaceholder('제목을 입력하세요.').inputValue(), '저장하지 않은 글');
+    assert.equal(await page.getByRole('dialog').count(), 0);
+    await page.getByRole('banner').getByRole('link', { name: 'IYUM 홈으로 이동', exact: true }).click();
+    await page.getByRole('dialog').waitFor();
+    await page.getByRole('button', { name: '계속 작성', exact: true }).click();
     await context.close();
   });
   await check('로그아웃 대기 중 다른 화면으로 이동한 뒤 실패해도 이전 글의 이탈 방지를 되살리지 않음', async () => {
@@ -333,9 +331,9 @@ try {
     await signOut(page).waitFor();
     await page.getByPlaceholder('제목을 입력하세요.').fill('이탈을 허용한 글');
     await signOut(page).click();
-    await page.getByRole('button', { name: '나가기 — 입력한 내용이 사라집니다', exact: true }).click();
     await waitFor(() => calls.logout === 1);
     await page.getByRole('banner').getByRole('link', { name: 'IYUM 홈으로 이동', exact: true }).click();
+    await page.getByRole('button', { name: '나가기 — 입력한 내용이 사라집니다', exact: true }).click();
     await page.waitForURL(base + '/');
     release();
     await page.getByRole('banner').getByRole('alert').waitFor();
@@ -374,7 +372,7 @@ try {
       await signOut(page).click();
       await waitFor(() => calls.logout === 1);
       await page.getByRole('navigation', { name: '주 메뉴' }).getByRole('link', { name: '커뮤니티', exact: true }).click();
-      await main(page).getByRole('link', { name: '글쓰기', exact: true }).click();
+      await main(page).getByRole('link', { name: '＋ 글쓰기', exact: true }).click();
       await page.waitForURL(url => url.pathname === '/community/posts/create');
       await titleInput(page).fill('응답 대기 중 시작한 글');
       await bodyInput(page).fill('이 내용과 현재 초점이 유지되어야 합니다.');
@@ -392,6 +390,8 @@ try {
         await page.evaluate(() => window.scrollTo(0, 0));
         assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true);
         await page.screenshot({ path: path.join(artifacts, 'logout-notice-mobile.png'), clip: { x: 0, y: 0, width: 390, height: 250 } });
+        // 모바일 회원 메뉴는 접힌 패널에 있다. 이후 데스크톱 인증 상태/이탈 검사는 원래 폭으로 돌아간다.
+        await page.setViewportSize({ width: 1280, height: 900 });
       }
       await closeNotice(page).click();
       assert.equal(new URL(page.url()).pathname, '/community/posts/create');
@@ -403,7 +403,7 @@ try {
     });
   }
   for (const change of ['추가 본문', '추가 본문 후 이동 허용', '주제 변경', '빈 폼의 첫 입력']) {
-    await check('로그아웃 회귀: 같은 작성 화면의 ' + change + ' 후 이탈 확인과 비로그인 상태 유지', async () => {
+    await check('로그아웃 회귀: 같은 작성 화면의 ' + change + ' 후 화면·입력·비로그인 상태 유지', async () => {
       const { context, page } = await newPage();
       let release;
       const gate = new Promise(resolve => { release = resolve; });
@@ -414,16 +414,17 @@ try {
       await signOut(page).waitFor();
       if (change !== '빈 폼의 첫 입력') await titleInput(page).fill('동의 전 입력');
       await signOut(page).click();
-      if (change !== '빈 폼의 첫 입력') await leave(page).click();
       await waitFor(() => calls.logout === 1);
       if (change === '주제 변경') await page.getByLabel('주제', { exact: true }).selectOption('HEARING_AID');
       else await bodyInput(page).fill('처음 확인한 뒤 새로 쓴 내용');
       release();
       await anonymousMenu(page).waitFor();
-      await page.getByRole('dialog').waitFor();
       assert.equal(new URL(page.url()).pathname, '/community/posts/create');
-      assert.equal(await keepWriting(page).evaluate(el => document.activeElement === el), true);
+      assert.equal(await page.getByRole('dialog').count(), 0);
+      if (change !== '주제 변경') assert.equal(await bodyInput(page).evaluate(el => document.activeElement === el), true);
       if (change === '추가 본문 후 이동 허용') {
+        await page.getByRole('banner').getByRole('link', { name: 'IYUM 홈으로 이동', exact: true }).click();
+        await page.getByRole('dialog').waitFor();
         await leave(page).click();
         await page.waitForURL(base + '/');
         await anonymousMenu(page).waitFor();
@@ -431,12 +432,11 @@ try {
         await context.close();
         return;
       }
-      await keepWriting(page).click();
       if (change === '주제 변경') assert.equal(await page.getByLabel('주제', { exact: true }).inputValue(), 'HEARING_AID');
       else assert.equal(await bodyInput(page).inputValue(), '처음 확인한 뒤 새로 쓴 내용');
       await anonymousMenu(page).waitFor();
       assert.equal(calls.logout, 1);
-      // 추가 확인 취소 뒤에도 작성 화면은 dirty이며, 정상적인 이탈 허용은 계속 가능하다.
+      // 로그아웃이 dirty를 지우지 않는다. 실제 화면 이동에서만 확인한다.
       await page.getByRole('banner').getByRole('link', { name: 'IYUM 홈으로 이동', exact: true }).click();
       await page.getByRole('dialog').waitFor();
       await leave(page).click();
@@ -565,7 +565,7 @@ try {
   if (process.env.IYUM_RUN_LOCAL_LOGIN_TEST === 'true') {
     await check('실제 ACTIVE 가입·Mailpit 인증·잘못된 암호·연속 제출·세션 교체·새로고침·로그아웃·재로그인', async () => {
       const { context, page, email, nickname, password } = await createMember('active');
-      await page.goto(base + '/login?from=' + encodeURIComponent('/community?type=test#posts'));
+      await page.goto(base + '/login?from=' + encodeURIComponent('/community?type=QUESTION'));
       await menu(page).getByRole('link', { name: '로그인', exact: true }).waitFor();
       await fillLogin(page, email, password + 'wrong');
       let responsePromise = page.waitForResponse(api + '/api/v1/auth/login');
@@ -591,7 +591,7 @@ try {
       const headers = await response.request().allHeaders();
       assert.ok(!!headers['x-csrf-token']);
       assert.ok(/JSESSIONID=/.test(headers.cookie ?? ''));
-      await page.waitForURL(base + '/community?type=test#posts');
+      await page.waitForURL(base + '/community?type=QUESTION');
       await menu(page).getByText(nickname + '님', { exact: true }).waitFor();
       assert.equal(posts, 1);
       const session = (await context.cookies(api)).find(cookie => cookie.name === 'JSESSIONID')?.value;
@@ -605,14 +605,15 @@ try {
       }, { endpoint: api + '/api/v1/auth/logout', csrf: csrfBefore });
       assert.deepEqual(rejectedOldCsrf, { status: 403, code: 'CSRF_TOKEN_INVALID' });
       await page.screenshot({ path: path.join(artifacts, 'actual-authenticated.png'), fullPage: true });
+      const logoutReturnTo = page.url();
       responsePromise = page.waitForResponse(api + '/api/v1/auth/logout');
       await signOut(page).click();
       const logoutResponse = await responsePromise;
       assert.equal(logoutResponse.status(), 204);
       // Chromium은 204 응답의 body 조회를 제공하지 않을 수 있다. 본문을 읽지 않는다.
       assert.ok(!logoutResponse.headers()['content-length'] || logoutResponse.headers()['content-length'] === '0');
-      await page.waitForURL(base + '/');
       await menu(page).getByRole('link', { name: '로그인', exact: true }).waitFor();
+      assert.equal(page.url(), logoutReturnTo);
       await page.reload();
       await menu(page).getByRole('link', { name: '로그인', exact: true }).waitFor();
       await menu(page).getByRole('link', { name: '로그인', exact: true }).click();

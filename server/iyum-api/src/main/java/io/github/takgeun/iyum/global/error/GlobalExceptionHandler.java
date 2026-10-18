@@ -281,8 +281,11 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
             PostReadException exception
     ) {
         HttpStatus status = switch (exception.getCode()) {
-            case INVALID_PAGE_REQUEST -> HttpStatus.BAD_REQUEST;
-            case POST_NOT_FOUND -> HttpStatus.NOT_FOUND;
+            case INVALID_PAGE_REQUEST, INVALID_CURSOR ->
+                    HttpStatus.BAD_REQUEST;
+
+            case POST_NOT_FOUND ->
+                    HttpStatus.NOT_FOUND;
         };
 
         return ResponseEntity

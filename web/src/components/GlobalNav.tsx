@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { usePathname } from 'next/navigation';
 import Link from './AppLink';
+import AuthControls from './AuthControls';
 import { useNavigationGuard } from './NavigationGuard';
 
 const INFORMATION = [
@@ -56,10 +57,16 @@ export default function GlobalNav() {
 
   return (
     <nav ref={navRef} className={`iyum-nav${mobileOpen ? ' is-open' : ''}`} aria-label="주 메뉴">
+      <noscript><style>{`
+        .iyum-mobile-toggle, .iyum-information, .iyum-auth-controls { display:none!important; }
+        .iyum-nav-items { display:flex!important; flex-wrap:wrap; }
+        .iyum-nojs-information { display:flex; flex-wrap:wrap; gap:12px; grid-column:1 / -1; }
+        @media(max-width:900px) { .iyum-nav-items { flex-direction:column; } }
+      `}</style></noscript>
       <button ref={mobileButton} className="iyum-mobile-toggle" type="button"
         aria-expanded={mobileOpen} aria-controls="iyum-navigation" aria-label={mobileOpen ? '메뉴 닫기' : '메뉴 열기'}
         onClick={() => setExpanded({ path: pathname, mobile: !mobileOpen, info: false })}>
-        <span>메뉴</span><span aria-hidden="true">{mobileOpen ? '닫기 ×' : '☰'}</span>
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" aria-hidden="true" focusable="false"><path d={mobileOpen ? 'M6 6l12 12M6 18 18 6' : 'M3 5h18M3 12h18M3 19h18'} /></svg>
       </button>
       <div id="iyum-navigation" className="iyum-nav-items">
         <Link className="iyum-nav-link" href="/about" onClick={close}
@@ -80,6 +87,10 @@ export default function GlobalNav() {
           </div>
         </div>
       </div>
+      <noscript><div className="iyum-nojs-information" aria-label="정보 찾기">
+        {INFORMATION.map(item => <a className="iyum-nav-link" key={item.href} href={item.href}>{item.label}</a>)}
+      </div></noscript>
+      <AuthControls />
     </nav>
   );
 }

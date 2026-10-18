@@ -1,6 +1,5 @@
 import Image from 'next/image';
 import Link from '@/components/AppLink';
-import AuthControls from '@/components/AuthControls';
 import GlobalNav from './GlobalNav';
 
 export function Header() {
@@ -10,7 +9,6 @@ export function Header() {
       {/* 사용자 첨부 홈 시안의 심벌을 SVG로 옮긴 표시용 자산. 원본 브랜드 보드는 보존한다. */}
       <Link href="/" className="iyum-wordmark" aria-label="IYUM 홈으로 이동"><Image className="iyum-brand-symbol" src="/images/logo/iyum-symbol-reference-v1.svg" width={48} height={54} alt="" /><span>IYUM</span></Link>
       <GlobalNav />
-      <AuthControls />
     </div>
   </header>;
 }

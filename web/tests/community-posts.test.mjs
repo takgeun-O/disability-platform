@@ -22,7 +22,7 @@ test('기존 한글 링크와 enum 필터를 받아 안정적인 URL로 정규�
 });
 test('상세/로그인 복귀 주소는 목록 경로만 허용하고 임의 주소·스크립트를 거절', () => {
   for (const path of ['https://evil.test/community', '//evil.test/community', '/login', 'javascript:alert(1)', '/community\\evil', '/community/posts/7']) assert.equal(model.safeListReturn(path), '/community/posts');
-  assert.equal(model.safeListReturn('/community?type=일반&page=3&unsafe=1'), '/community?type=GENERAL&page=3');
+  assert.equal(model.safeListReturn('/community?type=일반&page=3&unsafe=1'), '/community?type=GENERAL');
 });
 test('Java strip/isBlank·유니코드 코드포인트 제한·본문 줄바꿈 유지', () => {
   assert.deepEqual(model.validatePostForm(values), {});

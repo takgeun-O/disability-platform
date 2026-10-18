@@ -34,10 +34,10 @@ test("주제 경로가 충돌 쿼리보다 우선하며 유형·페이지는 보
     topic: "COCHLEAR_IMPLANT",
     page: 3,
   })
-  assert.equal(model.listHref(query, path), path + "?type=QUESTION&page=3")
+  assert.equal(model.listHref(query, path), path + "?type=QUESTION")
   assert.equal(
     model.safeListReturn(path + "?topic=HEARING_AID&type=QUESTION&page=3"),
-    path + "?type=QUESTION&page=3",
+    path + "?type=QUESTION",
   )
 })
 test("주제 복귀 경로는 정확한 허용 목록만 인정한다", () => {
@@ -65,7 +65,7 @@ test("주제 복귀 경로는 정확한 허용 목록만 인정한다", () => {
 test("기존 한글 주제 쿼리와 페이지 방어는 그대로 유지한다", () => {
   assert.equal(
     model.safeListReturn("/community?topic=보청기&type=일반&page=2"),
-    "/community?type=GENERAL&topic=HEARING_AID&page=2",
+    "/community?type=GENERAL&topic=HEARING_AID",
   )
   for (const page of ["-1", "abc", "999999999999"])
     assert.equal(

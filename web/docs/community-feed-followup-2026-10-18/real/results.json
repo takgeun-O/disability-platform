@@ -1,0 +1,141 @@
+{
+  "kind": "actual Spring/local fixture + dev8443",
+  "representative": 14,
+  "ownedPostIds": [
+    14,
+    15,
+    16,
+    17,
+    18,
+    19,
+    20,
+    21,
+    22,
+    23,
+    24,
+    25,
+    26,
+    27,
+    28,
+    29,
+    30,
+    31,
+    32,
+    33,
+    34,
+    35,
+    36,
+    37,
+    38,
+    39,
+    40,
+    41,
+    42,
+    43,
+    44,
+    45,
+    46,
+    47,
+    48,
+    49,
+    50,
+    51,
+    52,
+    53,
+    54,
+    55,
+    56,
+    57,
+    58,
+    59,
+    60,
+    61,
+    62,
+    63,
+    64,
+    65,
+    66,
+    67,
+    68,
+    69,
+    70,
+    71,
+    72,
+    73,
+    74,
+    75,
+    76,
+    77,
+    78,
+    79,
+    80,
+    81,
+    82,
+    83,
+    84,
+    85,
+    86,
+    87,
+    88,
+    89,
+    90,
+    91,
+    92,
+    93,
+    94,
+    95,
+    96,
+    97,
+    98
+  ],
+  "fixtureMembers": [
+    34,
+    35,
+    36
+  ],
+  "createdAndSoftDeletedComment": 115,
+  "results": [
+    {
+      "info": "actual HA accumulated counts",
+      "counts": [
+        20,
+        40,
+        60,
+        67
+      ],
+      "existing": [
+        3,
+        1
+      ]
+    },
+    {
+      "name": "real API: 85 owned posts, HA65 + existing, type45, unique IDs and tied timestamps",
+      "pass": true
+    },
+    {
+      "name": "real comment API: 20→40→60→65 and 0/1/20/21, ID ASC ties",
+      "pass": true
+    },
+    {
+      "name": "real browser: feed accumulates/ends, detail and link/back preserve >60 and position",
+      "pass": true
+    },
+    {
+      "name": "real browser: comments accumulate/stop with exact IDs; noJS visible first20",
+      "pass": true
+    },
+    {
+      "name": "fixture login then UI comment create/edit/delete; list counts and return context",
+      "pass": true
+    },
+    {
+      "name": "1440/390/320 actual all/topic captures, header and category keyboard, other routes",
+      "pass": true
+    },
+    {
+      "name": "runtime errors and final representative count unchanged",
+      "pass": true
+    }
+  ],
+  "errors": []
+}

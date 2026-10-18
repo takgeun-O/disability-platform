@@ -1,5 +1,5 @@
-import type { PostDetail, PostPage } from "./community-api"
-import type { PostQuery } from "./community-posts"
+import type { PostDetail, PostPage, FeedPage } from "./community-api"
+import type { PostQuery, PostCursor } from "./community-posts"
 
 // Server Component → Client Component 경계에는 Error 인스턴스 대신 안전한 공개 필드만 전달한다.
 export type ReadError = { status: number; code: string; message: string }
@@ -13,3 +13,5 @@ export function pageIsOutOfRange(page: Pick<PostPage, "page" | "totalPages">): b
   // 전체 글이 사라졌더라도 2페이지 이상은 더 이상 존재하지 않는 페이지다.
   return page.page > 0 && page.page >= page.totalPages
 }
+
+export type InitialFeed = PublicResult<FeedPage> & { query: PostQuery; cursor: PostCursor | null; href: string }

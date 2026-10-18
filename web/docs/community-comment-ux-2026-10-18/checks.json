@@ -1,0 +1,22 @@
+{
+  "node": "24.21.0",
+  "pnpm": "10.34.3",
+  "lint": "passed",
+  "typecheck": "passed",
+  "unit": {
+    "pass": 252,
+    "fail": 0
+  },
+  "productionBuild": "passed in isolated copy",
+  "diffCheck": "passed",
+  "mockComments": 50,
+  "mockLogin": 38,
+  "mockEditDelete": 29,
+  "mockFeed": 20,
+  "actualPublic404": 7,
+  "actualCommentFlow": 9,
+  "normalDetailGetCount": 2,
+  "experimentalWithoutProbeGetCount": 1,
+  "experimentalWithoutProbeNoJS404": "failed; not applied",
+  "mockErrorContract": 14
+}

@@ -37,16 +37,17 @@ try {
   }
   const context = await browser.newContext({ viewport: { width: 1440, height: 1000 } });
   const page = await context.newPage(); page.on('pageerror', error => errors.push(error.message));
-  await check('JS 활성: 안전한 from 조건·스크롤 복귀 및 외부 주소 차단', async () => {
+  await check('JS 활성: 안전한 from 조건·캐시 없는 첫 피드 복귀 및 외부 주소 차단', async () => {
     const back = '/community/posts?type=GENERAL&topic=WELFARE_LIFE';
     await page.goto(base + missing + '?from=' + encodeURIComponent(back));
     const link = page.getByRole('link', { name: '목록으로 돌아가기' }); await link.waitFor(); assert.equal(await link.getAttribute('href'), back);
-    await page.evaluate(href => sessionStorage.setItem('iyum-community-scroll:' + href, '150'), back);
     await page.screenshot({ path: path.join(output, '404-js-1440.png'), fullPage: true });
     await page.setViewportSize({ width: 390, height: 844 }); await page.screenshot({ path: path.join(output, '404-js-390.png'), fullPage: true });
     await link.click(); await page.waitForURL(base + back);
-    await page.waitForFunction(href => sessionStorage.getItem('iyum-community-scroll:' + href) === null, back);
-    assert(Math.abs(await page.evaluate(() => scrollY) - 150) < 5);
+    // 실제 피드 방문 캐시가 없는 404 직접 진입: 첫 피드로 복귀.
+    // 긴 목록 위치 복원은 community-feed-browser의 실제 60개 왕복으로 검증한다.
+    await page.locator('.feed-posts').waitFor();
+    assert(await page.getByRole('heading', { name: '복지·생활 게시글' }).isVisible());
     await page.goto(base + missing + '?from=' + encodeURIComponent('https://example.test/private'));
     await link.waitFor(); assert.equal(await link.getAttribute('href'), '/community/posts');
   });

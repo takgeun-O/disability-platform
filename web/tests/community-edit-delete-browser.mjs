@@ -37,6 +37,11 @@ const failure = (code, fields = []) => ({
 })
 let post, readFailure
 function read(url) {
+  if (url.pathname === "/api/v1/community/posts/feed") {
+    const legacy = read(new URL(url.href.replace("/posts/feed", "/posts")))
+    return { ...legacy, json: { items: legacy.json.items.map(p => ({...p, contentPreview: p.content})), hasNext: false, nextCursor: null } }
+  }
+
   // 게시글 회귀 fixture: 댓글은 별도 계약의 빈 목록으로 응답한다.
   if (url.pathname.endsWith("/comments")) return { status: 200, json: { items: [], hasNext: false, nextCursor: null } }
   if (readFailure) return { status: 503, json: failure("SERVER_ERROR") }
@@ -712,11 +717,11 @@ try {
       await p.getByText("아직 표시할 게시글이 없어요.").waitFor()
       assert.equal(new URL(p.url()).searchParams.get("type"), "QUESTION")
       assert.equal(await p.getByRole("link", { name: seed.title, exact: true }).count(), 0)
-      await p.locator(".community-request-status").filter({ hasText: "0개의 글" }).waitFor()
+      assert.equal(await p.locator("[data-feed-id]").count(), 0)
       const slug = topic === "HEARING_AID" ? "hearing-aid" : "cochlear-implant"
       await p.goto(base + `/community/topics/${slug}?type=${type}`)
       await p.getByRole("link", { name: seed.title, exact: true }).waitFor()
-      await p.locator(".community-request-status").filter({ hasText: "1개의 글" }).waitFor()
+      assert.equal(await p.locator("[data-feed-id]").count(), 1)
       await ctx.close()
     })
   }

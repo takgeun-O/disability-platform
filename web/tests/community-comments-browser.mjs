@@ -43,6 +43,11 @@ let listCountOverride = null, ssrCommentRequests = 0
 let comments = [],
   readFail = false
 function read(url) {
+  if (url.pathname === "/api/v1/community/posts/feed") {
+    const legacy = read(new URL(url.href.replace("/posts/feed", "/posts")))
+    return { ...legacy, json: { items: legacy.json.items.map(p => ({...p, contentPreview: p.content})), hasNext: false, nextCursor: null } }
+  }
+
   if (url.pathname.endsWith("/comments")) {
     if (readFail) return { status: 503, json: failure("SERVER_ERROR") }
     const after = Number(url.searchParams.get("afterId") ?? 0)
@@ -91,13 +96,15 @@ const server = http.createServer(async (req, res) => {
 await new Promise((r) => server.listen(8856, "127.0.0.1", r))
 const browser = await chromium.launch({ headless: true, channel: "chrome" })
 const results = []
-async function fixture(identity = member, count = 22) {
+async function fixture(identity = member, count = 22, automatic = false) {
   comments = Array.from({ length: count }, (_, i) => item(i + 1))
   readFail = false
   const ctx = await browser.newContext({
     viewport: { width: 1440, height: 1000 },
     reducedMotion: "reduce",
   })
+  // Existing manual-load regressions also exercise the unsupported-observer fallback.
+  if (!automatic) await ctx.addInitScript(() => { delete window.IntersectionObserver })
   const p = await ctx.newPage()
   p.setDefaultTimeout(8000)
   const state = { identity, calls: [], csrf: null, write: null, get: null }
@@ -120,6 +127,12 @@ async function fixture(identity = member, count = 22) {
           : r.fulfill({
               json: { headerName: "X-CSRF-TOKEN", token: "test-only" },
             })
+      if (u.pathname.endsWith("/logout")) {
+        assert.equal(req.headers()["x-csrf-token"], "test-only")
+        if (state.logout) return state.logout(r)
+        state.identity = null
+        return r.fulfill({ status: 204 })
+      }
       if (method === "GET")
         return state.get ? state.get(r, u) : r.fulfill(read(u))
       assert.equal(req.headers()["x-csrf-token"], "test-only")
@@ -151,9 +164,8 @@ async function fixture(identity = member, count = 22) {
     },
   )
   await p.goto(base + "/community/posts/7")
-  await p.getByRole("button", { name: "댓글 등록", exact: true }).waitFor()
-  if (identity)
-    await p.getByRole("button", { name: "댓글 등록", exact: true }).isEnabled()
+  if (identity) await p.getByRole("button", { name: "댓글 등록", exact: true }).waitFor()
+  else await p.getByRole("button", { name: "로그인하고 댓글 등록", exact: true }).waitFor()
   return { ctx, p, state }
 }
 async function check(name, fn) {
@@ -175,6 +187,136 @@ async function until(fn) {
   throw Error("controlled request was not reached")
 }
 try {
+  await check("automatic in-flight response is buffered while typing; manual append reuses it once",async()=>{
+    const {ctx,p,state}=await fixture(member,65,true)
+    let release
+    try{
+      let gets=0
+      state.get=async(r,u)=>{gets++;await new Promise(resolve=>release=resolve);await r.fulfill(read(u))}
+      await p.locator(".community-comment-sentinel").evaluate(el=>window.scrollTo(0,el.getBoundingClientRect().top+scrollY-innerHeight-120))
+      await until(()=>!!release)
+      assert(await p.getByRole("button",{name:"댓글 더 보기"}).isDisabled())
+      await p.locator("#comment-draft").fill("도착 전에 입력한 초안")
+      const before=await p.evaluate(()=>scrollY)
+      release()
+      await p.waitForFunction(()=>!document.querySelector("#comments-refresh").disabled)
+      assert.equal(await p.locator(".community-comment-list > li").count(),20)
+      assert.equal(await p.locator("#comment-draft").inputValue(),"도착 전에 입력한 초안")
+      assert.equal(await p.evaluate(()=>document.activeElement.id),"comment-draft")
+      assert(Math.abs(await p.evaluate(()=>scrollY)-before)<4)
+      await p.getByRole("button",{name:"댓글 더 보기"}).click()
+      await p.locator("#comment-40").waitFor()
+      assert.equal(gets,1)
+    }finally{release?.();await ctx.close()}
+  })
+  await check("login confirmation preserves both logged-out edit and compose drafts; one confirmation only",async()=>{
+    const {ctx,p,state}=await fixture(member,3)
+    try{
+      await p.locator("#comment-edit-button-1").click();await p.locator("#comment-edit-1").fill("편집 초안")
+      await p.locator("#comment-draft").fill("작성 초안")
+      await p.getByLabel("회원 메뉴").getByRole("button",{name:"로그아웃",exact:true}).click()
+      const cta=p.getByRole("button",{name:"로그인하고 댓글 등록",exact:true});await cta.waitFor()
+      const before=state.calls.length
+      await cta.click()
+      assert(await p.getByRole("dialog").getByText("로그인 화면으로 이동하면 작성·수정 중인 댓글 입력은 보관되지 않습니다.",{exact:true}).isVisible())
+      await p.getByRole("button",{name:"그대로 머무르기"}).click()
+      assert.equal(await p.locator("#comment-edit-1").inputValue(),"편집 초안")
+      assert.equal(await p.locator("#comment-draft").inputValue(),"작성 초안")
+      assert.equal(state.calls.slice(before).filter(c=>c.method!=="GET"||c.path.endsWith("/csrf")).length,0)
+      await p.locator(".community-back").click();await p.getByRole("button",{name:"계속 작성",exact:true}).click()
+      await cta.click();await p.getByRole("button",{name:"로그인하기",exact:true}).click()
+      await p.waitForURL(u=>u.pathname==="/login");assert.equal(await p.getByRole("dialog").count(),0)
+    }finally{await ctx.close()}
+  })
+  await check("automatic boundaries 0/1/20/21 keep ASC timestamps and finite requests",async()=>{
+    for(const count of [0,1,20,21]){
+      const {ctx,p,state}=await fixture(member,count,true)
+      try{
+        if(count===21){await p.locator(".community-comment-sentinel").evaluate(el=>window.scrollTo(0,el.getBoundingClientRect().top+scrollY-innerHeight-120));await p.locator("#comment-21").waitFor()}
+        assert.equal(await p.locator(".community-comment-list > li").count(),count)
+        assert.equal(state.calls.filter(c=>c.method==="GET"&&c.path.endsWith("/comments")).length,count===21?1:0)
+      }finally{await ctx.close()}
+    }
+  })
+  await check("automatic 65 ASC comments: 20/40/60/65, exact cursor, no duplicates, stop", async()=>{
+    const {ctx,p,state}=await fixture(member,65,true)
+    try {
+      for(const count of [40,60,65]){
+        await p.locator(".community-comment-sentinel").evaluate(el=>window.scrollTo(0,el.getBoundingClientRect().top+scrollY-innerHeight-120))
+        await p.waitForFunction(n=>document.querySelectorAll(".community-comment-list > li").length===n,count)
+      }
+      const ids=await p.locator(".community-comment-list > li").evaluateAll(els=>els.map(el=>el.id))
+      assert.deepEqual(ids,Array.from({length:65},(_,i)=>`comment-${i+1}`))
+      assert.equal(state.calls.filter(c=>c.method==="GET"&&c.path.endsWith("/comments")).length,3)
+      assert.equal(await p.getByRole("button",{name:"댓글 더 보기"}).count(),0)
+    } finally {await ctx.close()}
+  })
+  await check("automatic error stops; explicit more retry preserves cursor; draft pauses observer",async()=>{
+    const {ctx,p,state}=await fixture(member,65,true)
+    try{
+      let gets=0
+      state.get=(r,u)=>{gets++;return r.fulfill(gets===1?{status:503,json:failure("SERVER_ERROR")}:read(u))}
+      await p.locator(".community-comment-sentinel").evaluate(el=>window.scrollTo(0,el.getBoundingClientRect().top+scrollY-innerHeight-120))
+      await p.getByRole("button",{name:"댓글 조회 다시 시도"}).waitFor()
+      assert.equal(await p.locator(".community-comment-list > li").count(),20)
+      await p.locator("#comment-draft").fill("자동 조회 중지 초안")
+      await p.getByRole("button",{name:"댓글 조회 다시 시도"}).click()
+      await p.locator("#comment-40").waitFor()
+      await p.locator(".community-comment-sentinel").scrollIntoViewIfNeeded()
+      assert.equal(gets,2)
+      assert.equal(await p.locator("#comment-draft").inputValue(),"자동 조회 중지 초안")
+    }finally{await ctx.close()}
+  })
+  await check("receipts show consecutive confirmed posts immediately, merge only at real cursor end",async()=>{
+    const {ctx,p,state}=await fixture(member,65)
+    try{
+      for(const text of ["방금 등록한 첫 내용","방금 등록한 두 번째 내용"]){
+        await p.locator("#comment-draft").fill(text)
+        await p.getByRole("button",{name:"댓글 등록",exact:true}).click()
+        await p.locator(".community-comment-receipts").getByText(text,{exact:true}).waitFor()
+        await p.waitForFunction(()=>!document.querySelector("#comments-refresh").disabled)
+      }
+      assert.equal(await p.locator("[data-created-comment-id]").count(),2)
+      assert.equal(await p.locator(".community-comment-list > li").count(),20)
+      assert.equal(state.calls.filter(c=>c.method==="GET"&&c.path.endsWith("/comments")).length,2)
+      for(const width of [1440,390,320]){
+        await p.setViewportSize({width,height:950})
+        await p.locator(".community-comment-receipts").screenshot({path:`${output}/created-receipts-${width}.png`})
+        assert(await p.evaluate(()=>document.documentElement.scrollWidth<=innerWidth))
+      }
+      for(const n of [40,60,67]){await p.getByRole("button",{name:"댓글 더 보기"}).click();await p.locator(`#comment-${n}`).waitFor()}
+      assert.equal(await p.locator("[data-created-comment-id]").count(),0)
+      assert.equal(await p.getByText("방금 등록한 첫 내용",{exact:true}).count(),1)
+    }finally{await ctx.close()}
+  })
+  await check("confirmed receipt survives following GET failure without POST retry",async()=>{
+    const {ctx,p,state}=await fixture(member,65)
+    try{
+      state.get=r=>r.fulfill({status:503,json:failure("SERVER_ERROR")})
+      await p.locator("#comment-draft").fill("등록 완료 후 조회 오류")
+      await p.getByRole("button",{name:"댓글 등록",exact:true}).click()
+      await p.getByRole("button",{name:"댓글 조회 다시 시도"}).waitFor()
+      assert(await p.locator(".community-comment-receipts").getByText("등록 완료 후 조회 오류",{exact:true}).isVisible())
+      assert.equal(await p.locator("#comment-draft").inputValue(),"")
+      assert.equal(state.calls.filter(c=>c.method==="POST").length,1)
+    }finally{await ctx.close()}
+  })
+  await check("mobile noJS all topic and public navigation links visible and usable",async()=>{
+    comments=[item(1)];readFail=false
+    const ctx=await browser.newContext({javaScriptEnabled:false}),p=await ctx.newPage()
+    try{for(const width of [320,390]){
+      await p.setViewportSize({width,height:900});await p.goto(base+"/community")
+      const links=p.locator(".feed-tabs a")
+      assert.equal(await links.count(),8)
+      for(const link of await links.all()) assert(await link.isVisible())
+      for(const name of ["IYUM 소개","복지·지원정보","기기 정보","병원·전문기관"])
+        assert(await p.getByRole("navigation",{name:"주 메뉴",exact:true}).getByRole("link",{name,exact:true}).isVisible())
+      assert(await p.evaluate(()=>document.documentElement.scrollWidth<=innerWidth))
+      await p.screenshot({path:`${output}/nojs-navigation-${width}.png`,fullPage:true})
+      await links.filter({hasText:"인공와우"}).click()
+      assert.equal(new URL(p.url()).pathname,"/community/topics/cochlear-implant")
+    }}finally{await ctx.close()}
+  })
   await check("list count SSR/noJS: zero, positive, large; no per-post comment fetch",async()=>{
     for(const count of [0,3,Number.MAX_SAFE_INTEGER]){
       comments=Array.from({length:count===3?3:0},(_,i)=>item(i+1));readFail=false
@@ -200,9 +342,9 @@ try {
     try{
       await p.goto(base+"/community/topics/hearing-aid?type=QUESTION")
       await p.getByText("댓글 1",{exact:true}).waitFor()
-      await p.locator(".community-post-list a").first().scrollIntoViewIfNeeded()
+      await p.locator(".feed-posts h3 a").first().scrollIntoViewIfNeeded()
       const returnY=await p.evaluate(()=>scrollY)
-      await p.locator(".community-post-list a").first().click()
+      await p.locator(".feed-posts h3 a").first().click()
       await p.locator("#comment-draft").fill("추가 댓글")
       await p.getByRole("button",{name:"댓글 등록",exact:true}).click()
       await p.getByText("댓글을 등록했습니다.",{exact:true}).waitFor()
@@ -214,7 +356,7 @@ try {
       await p.getByText("댓글 2",{exact:true}).waitFor()
       await p.waitForFunction(y=>Math.abs(scrollY-y)<5,returnY)
       assert.equal(new URL(p.url()).searchParams.get("type"),"QUESTION")
-      await p.locator(".community-post-list a").first().click()
+      await p.locator(".feed-posts h3 a").first().click()
       await p.locator("#comment-draft").fill("보존할 작성 초안")
       await p.locator("#comment-edit-button-1").click()
       await p.locator("#comment-edit-1").fill("보존할 수정 초안")
@@ -241,14 +383,13 @@ try {
       await p.getByText("댓글 1",{exact:true}).waitFor()
       const location=p.url()
       state.get=async(r,u)=>{
-        if(u.pathname!=="/api/v1/community/posts")return r.fulfill(read(u))
+        if(u.pathname!=="/api/v1/community/posts/feed")return r.fulfill(read(u))
         const old=read(u);state.get=null
         await new Promise(resolve=>releaseRead=resolve)
         await r.fulfill(old).catch(()=>{})
       }
-      // A new type selection starts an old GET, then late mutation forces a newer generation.
-      await p.getByLabel("글 유형",{exact:true}).selectOption("QUESTION")
-      await p.getByRole("button",{name:"적용",exact:true}).click();await until(()=>releaseRead)
+      // Explicit refresh starts an old feed GET; late mutation must supersede it.
+      await p.getByRole("button",{name:"최신 목록 새로고침",exact:true}).click();await until(()=>releaseRead)
       release();await p.getByText("댓글 2",{exact:true}).waitFor()
       releaseRead();await p.waitForTimeout(100)
       assert(await p.getByText("댓글 2",{exact:true}).isVisible())
@@ -261,7 +402,7 @@ try {
     try{
       await p.goto(base+"/community/topics/hearing-aid")
       await p.getByText("댓글 1",{exact:true}).waitFor()
-      await p.locator(".community-post-list a").first().click()
+      await p.locator(".feed-posts h3 a").first().click()
       await p.locator("#comment-edit-button-1").click()
       await p.locator("#comment-edit-1").fill("유지할 초안")
       state.write=async r=>{comments=[];await r.fulfill({status:code === "COMMENT_NOT_FOUND"?404:500,json:failure(code)})}
@@ -495,24 +636,107 @@ try {
       await ctx.close()
     },
   )
-  await check(
-    "anonymous cannot manage or submit; safe login return",
-    async () => {
-      const { ctx, p } = await fixture(null, 1)
-      await p.locator(".community-comments a").waitFor()
-      assert.equal(await p.locator(".community-comment-list button").count(), 0)
-      assert(
-        await p
-          .getByRole("button", { name: "댓글 등록", exact: true })
-          .isDisabled(),
-      )
-      assert.equal(
-        await p.locator(".community-comments a").getAttribute("href"),
-        "/login?from=" + encodeURIComponent("/community/posts/7?from=" + encodeURIComponent("/community/topics/hearing-aid")),
-      )
+  await check("anonymous login CTA: pointer, keyboard, 1440/390/320 and safe return; no writes", async () => {
+    const { ctx, p, state } = await fixture(null, 1)
+    const link = p.getByRole("button", { name: "로그인하고 댓글 등록", exact: true })
+    assert.equal(await p.locator(".community-comment-list button").count(), 0)
+    const destination = "/login?from=" + encodeURIComponent("/community/posts/7?from=" + encodeURIComponent("/community/topics/hearing-aid"))
+    assert(destination.startsWith("/login?from="))
+    for (const width of [1440, 390, 320]) {
+      await p.setViewportSize({ width, height: 950 })
+      await link.hover()
+      assert.equal(await link.evaluate(el => getComputedStyle(el).cursor), "pointer")
+      assert(await p.locator("#comment-auth-help").isVisible())
+      assert(await p.evaluate(() => document.documentElement.scrollWidth <= innerWidth))
+      await link.click()
+      const before = await p.evaluate(() => scrollY)
+      assert.equal(new URL(p.url()).pathname, "/community/posts/7")
+      await p.getByRole("dialog").screenshot({ path: `${output}/login-confirm-${width}.png` })
+      await p.keyboard.press("Escape")
+      assert(await link.evaluate(el => document.activeElement === el))
+      assert(Math.abs(await p.evaluate(() => scrollY) - before) < 4)
+    }
+    await link.click()
+    await p.getByRole("button", {name:"로그인하기",exact:true}).click()
+    await p.waitForURL(u => u.pathname === "/login" && u.searchParams.get("from") === "/community/posts/7?from=" + encodeURIComponent("/community/topics/hearing-aid"))
+    await p.goBack(); await link.waitFor(); await link.focus(); await p.keyboard.press("Enter")
+    await p.getByRole("button", {name:"로그인하기",exact:true}).click()
+    await p.waitForURL(u => u.pathname === "/login")
+    assert.equal(state.calls.filter(c => c.method !== "GET").length, 0)
+    assert.equal(state.calls.filter(c => c.path.endsWith("/csrf")).length, 0)
+    await ctx.close()
+  })
+  await check("anonymous login with draft: cancel preserves draft/focus; explicit leave allows login", async () => {
+    const { ctx, p, state } = await fixture(null, 1)
+    const link = p.getByRole("button", { name: "로그인하고 댓글 등록", exact: true })
+    await p.locator("#comment-draft").fill("로그인 전에 작성한 초안")
+    await link.click(); await p.getByRole("dialog").waitFor()
+    await p.getByRole("button", { name: "그대로 머무르기", exact: true }).click()
+    assert.equal(await p.locator("#comment-draft").inputValue(), "로그인 전에 작성한 초안")
+    assert.equal(new URL(p.url()).pathname, "/community/posts/7")
+    await link.focus(); await p.keyboard.press("Enter")
+    await p.getByRole("button", { name: "로그인하기", exact: true }).click()
+    await p.waitForURL(u => u.pathname === "/login")
+    assert.equal(state.calls.filter(c => c.method !== "GET").length, 0)
+    await ctx.close()
+  })
+  for (const outcome of ["success", "recovered", "failure"]) {
+    await check(`logout ${outcome}: detail URL/body, comment drafts, focus and dirty protection remain`, async () => {
+      const { ctx, p, state } = await fixture(member, 1)
+      await p.locator("#comment-edit-button-1").click()
+      await p.locator("#comment-edit-1").fill("편집 중인 댓글 초안")
+      await p.locator("#comment-draft").fill("새 댓글 초안")
+      let release
+      const gate = new Promise(r => { release = r })
+      state.logout = async r => {
+        await gate
+        if (outcome === "failure") return r.fulfill({ status: 403, json: failure("CSRF_TOKEN_INVALID") })
+        state.identity = null
+        return outcome === "recovered" ? r.abort("failed") : r.fulfill({ status: 204 })
+      }
+      const original = p.url()
+      await p.getByLabel("회원 메뉴").getByRole("button", { name: "로그아웃", exact: true }).click()
+      await until(() => state.calls.some(c => c.path.endsWith("/logout")))
+      assert.equal(await p.getByRole("dialog").count(), 0)
+      await p.locator("#comment-draft").fill("로그아웃 대기 중 추가한 초안")
+      const before = await p.evaluate(() => scrollY)
+      release()
+      if (outcome === "failure") await p.getByRole("banner").getByRole("alert").waitFor()
+      else await p.getByRole("button", { name: "로그인하고 댓글 등록", exact: true }).waitFor()
+      assert.equal(p.url(), original)
+      assert(await p.locator(".community-post-body").isVisible())
+      assert.equal(await p.locator("#comment-draft").inputValue(), "로그아웃 대기 중 추가한 초안")
+      assert.equal(await p.locator("#comment-edit-1").inputValue(), "편집 중인 댓글 초안")
+      assert(await p.locator("#comment-draft").evaluate(el => document.activeElement === el))
+      assert(Math.abs(await p.evaluate(() => scrollY) - before) < 4)
+      assert.equal(state.calls.filter(c => c.path.endsWith("/logout")).length, 1)
+      assert.equal(state.calls.filter(c => c.path.endsWith("/comments") && c.method === "POST").length, 0)
+      if (outcome === "success") await p.locator(".community-comments").screenshot({ path: `${output}/logout-drafts-preserved.png` })
+      await p.getByRole("banner").getByRole("link", { name: "IYUM 홈으로 이동", exact: true }).click()
+      await p.getByRole("dialog").waitFor()
+      await p.getByRole("button", { name: "계속 작성", exact: true }).click()
+      assert.equal(await p.locator("#comment-draft").inputValue(), "로그아웃 대기 중 추가한 초안")
       await ctx.close()
-    },
-  )
+    })
+  }
+  await check("session check pending/error: honest pending label, manual retry, no comment write", async () => {
+    const { ctx, p, state } = await fixture(null, 1)
+    let release, failed = true
+    const gate = new Promise(r => { release = r })
+    await p.route(u => u.origin === api && u.pathname.endsWith("/me"), async r => {
+      await gate
+      return r.fulfill(failed ? {status:503,json:failure("SERVER_ERROR")} : {status:401,json:failure("AUTHENTICATION_REQUIRED")})
+    })
+    await p.reload()
+    const waiting = p.locator(".community-comments").getByRole("button", {name:"로그인 확인 중…",exact:true})
+    await waiting.waitFor(); assert(await waiting.isDisabled())
+    release()
+    const retry = p.locator(".community-comments").getByRole("button", {name:"로그인 상태 다시 확인",exact:true})
+    await retry.waitFor(); failed = false; await retry.click()
+    await p.getByRole("button", {name:"로그인하고 댓글 등록",exact:true}).waitFor()
+    assert.equal(state.calls.filter(c => c.method !== "GET").length, 0)
+    await ctx.close()
+  })
   await check(
     "write success + refresh failure stays success and clears only submitted draft",
     async () => {

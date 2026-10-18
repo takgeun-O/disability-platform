@@ -1,0 +1,46 @@
+ M web/src/app/community/page.tsx
+ M web/src/app/community/posts/page.tsx
+ M web/src/app/community/topics/[slug]/page.tsx
+ M web/src/components/AuthControls.tsx
+ M web/src/components/GlobalNav.tsx
+ M web/src/components/NavigationGuard.tsx
+ M web/src/components/Shell.tsx
+ M web/src/components/community/Comments.tsx
+ M web/src/components/community/CommunityDialog.tsx
+ M web/src/components/community/CommunityListPage.tsx
+ M web/src/components/community/PostActions.tsx
+ M web/src/features/PostList.tsx
+ M web/src/lib/community-api.ts
+ M web/src/lib/community-load.ts
+ M web/src/lib/community-mutations.ts
+ M web/src/lib/community-posts.ts
+ M web/src/lib/community-server.ts
+ M web/src/proxy.ts
+ M web/src/styles/community.css
+ M web/src/styles/iyum.css
+ M web/tests/community-404-browser.mjs
+ M web/tests/community-comments-browser.mjs
+ M web/tests/community-edit-delete-browser.mjs
+ M web/tests/community-posts.test.mjs
+ M web/tests/community-public-browser.mjs
+ M web/tests/community-topic-404-browser.mjs
+ M web/tests/community-topics.test.mjs
+ M web/tests/login-browser.mjs
+?? server/iyum-api/tools/
+?? web/docs/Community-Comment-UX-Review-2026-10-18.md
+?? web/docs/Community-Cursor-Feed-2026-10-18.md
+?? web/docs/Community-Feed-Review-Followup-2026-10-18.md
+?? web/docs/Community-Logout-Comment-Entry-2026-10-18.md
+?? web/docs/community-comment-ux-2026-10-18/
+?? web/docs/community-cursor-feed-2026-10-18/
+?? web/docs/community-feed-followup-2026-10-18/
+?? web/docs/community-logout-comment-entry-2026-10-18/
+?? web/src/app/community/post-not-found/
+?? web/src/components/community/FeedNavigation.tsx
+?? web/src/lib/community-feed.ts
+?? web/tests/community-comments-ux-local.mjs
+?? web/tests/community-feed-browser.mjs
+?? web/tests/community-feed-local.mjs
+?? web/tests/community-feed-seed-local.mjs
+?? web/tests/community-feed.test.mjs
+?? web/tests/community-post-404-errors-browser.mjs

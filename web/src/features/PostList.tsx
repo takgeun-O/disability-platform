@@ -1,425 +1,155 @@
 "use client"
-// 입력 중인 조건은 이 폼의 로컬 상태다. 적용하기 전에는 URL이나 목록 요청을 바꾸지 않는다.
-// URL 전환이 커밋되기 전에도 이전 응답을 무효화한다.
-import { usePostVersion } from "@/lib/community-mutations"
-import { useEffect, useId, useRef, useState, type FormEvent } from "react"
-import { usePathname, useSearchParams } from "next/navigation"
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react"
+import { useRouter } from "next/navigation"
 import Link from "@/components/AppLink"
-import CommunityDialog from "@/components/community/CommunityDialog"
-import { useNavigationGuard } from "@/components/NavigationGuard"
-import { focusForReading } from "@/lib/reading-focus"
-import {
-  BestPosts,
-  CommunityBanner,
-  PostTags,
-} from "@/components/community/CommunityParts"
-import { CommunityApiError, getPosts, type PostPage } from "@/lib/community-api"
-import {
-  POST_TYPES,
-  POST_TOPICS,
-  listQuery,
-  listHref,
-  queryLabel,
-  postDate,
-  rememberListScroll,
-  restoreListScroll,
-  clearListScroll,
-  type PostQuery,
-} from "@/lib/community-posts"
+import { useNavigationRequest } from "@/components/NavigationGuard"
+import { FeedAvatar, FeedBest, FeedNavigation } from "@/components/community/FeedNavigation"
+import { getPostVersion, usePostVersion } from "@/lib/community-mutations"
+import { CommunityApiError, getFeed } from "@/lib/community-api"
+import { cacheFeed, readFeedCache, setFeedReturn, takeFeedReturn, mergeFeed, reconcileFeed, MAX_FEED_SEGMENTS, type FeedSnapshot, type FeedPosition } from "@/lib/community-feed"
+import { consumeListReturn, listHref, POST_TYPES, POST_TOPICS, postDate } from "@/lib/community-posts"
+import { topicByValue, type CommunityTopic } from "@/lib/community-topics"
+import type { InitialFeed } from "@/lib/community-load"
 
-import { TopicHeader, TopicSpaces } from "@/components/community/TopicSpaces"
-import type { CommunityTopic } from "@/lib/community-topics"
-
-import { pageIsOutOfRange, type InitialPostList } from "@/lib/community-load"
-
-function FilterForm({
-  initial,
-  onApply,
-  onCancel,
-  fixedTopic,
-}: {
-  initial: PostQuery
-  fixedTopic?: CommunityTopic
-  onApply: (query: PostQuery) => void
-  onCancel?: () => void
-}) {
-  const [type, setType] = useState(initial.type)
-  const [topic, setTopic] = useState(initial.topic)
-  const id = useId()
-  function submit(event: FormEvent) {
-    event.preventDefault()
-    onApply({ type, topic: fixedTopic?.topic ?? topic, page: 0 })
-  }
-  return (
-    <form
-      className="community-filter-form"
-      onSubmit={submit}
-      aria-label="게시글 필터"
-    >
-      <div>
-        <label htmlFor={`${id}-type`}>글 유형</label>
-        <select
-          data-initial-focus
-          id={`${id}-type`}
-          value={type}
-          onChange={(e) => setType(e.target.value as PostQuery["type"])}
-        >
-          <option value="">전체 유형</option>
-          {Object.entries(POST_TYPES).map(([key, label]) => (
-            <option key={key} value={key}>
-              {label}
-            </option>
-          ))}
-        </select>
-      </div>
-      {!fixedTopic && <div>
-        <label htmlFor={`${id}-topic`}>주제</label>
-        <select
-          id={`${id}-topic`}
-          value={topic}
-          onChange={(e) => setTopic(e.target.value as PostQuery["topic"])}
-        >
-          <option value="">전체 주제</option>
-          {Object.entries(POST_TOPICS).map(([key, label]) => (
-            <option key={key} value={key}>
-              {label}
-            </option>
-          ))}
-        </select>
-      </div>}
-      <div className="community-filter-actions">
-        {onCancel && (
-          <button
-            type="button"
-            className="iyum-button iyum-button-outline"
-            onClick={onCancel}
-          >
-            취소
-          </button>
-        )}
-        <button className="iyum-button iyum-button-primary" type="submit">
-          적용
-        </button>
-      </div>
-    </form>
-  )
+function position(): FeedPosition {
+  const rows = [...document.querySelectorAll<HTMLElement>("[data-feed-id]")]
+  const index = rows.findIndex(el => el.getBoundingClientRect().bottom > 90)
+  const row = rows[index]
+  return { id: row ? Number(row.dataset.feedId) : undefined, next: Number(rows[index+1]?.dataset.feedId) || undefined,
+    previous: Number(rows[index-1]?.dataset.feedId) || undefined, offset: row?.getBoundingClientRect().top ?? 0, y: window.scrollY }
 }
-
-
-type Snapshot = { key: string; query: PostQuery; page: PostPage }
-type Result = { key: string; snapshot: Snapshot | null; error: string | null }
-export default function PostList({ initial, space }: { initial: InitialPostList; space?: CommunityTopic }) {
-  const params = useSearchParams()
-  const pathname = usePathname()
-  const query = listQuery(params, pathname)
-  const href = listHref(query, pathname)
-  const [retry, setRetry] = useState(0)
-  const mutation = usePostVersion("list")
-  const requestKey = `${href}:${retry}:${mutation}`
-  const [result, setResult] = useState<Result>({
-    key: `${listHref(initial.query, pathname)}:0:0`,
-    snapshot: initial.data ? { key: listHref(initial.query, pathname), query: initial.query, page: initial.data } : null,
-    error: initial.error?.message ?? null,
-  })
-  const [filterOpen, setFilterOpen] = useState(false)
-  const mobileFilterButton = useRef<HTMLButtonElement>(null)
-  const { getApprovalVersion } = useNavigationGuard()
-  const keyboardInteraction = useRef(false)
-  const generation = useRef(0)
-  const firstRequest = useRef(true)
-  const heading = useRef<HTMLHeadingElement>(null)
-  const movement = useRef<{ href: string; kind: "start" | "history"; y?: number; keyboard?: boolean; navigationVersion?: number; owner?: Element | null } | null>(null)
-  const entryPositions = useRef(new Map<string, number>())
-  const entryId = useRef("")
-  useEffect(() => {
-    // Next가 사용하는 history.state는 보존하고 이 목록의 entry 식별자만 추가한다.
-    const id = window.history.state?.iyumListEntry ?? crypto.randomUUID()
-    window.history.replaceState({ ...window.history.state, iyumListEntry: id }, "")
-    entryId.current = id
-    const remember = () => entryPositions.current.set(entryId.current, window.scrollY)
-    const pop = () => {
-      generation.current++
-      entryId.current = window.history.state?.iyumListEntry ?? ""
-      movement.current = { href: listHref(listQuery(new URLSearchParams(location.search), location.pathname), location.pathname),
-        kind: "history", y: entryPositions.current.get(entryId.current) }
+export default function PostList({ initial, space }: { initial: InitialFeed; space?: CommunityTopic }) {
+  const router = useRouter(), scope = useNavigationRequest()
+  const version = usePostVersion("list"), href = initial.href
+  const [view, setView] = useState<FeedSnapshot>({ ...(initial.data ?? { items: [], hasNext: false, nextCursor: null }), segments: 1, version: 0 })
+  const currentView = useRef(view)
+  const [ready, setReady] = useState(false), [restoring, setRestoring] = useState(false)
+  const [busy, setBusy] = useState<"more" | "refresh" | null>(null)
+  const [error, setError] = useState<{ kind: "more" | "refresh"; latest: boolean; message: string } | null>(initial.error ? { kind: "refresh", latest: false, message: initial.error.message } : null)
+  const [auto, setAuto] = useState(true)
+  const entry = useRef(""), pendingPosition = useRef<FeedPosition | null>(null), request = useRef<AbortController | null>(null)
+  const sentinel = useRef<HTMLDivElement>(null), busyRef = useRef(false)
+  const save = useCallback(() => {
+    if (entry.current) cacheFeed(entry.current, href, { ...currentView.current, position: position() })
+  }, [href])
+  useLayoutEffect(() => {
+    let initialized = false
+    const frame = requestAnimationFrame(() => {
+    if (!scope.isActive()) return
+    // 복귀 의도는 취소되지 않은 초기화에서만 소비한다.
+    // dev Strict Mode의 setup→cleanup→setup에서도 첫 예약이 의도를 잃어버리지 않는다.
+    const explicit = consumeListReturn(href)
+    const oldId = window.history.state?.iyumFeedEntry as string | undefined
+    const returnId = explicit ? takeFeedReturn(href) : null
+    const saved = (oldId && readFeedCache(oldId, href)) || (returnId && readFeedCache(returnId, href))
+    entry.current = oldId && readFeedCache(oldId, href) ? oldId : crypto.randomUUID()
+    history.replaceState({ ...history.state, iyumFeedEntry: entry.current }, "")
+    if (saved) {
+      currentView.current = saved; setView(saved); pendingPosition.current = saved.position ?? null
+      setRestoring(!!saved.position); setAuto(false); setError(null)
     }
-    window.addEventListener("scroll", remember, { passive: true })
-    window.addEventListener("popstate", pop)
-    return () => {
-      window.removeEventListener("scroll", remember)
-      window.removeEventListener("popstate", pop)
-    }
-  }, [])
-  const loading =
-    result.key !==
-    requestKey
-  const snapshot = result.key.endsWith(`:${mutation}`) ? result.snapshot : null
-  const displayedQuery =
-    snapshot?.query ??
-    query
-  const error = !loading ? result.error : null
-  const queryType = query.type,
-    queryTopic = query.topic,
-    queryPage = query.page
-
-  useEffect(() => {
-    // Strict Mode에서도 초기 SSR 결과를 다시 요청하지 않는다.
-    if (firstRequest.current && requestKey === `${listHref(initial.query, pathname)}:0:0`) return
-    firstRequest.current = false
-    const ticket = ++generation.current
-    const controller = new AbortController()
-    const requested = { type: queryType, topic: queryTopic, page: queryPage }
-    getPosts(requested, controller.signal)
-      .then((page) => {
-        if (
-          ticket ===
-            generation.current &&
-          !controller.signal.aborted
-        ) {
-          setResult({
-            key: requestKey,
-            snapshot: { key: href, query: requested, page },
-            error: null,
-          })
-        }
+    initialized = true
+    setReady(true)
+    if (!saved) save()
+    })
+    const scroll = () => { if (initialized && scope.isActive()) save() }
+    window.addEventListener("scroll", scroll, { passive: true })
+    return () => { cancelAnimationFrame(frame); if (initialized && scope.isActive()) save(); request.current?.abort(); busyRef.current = false; window.removeEventListener("scroll", scroll) }
+  }, [href, save, scope])
+  useLayoutEffect(() => {
+    if (!ready || !pendingPosition.current) return
+    const target = pendingPosition.current
+    let frame = requestAnimationFrame(() => {
+      frame = requestAnimationFrame(() => {
+        if (!scope.isActive()) return
+        const row = [target.id, target.next, target.previous].map(id => document.querySelector<HTMLElement>(`[data-feed-id="${id}"]`)).find(Boolean)
+        if (row) window.scrollBy({ top: row.getBoundingClientRect().top - target.offset, behavior: "instant" })
+        else window.scrollTo({ top: target.y, behavior: "instant" })
+        pendingPosition.current = null; setRestoring(false); save()
       })
-      .catch((error) => {
-        if (
-          ticket ===
-            generation.current &&
-          !controller.signal.aborted
-        ) {
-          setResult((previous) => ({
-            key: requestKey,
-            snapshot: previous.key.endsWith(`:${mutation}`) ? previous.snapshot : null,
-            error:
-              error instanceof
-              CommunityApiError
-                ? error.message
-                : "게시글을 불러오지 못했습니다. 다시 시도해 주세요.",
-          }))
-        }
-      })
-    return () => {
-      controller.abort()
-    }
-  }, [href, requestKey, queryType, queryTopic, queryPage, initial.query, pathname, mutation])
-
+    })
+    return () => cancelAnimationFrame(frame)
+  }, [view, ready, scope, save])
+  // 복귀 직후 observer는 멈추고 사용자의 다음 스크롤부터 재개한다.
   useEffect(() => {
-    if (loading || error || snapshot?.key !== href) return
-    const pending = movement.current
-    if (pending?.href === href) {
-      const frame = requestAnimationFrame(() => {
-        if (movement.current !== pending) return
-        movement.current = null
-        if (pending.kind === "start") {
-          if (pending.navigationVersion !== getApprovalVersion()) return
-          clearListScroll(href)
-          if (heading.current && pending.keyboard &&
-              (document.activeElement === pending.owner || document.activeElement === document.body))
-            focusForReading(heading.current, true)
-          heading.current?.scrollIntoView({ block: "start", behavior: "instant" })
-        } else if (pending.y !== undefined) {
-          window.scrollTo({ top: pending.y, behavior: "instant" })
-        }
-      })
-      return () => cancelAnimationFrame(frame)
+    const arm = () => { if (!restoring && !error) setAuto(true) }
+    window.addEventListener("wheel", arm, { passive: true }); window.addEventListener("touchmove", arm, { passive: true })
+    const key = (e: KeyboardEvent) => { if (["PageDown", "ArrowDown", "End", " "].includes(e.key)) arm() }
+    window.addEventListener("keydown", key)
+    return () => { window.removeEventListener("wheel", arm); window.removeEventListener("touchmove", arm); window.removeEventListener("keydown", key) }
+  }, [restoring, error])
+  const load = useCallback(async (kind: "more" | "refresh", latest = false) => {
+    if (!scope.isActive() || (busyRef.current && kind === "more")) return
+    const previous = currentView.current
+    if (kind === "more" && (!previous.hasNext || previous.segments >= MAX_FEED_SEGMENTS)) return
+    request.current?.abort()
+    const controller = new AbortController(); request.current = controller
+    const valid = () => !controller.signal.aborted && scope.isActive() && request.current === controller
+    const requestedVersion = getPostVersion("list")
+    busyRef.current = true; setBusy(kind); setError(null)
+    try {
+      const data = kind === "more" ? await getFeed(initial.query, previous.nextCursor, controller.signal) : latest ?
+        await getFeed(initial.query, null, controller.signal) : await reconcileFeed(initial.query, initial.cursor, previous, controller.signal)
+      if (!valid() || requestedVersion !== getPostVersion("list")) return
+      if (kind === "refresh" && !latest) { pendingPosition.current = position(); setRestoring(true); setAuto(false) }
+      const updated = { ...data, items: kind === "more" ? mergeFeed(previous.items, data.items) : data.items,
+        segments: kind === "more" ? previous.segments + 1 : latest ? 1 : previous.segments, version: requestedVersion }
+      currentView.current = updated; setView(updated)
+      cacheFeed(entry.current, href, { ...updated, position: position() })
+    } catch (e) {
+      if (valid()) { setAuto(false); setError({ kind, latest, message: e instanceof CommunityApiError ? e.message : "게시글을 불러오지 못했습니다. 다시 시도해 주세요." }) }
+    } finally {
+      if (request.current === controller) { busyRef.current = false; if (scope.isActive()) setBusy(null) }
     }
-    // 상세에서 명시적으로 기록한 복귀 위치만 사용한다. 초기 진입에는 이동하지 않는다.
-    return restoreListScroll(href)
-  }, [loading, error, snapshot, href, getApprovalVersion])
-
-  function navigate(next: PostQuery) {
-    generation.current++
-    firstRequest.current = false
-    const destination = listHref(next, pathname)
-    movement.current = { href: destination, kind: "start", keyboard: keyboardInteraction.current, navigationVersion: getApprovalVersion(), owner: filterOpen ? mobileFilterButton.current : document.activeElement }
-    entryPositions.current.set(entryId.current, window.scrollY)
-    if (destination === href) setRetry((value) => value + 1)
-    else {
-      entryId.current = crypto.randomUUID()
-      // Next와 동기화되는 History API: 이 화면 안의 조회는 브라우저에서 한 번만 실행한다.
-      window.history.pushState({ iyumListEntry: entryId.current }, "", destination)
-    }
-    setFilterOpen(false)
-  }
-  const returnHref = snapshot?.key ?? href
-  const createQuery = new URLSearchParams({ from: returnHref })
-  if (displayedQuery.type) createQuery.set("type", displayedQuery.type)
-  if (displayedQuery.topic) createQuery.set("topic", displayedQuery.topic)
-  const totalPages = snapshot?.page.totalPages ?? 0
-  const outOfRange = snapshot ? pageIsOutOfRange(snapshot.page) : false
-  const currentPage = displayedQuery.page
-  const firstPage = Math.max(0, Math.min(currentPage - 1, totalPages - 3))
-  return (
-    <main id="main-content" className={`community-screen${space ? " community-topic-screen" : ""}`}
-      onPointerDownCapture={() => { keyboardInteraction.current = false }}
-      onKeyDownCapture={() => { keyboardInteraction.current = true }}
-      onClickCapture={event => { keyboardInteraction.current = event.detail === 0 }}
-    >
-      {space ? <TopicHeader space={space} /> : <><CommunityBanner writeHref={`/community/posts/create?${createQuery}`} /><TopicSpaces /></>}
-      <div className="iyum-container community-grid">
-        {!space && <BestPosts />}
-        <section className="community-list-column" aria-label="게시글 탐색">
-          {space && <div className="topic-list-actions"><p>{space.name}의 질문과 경험</p><Link className="iyum-button iyum-button-primary" onNavigate={() => rememberListScroll(returnHref)} href={`/community/posts/create?${createQuery}`}>＋ 글쓰기</Link></div>}
-          <div className="community-desktop-filters">
-            <FilterForm key={href} initial={query} onApply={navigate} fixedTopic={space} />
-          </div>
-          <div className="community-mobile-filters iyum-card">
-            <span>{queryLabel(displayedQuery)}</span>
-            <button
-              ref={mobileFilterButton}
-              className="iyum-button iyum-button-outline"
-              aria-haspopup="dialog"
-              onClick={() => setFilterOpen(true)}
-            >
-              <span aria-hidden="true">☷</span> 필터
-            </button>
-          </div>
-          <div className="community-list-heading">
-            <div>
-              <h2 ref={heading} tabIndex={-1} id="community-results-heading" aria-describedby="community-result-status">{space ? `${space.name} 게시글` : "전체 게시글"}</h2>
-              <p className="community-applied">{queryLabel(displayedQuery)}</p>
-            </div>
-            <span>최신순</span>
-          </div>
-          <div
-            id="community-result-status"
-            className="community-request-status"
-            role="status"
-            aria-live="polite"
-          >
-            {loading
-              ? `${queryLabel(query)} 게시글을 불러오고 있습니다.${
-                  snapshot ? " 이전 결과를 보여드리고 있어요." : ""
-                }`
-              : !error && snapshot
-                ? outOfRange ? "요청한 페이지가 현재 목록 범위를 벗어났습니다." : `${snapshot.page.totalElements}개의 글 · ${
-                    snapshot.page.totalPages ? snapshot.page.page + 1 : 0
-                  } / ${snapshot.page.totalPages}페이지`
-                : ""}
-          </div>
-          {error && (
-            <div className="community-error" role="alert">
-              <p>{error}</p>
-              <p>
-                {queryLabel(query)} · {query.page + 1}페이지 조회에
-                실패했습니다.
-                {snapshot ? " 아래 목록은 이전 조회 결과입니다." : ""}
-              </p>
-              <button
-                className="iyum-button iyum-button-outline"
-                onClick={() => navigate(query)}
-              >
-                다시 시도
-              </button>
-            </div>
-          )}
-          <div aria-busy={loading}>
-            {snapshot && snapshot.page.items.length > 0 && (
-              <ol className="community-post-list" aria-label="게시글 목록">
-                {snapshot.page.items.map((post) => (
-                  <li key={post.id}>
-                    <PostTags type={post.type} topic={post.topic} />
-                    <Link
-                      href={`/community/posts/${post.id}?from=${encodeURIComponent(returnHref)}`}
-                      onClick={() => rememberListScroll(returnHref)}
-                    >
-                      {post.title}
-                    </Link>
-                    <div className="community-post-meta">
-                      <span>{post.author.nickname}</span>
-                      <span aria-hidden="true">·</span>
-                      <time dateTime={post.createdAt}>
-                        {postDate(post.createdAt)}
-                      </time>
-                      <span className="community-comment-count">댓글 {post.commentCount}</span>
-                    </div>
-                  </li>
-                ))}
-              </ol>
-            )}
-            {snapshot && outOfRange && (
-              <div className="community-empty">
-                <h3>요청한 페이지를 표시할 수 없어요.</h3>
-                <p>게시글이 삭제되었거나 페이지 범위를 벗어났습니다. 같은 조건의 첫 페이지에서 다시 확인해 주세요.</p>
-                <button className="iyum-button iyum-button-outline" onClick={() => navigate({ ...displayedQuery, page: 0 })}>
-                  같은 조건의 첫 페이지로
-                </button>
-              </div>
-            )}
-            {snapshot && !outOfRange && snapshot.page.items.length === 0 && (
-              <div className="community-empty">
-                <h3>아직 표시할 게시글이 없어요.</h3>
-                <p>{space ? `${space.name}에 관한 첫 이야기를 나눠 주세요. 글 유형을 바꿔 다른 글을 살펴볼 수도 있어요.` : "다른 조건으로 살펴보거나 첫 이야기를 나눠 주세요."}</p>
-                {space && <Link className="iyum-button iyum-button-primary" onNavigate={() => rememberListScroll(returnHref)} href={`/community/posts/create?${createQuery}`}>이 주제로 글쓰기</Link>}
-                <button
-                  className="iyum-button iyum-button-outline"
-                  onClick={() => navigate({ type: "", topic: space?.topic ?? "", page: 0 })}
-                >
-                  {space ? "이 주제의 모든 글 유형 보기" : "전체 게시글 보기"}
-                </button>
-              </div>
-            )}
-            {!snapshot && loading && (
-              <div className="community-loading" aria-hidden="true">
-                목록을 준비하고 있어요.
-              </div>
-            )}
-          </div>
-          {totalPages > 0 && !outOfRange && (
-            <nav className="community-pagination" aria-label="게시글 페이지">
-              <button
-                disabled={currentPage === 0}
-                aria-label="이전 페이지"
-                onClick={() =>
-                  navigate({ ...displayedQuery, page: currentPage - 1 })
-                }
-              >
-                ‹
-              </button>
-              {Array.from(
-                { length: Math.min(3, totalPages) },
-                (_, index) => firstPage + index,
-              ).map((page) => (
-                <button
-                  key={page}
-                  aria-label={`${page + 1}페이지`}
-                  aria-current={page === currentPage ? "page" : undefined}
-                  onClick={() => navigate({ ...displayedQuery, page })}
-                >
-                  {page + 1}
-                </button>
-              ))}
-              <button
-                disabled={!snapshot?.page.hasNext}
-                aria-label="다음 페이지"
-                onClick={() =>
-                  navigate({ ...displayedQuery, page: currentPage + 1 })
-                }
-              >
-                ›
-              </button>
-            </nav>
-          )}
-        </section>
-        {space && <TopicSpaces current={space} />}
-      </div>
-      {filterOpen && (
-        <CommunityDialog
-          titleId="community-filter-heading"
-          onCancel={() => setFilterOpen(false)}
-        >
-          <h2 id="community-filter-heading">게시글 필터</h2>
-          <p>조건을 선택하고 적용해 주세요.</p>
-          <FilterForm
-            initial={query}
-            fixedTopic={space}
-            onApply={navigate}
-            onCancel={() => setFilterOpen(false)}
-          />
-        </CommunityDialog>
-      )}
-    </main>
-  )
+  }, [initial.query, initial.cursor, href, scope])
+  useEffect(() => {
+    if (ready && !restoring && currentView.current.version !== version) void load("refresh")
+  }, [ready, restoring, version, load])
+  useEffect(() => {
+    if (!ready || restoring || view.version !== version || busy || error || !auto || !view.hasNext || view.segments >= MAX_FEED_SEGMENTS || !sentinel.current || !("IntersectionObserver" in window)) return
+    const observer = new IntersectionObserver(entries => { if (entries.some(e => e.isIntersecting)) void load("more") }, { rootMargin: "120px" })
+    observer.observe(sentinel.current)
+    return () => observer.disconnect()
+  }, [ready, restoring, version, view.version, busy, error, auto, view.hasNext, view.segments, load])
+  function leaving() { save(); setFeedReturn(entry.current, href) }
+  const selected = space ?? topicByValue(initial.query.topic), name = selected?.name ?? "전체"
+  const pathname = href.split("?")[0]
+  const create = new URLSearchParams({ from: href }); if (initial.query.type) create.set("type", initial.query.type); if (initial.query.topic) create.set("topic", initial.query.topic)
+  return <main id="main-content" className="community-screen community-feed">
+    <div className="feed-container">
+      <header className="feed-heading"><div><h1>{selected?.name ?? "커뮤니티"}</h1><p>{selected ? selected.guidance : "서로의 질문과 경험을 나눠요. 공식 정보와 개인 경험은 구분하고, 개인정보는 보호해 주세요."}</p></div>
+        <Link className="iyum-button iyum-button-primary" href={`/community/posts/create?${create}`} onNavigate={leaving}>＋ 글쓰기</Link></header>
+      <FeedNavigation query={initial.query} />
+      <FeedBest name={name} />
+      <section aria-label="게시글 피드"><div className="feed-list-heading"><h2>{name} 게시글</h2><div className="feed-heading-actions"><span>최신순</span>        <div className="feed-refresh"><button className="feed-refresh-button" aria-disabled={!!busy} onClick={() => {
+          if (busyRef.current) return
+          if (initial.cursor) router.push(listHref(initial.query, pathname))
+          else { setAuto(false); void load("refresh", true) }
+        }}><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" focusable="false"><path d="M20 7v5h-5M4 17v-5h5"/><path d="M6.1 6.1a8 8 0 0 1 13.5 5.4M4.4 12.5a8 8 0 0 0 13.5 5.4"/></svg>최신 목록 새로고침</button></div>
+</div></div>
+        <div className="feed-tools"><nav className="feed-types" aria-label="글 유형"><Link href={listHref({ ...initial.query, type: "", page: 0 }, pathname)} aria-current={!initial.query.type ? "page" : undefined}>전체 유형</Link>
+          {Object.entries(POST_TYPES).map(([type, label]) => <Link key={type} href={listHref({ ...initial.query, type: type as keyof typeof POST_TYPES, page: 0 }, pathname)} aria-current={initial.query.type === type ? "page" : undefined}>{label}</Link>)}
+        </nav>
+        </div>
+        <p role="status" className="community-help">{busy === "more" ? "다음 게시글을 불러오고 있습니다." : busy ? "목록을 갱신하고 있습니다. 기존 글은 유지됩니다." : ""}</p>
+        {error && <div className="community-error" role="alert"><p>{error.message}</p><button className="iyum-text-link" onClick={() => void load(error.kind, error.latest)} disabled={!!busy}>다시 시도</button></div>}
+        {!error && !busy && !view.items.length && <div className="community-empty"><h3>아직 표시할 게시글이 없어요.</h3><p>{selected ? `${name}에 관한 첫 이야기를 나눠 주세요.` : "첫 질문이나 경험을 나눠 주세요."}</p><Link className="iyum-text-link" href={`/community/posts/create?${create}`} onNavigate={leaving}>글쓰기</Link></div>}
+        <ol className="feed-posts" aria-label="게시글 목록" aria-busy={!!busy}>
+          {view.items.map(post => <li key={post.id} data-feed-id={post.id}><article>
+            <FeedAvatar/><div className="feed-post-content"><div className="feed-author"><strong>{post.author.nickname}</strong><div className="feed-meta"><span>{POST_TOPICS[post.topic]}</span><span>{POST_TYPES[post.type]}</span><time dateTime={post.createdAt}>{postDate(post.createdAt)}</time></div></div>
+            <h3><Link href={`/community/posts/${post.id}?from=${encodeURIComponent(href)}`} onNavigate={leaving} prefetch={false}>{post.title}</Link></h3>
+            <p className="feed-preview">{post.contentPreview}</p>
+            <span className="feed-comment-count"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" aria-hidden="true" focusable="false"><path d="M21 11.5a9 9 0 0 1-9 9 10 10 0 0 1-4-.8L3 21l1.3-4.9a9 9 0 1 1 16.7-4.6Z"/></svg>댓글 {post.commentCount}</span>
+          </div></article></li>)}
+        </ol>
+        <div ref={sentinel} className="feed-end">
+          {(view.hasNext || view.items.length > 0) && view.segments < MAX_FEED_SEGMENTS ? <>
+            <button type="button" className="iyum-button iyum-button-outline" onClick={() => void load("more")} aria-disabled={!!busy || !view.hasNext}>{view.hasNext ? "게시글 더 보기" : "마지막 게시글까지 확인했어요."}</button>
+            {view.hasNext && <noscript><p><a href={listHref(initial.query, pathname, view.nextCursor)}>다음 게시글 목록</a></p></noscript>}
+          </> : view.items.length > 0 && <p>{view.hasNext ? "1,000개까지 읽었습니다. 다음 구간은 새 목록에서 이어서 볼 수 있어요." : "마지막 게시글까지 확인했어요."}</p>}
+          {view.hasNext && view.segments >= MAX_FEED_SEGMENTS && <Link href={listHref(initial.query, pathname, view.nextCursor)}>다음 구간으로</Link>}
+        </div>
+      </section>
+    </div>
+  </main>
 }

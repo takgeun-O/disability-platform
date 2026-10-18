@@ -9,6 +9,7 @@ type Guard = {
   notifyNavigation: () => void;
   setDirty: (value: boolean) => void;
   request: (action: () => void) => void;
+  confirmNavigation: (action: () => void) => void;
   pending: (() => void) | null;
   cancel: () => void;
   proceed: () => void;
@@ -26,6 +27,11 @@ export function NavigationGuardProvider({children}: {children: ReactNode}) {
   const request = useCallback((action: () => void) => {
     if (dirty.current) setPending(() => action);
     else { notifyNavigation(); action(); }
+  }, [notifyNavigation]);
+  // 화면 자체의 확인창에서 입력 유실까지 동의받은 탐색만 사용한다.
+  // 취소에는 호출하지 않는다. 기존 proceed와 동일하게 요청 수명을 즉시 끝낸다.
+  const confirmNavigation = useCallback((action: () => void) => {
+    notifyNavigation(); dirty.current = false; setPending(null); action();
   }, [notifyNavigation]);
   const setDirty = useCallback((value: boolean) => {dirty.current = value;}, []);
 
@@ -75,12 +81,11 @@ export function NavigationGuardProvider({children}: {children: ReactNode}) {
   }, [notifyNavigation]);
 
   return <Context.Provider value={{
-    isDirty: () => dirty.current, getApprovalVersion, notifyNavigation, setDirty, request, pending,
+    isDirty: () => dirty.current, getApprovalVersion, notifyNavigation, setDirty, request, confirmNavigation, pending,
     cancel: () => setPending(null),
     proceed: () => {
       if (!pending) return;
-      notifyNavigation();
-      dirty.current = false; setPending(null); pending();
+      confirmNavigation(pending);
     },
   }}>{children}</Context.Provider>;
 }

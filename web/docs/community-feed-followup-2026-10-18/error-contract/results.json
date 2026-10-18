@@ -1,0 +1,55 @@
+{
+  "kind": "mock public API, production 404 versus failures",
+  "results": [
+    {
+      "id": 41,
+      "js": false,
+      "pass": true
+    },
+    {
+      "id": 41,
+      "js": true,
+      "pass": true
+    },
+    {
+      "id": 42,
+      "js": false,
+      "pass": true
+    },
+    {
+      "id": 42,
+      "js": true,
+      "pass": true
+    },
+    {
+      "id": 43,
+      "js": false,
+      "pass": true
+    },
+    {
+      "id": 43,
+      "js": true,
+      "pass": true
+    },
+    {
+      "id": 44,
+      "js": false,
+      "pass": true
+    },
+    {
+      "id": 44,
+      "js": true,
+      "pass": true
+    },
+    {
+      "id": 45,
+      "js": false,
+      "pass": true
+    },
+    {
+      "id": 45,
+      "js": true,
+      "pass": true
+    }
+  ]
+}

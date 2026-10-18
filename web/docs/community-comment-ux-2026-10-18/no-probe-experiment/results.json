@@ -1,0 +1,28 @@
+{
+  "kind": "mock public API, production 404 versus failures",
+  "results": [
+    {
+      "name": "normal detail measured API count",
+      "js": false,
+      "count": 1,
+      "pass": true
+    },
+    {
+      "name": "normal detail measured API count",
+      "js": true,
+      "count": 1,
+      "pass": true
+    },
+    {
+      "id": 41,
+      "js": false,
+      "pass": false,
+      "error": "The expression evaluated to a falsy value:\n\n  assert(await p.getByRole('heading',{name:'게시글을 찾을 수 없어요.'}).isVisible())\n"
+    },
+    {
+      "id": 41,
+      "js": true,
+      "pass": true
+    }
+  ]
+}

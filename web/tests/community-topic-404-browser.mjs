@@ -40,8 +40,8 @@ try {
  await check('정상 주제 HTTP200·무JS 제목/소개/게시글·충돌 쿼리 정규화',async()=>{
   const response=await page.goto(base+'/community/topics/hearing-aid?topic=DAILY&type=QUESTION');assert.equal(response.status(),200);
   assert.equal(new URL(page.url()).pathname,'/community/topics/hearing-aid');assert.equal(new URL(page.url()).search,'?type=QUESTION');
-  assert(await page.getByRole('heading',{name:'보청기 커뮤니티',exact:true}).isVisible());assert(await page.locator('.topic-hero p').isVisible());assert(await page.locator('.topic-guidance').isVisible());
+  assert(await page.getByRole('heading',{name:'보청기',exact:true}).isVisible());assert(await page.locator('.feed-heading p').isVisible());assert(await page.locator('.feed-heading p').isVisible());assert((await page.locator('.feed-heading p').innerText()).includes('제품 추천은 사용 환경과 개인 경험을 함께 적어 주세요.'));
   // 기존 로컬 검증 데이터가 있는 환경: 실제 표시되는 목록 행으로 확인한다.
-  assert(await page.locator('.community-post-list > li').count()>0,'실제 공개 조회에 맞는 기존 보청기 질문 게시글이 필요합니다.');
+  assert(await page.locator('.feed-posts > li').count()>0,'실제 공개 조회에 맞는 기존 보청기 질문 게시글이 필요합니다.');
  });await context.close();
 }finally{await browser.close();await fs.writeFile(path.join(output,'topic-404-results.json'),JSON.stringify({mode:'production Next + existing Spring public reads, no DB writes',results},null,2));}

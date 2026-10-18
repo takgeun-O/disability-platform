@@ -1,0 +1,22 @@
+{
+  "kind": "actual Spring, production SSR, read only",
+  "writes": 0,
+  "results": [
+    {
+      "name": "Spring first and next cursor, raw precision, ordered unique IDs",
+      "pass": true
+    },
+    {
+      "name": "Spring topic+type feed and production SSR/noJS count/preview",
+      "pass": true
+    },
+    {
+      "name": "Spring noJS detail/body/comment visible, metadata intact",
+      "pass": true
+    },
+    {
+      "name": "dev8443 reflects feed source / anonymous header / actual browser feed CORS",
+      "pass": true
+    }
+  ]
+}

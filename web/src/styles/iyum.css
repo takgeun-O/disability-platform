@@ -32,10 +32,11 @@
 .iyum-wordmark small { font-size: 12px; color: var(--iyum-muted); }
 .iyum-skip-link { position: absolute; top: 8px; left: 16px; transform: translateY(-160%); background: var(--iyum-ink); color: white; padding: 12px 18px; z-index: 80; border-radius: 8px; }
 .iyum-skip-link:focus { transform: none; }
-.iyum-nav { min-width: 0; }
+.iyum-nav { display: contents; }
 .iyum-nav-items { display: flex; align-items: center; gap: 32px; }
-.iyum-nav-link { display: flex; min-height: 48px; align-items: center; gap: 8px; border: 0; background: transparent; padding: 8px 0; font-size: 16px; font-weight: 600; color: var(--iyum-ink); text-decoration: none; cursor: pointer; }
+.iyum-nav-link { display: flex; min-height: 48px; align-items: center; gap: 8px; border: 0; border-bottom: 2px solid transparent; background: transparent; padding: 8px 0; font-size: 16px; font-weight: 600; color: var(--iyum-ink); text-decoration: none; cursor: pointer; }
 .iyum-nav-link:hover, .iyum-nav-link[aria-current], .iyum-nav-link[aria-expanded=true] { color: var(--iyum-primary); }
+.iyum-nav-link[aria-current] { border-bottom-color: var(--iyum-primary); }
 .iyum-chevron { transition: transform .15s ease; }
 .iyum-chevron.is-open { transform: rotate(180deg); }
 .iyum-information { position: relative; }
@@ -158,12 +159,13 @@
   .iyum-home-grid { gap: 24px; }
 }
 @media (max-width: 900px) {
-  .iyum-header-inner { grid-template-columns: 1fr auto; gap: 0 12px; padding-top: 12px; }
+  .iyum-header-inner { grid-template-columns: 1fr auto; gap: 0 12px; padding-block: 12px; position: relative; }
   .iyum-header .iyum-wordmark { min-height: 48px; align-items: center; }
   .iyum-header .iyum-wordmark > span { font-size: 28px; }
-  .iyum-nav { order: 3; grid-column: 1 / -1; border-top: 1px solid var(--iyum-border); margin-top: 10px; }
-  .iyum-mobile-toggle { display: flex; width: 100%; align-items: center; justify-content: space-between; min-height: 44px; padding: 8px 0; font-size: 14px; font-weight: 600; color: var(--iyum-ink); cursor: pointer; }
-  .iyum-nav-items { display: none; align-items: stretch; gap: 0; padding-bottom: 12px; }
+  .iyum-nav { display: contents; }
+  .iyum-mobile-toggle { display: flex; grid-column: 2; grid-row: 1; justify-self: end; width: 44px; height: 44px; align-items: center; justify-content: center; color: var(--iyum-ink); border: 1px solid transparent; border-radius: 8px; cursor: pointer; }
+  .iyum-mobile-toggle:hover { background: var(--iyum-mist); }
+  .iyum-nav-items { grid-column: 1 / -1; display: none; align-items: stretch; gap: 0; padding-bottom: 12px; }
   .iyum-nav.is-open .iyum-nav-items { display: flex; flex-direction: column; }
   .iyum-nav-link { width: 100%; justify-content: space-between; border-top: 1px solid var(--iyum-border); padding: 12px 4px; }
   .iyum-information-menu { position: static; width: 100%; box-shadow: none; background: var(--iyum-mist); padding: 4px; }
@@ -172,7 +174,11 @@
   .iyum-shortcut-grid { grid-template-columns: minmax(0, 1fr); }
   .iyum-shortcut { min-height: 94px; }
   .iyum-footer-inner { flex-direction: column; gap: 24px; }
-  .iyum-auth-controls { max-width: 260px; }
+  .iyum-auth-controls { grid-column: 1 / -1; justify-self: stretch; position: static; max-width: none; }
+  .iyum-header .iyum-member-menu { display: none; }
+  .iyum-nav.is-open .iyum-member-menu { display: flex; flex-wrap: wrap; border-top: 1px solid var(--iyum-border); padding-top: 12px; }
+  .iyum-header .iyum-member-name { flex: 1; max-width: none; }
+  .iyum-header .iyum-auth-notice { top: calc(100% + 4px); right: 0; }
 }
 @media (max-width: 600px) {
   .iyum-container { width: calc(100% - 40px); }
@@ -183,7 +189,7 @@
   .iyum-hero-art img { object-position: right center; }
   .iyum-hero::after { background: linear-gradient(180deg, transparent 100px, #f3f9fd 190px); }
   .iyum-header .iyum-wordmark small { display: none; }
-  .iyum-auth-controls { max-width: min(220px, calc(100vw - 180px)); }
+
   .iyum-member-menu { gap: 4px; }
   .iyum-member-menu .iyum-button { padding: 10px 8px; }
   .iyum-member-name { max-width: 100px; font-size: 13px; }
