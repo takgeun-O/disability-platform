@@ -17,12 +17,15 @@ import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.annotation.Nullable;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
+import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.CacheControl;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
+
+import java.time.Instant;
 
 @Tag(name = "커뮤니티 게시글")
 @RestController
@@ -187,6 +190,88 @@ public class PostController {
     }
 
     @GetMapping(
+            value = "/feed",
+            produces = MediaType.APPLICATION_JSON_VALUE
+    )
+    @Operation(
+            summary = "게시글 피드 커서 조회",
+            description = """
+                    로그인 없이 조회할 수 있습니다.
+                    생성 시각 내림차순, ID 내림차순으로 정렬합니다.
+                    
+                    첫 조회에서는 afterCreatedAt과 afterId를 모두 생략합니다.
+                    후속 조회에서는 이전 응답의 nextCursor 값을 함께 전달합니다.
+                    생성 시각 문자열은 정밀도를 유지하도록 그대로 전달합니다.
+                    
+                    글 유형과 주제는 후속 조회에서도 동일하게 전달합니다.
+                    필터를 변경하면 커서를 생략하고 처음부터 조회합니다.
+                    
+                    마지막 목록은 hasNext=false, nextCursor=null을 반환합니다.
+                    """
+    )
+    @ApiResponses({
+            @ApiResponse(
+                    responseCode = "200",
+                    description = "조회 성공. 조회할 게시글이 없으면 빈 목록",
+                    content = @Content(
+                            schema = @Schema(
+                                    implementation = PostFeedResponse.class
+                            )
+                    )
+            ),
+            @ApiResponse(
+                    responseCode = "400",
+                    description = "잘못된 조회 개수·커서·필터 또는 파라미터 형식",
+                    content = @Content(
+                            schema = @Schema(
+                                    implementation = ApiErrorResponse.class
+                            )
+                    )
+            )
+    })
+    public PostFeedResponse getFeed(
+            @Parameter(description = "글 유형. 생략하면 전체 유형")
+            @RequestParam(name = "type", required = false)
+            @Nullable PostType type,
+
+            @Parameter(description = "주제. 생략하면 전체 주제")
+            @RequestParam(name = "topic", required = false)
+            @Nullable PostTopic topic,
+
+            @Parameter(
+                    description = """
+                            이전 응답의 nextCursor.createdAt.
+                            반환받은 문자열을 그대로 전달합니다.
+                            """,
+                    example = "2026-10-18T02:00:00.123456Z"
+            )
+            @RequestParam(name = "afterCreatedAt", required = false)
+            @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) // 요청의 날짜 문자열을 Instant로 변환할 때 사용
+            @Nullable Instant afterCreatedAt,
+
+            @Parameter(
+                    description = "이전 응답의 nextCursor.postId",
+                    example = "104"
+            )
+            @RequestParam(name = "afterId", required = false)
+            @Nullable Long afterId,
+
+            @Parameter(description = "조회 개수. 1~50, 기본값 20")
+            @RequestParam(name = "size", defaultValue = "20")
+            int size
+    ) {
+        return PostFeedResponse.from(
+                postReadService.getFeed(
+                        type,
+                        topic,
+                        afterCreatedAt,
+                        afterId,
+                        size
+                )
+        );
+    }
+
+    @GetMapping(
             value = "/{postId}",
             produces = MediaType.APPLICATION_JSON_VALUE
     )
@@ -303,17 +388,17 @@ public class PostController {
             )
     })
     public ResponseEntity<Void> update( // Void : 응답 본문이 없다는 의미 (204 응답 반환할 것)
-            @Parameter(hidden = true)
-            @AuthenticationPrincipal MemberPrincipal principal,
+                                        @Parameter(hidden = true)
+                                        @AuthenticationPrincipal MemberPrincipal principal,
 
-            @Parameter(description = "수정할 게시글 ID", example = "123")
-            @PathVariable("postId") Long postId,
+                                        @Parameter(description = "수정할 게시글 ID", example = "123")
+                                        @PathVariable("postId") Long postId,
 
-            // @Valid로 PostUpdateRequest 검증 요청 -> DTO에 붙은 @ValidPostUpdateRequest를 통해 검증기 실행
-            @Valid @RequestBody PostUpdateRequest request
+                                        // @Valid로 PostUpdateRequest 검증 요청 -> DTO에 붙은 @ValidPostUpdateRequest를 통해 검증기 실행
+                                        @Valid @RequestBody PostUpdateRequest request
     ) {
 
-        if(principal == null) {
+        if (principal == null) {
             throw new PostUpdateException(
                     PostUpdateException.Code.MEMBER_NOT_FOUND
             );
@@ -334,12 +419,12 @@ public class PostController {
     @Operation(
             summary = "게시글 삭제",
             description = """
-                로그인한 작성자가 자신의 게시글을 논리 삭제합니다.
-                DB의 현재 회원 상태가 ACTIVE인 경우에만 허용합니다.
-                존재하지 않거나 이미 삭제된 게시글은 404를 반환합니다.
-                로그인 후 발급받은 CSRF 토큰과 같은 세션 쿠키가 필요합니다.
-                요청 본문은 사용하지 않습니다.
-                """,
+                    로그인한 작성자가 자신의 게시글을 논리 삭제합니다.
+                    DB의 현재 회원 상태가 ACTIVE인 경우에만 허용합니다.
+                    존재하지 않거나 이미 삭제된 게시글은 404를 반환합니다.
+                    로그인 후 발급받은 CSRF 토큰과 같은 세션 쿠키가 필요합니다.
+                    요청 본문은 사용하지 않습니다.
+                    """,
             parameters = @Parameter(
                     name = "X-CSRF-TOKEN",
                     in = ParameterIn.HEADER,
@@ -409,14 +494,14 @@ public class PostController {
     // 또한 요청 본문이 없는 API이기 때문에 consumes = APPLICATION_JSON_VALUE를 지정하지 않음.
     @DeleteMapping("/{postId}")
     public ResponseEntity<Void> delete( // Void : 응답 본문이 없다는 의미 (204 응답 반환할 것)
-            @Parameter(hidden = true)
-            @AuthenticationPrincipal MemberPrincipal principal,
+                                        @Parameter(hidden = true)
+                                        @AuthenticationPrincipal MemberPrincipal principal,
 
-            @Parameter(description = "게시글 ID", example = "123")
-            @PathVariable("postId") Long postId
+                                        @Parameter(description = "게시글 ID", example = "123")
+                                        @PathVariable("postId") Long postId
     ) {
 
-        if(principal == null) {
+        if (principal == null) {
             throw new PostDeleteException(
                     PostDeleteException.Code.MEMBER_NOT_FOUND
             );

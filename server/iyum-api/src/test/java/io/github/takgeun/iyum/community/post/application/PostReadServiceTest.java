@@ -25,7 +25,9 @@ import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
 import org.testcontainers.postgresql.PostgreSQLContainer;
 
+import java.sql.Timestamp;
 import java.time.Instant;
+import java.util.List;
 
 import static org.assertj.core.api.Assertions.*;
 import static org.mockito.Mockito.*;
@@ -391,6 +393,251 @@ class PostReadServiceTest {
         verifyNoInteractions(commentRepository);
     }
 
+    @Test
+    void 피드는_반환할_게시글만_집계하고_마지막_반환_항목으로_커서를_만든다() {
+        Instant latestTime = arrangeFeedTimes();
+
+        Member author = memberRepository.findById(authorId)
+                .orElseThrow();
+
+        Post firstPost = postRepository.findById(firstQuestionId)
+                .orElseThrow();
+
+        commentRepository.saveAndFlush(
+                Comment.create(firstPost, author, "공개 댓글 1")
+        );
+
+        commentRepository.saveAndFlush(
+                Comment.create(firstPost, author, "공개 댓글 2")
+        );
+
+        Comment deleted = Comment.create(
+                firstPost,
+                author,
+                "삭제된 댓글"
+        );
+        deleted.delete(latestTime.plusSeconds(60));
+        commentRepository.saveAndFlush(deleted);
+
+        // 데이터 준비 중 발생한 호출 기록만 지운다.
+        clearInvocations(commentRepository);
+
+        assertThat(
+                TransactionSynchronizationManager
+                        .isActualTransactionActive()
+        ).isFalse();
+
+        PostFeedResult result = postReadService.getFeed(
+                PostType.QUESTION,
+                PostTopic.HEARING_AID,
+                null,
+                null,
+                1
+        );
+
+        assertThat(
+                TransactionSynchronizationManager
+                        .isActualTransactionActive()
+        ).isFalse();
+
+        assertThat(result.items())
+                .extracting(PostFeedItemResult::postId)
+                .containsExactly(firstQuestionId);
+
+        PostFeedItemResult item = result.items().getFirst();
+
+        assertThat(item.title()).isEqualTo("첫 번째 질문");
+        assertThat(item.type()).isEqualTo(PostType.QUESTION);
+        assertThat(item.topic()).isEqualTo(PostTopic.HEARING_AID);
+
+        assertThat(item.author().memberId()).isEqualTo(authorId);
+        assertThat(item.author().nickname()).isEqualTo("조회작성자");
+
+        assertThat(item.contentPreview())
+                .isEqualTo("첫 번째 줄 두 번째 줄");
+
+        assertThat(item.createdAt()).isEqualTo(latestTime);
+        assertThat(item.commentCount()).isEqualTo(2L);
+
+        assertThat(result.hasNext()).isTrue();
+
+        assertThat(result.nextCursor())
+                .isEqualTo(new PostCursor(latestTime, firstQuestionId));
+
+        // 추가 확인용으로 조회한 두 번째 질문은 집계 대상에 넣지 않는다.
+        verify(commentRepository, times(1))
+                .countVisibleCommentsByPostIds(
+                        List.of(firstQuestionId)
+                );
+
+        verifyNoMoreInteractions(commentRepository);
+
+        // 미리보기 생성 과정에서 원본 본문을 변경하지 않았는지도 확인한다.
+        assertThat(postReadService.getPost(firstQuestionId).content())
+                .isEqualTo("첫 번째 줄\n두 번째 줄");
+    }
+
+    @Test
+    void 반환받은_커서로_이어서_조회하고_마지막이면_커서를_반환하지_않는다() {
+        arrangeFeedTimes();
+
+        PostFeedResult first = postReadService.getFeed(
+                PostType.QUESTION,
+                PostTopic.HEARING_AID,
+                null,
+                null,
+                1
+        );
+
+        assertThat(first.hasNext()).isTrue();
+        assertThat(first.nextCursor()).isNotNull();
+
+        PostCursor cursor = first.nextCursor();
+
+        clearInvocations(commentRepository);
+
+        PostFeedResult last = postReadService.getFeed(
+                PostType.QUESTION,
+                PostTopic.HEARING_AID,
+                cursor.createdAt(),
+                cursor.postId(),
+                1
+        );
+
+        assertThat(last.items())
+                .extracting(PostFeedItemResult::postId)
+                .containsExactly(secondQuestionId);
+
+        assertThat(last.items().getFirst().commentCount())
+                .isZero();
+
+        // 요청한 개수와 정확히 같은 1개가 있어도,
+        // 추가 게시글이 없다면 마지막 목록이다.
+        assertThat(last.hasNext()).isFalse();
+        assertThat(last.nextCursor()).isNull();
+
+        verify(commentRepository, times(1))
+                .countVisibleCommentsByPostIds(
+                        List.of(secondQuestionId)
+                );
+
+        verifyNoMoreInteractions(commentRepository);
+
+        // 마지막 게시글보다 뒤를 요청하면 빈 목록이다.
+        PostFeedItemResult lastItem = last.items().getLast();
+
+        clearInvocations(commentRepository);
+
+        PostFeedResult empty = postReadService.getFeed(
+                PostType.QUESTION,
+                PostTopic.HEARING_AID,
+                lastItem.createdAt(),
+                lastItem.postId(),
+                1
+        );
+
+        assertThat(empty.items()).isEmpty();
+        assertThat(empty.hasNext()).isFalse();
+        assertThat(empty.nextCursor()).isNull();
+
+        verifyNoInteractions(commentRepository);
+    }
+
+    @Test
+    void 피드의_첫_조회가_비어_있으면_댓글_집계를_생략한다() {
+        clearInvocations(commentRepository);
+
+        PostFeedResult result = postReadService.getFeed(
+                PostType.REVIEW,
+                null,
+                null,
+                null,
+                20
+        );
+
+        assertThat(result.items()).isEmpty();
+        assertThat(result.hasNext()).isFalse();
+        assertThat(result.nextCursor()).isNull();
+
+        verifyNoInteractions(commentRepository);
+    }
+
+    @Test
+    void 피드는_필터를_생략하고_최대_크기로_조회할_수_있다() {
+        PostFeedResult result = postReadService.getFeed(
+                null,
+                null,
+                null,
+                null,
+                50
+        );
+
+        // 기존 @BeforeEach에서 질문 2개와 일상 글 1개를 만든다.
+        assertThat(result.items()).hasSize(3);
+        assertThat(result.hasNext()).isFalse();
+        assertThat(result.nextCursor()).isNull();
+    }
+
+    @ParameterizedTest
+    @ValueSource(ints = {-1, 0, 51, Integer.MAX_VALUE})
+    void 피드의_잘못된_조회_개수를_거절한다(int size) {
+        clearInvocations(commentRepository);
+
+        assertThatThrownBy(() ->
+                postReadService.getFeed(
+                        null,
+                        null,
+                        null,
+                        null,
+                        size
+                )
+        ).isInstanceOfSatisfying(
+                PostReadException.class,
+                exception -> assertThat(exception.getCode())
+                        .isEqualTo(
+                                PostReadException.Code.INVALID_PAGE_REQUEST
+                        )
+        );
+
+        verifyNoInteractions(commentRepository);
+    }
+
+    @Test
+    void 피드의_불완전한_커서와_양수가_아닌_ID를_거절한다() {
+        Instant time =
+                Instant.parse("2026-10-18T02:00:00.123456Z");
+
+        clearInvocations(commentRepository);
+
+        assertInvalidFeedCursor(time, null);
+        assertInvalidFeedCursor(null, 1L);
+        assertInvalidFeedCursor(time, 0L);
+        assertInvalidFeedCursor(time, -1L);
+
+        verifyNoInteractions(commentRepository);
+    }
+
+    private void assertInvalidFeedCursor(
+            Instant createdAt,
+            Long postId
+    ) {
+        assertThatThrownBy(() ->
+                postReadService.getFeed(
+                        null,
+                        null,
+                        createdAt,
+                        postId,
+                        20
+                )
+        ).isInstanceOfSatisfying(
+                PostReadException.class,
+                exception -> assertThat(exception.getCode())
+                        .isEqualTo(
+                                PostReadException.Code.INVALID_CURSOR
+                        )
+        );
+    }
+
     private Long savePost(
             Member author,
             PostType type,
@@ -420,5 +667,30 @@ class PostReadServiceTest {
                                         .POST_NOT_FOUND
                         )
         );
+    }
+
+    private Instant arrangeFeedTimes() {
+        Instant latestTime =
+                Instant.parse("2026-10-18T02:00:00.123456Z");
+
+        jdbcTemplate.update("""
+            UPDATE community_posts
+            SET created_at = ?
+            WHERE id = ?
+            """,
+                Timestamp.from(latestTime),
+                firstQuestionId
+        );
+
+        jdbcTemplate.update("""
+            UPDATE community_posts
+            SET created_at = ?
+            WHERE id = ?
+            """,
+                Timestamp.from(latestTime.minusSeconds(1)),
+                secondQuestionId
+        );
+
+        return latestTime;
     }
 }

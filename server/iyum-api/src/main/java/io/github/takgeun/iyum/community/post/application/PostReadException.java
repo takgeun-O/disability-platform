@@ -18,6 +18,10 @@ public class PostReadException extends RuntimeException {
                 "게시글 목록의 페이지 조건을 확인해 주세요."
         ),
 
+        INVALID_CURSOR(
+                "게시글 목록의 커서 조건을 확인해 주세요."
+        ),
+
         POST_NOT_FOUND(
                 "게시글을 찾을 수 없습니다."
         );

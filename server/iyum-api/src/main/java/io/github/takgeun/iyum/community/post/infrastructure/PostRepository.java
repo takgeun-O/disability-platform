@@ -12,6 +12,8 @@ import org.springframework.data.jpa.repository.Lock;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
+import java.time.Instant;
+import java.util.List;
 import java.util.Optional;
 
 public interface PostRepository extends JpaRepository<Post, Long> {
@@ -82,5 +84,50 @@ public interface PostRepository extends JpaRepository<Post, Long> {
             """)
     Optional<Post> findVisiblePostByIdForUpdate(
             @Param("postId") Long postId
+    );
+
+    // 첫 조회: 커서 없이 최신 게시글부터 가져온다.
+    @Query("""
+            select p
+            from Post p
+            join fetch p.author
+            where p.deletedAt is null
+                and (:type is null or p.type = :type)
+                and (:topic is null or p.topic = :topic)
+            order by p.createdAt desc, p.id desc
+            """)
+    List<Post> findFirstVisiblePosts(
+            @Param("type") @Nullable PostType type,
+            @Param("topic") @Nullable PostTopic topic,
+            // 게시글을 최대 몇 개 가져올지 전달하는 용도
+            // 페이지 번호, 페이지 크기, 정렬 조건 정보가 들어있음.
+            // 다만 커서 조회 방식에서는 조회 개수를 제한하는 용도로 사용할 것
+            Pageable pageable
+    );
+
+    // 후속 조회: 직전에 반환한 마지막 게시글보다
+    // 정렬 순서상 뒤에 있는 게시글을 가져온다.
+    @Query("""
+            select p
+            from Post p
+            join fetch p.author
+            where p.deletedAt is null
+                and (:type is null or p.type = :type)
+                and (:topic is null or p.topic = :topic)
+                and (
+                    p.createdAt < :afterCreatedAt
+                    or (
+                        p.createdAt = :afterCreatedAt
+                        and p.id < :afterId
+                    )
+                )
+            order by p.createdAt desc, p.id desc
+            """)
+    List<Post> findVisiblePostsAfter(
+            @Param("type") @Nullable PostType type,
+            @Param("topic") @Nullable PostTopic topic,
+            @Param("afterCreatedAt") Instant afterCreatedAt,
+            @Param("afterId") Long afterId,
+            Pageable pageable
     );
 }
