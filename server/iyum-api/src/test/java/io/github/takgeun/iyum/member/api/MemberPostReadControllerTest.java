@@ -11,6 +11,7 @@ import io.github.takgeun.iyum.global.config.DevCorsConfig;
 import io.github.takgeun.iyum.global.config.SecurityConfig;
 import io.github.takgeun.iyum.global.error.GlobalExceptionHandler;
 import io.github.takgeun.iyum.member.application.MemberActivitySummaryService;
+import io.github.takgeun.iyum.member.application.MemberCommentReadService;
 import io.github.takgeun.iyum.member.application.MemberPostReadException;
 import io.github.takgeun.iyum.member.application.MemberPostReadService;
 import io.github.takgeun.iyum.member.domain.MemberRole;
@@ -79,6 +80,9 @@ class MemberPostReadControllerTest {
     // 같은 컨트롤러의 활동 요약 API가 사용하는 의존성도 등록한다.
     @MockitoBean
     MemberActivitySummaryService memberActivitySummaryService;
+
+    @MockitoBean
+    MemberCommentReadService memberCommentReadService;
 
     @Test
     void 기본_요청은_CSRF_없이_열_개를_조회하고_게시글_응답을_반환한다()

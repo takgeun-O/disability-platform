@@ -132,6 +132,11 @@ public class DevCorsConfig {
                 memberActivityCors
         );
 
+        source.registerCorsConfiguration(
+                "/api/v1/members/me/comments",
+                memberActivityCors
+        );
+
         return source;
     }
 }

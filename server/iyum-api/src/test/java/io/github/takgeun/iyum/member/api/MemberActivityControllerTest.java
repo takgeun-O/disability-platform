@@ -4,10 +4,7 @@ import io.github.takgeun.iyum.auth.security.MemberPrincipal;
 import io.github.takgeun.iyum.global.config.DevCorsConfig;
 import io.github.takgeun.iyum.global.config.SecurityConfig;
 import io.github.takgeun.iyum.global.error.GlobalExceptionHandler;
-import io.github.takgeun.iyum.member.application.MemberActivityReadException;
-import io.github.takgeun.iyum.member.application.MemberActivitySummaryResult;
-import io.github.takgeun.iyum.member.application.MemberActivitySummaryService;
-import io.github.takgeun.iyum.member.application.MemberPostReadService;
+import io.github.takgeun.iyum.member.application.*;
 import io.github.takgeun.iyum.member.domain.MemberRole;
 import io.github.takgeun.iyum.member.domain.MemberStatus;
 import org.junit.jupiter.api.Test;
@@ -64,6 +61,9 @@ class MemberActivityControllerTest {
 
     @MockitoBean
     MemberPostReadService memberPostReadService;
+
+    @MockitoBean
+    MemberCommentReadService memberCommentReadService;
 
     @Test
     void 로그인한_회원은_CSRF_토큰_없이_활동_요약을_조회한다()
