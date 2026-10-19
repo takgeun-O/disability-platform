@@ -113,6 +113,20 @@ public class DevCorsConfig {
                 memberNicknameCors
         );
 
+        // 내 활동 요약 조회에 기존 개발 Origin·쿠키·허용 헤더 설정을 적용한다.
+        // 기존의 cors 복사하므로 허용 Origin, 쿠키 포함 요청, 허용 헤더, preflight 캐시 설정이 이어짐
+        CorsConfiguration memberActivityCors =
+                new CorsConfiguration(cors);
+
+        memberActivityCors.setAllowedMethods(
+                List.of("GET", "OPTIONS")
+        );
+
+        source.registerCorsConfiguration(
+                "/api/v1/members/me/activity-summary",
+                memberActivityCors
+        );
+
         return source;
     }
 }

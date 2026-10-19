@@ -130,4 +130,16 @@ public interface PostRepository extends JpaRepository<Post, Long> {
             @Param("afterId") Long afterId,
             Pageable pageable
     );
+
+    // 내 게시글 수 조회
+    // 전체 게시글을 가져와서 Java로 세는 대신 DB에서 개수만 계산해 반환
+    @Query("""
+            select count(p)
+            from Post p
+            where p.author.id = :memberId
+                and p.deletedAt is null
+            """)
+    long countVisiblePostsByAuthorId(
+            @Param("memberId") Long memberId
+    );
 }

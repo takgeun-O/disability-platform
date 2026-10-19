@@ -13,6 +13,7 @@ import io.github.takgeun.iyum.community.post.application.PostCreateException;
 import io.github.takgeun.iyum.community.post.application.PostDeleteException;
 import io.github.takgeun.iyum.community.post.application.PostReadException;
 import io.github.takgeun.iyum.community.post.application.PostUpdateException;
+import io.github.takgeun.iyum.member.application.MemberActivityReadException;
 import io.github.takgeun.iyum.member.application.MemberNicknameUpdateException;
 import io.github.takgeun.iyum.member.application.MemberProfileException;
 import org.springframework.beans.TypeMismatchException;
@@ -564,6 +565,34 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
                             exception.getMessage()
                     ));
         };
+    }
+
+    // MEMBER_NOT_FOUND - 401 - AUTHENTICATION_REQUIRED(응답코드)
+    // MEMBER_NOT_ACTIVE - 403 - MEMBER_NOT_ACTIVE(응답코드)
+    @ExceptionHandler(MemberActivityReadException.class)
+    public ResponseEntity<ApiErrorResponse> handleMemberActivityRead(
+            MemberActivityReadException exception
+    ) {
+        HttpStatus status = switch (exception.getCode()) {
+            case MEMBER_NOT_FOUND -> HttpStatus.UNAUTHORIZED;
+            case MEMBER_NOT_ACTIVE -> HttpStatus.FORBIDDEN;
+        };
+
+        String code = switch (exception.getCode()) {
+            case MEMBER_NOT_FOUND -> "AUTHENTICATION_REQUIRED";
+            case MEMBER_NOT_ACTIVE -> "MEMBER_NOT_ACTIVE";
+        };
+
+        String message =
+                exception.getCode()
+                        == MemberActivityReadException.Code.MEMBER_NOT_FOUND
+                        ? "로그인이 필요합니다."
+                        : exception.getMessage();
+
+        return ResponseEntity
+                .status(status)
+                .cacheControl(CacheControl.noStore())
+                .body(ApiErrorResponse.of(code, message));
     }
 
     @ExceptionHandler(Exception.class)
