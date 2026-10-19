@@ -1,3 +1,5 @@
+import { isFeedItem, olderThan, type FeedPage } from './community-api'
+import { parsePostCursor, type PostCursor } from './community-posts'
 import { getAuthCsrf } from './auth-api'
 import type { CsrfContext } from './signup-api'
 export { getAuthCsrf as getMemberCsrf }
@@ -58,4 +60,22 @@ export async function getActivitySummary(signal?: AbortSignal): Promise<Activity
 }
 export async function updateNickname(memberId: number, nickname: string, csrf: CsrfContext, signal?: AbortSignal) {
   return profile(await request('/nickname', { method: 'PUT', headers: { 'Content-Type': 'application/json', [csrf.headerName]: csrf.token }, body: JSON.stringify({ nickname }) }, signal), memberId)
+}
+
+export const MEMBER_POST_SIZE = 10
+// Public and private lists share item fields, but this endpoint must only return the session member's posts.
+export async function getMemberPosts(memberId: number, cursor: PostCursor | null = null, signal?: AbortSignal): Promise<FeedPage> {
+  const params = new URLSearchParams({ size: String(MEMBER_POST_SIZE) })
+  if (cursor) { params.set('afterCreatedAt', cursor.createdAt); params.set('afterId', String(cursor.postId)) }
+  const body = await request('/posts?' + params, { method: 'GET' }, signal)
+  const invalid = () => new MemberApiError(200, 'UNEXPECTED_RESPONSE', '내 게시글 응답을 확인하지 못했습니다. 다시 시도해 주세요.')
+  if (!object(body) || !Array.isArray(body.items) || body.items.length > MEMBER_POST_SIZE ||
+    !body.items.every(isFeedItem) || typeof body.hasNext !== 'boolean') throw invalid()
+  const items = body.items, last = items.at(-1)
+  if (items.some((item, index) => item.author.memberId !== memberId ||
+      !parsePostCursor(new URLSearchParams({ afterCreatedAt: item.createdAt, afterId: String(item.id) })) ||
+      (cursor && !olderThan(item, cursor)) ||
+      (index > 0 && !olderThan(item, { createdAt: items[index-1].createdAt, postId: items[index-1].id }))) ||
+    (body.hasNext ? (!last || !object(body.nextCursor) || body.nextCursor.createdAt !== last.createdAt || body.nextCursor.postId !== last.id) : body.nextCursor !== null)) throw invalid()
+  return body as FeedPage
 }

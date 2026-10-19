@@ -1,0 +1,100 @@
+{
+  "kind": "actual Spring / existing seed account / read-only business data",
+  "createdData": [],
+  "results": [
+    {
+      "name": "actual session/CORS/private GET200/no-store/3 pages/raw cursor/ownership/detail top/back list and position",
+      "pass": true,
+      "memberId": 34,
+      "pages": 3,
+      "items": 29,
+      "detailFrames": [
+        {
+          "y": 0,
+          "behavior": "auto"
+        },
+        {
+          "y": 0,
+          "behavior": "auto"
+        },
+        {
+          "y": 0,
+          "behavior": "auto"
+        },
+        {
+          "y": 0,
+          "behavior": "auto"
+        },
+        {
+          "y": 0,
+          "behavior": "auto"
+        },
+        {
+          "y": 0,
+          "behavior": "auto"
+        },
+        {
+          "y": 0,
+          "behavior": "auto"
+        },
+        {
+          "y": 0,
+          "behavior": "auto"
+        },
+        {
+          "y": 0,
+          "behavior": "auto"
+        },
+        {
+          "y": 0,
+          "behavior": "auto"
+        },
+        {
+          "y": 0,
+          "behavior": "auto"
+        },
+        {
+          "y": 0,
+          "behavior": "auto"
+        },
+        {
+          "y": 0,
+          "behavior": "auto"
+        },
+        {
+          "y": 0,
+          "behavior": "auto"
+        },
+        {
+          "y": 0,
+          "behavior": "auto"
+        },
+        {
+          "y": 0,
+          "behavior": "auto"
+        },
+        {
+          "y": 0,
+          "behavior": "auto"
+        },
+        {
+          "y": 0,
+          "behavior": "auto"
+        },
+        {
+          "y": 0,
+          "behavior": "auto"
+        },
+        {
+          "y": 0,
+          "behavior": "auto"
+        }
+      ],
+      "restoredY": 4689
+    },
+    {
+      "name": "actual list responsive 1440/390/320; no private comment GET or writes",
+      "pass": true
+    }
+  ]
+}

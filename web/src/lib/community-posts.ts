@@ -79,7 +79,7 @@ export function listQuery(params: Pick<URLSearchParams, "get">, pathname: string
   return space ? { ...query, topic: space.topic } : query
 }
 export function safeListReturn(value: string | null, fallback = "/community/posts"): string {
-  const defaultPath = isPostListPath(fallback) ? fallback : "/community/posts"
+  const defaultPath = (isPostListPath(fallback) || fallback === "/mypage") ? fallback : "/community/posts"
   // 알려진 목록/주제 경로와 검증한 조건만 허용한다. 상세·작성·미등록 slug는 제외한다.
   if (!value) return defaultPath
   try {
@@ -87,10 +87,11 @@ export function safeListReturn(value: string | null, fallback = "/community/post
     if (
       !value.startsWith("/") ||
       url.origin !== "https://iyum.invalid" ||
-      !isPostListPath(url.pathname) ||
+      (!isPostListPath(url.pathname) && url.pathname !== "/mypage") ||
       /[\\\u0000-\u001f]/.test(value)
     )
       return defaultPath
+    if (url.pathname === "/mypage") return !url.search && !url.hash ? "/mypage" : defaultPath
     return listHref(listQuery(url.searchParams, url.pathname), url.pathname, parsePostCursor(url.searchParams))
   } catch {
     return defaultPath

@@ -1,0 +1,192 @@
+{
+  "kind": "mock API / production Next",
+  "results": [
+    {
+      "name": "first ten real fields/order and zero count; no CSRF/per-post/comment list reads",
+      "pass": true
+    },
+    {
+      "name": "summary zero does not suppress posts; summary failure does not hide list",
+      "pass": true
+    },
+    {
+      "name": "actual empty vs first error retry, profile remains",
+      "pass": true
+    },
+    {
+      "name": "more failure retains ten and exact cursor; retry/duplicate click; final keyboard focus",
+      "pass": true
+    },
+    {
+      "name": "keyboard more failure preserves the same button; retry pending and repeated failure retain focus; success focuses new title",
+      "pass": false,
+      "error": "AssertionError [ERR_ASSERTION]: failed more removed focused button\n    at file:///Users/tackeunoh/Developer/iyum/web/tests/member-posts-browser.mjs:100:91\n    at async check (file:///Users/tackeunoh/Developer/iyum/web/tests/member-posts-browser.mjs:79:35)\n    at async file:///Users/tackeunoh/Developer/iyum/web/tests/member-posts-browser.mjs:96:2"
+    },
+    {
+      "name": "keyboard retry with no added final items focuses the end notice",
+      "pass": false,
+      "error": "AssertionError [ERR_ASSERTION]: The expression evaluated to a falsy value:\n\n  assert(await focused(handle))\n\n    at file:///Users/tackeunoh/Developer/iyum/web/tests/member-posts-browser.mjs:110:48\n    at async check (file:///Users/tackeunoh/Developer/iyum/web/tests/member-posts-browser.mjs:79:35)\n    at async file:///Users/tackeunoh/Developer/iyum/web/tests/member-posts-browser.mjs:108:2"
+    },
+    {
+      "name": "first query failure keyboard retry pending/repeated failure/success preserves focus (27 items)",
+      "pass": false,
+      "error": "AssertionError [ERR_ASSERTION]: initial retry pending lost focus\n    at file:///Users/tackeunoh/Developer/iyum/web/tests/member-posts-browser.mjs:115:48\n    at async check (file:///Users/tackeunoh/Developer/iyum/web/tests/member-posts-browser.mjs:79:35)\n    at async file:///Users/tackeunoh/Developer/iyum/web/tests/member-posts-browser.mjs:113:28"
+    },
+    {
+      "name": "first query failure keyboard retry pending/repeated failure/success preserves focus (0 items)",
+      "pass": false,
+      "error": "AssertionError [ERR_ASSERTION]: initial retry pending lost focus\n    at file:///Users/tackeunoh/Developer/iyum/web/tests/member-posts-browser.mjs:115:48\n    at async check (file:///Users/tackeunoh/Developer/iyum/web/tests/member-posts-browser.mjs:79:35)\n    at async file:///Users/tackeunoh/Developer/iyum/web/tests/member-posts-browser.mjs:113:28"
+    },
+    {
+      "name": "more keyboard retry: Tab while pending keeps user's focus after success",
+      "pass": false,
+      "error": "AssertionError [ERR_ASSERTION]: The expression evaluated to a falsy value:\n\n  assert(await focused(handle))\n\n    at file:///Users/tackeunoh/Developer/iyum/web/tests/member-posts-browser.mjs:125:48\n    at async check (file:///Users/tackeunoh/Developer/iyum/web/tests/member-posts-browser.mjs:79:35)\n    at async file:///Users/tackeunoh/Developer/iyum/web/tests/member-posts-browser.mjs:122:124"
+    },
+    {
+      "name": "more keyboard retry: Shift+Tab while pending keeps user's focus after success",
+      "pass": false,
+      "error": "AssertionError [ERR_ASSERTION]: The expression evaluated to a falsy value:\n\n  assert(await focused(handle))\n\n    at file:///Users/tackeunoh/Developer/iyum/web/tests/member-posts-browser.mjs:125:48\n    at async check (file:///Users/tackeunoh/Developer/iyum/web/tests/member-posts-browser.mjs:79:35)\n    at async file:///Users/tackeunoh/Developer/iyum/web/tests/member-posts-browser.mjs:122:124"
+    },
+    {
+      "name": "more keyboard retry: click while pending keeps user's focus after success",
+      "pass": false,
+      "error": "AssertionError [ERR_ASSERTION]: The expression evaluated to a falsy value:\n\n  assert(await focused(handle))\n\n    at file:///Users/tackeunoh/Developer/iyum/web/tests/member-posts-browser.mjs:125:48\n    at async check (file:///Users/tackeunoh/Developer/iyum/web/tests/member-posts-browser.mjs:79:35)\n    at async file:///Users/tackeunoh/Developer/iyum/web/tests/member-posts-browser.mjs:122:124"
+    },
+    {
+      "name": "more keyboard retry: Tab while pending keeps user's focus after failure",
+      "pass": false,
+      "error": "AssertionError [ERR_ASSERTION]: The expression evaluated to a falsy value:\n\n  assert(await focused(handle))\n\n    at file:///Users/tackeunoh/Developer/iyum/web/tests/member-posts-browser.mjs:125:48\n    at async check (file:///Users/tackeunoh/Developer/iyum/web/tests/member-posts-browser.mjs:79:35)\n    at async file:///Users/tackeunoh/Developer/iyum/web/tests/member-posts-browser.mjs:122:124"
+    },
+    {
+      "name": "more keyboard retry: Shift+Tab while pending keeps user's focus after failure",
+      "pass": false,
+      "error": "AssertionError [ERR_ASSERTION]: The expression evaluated to a falsy value:\n\n  assert(await focused(handle))\n\n    at file:///Users/tackeunoh/Developer/iyum/web/tests/member-posts-browser.mjs:125:48\n    at async check (file:///Users/tackeunoh/Developer/iyum/web/tests/member-posts-browser.mjs:79:35)\n    at async file:///Users/tackeunoh/Developer/iyum/web/tests/member-posts-browser.mjs:122:124"
+    },
+    {
+      "name": "more keyboard retry: click while pending keeps user's focus after failure",
+      "pass": false,
+      "error": "AssertionError [ERR_ASSERTION]: The expression evaluated to a falsy value:\n\n  assert(await focused(handle))\n\n    at file:///Users/tackeunoh/Developer/iyum/web/tests/member-posts-browser.mjs:125:48\n    at async check (file:///Users/tackeunoh/Developer/iyum/web/tests/member-posts-browser.mjs:79:35)\n    at async file:///Users/tackeunoh/Developer/iyum/web/tests/member-posts-browser.mjs:122:124"
+    },
+    {
+      "name": "first keyboard retry: Tab while pending keeps user's focus after success",
+      "pass": false,
+      "error": "AssertionError [ERR_ASSERTION]: The expression evaluated to a falsy value:\n\n  assert(await focused(handle))\n\n    at file:///Users/tackeunoh/Developer/iyum/web/tests/member-posts-browser.mjs:125:48\n    at async check (file:///Users/tackeunoh/Developer/iyum/web/tests/member-posts-browser.mjs:79:35)\n    at async file:///Users/tackeunoh/Developer/iyum/web/tests/member-posts-browser.mjs:122:124"
+    },
+    {
+      "name": "first keyboard retry: Shift+Tab while pending keeps user's focus after success",
+      "pass": false,
+      "error": "AssertionError [ERR_ASSERTION]: The expression evaluated to a falsy value:\n\n  assert(await focused(handle))\n\n    at file:///Users/tackeunoh/Developer/iyum/web/tests/member-posts-browser.mjs:125:48\n    at async check (file:///Users/tackeunoh/Developer/iyum/web/tests/member-posts-browser.mjs:79:35)\n    at async file:///Users/tackeunoh/Developer/iyum/web/tests/member-posts-browser.mjs:122:124"
+    },
+    {
+      "name": "first keyboard retry: click while pending keeps user's focus after success",
+      "pass": false,
+      "error": "AssertionError [ERR_ASSERTION]: The expression evaluated to a falsy value:\n\n  assert(await focused(handle))\n\n    at file:///Users/tackeunoh/Developer/iyum/web/tests/member-posts-browser.mjs:125:48\n    at async check (file:///Users/tackeunoh/Developer/iyum/web/tests/member-posts-browser.mjs:79:35)\n    at async file:///Users/tackeunoh/Developer/iyum/web/tests/member-posts-browser.mjs:122:124"
+    },
+    {
+      "name": "first keyboard retry: Tab while pending keeps user's focus after failure",
+      "pass": false,
+      "error": "AssertionError [ERR_ASSERTION]: The expression evaluated to a falsy value:\n\n  assert(await focused(handle))\n\n    at file:///Users/tackeunoh/Developer/iyum/web/tests/member-posts-browser.mjs:125:48\n    at async check (file:///Users/tackeunoh/Developer/iyum/web/tests/member-posts-browser.mjs:79:35)\n    at async file:///Users/tackeunoh/Developer/iyum/web/tests/member-posts-browser.mjs:122:124"
+    },
+    {
+      "name": "first keyboard retry: Shift+Tab while pending keeps user's focus after failure",
+      "pass": false,
+      "error": "AssertionError [ERR_ASSERTION]: The expression evaluated to a falsy value:\n\n  assert(await focused(handle))\n\n    at file:///Users/tackeunoh/Developer/iyum/web/tests/member-posts-browser.mjs:125:48\n    at async check (file:///Users/tackeunoh/Developer/iyum/web/tests/member-posts-browser.mjs:79:35)\n    at async file:///Users/tackeunoh/Developer/iyum/web/tests/member-posts-browser.mjs:122:124"
+    },
+    {
+      "name": "first keyboard retry: click while pending keeps user's focus after failure",
+      "pass": false,
+      "error": "AssertionError [ERR_ASSERTION]: The expression evaluated to a falsy value:\n\n  assert(await focused(handle))\n\n    at file:///Users/tackeunoh/Developer/iyum/web/tests/member-posts-browser.mjs:125:48\n    at async check (file:///Users/tackeunoh/Developer/iyum/web/tests/member-posts-browser.mjs:79:35)\n    at async file:///Users/tackeunoh/Developer/iyum/web/tests/member-posts-browser.mjs:122:124"
+    },
+    {
+      "name": "keyboard retry: comments tab remains focused and posts stay hidden after success",
+      "pass": false,
+      "error": "AssertionError [ERR_ASSERTION]: The expression evaluated to a falsy value:\n\n  assert(await focused(handle))\n\n    at file:///Users/tackeunoh/Developer/iyum/web/tests/member-posts-browser.mjs:133:120\n    at async check (file:///Users/tackeunoh/Developer/iyum/web/tests/member-posts-browser.mjs:79:35)\n    at async file:///Users/tackeunoh/Developer/iyum/web/tests/member-posts-browser.mjs:132:44"
+    },
+    {
+      "name": "keyboard retry: comments tab remains focused and posts stay hidden after failure",
+      "pass": false,
+      "error": "AssertionError [ERR_ASSERTION]: The expression evaluated to a falsy value:\n\n  assert(await focused(handle))\n\n    at file:///Users/tackeunoh/Developer/iyum/web/tests/member-posts-browser.mjs:133:120\n    at async check (file:///Users/tackeunoh/Developer/iyum/web/tests/member-posts-browser.mjs:79:35)\n    at async file:///Users/tackeunoh/Developer/iyum/web/tests/member-posts-browser.mjs:132:44"
+    },
+    {
+      "name": "leaving retry focus and returning before success does not re-arm automatic title focus",
+      "pass": false,
+      "error": "AssertionError [ERR_ASSERTION]: The expression evaluated to a falsy value:\n\n  assert(await focused(handle))\n\n    at file:///Users/tackeunoh/Developer/iyum/web/tests/member-posts-browser.mjs:141:120\n    at async check (file:///Users/tackeunoh/Developer/iyum/web/tests/member-posts-browser.mjs:79:35)\n    at async file:///Users/tackeunoh/Developer/iyum/web/tests/member-posts-browser.mjs:140:2"
+    },
+    {
+      "name": "mouse more retry never forces title focus",
+      "pass": false,
+      "error": "AssertionError [ERR_ASSERTION]: mouse retry button removed while pending\n    at file:///Users/tackeunoh/Developer/iyum/web/tests/member-posts-browser.mjs:148:54\n    at async check (file:///Users/tackeunoh/Developer/iyum/web/tests/member-posts-browser.mjs:79:35)\n    at async file:///Users/tackeunoh/Developer/iyum/web/tests/member-posts-browser.mjs:145:36"
+    },
+    {
+      "name": "mouse first retry never forces title focus",
+      "pass": false,
+      "error": "AssertionError [ERR_ASSERTION]: mouse retry button removed while pending\n    at file:///Users/tackeunoh/Developer/iyum/web/tests/member-posts-browser.mjs:148:54\n    at async check (file:///Users/tackeunoh/Developer/iyum/web/tests/member-posts-browser.mjs:79:35)\n    at async file:///Users/tackeunoh/Developer/iyum/web/tests/member-posts-browser.mjs:145:36"
+    },
+    {
+      "name": "delayed keyboard retry after leave cannot move focus into old list",
+      "pass": false,
+      "error": "AssertionError [ERR_ASSERTION]: The expression evaluated to a falsy value:\n\n  assert(await focused(handle))\n\n    at file:///Users/tackeunoh/Developer/iyum/web/tests/member-posts-browser.mjs:152:120\n    at async check (file:///Users/tackeunoh/Developer/iyum/web/tests/member-posts-browser.mjs:79:35)\n    at async file:///Users/tackeunoh/Developer/iyum/web/tests/member-posts-browser.mjs:151:46"
+    },
+    {
+      "name": "delayed keyboard retry after logout cannot move focus into old list",
+      "pass": false,
+      "error": "AssertionError [ERR_ASSERTION]: The expression evaluated to a falsy value:\n\n  assert(await focused(handle))\n\n    at file:///Users/tackeunoh/Developer/iyum/web/tests/member-posts-browser.mjs:152:120\n    at async check (file:///Users/tackeunoh/Developer/iyum/web/tests/member-posts-browser.mjs:79:35)\n    at async file:///Users/tackeunoh/Developer/iyum/web/tests/member-posts-browser.mjs:151:46"
+    },
+    {
+      "name": "1440: 3 pages, detail immediate top and back/link position, tabs, capture",
+      "pass": true
+    },
+    {
+      "name": "390: 3 pages, detail immediate top and back/link position, tabs, capture",
+      "pass": true
+    },
+    {
+      "name": "320: 3 pages, detail immediate top and back/link position, tabs, capture",
+      "pass": true
+    },
+    {
+      "name": "long title/preview/large counts stay within320 and keyboard link/newtab semantics",
+      "pass": true
+    },
+    {
+      "name": "comment create updates count and summary on link, edit preserves count",
+      "pass": true
+    },
+    {
+      "name": "comment create updates count and summary on back, edit preserves count",
+      "pass": true
+    },
+    {
+      "name": "post update fields and deletion refresh loaded list/count; deleted anchor uses next row",
+      "pass": true
+    },
+    {
+      "name": "late comment success after approved return updates list; earlier refresh response cannot overwrite count",
+      "pass": true
+    },
+    {
+      "name": "posts401 expires session, logout/account switch ignores late list and clears old restore",
+      "pass": true
+    },
+    {
+      "name": "post create changes summary/list without changing the header UI",
+      "pass": true
+    },
+    {
+      "name": "overlapping late successes: abort older GET, latest count wins; no detail draft reset",
+      "pass": true
+    },
+    {
+      "name": "mutation refresh failure keeps loaded list and summary separate; retry rebuilds all3",
+      "pass": true
+    },
+    {
+      "name": "empty final page after deletion keeps keyboard focus on visible end notice",
+      "pass": true
+    },
+    {
+      "name": "nickname and mobile menu remain functional with populated list",
+      "pass": true
+    }
+  ]
+}

@@ -23,6 +23,7 @@ async function fixture(options={}){
    assert.equal(req.headers()['x-csrf-token'],'test-only');state.profile.nickname=req.postDataJSON().nickname.trim();state.member.nickname=state.profile.nickname
    return route.fulfill({json:state.profile})
   }
+  if(u.pathname==='/api/v1/members/me/posts')return route.fulfill({json:{items:[],hasNext:false,nextCursor:null}})
   if(state.read)return state.read(route,u)
   if(u.pathname==='/api/v1/members/me')return route.fulfill({json:state.profile})
   if(u.pathname.endsWith('/activity-summary'))return route.fulfill({json:state.summary})
@@ -34,9 +35,9 @@ const editor=p=>p.getByRole('button',{name:'프로필 수정',exact:true})
 async function ready(p){await editor(p).waitFor();await p.locator('.mypage-counts strong').first().waitFor()}
 async function check(name,fn){try{await fn();results.push({name,pass:true});console.log('PASS',name)}catch(e){results.push({name,pass:false,error:e.message});console.log('FAIL',name,e.message);process.exitCode=1}finally{for(const c of browser.contexts())await c.close()}}
 try{
- await check('profile, Korean month, counts, readonly email and preparation tabs; no extra APIs',async()=>{
+ await check('profile, Korean month, counts, readonly email and posts empty state and comment preparation; no comment APIs',async()=>{
   const{p,state}=await fixture();await ready(p);assert.equal(await p.locator('.mypage-name h2').innerText(),'검토회원');assert((await p.locator('.mypage-name time').innerText()).includes('10월'));assert.equal(await p.locator('.mypage-counts strong').first().innerText(),'12');assert(await p.getByText(member.email,{exact:true}).isVisible());assert.equal(state.calls.filter(c=>c.path.endsWith('/csrf')).length,0)
-  await p.getByRole('tab',{name:/내 댓글/}).click();assert(await p.getByText('내 댓글 목록은 준비 중이에요.').isVisible());assert(!state.calls.some(c=>c.path.endsWith('/posts')||c.path.endsWith('/comments')))
+  await p.getByRole('tab',{name:/내 댓글/}).click();assert(await p.getByText('내 댓글 목록은 준비 중이에요.').isVisible());assert(!state.calls.some(c=>c.path.endsWith('/comments')));assert.equal(state.calls.filter(c=>c.path==='/api/v1/members/me/posts').length,1)
   assert.equal(await p.getByText('인증 완료',{exact:true}).count(),0);assert.equal(await p.getByRole('button',{name:'더 보기'}).count(),0)
  })
  await check('zero summary is actual zero',async()=>{const{p}=await fixture({summary:{postCount:0,commentCount:0}});await ready(p);assert.deepEqual(await p.locator('.mypage-counts strong').allTextContents(),['0','0'])})

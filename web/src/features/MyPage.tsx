@@ -1,6 +1,8 @@
 "use client"
 import { useEffect, useRef, useState, type FormEvent } from 'react'
 import Link from '@/components/AppLink'
+import MyActivity from '@/components/member/MyActivity'
+import { usePostVersion, getPostVersion } from '@/lib/community-mutations'
 import OverlayDialog from '@/components/OverlayDialog'
 import { useAuth } from '@/components/AuthProvider'
 import { useNavigationRequest } from '@/components/NavigationGuard'
@@ -25,8 +27,9 @@ function MemberPage({ memberId }: { memberId: number }) {
   const [profile, setProfile] = useState<Resource<Profile>>({}), [summary, setSummary] = useState<Resource<ActivitySummary>>({})
   const [profileAttempt, setProfileAttempt] = useState(0), [summaryAttempt, setSummaryAttempt] = useState(0)
   const [expired, setExpired] = useState(false), expiredRef = useRef(false)
-  const [editing, setEditing] = useState(false), [notice, setNotice] = useState(''), [tab, setTab] = useState<'posts' | 'comments'>('posts')
+  const [editing, setEditing] = useState(false), [notice, setNotice] = useState('')
   const editButton = useRef<HTMLButtonElement>(null)
+  const activityVersion = usePostVersion("list")
   // Each authenticated mount owns its state. Logout/checking/account change unmounts and aborts it.
   useEffect(() => {
     const controller = new AbortController()
@@ -37,10 +40,11 @@ function MemberPage({ memberId }: { memberId: number }) {
   }, [memberId, profileAttempt, scope, expireSession, syncNickname])
   useEffect(() => {
     const controller = new AbortController()
-    getActivitySummary(controller.signal).then(data => { if (!controller.signal.aborted && scope.isActive()) setSummary({ data }) })
+    const requestedVersion = getPostVersion("list")
+    getActivitySummary(controller.signal).then(data => { if (!controller.signal.aborted && scope.isActive() && requestedVersion === getPostVersion("list")) setSummary({ data }) })
       .catch(error => { if (!controller.signal.aborted && scope.isActive()) { if (error instanceof MemberApiError && error.status === 401) { if (!expiredRef.current) { expiredRef.current = true; setExpired(true); expireSession(memberId) } } else setSummary({ error: message(error) }) } })
     return () => controller.abort()
-  }, [memberId, summaryAttempt, scope, expireSession])
+  }, [memberId, summaryAttempt, scope, expireSession, activityVersion])
   if (expired) return <LoginRequired />
   function closeEditor() { setEditing(false); editButton.current?.focus({ preventScroll: true }) }
   return <>
@@ -54,9 +58,7 @@ function MemberPage({ memberId }: { memberId: number }) {
       </div>
     </section>
     <p role="status" className={`mypage-notice${notice ? ' has-notice' : ''}`}>{notice}</p>
-    <section className="mypage-activity" aria-labelledby="my-activity-title"><h2 id="my-activity-title">내 활동</h2><div className="mypage-tabs"><div role="tablist" aria-label="내 활동">
-      {(['posts','comments'] as const).map((kind, index) => <button key={kind} id={`my-tab-${kind}`} role="tab" aria-selected={tab===kind} aria-controls="my-activity-panel" tabIndex={tab===kind?0:-1} onClick={() => setTab(kind)} onKeyDown={e => { if (['ArrowLeft','ArrowRight','Home','End'].includes(e.key)) { e.preventDefault(); const next=e.key==='Home'?'posts':e.key==='End'?'comments':index===0?'comments':'posts';setTab(next);document.getElementById(`my-tab-${next}`)?.focus() } }}>{kind==='posts'?'내 게시글':'내 댓글'}{summary.data && <span>{(kind==='posts'?summary.data.postCount:summary.data.commentCount).toLocaleString('ko-KR')}</span>}</button>)}
-    </div><span className="mypage-sort">최신순</span></div><div id="my-activity-panel" role="tabpanel" aria-labelledby={`my-tab-${tab}`} tabIndex={0}><p>{tab==='posts'?'내 게시글':'내 댓글'} 목록은 준비 중이에요.</p><p>활동 내역을 이곳에서 확인할 수 있도록 준비하고 있습니다.</p></div></section>
+    <MyActivity memberId={memberId} summary={summary.data} layoutReady={!!(profile.data || profile.error) && !!(summary.data || summary.error)} />
     <section className="mypage-account" aria-labelledby="account-title"><h2 id="account-title">계정 관리</h2><dl><dt>이메일</dt><dd>{profile.data?.email ?? (profile.error?'회원 정보를 확인해 주세요.':'불러오는 중…')}</dd><dd className="mypage-readonly">읽기 전용</dd></dl></section>
   </>
 }

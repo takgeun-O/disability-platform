@@ -75,6 +75,9 @@ function isCommon(v: unknown): v is PostCommon {
 function isSummary(v: unknown): v is PostSummary {
   return object(v) && nonnegative(v.commentCount) && isCommon(v)
 }
+export function isFeedItem(v: unknown): v is FeedItem {
+  return object(v) && typeof v.contentPreview === "string" && [...v.contentPreview].length <= 200 && isSummary(v)
+}
 function isPage(v: unknown, query: PostQuery): v is PostPage {
   return (
     object(v) &&
@@ -367,7 +370,7 @@ export async function getFeed(query: PostQuery, cursor: PostCursor | null = null
   if (cursor) { params.set("afterCreatedAt", cursor.createdAt); params.set("afterId", String(cursor.postId)) }
   const { response, body } = await request("/feed?" + params, { method: "GET", signal }, false, baseUrl)
   if (response.status !== 200 || !object(body) || !Array.isArray(body.items) || body.items.length > PAGE_SIZE ||
-    !body.items.every((v: unknown) => object(v) && typeof v.contentPreview === "string" && [...v.contentPreview].length <= 200 && isSummary(v)) ||
+    !body.items.every(isFeedItem) ||
     typeof body.hasNext !== "boolean") throw responseError(response.status, body, false)
   const items = body.items as FeedItem[], last = items.at(-1)
   if (new Set(items.map(p => p.id)).size !== items.length || items.some((p, i) =>

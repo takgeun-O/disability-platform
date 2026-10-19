@@ -65,3 +65,26 @@
  .mypage-edit-heading { margin-bottom:16px; }
  .mypage-editor-actions { bottom:calc(-1 * max(20px,env(safe-area-inset-bottom))); padding-bottom:4px; }
 }
+
+/* The private list shares the existing page grid; only the activity panel changes. */
+.mypage [role=tabpanel].mypage-posts { padding:0; background:transparent; border-radius:0; color:var(--iyum-ink); }
+.mypage-post-list { list-style:none; margin:0; padding:0; }
+.mypage-post-list > li { display:flex; align-items:center; gap:24px; padding:22px 10px; border-bottom:1px solid var(--iyum-border); }
+.mypage-post-copy { flex:1; min-width:0; }
+.mypage .mypage-post-meta { font-size:13px; color:var(--iyum-muted); margin-bottom:6px; }
+.mypage-post-copy h3 { font-size:19px; line-height:1.5; font-weight:700; margin:0 0 6px; overflow-wrap:anywhere; }
+.mypage-post-copy h3 a { border-radius:3px; }
+.mypage-post-copy h3 a:hover { color:var(--iyum-primary); text-decoration:underline; text-underline-offset:3px; }
+.mypage-post-preview { color:var(--iyum-muted); overflow-wrap:anywhere; display:-webkit-box; -webkit-box-orient:vertical; -webkit-line-clamp:2; overflow:hidden; }
+.mypage-post-comments { display:flex; align-items:center; gap:6px; color:var(--iyum-muted); font-size:14px; flex-shrink:0; }
+.mypage-post-comments svg { flex-shrink:0; }
+.mypage-post-more { display:flex; justify-content:center; width:180px; margin:16px auto 0; }
+.mypage-list-message { padding:24px 10px; }
+.mypage-list-message button { margin-top:12px; }
+@media(max-width:600px) {
+ .mypage-post-list > li { flex-direction:column; align-items:stretch; gap:10px; padding:18px 8px; }
+ .mypage-post-copy h3 { font-size:18px; }
+ .mypage-post-more { width:100%; }
+}
+
+.mypage .mypage-list-end { text-align:center; font-size:14px; color:var(--iyum-muted); padding:16px 8px; }

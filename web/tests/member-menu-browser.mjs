@@ -20,6 +20,7 @@ async function fixture({width=390,height=844,...options}={}){
    if(state.put)return state.put(r)
    state.profile.nickname=req.postDataJSON().nickname.trim();state.member.nickname=state.profile.nickname;return r.fulfill({json:state.profile})
   }
+  if(u.pathname==='/api/v1/members/me/posts')return r.fulfill({json:{items:[],hasNext:false,nextCursor:null}})
   if(u.pathname.startsWith('/api/v1/community/'))return r.fulfill({json:{items:[],hasNext:false,nextCursor:null}})
   if(u.pathname==='/api/v1/members/me')return r.fulfill({json:state.profile})
   if(u.pathname.endsWith('/activity-summary'))return r.fulfill({json:state.summary})
