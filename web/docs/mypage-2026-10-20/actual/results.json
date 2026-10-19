@@ -1,0 +1,23 @@
+{
+  "kind": "actual Spring local verified seed account",
+  "results": [
+    {
+      "name": "real session/profile/summary/CORS",
+      "pass": true,
+      "memberId": 34
+    },
+    {
+      "name": "real CSRF PUT200 and profile/header/latest auth me agree",
+      "pass": true
+    },
+    {
+      "name": "real refresh retains persisted nickname",
+      "pass": true
+    },
+    {
+      "name": "original seed nickname restored",
+      "pass": true,
+      "memberId": 34
+    }
+  ]
+}

@@ -4,7 +4,7 @@ import { createContext, useContext, useEffect, useState, useSyncExternalStore, t
 import { createAuthSession, type AuthState } from '@/lib/auth-session';
 
 type Session = ReturnType<typeof createAuthSession>;
-type AuthContextValue = AuthState & Pick<Session, 'refresh' | 'signIn' | 'signOut'>;
+type AuthContextValue = AuthState & Pick<Session, 'refresh' | 'signIn' | 'signOut' | 'updateNickname' | 'expire'>;
 const AuthContext = createContext<AuthContextValue | null>(null);
 
 export function AuthProvider({ children }: { children: ReactNode }) {
@@ -15,7 +15,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return session.stop;
   }, [session]);
   return (
-    <AuthContext.Provider value={{ ...state, refresh: session.refresh, signIn: session.signIn, signOut: session.signOut }}>
+    <AuthContext.Provider value={{ ...state, refresh: session.refresh, signIn: session.signIn, signOut: session.signOut, updateNickname: session.updateNickname, expire: session.expire }}>
       {children}
     </AuthContext.Provider>
   );

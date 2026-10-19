@@ -122,6 +122,18 @@ export function createAuthSession(client: AuthApi = api) {
     subscribe: (listener: () => void) => { listeners.add(listener); return () => { listeners.delete(listener); }; },
     start: () => { active = true; publish({ ...state, pending: null }); void refresh(); },
     stop: () => { active = false; generation++; },
+    // A private API 401 expires only the still-current session, never a newer account.
+    expire(memberId: number) {
+      if (!active || state.pending || state.status !== 'authenticated' || state.member?.memberId !== memberId) return;
+      generation++;
+      publish({ status: 'anonymous', member: null, pending: null });
+    },
+    // Only a validated profile response for the still-current member may update the header.
+    updateNickname(memberId: number, nickname: string) {
+      if (!active || state.status !== 'authenticated' || state.pending || state.member?.memberId !== memberId) return false;
+      publish({ ...state, member: { ...state.member, nickname } });
+      return true;
+    },
     refresh, signIn, signOut,
   };
 }

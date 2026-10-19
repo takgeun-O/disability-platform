@@ -1,0 +1,132 @@
+[
+  {
+    "name": "fresh",
+    "headers": [
+      {
+        "rect": {
+          "x": 0,
+          "y": 0,
+          "width": 1440,
+          "height": 89,
+          "top": 0,
+          "right": 1440,
+          "bottom": 89,
+          "left": 0
+        },
+        "position": "relative"
+      }
+    ],
+    "banners": 1,
+    "width": 1440,
+    "height": 1000,
+    "documentHeight": 1039,
+    "scrollY": 0,
+    "bodyPosition": ""
+  },
+  {
+    "name": "reload",
+    "headers": [
+      {
+        "rect": {
+          "x": 0,
+          "y": 0,
+          "width": 1440,
+          "height": 89,
+          "top": 0,
+          "right": 1440,
+          "bottom": 89,
+          "left": 0
+        },
+        "position": "relative"
+      }
+    ],
+    "banners": 1,
+    "width": 1440,
+    "height": 1000,
+    "documentHeight": 1039,
+    "scrollY": 0,
+    "bodyPosition": ""
+  },
+  {
+    "name": "after-edit",
+    "headers": [
+      {
+        "rect": {
+          "x": 0,
+          "y": 0,
+          "width": 1440,
+          "height": 89,
+          "top": 0,
+          "right": 1440,
+          "bottom": 89,
+          "left": 0
+        },
+        "position": "relative"
+      }
+    ],
+    "banners": 1,
+    "width": 1440,
+    "height": 1000,
+    "documentHeight": 1039,
+    "scrollY": 0,
+    "bodyPosition": ""
+  },
+  {
+    "name": "after-menu-resize",
+    "headers": [
+      {
+        "rect": {
+          "x": 0,
+          "y": 0,
+          "width": 1440,
+          "height": 89,
+          "top": 0,
+          "right": 1440,
+          "bottom": 89,
+          "left": 0
+        },
+        "position": "relative"
+      }
+    ],
+    "banners": 1,
+    "width": 1440,
+    "height": 1000,
+    "documentHeight": 1039,
+    "scrollY": 0,
+    "bodyPosition": ""
+  },
+  {
+    "name": "old-sequence",
+    "headers": [
+      {
+        "rect": {
+          "x": 0,
+          "y": 0,
+          "width": 1440,
+          "height": 89,
+          "top": 0,
+          "right": 1440,
+          "bottom": 89,
+          "left": 0
+        },
+        "position": "relative"
+      }
+    ],
+    "banners": 1,
+    "width": 1440,
+    "height": 1000,
+    "documentHeight": 1039,
+    "scrollY": 0,
+    "bodyPosition": ""
+  },
+  {
+    "name": "current-welfare-mouse",
+    "menuStillOpen": true,
+    "url": "http://127.0.0.1:8451/welfare"
+  },
+  {
+    "name": "current-welfare-keyboard",
+    "menuStillOpen": true,
+    "focused": "<a aria-current=\"page\" href=\"/welfare\"><span>복지·지원정보</span><small>지원 안내 살펴보기</small></a>"
+  }
+]

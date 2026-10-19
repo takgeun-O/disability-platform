@@ -7,6 +7,7 @@ type Guard = {
   isDirty: () => boolean;
   getApprovalVersion: () => number;
   notifyNavigation: () => void;
+  subscribeNavigation: (listener: () => void) => () => void;
   setDirty: (value: boolean) => void;
   request: (action: () => void) => void;
   confirmNavigation: (action: () => void) => void;
@@ -22,7 +23,15 @@ export function NavigationGuardProvider({children}: {children: ReactNode}) {
   // 경로 전환/언마운트보다 먼저 확정된 이탈을 비동기 요청에서도 식별한다.
   const approvalVersion = useRef(0);
   const getApprovalVersion = useCallback(() => approvalVersion.current, []);
-  const notifyNavigation = useCallback(() => { approvalVersion.current += 1; }, []);
+  const navigationListeners = useRef(new Set<() => void>());
+  const subscribeNavigation = useCallback((listener: () => void) => {
+    navigationListeners.current.add(listener);
+    return () => { navigationListeners.current.delete(listener); };
+  }, []);
+  const notifyNavigation = useCallback(() => {
+    approvalVersion.current += 1;
+    navigationListeners.current.forEach(listener => listener());
+  }, []);
   const [pending, setPending] = useState<(() => void) | null>(null);
   const request = useCallback((action: () => void) => {
     if (dirty.current) setPending(() => action);
@@ -81,7 +90,7 @@ export function NavigationGuardProvider({children}: {children: ReactNode}) {
   }, [notifyNavigation]);
 
   return <Context.Provider value={{
-    isDirty: () => dirty.current, getApprovalVersion, notifyNavigation, setDirty, request, confirmNavigation, pending,
+    isDirty: () => dirty.current, getApprovalVersion, notifyNavigation, subscribeNavigation, setDirty, request, confirmNavigation, pending,
     cancel: () => setPending(null),
     proceed: () => {
       if (!pending) return;
