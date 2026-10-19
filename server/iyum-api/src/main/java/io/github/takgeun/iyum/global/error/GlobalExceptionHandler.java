@@ -15,6 +15,7 @@ import io.github.takgeun.iyum.community.post.application.PostReadException;
 import io.github.takgeun.iyum.community.post.application.PostUpdateException;
 import io.github.takgeun.iyum.member.application.MemberActivityReadException;
 import io.github.takgeun.iyum.member.application.MemberNicknameUpdateException;
+import io.github.takgeun.iyum.member.application.MemberPostReadException;
 import io.github.takgeun.iyum.member.application.MemberProfileException;
 import org.springframework.beans.TypeMismatchException;
 import org.springframework.http.*;
@@ -586,6 +587,36 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
         String message =
                 exception.getCode()
                         == MemberActivityReadException.Code.MEMBER_NOT_FOUND
+                        ? "로그인이 필요합니다."
+                        : exception.getMessage();
+
+        return ResponseEntity
+                .status(status)
+                .cacheControl(CacheControl.noStore())
+                .body(ApiErrorResponse.of(code, message));
+    }
+
+    @ExceptionHandler(MemberPostReadException.class)
+    public ResponseEntity<ApiErrorResponse> handleMemberPostRead(
+            MemberPostReadException exception
+    ) {
+        HttpStatus status = switch (exception.getCode()) {
+            case MEMBER_NOT_FOUND -> HttpStatus.UNAUTHORIZED;
+            case MEMBER_NOT_ACTIVE -> HttpStatus.FORBIDDEN;
+            case INVALID_PAGE_REQUEST, INVALID_CURSOR ->
+                    HttpStatus.BAD_REQUEST;
+        };
+
+        String code = switch (exception.getCode()) {
+            case MEMBER_NOT_FOUND -> "AUTHENTICATION_REQUIRED";
+            case MEMBER_NOT_ACTIVE -> "MEMBER_NOT_ACTIVE";
+            case INVALID_PAGE_REQUEST -> "INVALID_PAGE_REQUEST";
+            case INVALID_CURSOR -> "INVALID_CURSOR";
+        };
+
+        String message =
+                exception.getCode()
+                        == MemberPostReadException.Code.MEMBER_NOT_FOUND
                         ? "로그인이 필요합니다."
                         : exception.getMessage();
 

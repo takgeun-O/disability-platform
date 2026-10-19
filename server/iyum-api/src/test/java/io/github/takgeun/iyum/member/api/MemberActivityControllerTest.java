@@ -7,6 +7,7 @@ import io.github.takgeun.iyum.global.error.GlobalExceptionHandler;
 import io.github.takgeun.iyum.member.application.MemberActivityReadException;
 import io.github.takgeun.iyum.member.application.MemberActivitySummaryResult;
 import io.github.takgeun.iyum.member.application.MemberActivitySummaryService;
+import io.github.takgeun.iyum.member.application.MemberPostReadService;
 import io.github.takgeun.iyum.member.domain.MemberRole;
 import io.github.takgeun.iyum.member.domain.MemberStatus;
 import org.junit.jupiter.api.Test;
@@ -60,6 +61,9 @@ class MemberActivityControllerTest {
 
     @MockitoBean
     MemberActivitySummaryService memberActivitySummaryService;
+
+    @MockitoBean
+    MemberPostReadService memberPostReadService;
 
     @Test
     void 로그인한_회원은_CSRF_토큰_없이_활동_요약을_조회한다()

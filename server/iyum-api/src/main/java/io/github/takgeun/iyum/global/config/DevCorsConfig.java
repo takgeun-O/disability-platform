@@ -127,6 +127,11 @@ public class DevCorsConfig {
                 memberActivityCors
         );
 
+        source.registerCorsConfiguration(
+                "/api/v1/members/me/posts",
+                memberActivityCors
+        );
+
         return source;
     }
 }
