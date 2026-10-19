@@ -101,6 +101,18 @@ public class DevCorsConfig {
                 memberProfileCors
         );
 
+        CorsConfiguration memberNicknameCors =
+                new CorsConfiguration(cors);
+
+        memberNicknameCors.setAllowedMethods(
+                List.of("PUT", "OPTIONS")
+        );
+
+        source.registerCorsConfiguration(
+                "/api/v1/members/me/nickname",
+                memberNicknameCors
+        );
+
         return source;
     }
 }

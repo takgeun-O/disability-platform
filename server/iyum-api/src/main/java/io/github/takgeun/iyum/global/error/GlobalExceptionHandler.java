@@ -1,6 +1,7 @@
 package io.github.takgeun.iyum.global.error;
 
 import io.github.takgeun.iyum.auth.emailverification.application.InvalidEmailVerificationTokenException;
+import io.github.takgeun.iyum.auth.session.application.CurrentMemberReadException;
 import io.github.takgeun.iyum.auth.signup.application.SignupConflictException;
 import io.github.takgeun.iyum.auth.signup.application.SignupTermsException;
 import io.github.takgeun.iyum.auth.security.EmailVerificationRequiredException;
@@ -12,6 +13,7 @@ import io.github.takgeun.iyum.community.post.application.PostCreateException;
 import io.github.takgeun.iyum.community.post.application.PostDeleteException;
 import io.github.takgeun.iyum.community.post.application.PostReadException;
 import io.github.takgeun.iyum.community.post.application.PostUpdateException;
+import io.github.takgeun.iyum.member.application.MemberNicknameUpdateException;
 import io.github.takgeun.iyum.member.application.MemberProfileException;
 import org.springframework.beans.TypeMismatchException;
 import org.springframework.http.*;
@@ -481,6 +483,68 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
     @ExceptionHandler(MemberProfileException.class)
     public ResponseEntity<ApiErrorResponse> handleMemberProfile(
             MemberProfileException exception
+    ) {
+        return switch (exception.getCode()) {
+
+            case MEMBER_NOT_FOUND -> ResponseEntity
+                    .status(HttpStatus.UNAUTHORIZED)
+                    .cacheControl(CacheControl.noStore())
+                    .body(ApiErrorResponse.of(
+                            "AUTHENTICATION_REQUIRED",
+                            "로그인이 필요합니다."
+                    ));
+
+            case MEMBER_NOT_ACTIVE -> ResponseEntity
+                    .status(HttpStatus.FORBIDDEN)
+                    .cacheControl(CacheControl.noStore())
+                    .body(ApiErrorResponse.of(
+                            "MEMBER_NOT_ACTIVE",
+                            exception.getMessage()
+                    ));
+        };
+    }
+
+    @ExceptionHandler(MemberNicknameUpdateException.class)
+    public ResponseEntity<ApiErrorResponse> handleMemberNicknameUpdate(
+            MemberNicknameUpdateException exception
+    ) {
+        HttpStatus status = switch (exception.getCode()) {
+            case MEMBER_NOT_FOUND -> HttpStatus.UNAUTHORIZED;
+            case MEMBER_NOT_ACTIVE -> HttpStatus.FORBIDDEN;
+            case INVALID_NICKNAME -> HttpStatus.BAD_REQUEST;
+            case NICKNAME_ALREADY_EXISTS -> HttpStatus.CONFLICT;
+        };
+
+        ApiErrorResponse body = switch (exception.getCode()) {
+            case MEMBER_NOT_FOUND -> ApiErrorResponse.of(
+                    "AUTHENTICATION_REQUIRED",
+                    "로그인이 필요합니다."
+            );
+
+            case MEMBER_NOT_ACTIVE -> ApiErrorResponse.of(
+                    exception.getCode().name(),
+                    exception.getMessage()
+            );
+
+            case INVALID_NICKNAME, NICKNAME_ALREADY_EXISTS ->
+                    new ApiErrorResponse(
+                            exception.getCode().name(),
+                            exception.getMessage(),
+                            List.of(new ApiErrorResponse.FieldError(
+                                    "nickname",
+                                    exception.getMessage()
+                            ))
+                    );
+        };
+
+        return ResponseEntity.status(status)
+                .cacheControl(CacheControl.noStore())
+                .body(body);
+    }
+
+    @ExceptionHandler(CurrentMemberReadException.class)
+    public ResponseEntity<ApiErrorResponse> handleCurrentMemberRead(
+            CurrentMemberReadException exception
     ) {
         return switch (exception.getCode()) {
 

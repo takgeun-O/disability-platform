@@ -2,6 +2,8 @@ package io.github.takgeun.iyum.auth.session.api;
 
 import io.github.takgeun.iyum.auth.session.api.dto.CurrentMemberResponse;
 import io.github.takgeun.iyum.auth.security.MemberPrincipal;
+import io.github.takgeun.iyum.auth.session.application.CurrentMemberReadService;
+import io.github.takgeun.iyum.auth.session.application.CurrentMemberResult;
 import io.github.takgeun.iyum.global.error.ApiErrorResponse;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
@@ -10,6 +12,7 @@ import io.swagger.v3.oas.annotations.media.Schema;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.tags.Tag;
+import lombok.RequiredArgsConstructor;
 import org.springframework.http.CacheControl;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
@@ -18,17 +21,18 @@ import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 @RestController
+@RequiredArgsConstructor
 @Tag(name = "인증")
 public class CurrentMemberController {
 
-    // 컨트롤러인데 별도의 서비스가 없는 이유
-    // 이미 세션에 저장된 회원 정보를 반환하기 때문에 DB 조회가 필요없음.
-    // 다만 이 떄 이 정보는 로그인 당시의 정보임.
-    // 나중에 닉네임 변경이나 계정 정지 기능을 만들면 최신 정보 조회와 기존 세션의 권한 반영 정책을 추가하여야 함.
+    private final CurrentMemberReadService currentMemberReadService;
 
     @Operation(
             summary = "현재 로그인한 회원 조회",
-            description = "현재 로그인 세션에 저장된 회원 정보를 반환합니다."
+            description = """
+                로그인 세션의 회원 ID로 DB의 최신 회원 정보를 조회합니다.
+                로그인 이후 변경된 닉네임도 반영합니다.
+                """
     )
     @ApiResponses({
             @ApiResponse(
@@ -50,6 +54,16 @@ public class CurrentMemberController {
                                     implementation = ApiErrorResponse.class
                             )
                     )
+            ),
+            @ApiResponse(
+                    responseCode = "403",
+                    description = "현재 활성 상태가 아닌 회원",
+                    content = @Content(
+                            mediaType = MediaType.APPLICATION_JSON_VALUE,
+                            schema = @Schema(
+                                    implementation = ApiErrorResponse.class
+                            )
+                    )
             )
     })
     @GetMapping(
@@ -63,9 +77,16 @@ public class CurrentMemberController {
             // 서버가 세션을 통해 현재 회원을 식별한다.
             @AuthenticationPrincipal MemberPrincipal principal
     ) {
+
+        Long memberId = principal == null
+                ? null
+                : principal.getMemberId();
+
+        CurrentMemberResult result = currentMemberReadService.getCurrentMember(memberId);
+
         return ResponseEntity.ok()
                 .cacheControl(CacheControl.noStore())
-                .body(CurrentMemberResponse.from(principal));
+                .body(CurrentMemberResponse.from(result));
 
     }
 }

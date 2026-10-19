@@ -1,6 +1,7 @@
 package io.github.takgeun.iyum.auth.session.api.dto;
 
 import io.github.takgeun.iyum.auth.security.MemberPrincipal;
+import io.github.takgeun.iyum.auth.session.application.CurrentMemberResult;
 import io.github.takgeun.iyum.member.domain.MemberRole;
 import io.swagger.v3.oas.annotations.media.Schema;
 
@@ -14,13 +15,13 @@ public record CurrentMemberResponse(
 ) {
 
     public static CurrentMemberResponse from(
-            MemberPrincipal principal
+            CurrentMemberResult result
     ) {
         return new CurrentMemberResponse(
-                principal.getMemberId(),
-                principal.getUsername(),
-                principal.getNickname(),
-                principal.getRole()
+                result.memberId(),
+                result.email(),
+                result.nickname(),
+                result.role()
         );
     }
 }
