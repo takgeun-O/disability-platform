@@ -1,5 +1,6 @@
 package io.github.takgeun.iyum.community.post.application;
 
+import io.github.takgeun.iyum.support.MemberStatusFixture;
 import io.github.takgeun.iyum.community.post.domain.Post;
 import io.github.takgeun.iyum.community.post.domain.PostTopic;
 import io.github.takgeun.iyum.community.post.domain.PostType;
@@ -165,11 +166,7 @@ class PostUpdateServiceIntegrationTest {
     void DB의_현재_상태가_ACTIVE가_아니면_수정을_거절한다(
             MemberStatus status
     ) {
-        jdbcTemplate.update(
-                "UPDATE members SET status = ? WHERE id = ?",
-                status.name(),
-                authorId
-        );
+        MemberStatusFixture.setStatus(jdbcTemplate, authorId, status);
 
         assertUpdateRejected(
                 authorId,

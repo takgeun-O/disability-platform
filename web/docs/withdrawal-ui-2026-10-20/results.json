@@ -1,0 +1,42 @@
+[
+  {
+    "name": "layout keyboard close 1440",
+    "passed": true
+  },
+  {
+    "name": "layout keyboard close 390",
+    "passed": true
+  },
+  {
+    "name": "layout keyboard close 320",
+    "passed": true
+  },
+  {
+    "name": "mismatch once then successful 204; no duplicate; close blocked; home notice; back private state gone",
+    "passed": true
+  },
+  {
+    "name": "error CSRF_TOKEN_INVALID",
+    "passed": true
+  },
+  {
+    "name": "error MEMBER_NOT_ACTIVE",
+    "passed": true
+  },
+  {
+    "name": "error INTERNAL_SERVER_ERROR",
+    "passed": true
+  },
+  {
+    "name": "error AUTHENTICATION_REQUIRED",
+    "passed": true
+  },
+  {
+    "name": "network failure keeps session; explicit retry renews CSRF and succeeds on mobile",
+    "passed": true
+  },
+  {
+    "name": "confirmed error stays next to checkbox and keyboard stays in dialog",
+    "passed": true
+  }
+]

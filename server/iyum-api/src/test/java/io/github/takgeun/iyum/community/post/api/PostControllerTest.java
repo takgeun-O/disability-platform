@@ -1,5 +1,6 @@
 package io.github.takgeun.iyum.community.post.api;
 
+import io.github.takgeun.iyum.member.infrastructure.MemberRepository;
 import io.github.takgeun.iyum.auth.security.MemberPrincipal;
 import io.github.takgeun.iyum.community.post.application.*;
 import io.github.takgeun.iyum.community.post.domain.PostTopic;
@@ -53,6 +54,9 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 })
 @ActiveProfiles("dev")
 class PostControllerTest {
+    @MockitoBean
+    MemberRepository memberRepository;
+
 
     private static final String API_PATH =
             "/api/v1/community/posts";
@@ -87,6 +91,7 @@ class PostControllerTest {
     @Test
     void 인증된_회원_ID로_작성하고_201을_반환한다()
             throws Exception {
+        givenActiveMember();
 
         when(postCreateService.create(
                 eq(7L),
@@ -149,6 +154,7 @@ class PostControllerTest {
                 .andExpect(jsonPath("$.code")
                         .value("CSRF_TOKEN_INVALID"));
 
+        verifyNoInteractions(memberRepository);
         verifyNoInteractions(postCreateService);
     }
 
@@ -166,12 +172,14 @@ class PostControllerTest {
                 .andExpect(jsonPath("$.code")
                         .value("CSRF_TOKEN_INVALID"));
 
+        verifyNoInteractions(memberRepository);
         verifyNoInteractions(postCreateService);
     }
 
     @Test
     void 잘못된_입력은_각_필드_오류와_함께_400을_반환한다()
             throws Exception {
+        givenActiveMember();
 
         String body = """
                 {
@@ -210,6 +218,7 @@ class PostControllerTest {
     void 잘못된_열거형이나_JSON은_400을_반환한다(
             String body
     ) throws Exception {
+        givenActiveMember();
 
         mockMvc.perform(
                         authenticatedPost(body)
@@ -232,6 +241,7 @@ class PostControllerTest {
             int expectedStatus,
             String expectedCode
     ) throws Exception {
+        givenActiveMember();
 
         when(postCreateService.create(
                 eq(7L),
@@ -246,6 +256,7 @@ class PostControllerTest {
                 .andExpect(jsonPath("$.code")
                         .value(expectedCode))
                 .andExpect(jsonPath("$.fieldErrors").isEmpty());
+        verify(postCreateService).create(eq(7L), any(PostCreateCommand.class));
     }
 
     @Test
@@ -627,5 +638,10 @@ class PostControllerTest {
                 MemberStatus.ACTIVE,
                 MemberRole.USER
         );
+    }
+
+    private void givenActiveMember() {
+        when(memberRepository.existsByIdAndStatus(
+                7L, MemberStatus.ACTIVE)).thenReturn(true);
     }
 }

@@ -92,3 +92,42 @@
 .mypage .mypage-comment-content { font-size:17px; font-weight:600; line-height:1.7; margin:0 0 10px; white-space:pre-line; overflow-wrap:anywhere; display:-webkit-box; -webkit-box-orient:vertical; -webkit-line-clamp:3; overflow:hidden; }
 .mypage-comment-link { display:block; color:var(--iyum-primary); font-size:14px; line-height:1.7; overflow-wrap:anywhere; border-radius:3px; }
 .mypage-comment-link:hover { text-decoration:underline; text-underline-offset:3px; }
+
+.withdrawal-entry { display:flex; align-items:center; justify-content:space-between; gap:16px; width:100%; margin-top:12px; min-height:56px; padding:14px 22px; border-top:1px solid var(--iyum-border); color:var(--iyum-muted); font-size:15px; cursor:pointer; }
+.withdrawal-entry:hover { background:var(--iyum-mist); }
+.withdrawal-entry:focus-visible { outline:2px solid var(--iyum-primary); outline-offset:2px; border-radius:4px; }
+.withdrawal-entry svg { flex-shrink:0; }
+.withdrawal-dialog { width:min(510px,calc(100vw - 32px)); padding:32px; color:var(--iyum-ink); }
+.withdrawal-close { position:absolute; top:12px; right:12px; }
+.withdrawal-heading { text-align:center; padding-top:8px; }
+.withdrawal-heading svg { width:56px; height:56px; padding:14px; border-radius:50%; background:#fbecee; color:var(--iyum-danger); margin:0 auto 14px; }
+.withdrawal-heading h2 { font-size:25px; font-weight:700; margin:0 0 10px; }
+.withdrawal-heading p,.withdrawal-help { color:var(--iyum-muted); line-height:1.6; }
+.withdrawal-guidance { margin:22px 0 10px; padding:8px 20px 8px 36px; background:#f7f4f4; border-radius:10px; list-style:disc; }
+.withdrawal-guidance li { padding:12px 0 12px 4px; line-height:1.65; }
+.withdrawal-guidance li + li { border-top:1px solid #e8dfe1; }
+.withdrawal-guidance li::marker { color:var(--iyum-danger); }
+.withdrawal-help { font-size:14px; margin:0 0 20px; }
+.withdrawal-dialog .auth-input { width:100%; font-size:16px; }
+.withdrawal-consent { display:flex; align-items:flex-start; gap:12px; margin:16px 0 8px; min-height:44px; line-height:1.6; font-size:14px; }
+.withdrawal-consent input { flex:0 0 22px; width:22px; height:22px; margin-top:2px; accent-color:var(--iyum-primary); }
+.withdrawal-actions { display:flex; gap:12px; margin-top:12px; }
+.withdrawal-guidance,.withdrawal-help,.withdrawal-consent,.withdrawal-heading p { word-break:keep-all; overflow-wrap:anywhere; }
+.withdrawal-dialog .auth-password-toggle { display:grid; place-items:center; min-width:44px; }
+.withdrawal-dialog .auth-password .auth-input { padding-right:52px; }
+.withdrawal-dialog .auth-password-toggle:disabled { cursor:default; }
+.withdrawal-actions button { flex:1; min-height:48px; }
+.withdrawal-submit { background:var(--iyum-danger); color:white; border:1px solid var(--iyum-danger); }
+.withdrawal-submit:hover:not(:disabled) { background:color-mix(in srgb,var(--iyum-danger),black 12%); }
+.withdrawal-submit:disabled { opacity:.45; cursor:default; }
+.withdrawal-dialog button[aria-disabled=true] { cursor:default; opacity:.5; }
+@media(max-width:600px) {
+ .withdrawal-dialog { width:100%; padding:20px 20px max(24px,env(safe-area-inset-bottom)); }
+ .withdrawal-heading { padding-top:4px; }
+ .withdrawal-heading svg { width:44px; height:44px; padding:10px; margin-bottom:10px; }
+ .withdrawal-heading h2 { margin-bottom:6px; }
+ .withdrawal-guidance { margin-top:14px; padding-left:30px; }
+ .withdrawal-help { margin-bottom:14px; }
+ .withdrawal-entry { padding-inline:16px; }
+ .withdrawal-heading h2 { font-size:23px; }
+}

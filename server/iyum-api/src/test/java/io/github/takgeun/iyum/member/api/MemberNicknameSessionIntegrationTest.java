@@ -203,36 +203,20 @@ class MemberNicknameSessionIntegrationTest {
                 ));
     }
 
-    @Test
-    void 로그인_후_DB에서_비활성화되면_현재회원_조회는_403이다()
-            throws Exception {
+    @org.junit.jupiter.params.ParameterizedTest
+    @org.junit.jupiter.params.provider.EnumSource(value = io.github.takgeun.iyum.member.domain.MemberStatus.class,
+            names = {"PENDING", "WITHDRAWN", "DELETED"})
+    void 로그인_후_DB에서_비활성화되면_현재회원_조회는_401이고_세션을_정리한다(
+            io.github.takgeun.iyum.member.domain.MemberStatus memberStatus) throws Exception {
         CsrfSession loggedIn = login();
+        // Only this class's isolated Testcontainers DB is changed.
+        io.github.takgeun.iyum.support.MemberStatusFixture.setStatus(jdbcTemplate, memberId, memberStatus);
 
-        // 현재 상태를 다시 검사하는지 확인하기 위한 테스트 데이터 변경.
-        int updated = jdbcTemplate.update(
-                """
-                UPDATE members
-                SET status = ?,
-                    updated_at = CURRENT_TIMESTAMP
-                WHERE id = ?
-                """,
-                "PENDING",
-                memberId
-        );
-
-        assertThat(updated).isEqualTo(1);
-
-        mockMvc.perform(
-                        get("/api/v1/auth/me")
-                                .session(loggedIn.session())
-                )
-                .andExpect(status().isForbidden())
-                .andExpect(jsonPath("$.code")
-                        .value("MEMBER_NOT_ACTIVE"))
-                .andExpect(header().string(
-                        HttpHeaders.CACHE_CONTROL,
-                        containsString("no-store")
-                ));
+        mockMvc.perform(get("/api/v1/auth/me").session(loggedIn.session()))
+                .andExpect(status().isUnauthorized())
+                .andExpect(jsonPath("$.code").value("AUTHENTICATION_REQUIRED"))
+                .andExpect(header().string(HttpHeaders.CACHE_CONTROL, containsString("no-store")));
+        assertThat(loggedIn.session().isInvalid()).isTrue();
     }
 
     private CsrfSession login() throws Exception {

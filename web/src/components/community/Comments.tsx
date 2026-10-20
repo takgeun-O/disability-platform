@@ -1,7 +1,7 @@
 "use client"
 // Refresh the visible prefix, keeping editor snapshots separate from server data.
 import { useEffect, useEffectEvent, useRef, useState, type FormEvent } from "react"
-import { memberCommentsChanged, postListChanged } from "@/lib/community-mutations"
+import { memberCommentsChanged, postListChanged, usePostVersion } from "@/lib/community-mutations"
 import { useRouter } from "next/navigation"
 import { useAuth } from "@/components/AuthProvider"
 import {
@@ -32,6 +32,7 @@ export default function Comments({
   returnTo: string
   initial: PublicResult<CommentPage>
 }) {
+  const identityVersion = usePostVersion("public-identity")
   const auth = useAuth()
   const router = useRouter(), guard = useNavigationGuard()
   const scope = useNavigationRequest()
@@ -41,7 +42,7 @@ export default function Comments({
     pageCount = useRef(1)
   const removed = useRef(new Set<number>())
   const [page, setPage] = useState<CommentPage>(
-    initial.data ?? { items: [], hasNext: false, nextCursor: null },
+    (identityVersion === 0 ? initial.data : null) ?? { items: [], hasNext: false, nextCursor: null },
   )
   const [readError, setReadError] = useState(
     initial.error?.message ??
@@ -90,6 +91,9 @@ export default function Comments({
     },
     [],
   )
+
+  const refreshIdentity = useEffectEvent(() => { void load() })
+  useEffect(() => { if (identityVersion > 0) refreshIdentity() }, [identityVersion])
 
   function pauseAuto() {
     // 입력 중 도착한 자동 GET도 폼을 밀어내지 않는다. 수동 추가는 명시적 조작이다.

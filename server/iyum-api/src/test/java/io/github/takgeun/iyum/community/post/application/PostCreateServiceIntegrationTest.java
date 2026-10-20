@@ -1,5 +1,6 @@
 package io.github.takgeun.iyum.community.post.application;
 
+import io.github.takgeun.iyum.support.MemberStatusFixture;
 import io.github.takgeun.iyum.community.post.domain.Post;
 import io.github.takgeun.iyum.community.post.domain.PostTopic;
 import io.github.takgeun.iyum.community.post.domain.PostType;
@@ -143,11 +144,7 @@ class PostCreateServiceIntegrationTest {
         Member author = createActiveMember();
 
         // 이전에는 ACTIVE였지만 현재 DB 상태가 변경된 상황이다.
-        jdbcTemplate.update(
-                "UPDATE members SET status = ? WHERE id = ?",
-                status.name(),
-                author.getId()
-        );
+        MemberStatusFixture.setStatus(jdbcTemplate, author.getId(), status);
 
         assertThatThrownBy(() ->
                 postCreateService.create(

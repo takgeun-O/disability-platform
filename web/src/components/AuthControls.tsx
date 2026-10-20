@@ -123,6 +123,6 @@ export default function AuthControls({ render, onLogoutSuccess, onCurrentPage }:
     onClick={() => { void handleLogout(); }} className="iyum-button iyum-auth-logout">
     {auth.pending === 'logout' ? '로그아웃 중…' : '로그아웃'}
   </button> : null;
-  const notice = feedbackVisible ? <FeedbackNotice key={feedback.id} feedback={feedback} onDismiss={dismissFeedback} /> : null;
+  const notice = auth.withdrawalNotice ? <FeedbackNotice feedback={{ id: -1, message: '회원 탈퇴가 완료되었습니다.', error: false, memberId: null }} onDismiss={auth.dismissWithdrawalNotice} /> : feedbackVisible ? <FeedbackNotice key={feedback.id} feedback={feedback} onDismiss={dismissFeedback} /> : null;
   return render ? render({ member, logout, notice }) : <div className="iyum-auth-controls" aria-label="회원 메뉴">{member}{logout}{notice}</div>;
 }

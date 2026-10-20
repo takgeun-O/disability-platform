@@ -1,5 +1,6 @@
 package io.github.takgeun.iyum.member.api;
 
+import io.github.takgeun.iyum.member.infrastructure.MemberRepository;
 import io.github.takgeun.iyum.auth.security.MemberPrincipal;
 import io.github.takgeun.iyum.community.comment.application.CommentCursor;
 import io.github.takgeun.iyum.community.post.domain.PostTopic;
@@ -58,6 +59,9 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 })
 @ActiveProfiles("dev")
 class MemberCommentReadControllerTest {
+    @MockitoBean
+    MemberRepository memberRepository;
+
 
     private static final String BASE =
             "/api/v1/members/me/comments";
@@ -88,6 +92,7 @@ class MemberCommentReadControllerTest {
     @Test
     void 로그인한_회원이_CSRF_없이_기본_목록을_조회한다()
             throws Exception {
+        givenActiveMember();
         when(memberCommentReadService.getComments(
                 MEMBER_ID, null, null, 10
         )).thenReturn(new MemberCommentListResult(
@@ -145,6 +150,7 @@ class MemberCommentReadControllerTest {
     @Test
     void 전달받은_커서와_size를_서비스로_전달하고_다음_커서를_반환한다()
             throws Exception {
+        givenActiveMember();
         Instant requestedCreatedAt =
                 Instant.parse("2026-10-19T12:00:00.987654Z");
 
@@ -178,6 +184,7 @@ class MemberCommentReadControllerTest {
     @Test
     void 댓글이_없으면_빈_목록을_반환한다()
             throws Exception {
+        givenActiveMember();
         when(memberCommentReadService.getComments(
                 MEMBER_ID, null, null, 10
         )).thenReturn(emptyResult());
@@ -209,6 +216,7 @@ class MemberCommentReadControllerTest {
     @Test
     void memberId를_임의로_전달해도_인증된_회원의_ID를_사용한다()
             throws Exception {
+        givenActiveMember();
         when(memberCommentReadService.getComments(
                 MEMBER_ID, null, null, 10
         )).thenReturn(emptyResult());
@@ -233,6 +241,7 @@ class MemberCommentReadControllerTest {
             String parameter,
             String value
     ) throws Exception {
+        givenActiveMember();
         mockMvc.perform(get(BASE)
                         .with(user(principal()))
                         .param(parameter, value))
@@ -246,6 +255,7 @@ class MemberCommentReadControllerTest {
     @Test
     void 커서_ID만_전달하면_서비스의_커서_오류를_400으로_반환한다()
             throws Exception {
+        givenActiveMember();
         MemberCommentReadException exception =
                 new MemberCommentReadException(
                         MemberCommentReadException.Code.INVALID_CURSOR
@@ -284,6 +294,7 @@ class MemberCommentReadControllerTest {
             int expectedStatus,
             String responseCode
     ) throws Exception {
+        givenActiveMember();
         MemberCommentReadException exception =
                 new MemberCommentReadException(
                         MemberCommentReadException.Code.valueOf(exceptionCode)
@@ -362,6 +373,7 @@ class MemberCommentReadControllerTest {
                         HttpHeaders.ACCESS_CONTROL_ALLOW_ORIGIN
                 ));
 
+        verifyNoInteractions(memberRepository);
         verifyNoInteractions(memberCommentReadService);
     }
 
@@ -414,5 +426,10 @@ class MemberCommentReadControllerTest {
                 false,
                 null
         );
+    }
+
+    private void givenActiveMember() {
+        when(memberRepository.existsByIdAndStatus(
+                MEMBER_ID, MemberStatus.ACTIVE)).thenReturn(true);
     }
 }

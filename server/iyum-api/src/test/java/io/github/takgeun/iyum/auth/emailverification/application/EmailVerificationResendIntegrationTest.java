@@ -1,5 +1,6 @@
 package io.github.takgeun.iyum.auth.emailverification.application;
 
+import io.github.takgeun.iyum.support.MemberStatusFixture;
 import io.github.takgeun.iyum.auth.emailverification.domain.EmailVerificationToken;
 import io.github.takgeun.iyum.auth.emailverification.infrastructure.EmailVerificationTokenHasher;
 import io.github.takgeun.iyum.auth.emailverification.infrastructure.EmailVerificationTokenRepository;
@@ -188,7 +189,7 @@ class EmailVerificationResendIntegrationTest {
 
     @ParameterizedTest @EnumSource(value = MemberStatus.class, names = "PENDING", mode = EnumSource.Mode.EXCLUDE)
     void nonPendingMemberIsUnchanged(MemberStatus status) {
-        jdbc.update("update members set status = ? where id = ?", status.name(), memberId);
+        MemberStatusFixture.setStatus(jdbc, memberId, status);
         at(60);
         resendService.resend(EMAIL);
         unchanged();

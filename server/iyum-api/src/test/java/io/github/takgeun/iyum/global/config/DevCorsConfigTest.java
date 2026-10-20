@@ -1,5 +1,6 @@
 package io.github.takgeun.iyum.global.config;
 
+import io.github.takgeun.iyum.member.infrastructure.MemberRepository;
 import io.github.takgeun.iyum.auth.session.api.CsrfController;
 import io.github.takgeun.iyum.auth.signup.api.SignupController;
 import io.github.takgeun.iyum.auth.signup.application.SignupResult;
@@ -33,6 +34,9 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 @Import({SecurityConfig.class, DevCorsConfig.class})
 @ActiveProfiles("dev")
 class DevCorsConfigTest {
+    @MockitoBean
+    MemberRepository memberRepository;
+
     private static final String ORIGIN = "http://127.0.0.1:8443";
     @Autowired MockMvc mockMvc;
     @Autowired ObjectMapper objectMapper;
@@ -138,7 +142,7 @@ class DevCorsConfigTest {
 
     @Test
     void doesNotOpenUnrelatedApiPathsOrMethods() throws Exception {
-        mockMvc.perform(options("/api/v1/members/me")
+        mockMvc.perform(options("/api/v1/unrelated")
                         .header(HttpHeaders.ORIGIN, ORIGIN)
                         .header(HttpHeaders.ACCESS_CONTROL_REQUEST_METHOD, "GET"))
                 .andExpect(header().doesNotExist(HttpHeaders.ACCESS_CONTROL_ALLOW_ORIGIN))

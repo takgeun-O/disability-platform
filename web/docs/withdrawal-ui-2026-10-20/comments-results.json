@@ -1,0 +1,131 @@
+{
+  "kind": "controlled mock API on production Next; no DB writes",
+  "results": [
+    {
+      "name": "lazy independent DTO, same-post distinct comments, no GET CSRF or memberId",
+      "pass": true
+    },
+    {
+      "name": "three pages raw microsecond commentId cursor, duplicates blocked and final focus",
+      "pass": true
+    },
+    {
+      "name": "stable keyboard more failure, pending retry, refailure and exact-cursor success",
+      "pass": true
+    },
+    {
+      "name": "retry empty last page focuses end, initial failed retry empty focuses empty notice",
+      "pass": true
+    },
+    {
+      "name": "pending retry success, user Tab: no focus theft",
+      "pass": true
+    },
+    {
+      "name": "pending retry success, user Shift+Tab: no focus theft",
+      "pass": true
+    },
+    {
+      "name": "pending retry success, user click: no focus theft",
+      "pass": true
+    },
+    {
+      "name": "pending retry success, user tab: no focus theft",
+      "pass": true
+    },
+    {
+      "name": "pending retry failure, user Tab: no focus theft",
+      "pass": true
+    },
+    {
+      "name": "pending retry failure, user Shift+Tab: no focus theft",
+      "pass": true
+    },
+    {
+      "name": "pending retry failure, user click: no focus theft",
+      "pass": true
+    },
+    {
+      "name": "pending retry failure, user tab: no focus theft",
+      "pass": true
+    },
+    {
+      "name": "mouse retry never focuses result link",
+      "pass": true
+    },
+    {
+      "name": "zero summary and summary error do not hide comments; actual empty remains distinct",
+      "pass": false,
+      "error": "locator.click: Timeout 8000ms exceeded.\nCall log:\n\u001b[2m  - waiting for getByRole('tab', { name: /내 댓글/ })\u001b[22m\n\n    at open (/Users/tackeunoh/Developer/iyum/web/tests/member-comments-browser.mjs:59:68)\n    at /Users/tackeunoh/Developer/iyum/web/tests/member-comments-browser.mjs:92:349\n    at async check (/Users/tackeunoh/Developer/iyum/web/tests/member-comments-browser.mjs:66:110)\n    at async file:///Users/tackeunoh/Developer/iyum/web/tests/member-comments-browser.mjs:91:2"
+    },
+    {
+      "name": "27 comments detail top + back tab/list/scroll restore and no reread",
+      "pass": false,
+      "error": "Error: condition not reached\n    at until (file:///Users/tackeunoh/Developer/iyum/web/tests/member-comments-browser.mjs:27:92)\n    at async file:///Users/tackeunoh/Developer/iyum/web/tests/member-comments-browser.mjs:95:147\n    at async check (file:///Users/tackeunoh/Developer/iyum/web/tests/member-comments-browser.mjs:66:110)\n    at async file:///Users/tackeunoh/Developer/iyum/web/tests/member-comments-browser.mjs:94:36"
+    },
+    {
+      "name": "27 comments detail top + link tab/list/scroll restore and no reread",
+      "pass": false,
+      "error": "Error: condition not reached\n    at until (file:///Users/tackeunoh/Developer/iyum/web/tests/member-comments-browser.mjs:27:92)\n    at async file:///Users/tackeunoh/Developer/iyum/web/tests/member-comments-browser.mjs:95:147\n    at async check (file:///Users/tackeunoh/Developer/iyum/web/tests/member-comments-browser.mjs:66:110)\n    at async file:///Users/tackeunoh/Developer/iyum/web/tests/member-comments-browser.mjs:94:36"
+    },
+    {
+      "name": "PUT comment refreshes content not count and preserves form until return",
+      "pass": true
+    },
+    {
+      "name": "POST and DELETE comment refresh list/summary, no speculative count",
+      "pass": true
+    },
+    {
+      "name": "post edit refreshes original title/type/topic; post delete excludes all its comments",
+      "pass": true
+    },
+    {
+      "name": "refresh intermediate failure preserves old three pages; retry replaces atomically",
+      "pass": true
+    },
+    {
+      "name": "401 clears both lists, late request after logout cannot restore private data",
+      "pass": true
+    },
+    {
+      "name": "pending first read tab switch retains independent posts; later comments show response",
+      "pass": true
+    },
+    {
+      "name": "old pending read after leaving and new session cannot mix into fresh account comments",
+      "pass": true
+    },
+    {
+      "name": "late successful PUT invalidates new comments visit; older GET cannot overwrite fresh data",
+      "pass": true
+    },
+    {
+      "name": "deleted anchor uses adjacent commentId after refresh, without resetting to top",
+      "pass": false,
+      "error": "Error: condition not reached\n    at until (file:///Users/tackeunoh/Developer/iyum/web/tests/member-comments-browser.mjs:27:92)\n    at async file:///Users/tackeunoh/Developer/iyum/web/tests/member-comments-browser.mjs:129:429\n    at async check (file:///Users/tackeunoh/Developer/iyum/web/tests/member-comments-browser.mjs:66:110)\n    at async file:///Users/tackeunoh/Developer/iyum/web/tests/member-comments-browser.mjs:127:2"
+    },
+    {
+      "name": "missing original 1440 back: memory, three pages, group deletion and anchor",
+      "pass": false,
+      "error": "Error: condition not reached\n    at until (file:///Users/tackeunoh/Developer/iyum/web/tests/member-comments-browser.mjs:27:92)\n    at async file:///Users/tackeunoh/Developer/iyum/web/tests/member-comments-browser.mjs:142:3\n    at async check (file:///Users/tackeunoh/Developer/iyum/web/tests/member-comments-browser.mjs:66:110)\n    at async file:///Users/tackeunoh/Developer/iyum/web/tests/member-comments-browser.mjs:131:66"
+    },
+    {
+      "name": "missing original 1440 link: memory, three pages, group deletion and anchor",
+      "pass": false,
+      "error": "Error: condition not reached\n    at until (file:///Users/tackeunoh/Developer/iyum/web/tests/member-comments-browser.mjs:27:92)\n    at async file:///Users/tackeunoh/Developer/iyum/web/tests/member-comments-browser.mjs:142:3\n    at async check (file:///Users/tackeunoh/Developer/iyum/web/tests/member-comments-browser.mjs:66:110)\n    at async file:///Users/tackeunoh/Developer/iyum/web/tests/member-comments-browser.mjs:131:66"
+    },
+    {
+      "name": "missing original 390 back: memory, three pages, group deletion and anchor",
+      "pass": true
+    },
+    {
+      "name": "missing original 390 link: memory, three pages, group deletion and anchor",
+      "pass": true
+    },
+    {
+      "name": "1440/390/320 long content/title safe text, mobile menu and screenshots",
+      "pass": true
+    }
+  ]
+}

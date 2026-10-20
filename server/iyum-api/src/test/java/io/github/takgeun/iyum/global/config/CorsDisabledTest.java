@@ -1,5 +1,7 @@
 package io.github.takgeun.iyum.global.config;
 
+import org.springframework.test.context.bean.override.mockito.MockitoBean;
+import io.github.takgeun.iyum.member.infrastructure.MemberRepository;
 import io.github.takgeun.iyum.auth.session.api.CsrfController;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -16,6 +18,9 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 @Import({SecurityConfig.class, DevCorsConfig.class})
 @ActiveProfiles("test")
 class CorsDisabledTest {
+    @MockitoBean
+    MemberRepository memberRepository;
+
     @Autowired MockMvc mockMvc;
 
     @Test

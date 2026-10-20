@@ -206,14 +206,15 @@ class MemberActivitySessionIntegrationTest {
 
         mockMvc.perform(get(SUMMARY_URL)
                         .session(session))
-                .andExpect(status().isForbidden())
+                .andExpect(status().isUnauthorized())
                 .andExpect(header().string(
                         HttpHeaders.CACHE_CONTROL,
                         containsString("no-store")
                 ))
                 .andExpect(jsonPath("$.code")
-                        .value("MEMBER_NOT_ACTIVE"))
+                        .value("AUTHENTICATION_REQUIRED"))
                 .andExpect(jsonPath("$.fieldErrors").isEmpty());
+        assertThat(session.isInvalid()).isTrue();
     }
 
     @Test
