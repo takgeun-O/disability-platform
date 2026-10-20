@@ -1,0 +1,30 @@
+{
+  "kind": "production Next with sequential controlled public API 200 then 404, no DB",
+  "results": [
+    {
+      "name": "race comments 1440 link",
+      "pass": true
+    },
+    {
+      "name": "race comments 1440 back",
+      "pass": true
+    },
+    {
+      "name": "race comments 390 link",
+      "pass": true
+    },
+    {
+      "name": "race comments 390 back",
+      "pass": true
+    },
+    {
+      "name": "race document JS=false",
+      "pass": false,
+      "error": "AssertionError [ERR_ASSERTION]: The expression evaluated to a falsy value:\n\n  assert(await p.getByRole('heading',{name:'게시글을 찾을 수 없어요.',exact:true}).isVisible())\n\n    at file:///Users/tackeunoh/Developer/iyum/web/tests/member-404-race-browser.mjs:93:3\n    at async check (file:///Users/tackeunoh/Developer/iyum/web/tests/member-404-race-browser.mjs:72:110)\n    at async file:///Users/tackeunoh/Developer/iyum/web/tests/member-404-race-browser.mjs:88:39"
+    },
+    {
+      "name": "race document JS=true",
+      "pass": true
+    }
+  ]
+}

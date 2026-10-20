@@ -1,0 +1,29 @@
+{
+  "kind": "keyboard retry focus follow-up; run 2026-10-20",
+  "baseline": {
+    "browserPassed": 18,
+    "browserFailed": 23,
+    "note": "Same 41 scenarios on the pre-fix production build; all existing 18 passed, new23 exposed focus loss."
+  },
+  "final": {
+    "browserPassed": 41,
+    "browserFailed": 0,
+    "unitPassed": 280,
+    "unitFailed": 0,
+    "lintExit": 0,
+    "typecheckExit": 0,
+    "buildExit": 0,
+    "diffCheckExit": 0
+  },
+  "environment": {
+    "browser": "Chrome via Playwright, mocked Spring-shaped API, production Next16.3.6",
+    "api": "No actual Spring requests or DB writes; SSR mock8858 and Next8452 stopped",
+    "build": "isolated current-source copy; symlinked external node_modules initially rejected by Turbopack; filesystem copy then passed",
+    "existingServers": "8443 and 8082 preserved"
+  },
+  "notRun": [
+    "Actual Spring integration (focus-only change, controlled mock ordering needed; no DB writes necessary)",
+    "Physical mobile devices and screen-reader speech output",
+    "Historical post no-JS404 dedicated suite and duplicate GET investigation"
+  ]
+}

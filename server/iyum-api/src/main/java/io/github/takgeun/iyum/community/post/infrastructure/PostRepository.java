@@ -130,4 +130,61 @@ public interface PostRepository extends JpaRepository<Post, Long> {
             @Param("afterId") Long afterId,
             Pageable pageable
     );
+
+    // 내 게시글 수 조회
+    // 전체 게시글을 가져와서 Java로 세는 대신 DB에서 개수만 계산해 반환
+    @Query("""
+            select count(p)
+            from Post p
+            where p.author.id = :memberId
+                and p.deletedAt is null
+            """)
+    long countVisiblePostsByAuthorId(
+            @Param("memberId") Long memberId
+    );
+
+    // 내 게시글 첫 조회: 내가 작성한 공개 게시글을 최신순으로 조회한다.
+    // p.author.id = :memberId
+    // DB에서 조회할 때부터 내 게시글로 제한한다. (전체 게시글 피드 조회와의 차이점)
+    // 전체 게시글을 가져와서 Java 코드로 내 게시글을 골라내는 방식으로 하면
+    // 조회 개수와 커서 처리가 꼬일 수 있음.
+    @Query("""
+            select p
+            from Post p
+            join fetch p.author
+            where p.author.id = :memberId
+                and p.deletedAt is null
+            order by p.createdAt desc, p.id desc
+            """)
+    List<Post> findFirstVisiblePostsByAuthorId(
+            @Param("memberId") Long memberId,
+            Pageable pageable
+    );
+
+    // 내 게시글 후속 조회: 커서보다 정렬 순서상 뒤에 있는 게시글을 조회한다.
+    // 최신순이므로 다음 목록은 마지막으로 받은 게시글보다 더 오래된 게시글부터 가져와야 한다.
+    @Query("""
+            select p
+            from Post p
+            join fetch p.author
+            where p.author.id = :memberId
+                and p.deletedAt is null
+                and (
+                    p.createdAt < :afterCreatedAt
+                    or (
+                        p.createdAt = :afterCreatedAt
+                        and p.id < :afterId
+                    )
+                )
+            order by p.createdAt desc, p.id desc
+            """)
+    List<Post> findVisiblePostsByAuthorIdAfter(
+            @Param("memberId") Long memberId,
+            @Param("afterCreatedAt") Instant afterCreatedAt,
+            @Param("afterId") Long afterId,
+            // Pageable: 조회 개수를 제한하는 용도로 사용할 것
+            // 위 쿼리상 조건에 만족하면 내림차순으로 모두 가져오는데
+            // Pageable이 그 개수를 제한할 것
+            Pageable pageable
+    );
 }

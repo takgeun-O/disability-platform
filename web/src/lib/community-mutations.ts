@@ -4,13 +4,18 @@ import { useSyncExternalStore } from "react"
 const versions = new Map<string, number>()
 const listeners = new Set<() => void>()
 export function postChanged(id: string) {
-  for (const key of [id, "list"])
+  for (const key of [id, "list", "member-comments"])
     versions.set(key, (versions.get(key) ?? 0) + 1)
   listeners.forEach((listener) => listener())
 }
 // 댓글 변경은 상세 버전을 건드리지 않는다. 편집 중인 폼/초점을 유지한다.
 export function postListChanged() {
-  versions.set("list", (versions.get("list") ?? 0) + 1)
+  for (const key of ["list", "member-comments"]) versions.set(key, (versions.get(key) ?? 0) + 1)
+  listeners.forEach((listener) => listener())
+}
+// Content-only comment edits invalidate the private comments list, not counts or detail forms.
+export function memberCommentsChanged() {
+  versions.set("member-comments", (versions.get("member-comments") ?? 0) + 1)
   listeners.forEach((listener) => listener())
 }
 const subscribe = (listener: () => void) => {

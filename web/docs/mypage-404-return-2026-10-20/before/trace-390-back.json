@@ -1,0 +1,14 @@
+[
+  {
+    "request": 1,
+    "path": "/api/v1/community/posts/994",
+    "status": 200,
+    "code": null
+  },
+  {
+    "request": 2,
+    "path": "/api/v1/community/posts/994",
+    "status": 404,
+    "code": "POST_NOT_FOUND"
+  }
+]

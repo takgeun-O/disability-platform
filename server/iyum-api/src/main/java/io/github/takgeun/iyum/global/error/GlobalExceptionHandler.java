@@ -1,6 +1,7 @@
 package io.github.takgeun.iyum.global.error;
 
 import io.github.takgeun.iyum.auth.emailverification.application.InvalidEmailVerificationTokenException;
+import io.github.takgeun.iyum.auth.session.application.CurrentMemberReadException;
 import io.github.takgeun.iyum.auth.signup.application.SignupConflictException;
 import io.github.takgeun.iyum.auth.signup.application.SignupTermsException;
 import io.github.takgeun.iyum.auth.security.EmailVerificationRequiredException;
@@ -12,6 +13,7 @@ import io.github.takgeun.iyum.community.post.application.PostCreateException;
 import io.github.takgeun.iyum.community.post.application.PostDeleteException;
 import io.github.takgeun.iyum.community.post.application.PostReadException;
 import io.github.takgeun.iyum.community.post.application.PostUpdateException;
+import io.github.takgeun.iyum.member.application.*;
 import org.springframework.beans.TypeMismatchException;
 import org.springframework.http.*;
 import org.springframework.http.converter.HttpMessageNotReadableException;
@@ -468,6 +470,189 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
         String message =
                 exception.getCode()
                         == CommentDeleteException.Code.MEMBER_NOT_FOUND
+                        ? "로그인이 필요합니다."
+                        : exception.getMessage();
+
+        return ResponseEntity
+                .status(status)
+                .cacheControl(CacheControl.noStore())
+                .body(ApiErrorResponse.of(code, message));
+    }
+
+    @ExceptionHandler(MemberProfileException.class)
+    public ResponseEntity<ApiErrorResponse> handleMemberProfile(
+            MemberProfileException exception
+    ) {
+        return switch (exception.getCode()) {
+
+            case MEMBER_NOT_FOUND -> ResponseEntity
+                    .status(HttpStatus.UNAUTHORIZED)
+                    .cacheControl(CacheControl.noStore())
+                    .body(ApiErrorResponse.of(
+                            "AUTHENTICATION_REQUIRED",
+                            "로그인이 필요합니다."
+                    ));
+
+            case MEMBER_NOT_ACTIVE -> ResponseEntity
+                    .status(HttpStatus.FORBIDDEN)
+                    .cacheControl(CacheControl.noStore())
+                    .body(ApiErrorResponse.of(
+                            "MEMBER_NOT_ACTIVE",
+                            exception.getMessage()
+                    ));
+        };
+    }
+
+    @ExceptionHandler(MemberNicknameUpdateException.class)
+    public ResponseEntity<ApiErrorResponse> handleMemberNicknameUpdate(
+            MemberNicknameUpdateException exception
+    ) {
+        HttpStatus status = switch (exception.getCode()) {
+            case MEMBER_NOT_FOUND -> HttpStatus.UNAUTHORIZED;
+            case MEMBER_NOT_ACTIVE -> HttpStatus.FORBIDDEN;
+            case INVALID_NICKNAME -> HttpStatus.BAD_REQUEST;
+            case NICKNAME_ALREADY_EXISTS -> HttpStatus.CONFLICT;
+        };
+
+        ApiErrorResponse body = switch (exception.getCode()) {
+            case MEMBER_NOT_FOUND -> ApiErrorResponse.of(
+                    "AUTHENTICATION_REQUIRED",
+                    "로그인이 필요합니다."
+            );
+
+            case MEMBER_NOT_ACTIVE -> ApiErrorResponse.of(
+                    exception.getCode().name(),
+                    exception.getMessage()
+            );
+
+            case INVALID_NICKNAME, NICKNAME_ALREADY_EXISTS ->
+                    new ApiErrorResponse(
+                            exception.getCode().name(),
+                            exception.getMessage(),
+                            List.of(new ApiErrorResponse.FieldError(
+                                    "nickname",
+                                    exception.getMessage()
+                            ))
+                    );
+        };
+
+        return ResponseEntity.status(status)
+                .cacheControl(CacheControl.noStore())
+                .body(body);
+    }
+
+    @ExceptionHandler(CurrentMemberReadException.class)
+    public ResponseEntity<ApiErrorResponse> handleCurrentMemberRead(
+            CurrentMemberReadException exception
+    ) {
+        return switch (exception.getCode()) {
+
+            case MEMBER_NOT_FOUND -> ResponseEntity
+                    .status(HttpStatus.UNAUTHORIZED)
+                    .cacheControl(CacheControl.noStore())
+                    .body(ApiErrorResponse.of(
+                            "AUTHENTICATION_REQUIRED",
+                            "로그인이 필요합니다."
+                    ));
+
+            case MEMBER_NOT_ACTIVE -> ResponseEntity
+                    .status(HttpStatus.FORBIDDEN)
+                    .cacheControl(CacheControl.noStore())
+                    .body(ApiErrorResponse.of(
+                            "MEMBER_NOT_ACTIVE",
+                            exception.getMessage()
+                    ));
+        };
+    }
+
+    // MEMBER_NOT_FOUND - 401 - AUTHENTICATION_REQUIRED(응답코드)
+    // MEMBER_NOT_ACTIVE - 403 - MEMBER_NOT_ACTIVE(응답코드)
+    @ExceptionHandler(MemberActivityReadException.class)
+    public ResponseEntity<ApiErrorResponse> handleMemberActivityRead(
+            MemberActivityReadException exception
+    ) {
+        HttpStatus status = switch (exception.getCode()) {
+            case MEMBER_NOT_FOUND -> HttpStatus.UNAUTHORIZED;
+            case MEMBER_NOT_ACTIVE -> HttpStatus.FORBIDDEN;
+        };
+
+        String code = switch (exception.getCode()) {
+            case MEMBER_NOT_FOUND -> "AUTHENTICATION_REQUIRED";
+            case MEMBER_NOT_ACTIVE -> "MEMBER_NOT_ACTIVE";
+        };
+
+        String message =
+                exception.getCode()
+                        == MemberActivityReadException.Code.MEMBER_NOT_FOUND
+                        ? "로그인이 필요합니다."
+                        : exception.getMessage();
+
+        return ResponseEntity
+                .status(status)
+                .cacheControl(CacheControl.noStore())
+                .body(ApiErrorResponse.of(code, message));
+    }
+
+    @ExceptionHandler(MemberPostReadException.class)
+    public ResponseEntity<ApiErrorResponse> handleMemberPostRead(
+            MemberPostReadException exception
+    ) {
+        HttpStatus status = switch (exception.getCode()) {
+            case MEMBER_NOT_FOUND -> HttpStatus.UNAUTHORIZED;
+            case MEMBER_NOT_ACTIVE -> HttpStatus.FORBIDDEN;
+            case INVALID_PAGE_REQUEST, INVALID_CURSOR ->
+                    HttpStatus.BAD_REQUEST;
+        };
+
+        String code = switch (exception.getCode()) {
+            case MEMBER_NOT_FOUND -> "AUTHENTICATION_REQUIRED";
+            case MEMBER_NOT_ACTIVE -> "MEMBER_NOT_ACTIVE";
+            case INVALID_PAGE_REQUEST -> "INVALID_PAGE_REQUEST";
+            case INVALID_CURSOR -> "INVALID_CURSOR";
+        };
+
+        String message =
+                exception.getCode()
+                        == MemberPostReadException.Code.MEMBER_NOT_FOUND
+                        ? "로그인이 필요합니다."
+                        : exception.getMessage();
+
+        return ResponseEntity
+                .status(status)
+                .cacheControl(CacheControl.noStore())
+                .body(ApiErrorResponse.of(code, message));
+    }
+
+    /**
+     * | 상황 | HTTP 상태 | 오류 코드 |
+     * |---|---|---|
+     * | 회원 확인 불가 | `401` | `AUTHENTICATION_REQUIRED` |
+     * | 활성 상태 아님 | `403` | `MEMBER_NOT_ACTIVE` |
+     * | 조회 개수 범위 오류 | `400` | `INVALID_PAGE_REQUEST` |
+     * | 커서 조합·ID 오류 | `400` | `INVALID_CURSOR` |
+     * | 숫자·날짜 타입 변환 실패 | `400` | 기존 `INVALID_REQUEST_PARAMETER` |
+     */
+    @ExceptionHandler(MemberCommentReadException.class)
+    public ResponseEntity<ApiErrorResponse> handleMemberCommentRead(
+            MemberCommentReadException exception
+    ) {
+        HttpStatus status = switch (exception.getCode()) {
+            case MEMBER_NOT_FOUND -> HttpStatus.UNAUTHORIZED;
+            case MEMBER_NOT_ACTIVE -> HttpStatus.FORBIDDEN;
+            case INVALID_PAGE_REQUEST, INVALID_CURSOR ->
+                    HttpStatus.BAD_REQUEST;
+        };
+
+        String code = switch (exception.getCode()) {
+            case MEMBER_NOT_FOUND -> "AUTHENTICATION_REQUIRED";
+            case MEMBER_NOT_ACTIVE -> "MEMBER_NOT_ACTIVE";
+            case INVALID_PAGE_REQUEST -> "INVALID_PAGE_REQUEST";
+            case INVALID_CURSOR -> "INVALID_CURSOR";
+        };
+
+        String message =
+                exception.getCode()
+                        == MemberCommentReadException.Code.MEMBER_NOT_FOUND
                         ? "로그인이 필요합니다."
                         : exception.getMessage();
 

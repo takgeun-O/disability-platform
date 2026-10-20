@@ -1,0 +1,29 @@
+✔ comments use session, no-store and raw commentId cursor without CSRF/member parameter (8.87975ms)
+✔ comments reject malformed fields, enums, cursor and descending order; final/empty accepted (1.911583ms)
+✔ microseconds determine order, same post comments remain distinct, dedup uses commentId (0.156167ms)
+✔ refresh is atomic, follows exact server cursors and stops at end (0.147875ms)
+✔ private comment snapshot and return pointer cannot survive logout or account switch (0.113542ms)
+✖ Java whitespace contract, length and original response strings (0.475209ms)
+ℹ tests 6
+ℹ suites 0
+ℹ pass 5
+ℹ fail 1
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 237.515209
+
+✖ failing tests:
+
+test at ../../../../private/tmp/iyum-comments-fix-start/web/tests/member-comments.test.mjs:39:1
+✖ Java whitespace contract, length and original response strings (0.475209ms)
+  AssertionError [ERR_ASSERTION]: Missing expected rejection.
+      at async TestContext.<anonymous> (file:///private/tmp/iyum-comments-fix-start/web/tests/member-comments.test.mjs:46:8)
+      at async Test.run (node:internal/test_runner/test:1409:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: false,
+    code: 'ERR_ASSERTION',
+    actual: undefined,
+    operator: 'rejects',
+    diff: 'simple'
+  }

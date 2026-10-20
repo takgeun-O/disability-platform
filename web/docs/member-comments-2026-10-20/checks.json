@@ -1,0 +1,73 @@
+{
+  "completedAt": "2026-10-20T06:23:46.241577+09:00",
+  "branch": "feat/member-profile",
+  "head": "93578013427b14dc469a264e70817806761e2644",
+  "startWorktree": "clean",
+  "commands": {
+    "pnpm lint": {
+      "exit": 0
+    },
+    "pnpm typecheck": {
+      "exit": 0,
+      "location": "same current source in isolated production build; repo typecheck also passed"
+    },
+    "pnpm test": {
+      "exit": 0,
+      "passed": 285,
+      "failed": 0
+    },
+    "pnpm build": {
+      "exit": 0,
+      "location": "/private/tmp/iyum-member-comments-build; source bytes compared with current web/src"
+    },
+    "git diff --check": {
+      "exit": 0
+    }
+  },
+  "browser": {
+    "mock": {
+      "passed": 27,
+      "failed": 0,
+      "evidence": "mock/results.json"
+    },
+    "posts-regression": {
+      "passed": 41,
+      "failed": 0,
+      "evidence": "posts-regression/results.json"
+    },
+    "profile-regression": {
+      "passed": 20,
+      "failed": 0,
+      "evidence": "profile-regression/results.json"
+    },
+    "menu-regression": {
+      "passed": 22,
+      "failed": 0,
+      "evidence": "menu-regression/results.json"
+    },
+    "actual": {
+      "passed": 2,
+      "failed": 0,
+      "evidence": "actual/results.json"
+    }
+  },
+  "actualDataChanges": [],
+  "actualScope": "Existing owned seed member34: 30 comments/3 pages; GET/no-store/cursor/CORS/session, detail top/back and viewport captures. Login creates a session; no business data writes.",
+  "mockScope": "27 comments/3 pages, controlled delays, edits/deletes/counters, private cache lifecycle, normal-detail restoration and existing404 fresh-document fallback.",
+  "remainingLimitations": [
+    "Existing proxy404 can trigger full document navigation; AuthProvider memory cache is recreated. Safe /mypage return works but accumulated comments/tab/position reset. Evidence mock/missing-post-return.json.",
+    "No actual Spring mutation verification for this task; mutation flows tested with mock API.",
+    "No physical iPhone Safari/soft keyboard/screen-reader speech run.",
+    "Historical dedicated no-JS404 two-case suite and duplicate detail GET investigation not rerun/resolved."
+  ],
+  "servers": {
+    "preserved": [
+      "127.0.0.1:8443 PID38875",
+      "localhost:8082 PID36509"
+    ],
+    "temporaryStopped": [
+      "127.0.0.1:8452",
+      "127.0.0.1:8858"
+    ]
+  }
+}

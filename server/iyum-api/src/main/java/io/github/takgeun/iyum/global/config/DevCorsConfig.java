@@ -88,6 +88,55 @@ public class DevCorsConfig {
         commentItemCors.setAllowedMethods(List.of("PUT", "DELETE", "OPTIONS"));
         source.registerCorsConfiguration("/api/v1/community/posts/*/comments/*", commentItemCors);
 
+        // 내 프로필 조회: 기존 출처·쿠키·헤더 설정 유지
+        CorsConfiguration memberProfileCors =
+                new CorsConfiguration(cors);
+
+        memberProfileCors.setAllowedMethods(
+                List.of("GET", "OPTIONS")
+        );
+
+        source.registerCorsConfiguration(
+                "/api/v1/members/me",
+                memberProfileCors
+        );
+
+        CorsConfiguration memberNicknameCors =
+                new CorsConfiguration(cors);
+
+        memberNicknameCors.setAllowedMethods(
+                List.of("PUT", "OPTIONS")
+        );
+
+        source.registerCorsConfiguration(
+                "/api/v1/members/me/nickname",
+                memberNicknameCors
+        );
+
+        // 내 활동 요약 조회에 기존 개발 Origin·쿠키·허용 헤더 설정을 적용한다.
+        // 기존의 cors 복사하므로 허용 Origin, 쿠키 포함 요청, 허용 헤더, preflight 캐시 설정이 이어짐
+        CorsConfiguration memberActivityCors =
+                new CorsConfiguration(cors);
+
+        memberActivityCors.setAllowedMethods(
+                List.of("GET", "OPTIONS")
+        );
+
+        source.registerCorsConfiguration(
+                "/api/v1/members/me/activity-summary",
+                memberActivityCors
+        );
+
+        source.registerCorsConfiguration(
+                "/api/v1/members/me/posts",
+                memberActivityCors
+        );
+
+        source.registerCorsConfiguration(
+                "/api/v1/members/me/comments",
+                memberActivityCors
+        );
+
         return source;
     }
 }

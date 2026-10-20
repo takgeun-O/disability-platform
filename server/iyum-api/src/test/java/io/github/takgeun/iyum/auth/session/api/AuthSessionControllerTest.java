@@ -2,6 +2,7 @@ package io.github.takgeun.iyum.auth.session.api;
 
 import io.github.takgeun.iyum.auth.security.config.AuthenticationConfig;
 import io.github.takgeun.iyum.auth.security.config.PasswordConfig;
+import io.github.takgeun.iyum.auth.session.application.CurrentMemberReadService;
 import io.github.takgeun.iyum.global.config.SecurityConfig;
 import io.github.takgeun.iyum.auth.session.config.SessionSecurityConfig;
 import io.github.takgeun.iyum.global.error.GlobalExceptionHandler;
@@ -47,7 +48,8 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
         SessionSecurityConfig.class,
         AuthenticationConfig.class,
         PasswordConfig.class,
-        GlobalExceptionHandler.class
+        GlobalExceptionHandler.class,
+        CurrentMemberReadService.class
 })
 class AuthSessionControllerTest {
 
@@ -232,6 +234,39 @@ class AuthSessionControllerTest {
                 .andExpect(jsonPath("$.memberId").value(1));
     }
 
+    @Test
+    void 로그인_후_닉네임이_바뀌면_같은_세션에서_최신값을_반환한다()
+            throws Exception {
+        CsrfSession loggedIn = loginActiveMember();
+
+        mockMvc.perform(
+                        get("/api/v1/auth/me")
+                                .session(loggedIn.session())
+                )
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.nickname").value("타끈"));
+
+        // Repository가 반환하는 현재 회원 정보만 변경한다.
+        // 이미 생성된 세션의 MemberPrincipal은 변경하지 않는다.
+        Member currentMember = memberRepository.findById(1L)
+                .orElseThrow();
+
+        when(currentMember.getNickname()).thenReturn("변경된닉네임");
+
+        mockMvc.perform(
+                        get("/api/v1/auth/me")
+                                .session(loggedIn.session())
+                )
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.memberId").value(1))
+                .andExpect(jsonPath("$.nickname").value("변경된닉네임"))
+                .andExpect(jsonPath("$.role").value("USER"))
+                .andExpect(header().string(
+                        HttpHeaders.CACHE_CONTROL,
+                        containsString("no-store")
+                ));
+    }
+
     private void prepareActiveMember() {
         Member member = mock(Member.class);
 
@@ -244,6 +279,9 @@ class AuthSessionControllerTest {
         when(member.getRole()).thenReturn(MemberRole.USER);
 
         when(memberRepository.findByEmail(EMAIL))
+                .thenReturn(Optional.of(member));
+
+        when(memberRepository.findById(1L))
                 .thenReturn(Optional.of(member));
     }
 

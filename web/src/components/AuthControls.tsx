@@ -1,6 +1,7 @@
 'use client';
 
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
+import { usePathname } from 'next/navigation';
 import Link from '@/components/AppLink';
 import { useAuth } from '@/components/AuthProvider';
 import { AuthApiError } from '@/lib/auth-api';
@@ -53,7 +54,12 @@ function FeedbackNotice({ feedback, onDismiss }: { feedback: Feedback; onDismiss
   </div>;
 }
 
-export default function AuthControls() {
+export default function AuthControls({ render, onLogoutSuccess, onCurrentPage }: {
+  render?: (parts: { member: ReactNode; logout: ReactNode; notice: ReactNode }) => ReactNode;
+  onLogoutSuccess?: () => void;
+  onCurrentPage?: () => void;
+}) {
+  const pathname = usePathname();
   const auth = useAuth();
   const [feedback, setFeedback] = useState<Feedback | null>(null);
   const feedbackIdRef = useRef(0);
@@ -80,6 +86,7 @@ export default function AuthControls() {
       if (result.kind === 'ignored') return;
       showFeedback({ error: false, memberId: null, message: result.confirmedBy === 'logout'
         ? '로그아웃되었습니다.' : '로그아웃 응답을 확인하지 못했지만 현재 비로그인 상태임을 확인했습니다.' });
+      onLogoutSuccess?.();
     } catch (error) {
       if (mountedRef.current) showFeedback({ error: true, memberId: auth.member?.memberId ?? null,
         message: error instanceof AuthApiError ? error.message : '로그아웃 결과를 확인하지 못했습니다. 로그인 상태를 다시 확인해 주세요.' });
@@ -89,9 +96,7 @@ export default function AuthControls() {
     ? auth.status === 'error' || feedback.memberId === (auth.member?.memberId ?? null)
     : auth.status === 'anonymous');
 
-  return (
-    <div className="iyum-auth-controls">
-      <div className="iyum-member-menu" aria-label="회원 메뉴">
+  const member = <div className="iyum-member-menu">
         {auth.status === 'checking' || (auth.pending === 'login' && auth.status !== 'authenticated') ? (
           <span role="status" className="iyum-auth-status">
             {auth.pending === 'login' ? '로그인 처리 중…' : '로그인 확인 중…'}
@@ -104,10 +109,8 @@ export default function AuthControls() {
           </div>
         ) : auth.status === 'authenticated' && auth.member ? (
           <>
-            <span className="iyum-member-name">{auth.member.nickname}님</span>
-            <button type="button" disabled={!!auth.pending} onClick={() => { void handleLogout(); }} className="iyum-button iyum-auth-logout">
-              {auth.pending === 'logout' ? '로그아웃 중…' : '로그아웃'}
-            </button>
+            <span className="iyum-member-name"><span>{auth.member.nickname}</span><span className="iyum-member-honorific">님</span></span>
+            <Link href="/mypage" onNavigate={event => { if (pathname === "/mypage") { event.preventDefault(); onCurrentPage?.(); } }} className="iyum-button iyum-mypage-link" aria-current={pathname === '/mypage' ? 'page' : undefined}>마이페이지</Link>
           </>
         ) : (
           <>
@@ -115,8 +118,11 @@ export default function AuthControls() {
             <Link href="/register" className="iyum-button iyum-button-outline">회원가입</Link>
           </>
         )}
-      </div>
-      {feedbackVisible && <FeedbackNotice key={feedback.id} feedback={feedback} onDismiss={dismissFeedback} />}
-    </div>
-  );
+      </div>;
+  const logout = auth.status === 'authenticated' && auth.member ? <button type="button" disabled={!!auth.pending}
+    onClick={() => { void handleLogout(); }} className="iyum-button iyum-auth-logout">
+    {auth.pending === 'logout' ? '로그아웃 중…' : '로그아웃'}
+  </button> : null;
+  const notice = feedbackVisible ? <FeedbackNotice key={feedback.id} feedback={feedback} onDismiss={dismissFeedback} /> : null;
+  return render ? render({ member, logout, notice }) : <div className="iyum-auth-controls" aria-label="회원 메뉴">{member}{logout}{notice}</div>;
 }

@@ -1,0 +1,6 @@
+
+> iyum-web@1.0.0 typecheck /private/tmp/iyum-nojs-final
+> next typegen && tsc --noEmit
+
+Generating route types...
+✓ Types generated successfully

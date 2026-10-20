@@ -83,7 +83,7 @@ public interface CommentRepository
     /**
      * 전달 받은 게시글들의 공개 댓글 수를 한번에 집계한다.
      * 댓글이 없는 게시글은 결과에 포함되지 않는다.
-     *
+     * <p>
      * p.id in :postIds -> 현재 목록에 표시할 게시글들만 대상으로 조회
      * group by p.id -> 게시글별로 묶어서 댓글 수 계산
      */
@@ -99,5 +99,59 @@ public interface CommentRepository
             """)
     List<PostCommentCount> countVisibleCommentsByPostIds(
             @Param("postIds") List<Long> postIds
+    );
+
+    // 내 댓글 수 조회
+    @Query("""
+            select count(c)
+            from Comment c
+            join c.post p
+            where c.author.id = :memberId
+                and c.deletedAt is null
+                and p.deletedAt is null
+            """)
+    long countVisibleCommentsByAuthorId(
+            @Param("memberId") Long memberId
+    );
+
+    // 내 댓글 첫 조회
+    // 삭제되지 않은 게시글에 작성한 내 공개 댓글을 최신순으로 조회한다.
+    @Query("""
+            select c
+            from Comment c
+            join fetch c.post p
+            where c.author.id = :memberId
+                and c.deletedAt is null
+                and p.deletedAt is null
+            order by c.createdAt desc, c.id desc
+            """)
+    List<Comment> findFirstVisibleCommentsByAuthorId(
+            @Param("memberId") Long memberId,
+            Pageable pageable
+    );
+
+    // 내 댓글 후속 조회
+    // 이전에 반환한 마지막 댓글보다 정렬 순서상 뒤에 있는 댓글을 조회한다.
+    @Query("""
+            select c
+            from Comment c
+            join fetch c.post p
+            where c.author.id = :memberId
+                and c.deletedAt is null
+                and p.deletedAt is null
+                and (
+                    c.createdAt < :afterCreatedAt
+                    or (
+                        c.createdAt = :afterCreatedAt
+                        and c.id < :afterId
+                    )
+                )
+            order by c.createdAt desc, c.id desc
+            """)
+    List<Comment> findVisibleCommentsByAuthorIdAfter(
+            @Param("memberId") Long memberId,
+            @Param("afterCreatedAt") Instant afterCreatedAt,
+            @Param("afterId") Long afterId,
+            Pageable pageable
     );
 }

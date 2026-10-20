@@ -1,0 +1,30 @@
+{
+  "unit": {
+    "command": "pnpm test",
+    "passed": 280,
+    "failed": 0
+  },
+  "lint": {
+    "command": "pnpm lint",
+    "exitCode": 0
+  },
+  "types": {
+    "command": "pnpm typecheck",
+    "exitCode": 0
+  },
+  "build": {
+    "command": "pnpm build",
+    "exitCode": 0,
+    "workspace": "isolated copy /private/tmp/iyum-member-posts-build, current source, same lockfile/dependencies; original 8443 preserved"
+  },
+  "diff": {
+    "command": "git diff --check",
+    "exitCode": 0
+  },
+  "notRun": [
+    "physical iPhone/Safari/software keyboard",
+    "real Spring write mutations; mock UI verified instead",
+    "historical no-JS post 404 suite and detail duplicate GET investigation",
+    "backend tests (backend unchanged)"
+  ]
+}

@@ -1,0 +1,117 @@
+{
+  "kind": "production Next with sequential controlled public API 200 then 404, no DB",
+  "results": [
+    {
+      "name": "race comments 1440 link",
+      "pass": true
+    },
+    {
+      "name": "race comments 1440 back",
+      "pass": true
+    },
+    {
+      "name": "race comments 390 link",
+      "pass": true
+    },
+    {
+      "name": "race comments 390 back",
+      "pass": true
+    },
+    {
+      "name": "race document JS=false",
+      "pass": true
+    },
+    {
+      "name": "race document JS=true",
+      "pass": true
+    },
+    {
+      "name": "race document JS=false width=390",
+      "pass": true
+    },
+    {
+      "name": "race document JS=true width=390",
+      "pass": true
+    },
+    {
+      "name": "race posts 1440 link",
+      "pass": true
+    },
+    {
+      "name": "race posts 1440 back",
+      "pass": true
+    },
+    {
+      "name": "race posts 390 link",
+      "pass": true
+    },
+    {
+      "name": "race posts 390 back",
+      "pass": true
+    },
+    {
+      "name": "race from JS=false /community?type=QUESTION",
+      "pass": true
+    },
+    {
+      "name": "race from JS=false /community/topics/hearing-aid?type=REVIEW",
+      "pass": true
+    },
+    {
+      "name": "race from JS=false /community/posts?type=REVIEW&topic=DAILY",
+      "pass": true
+    },
+    {
+      "name": "race from JS=false null",
+      "pass": true
+    },
+    {
+      "name": "race from JS=false https://evil.example/mypage",
+      "pass": true
+    },
+    {
+      "name": "race from JS=false //evil.example",
+      "pass": true
+    },
+    {
+      "name": "race from JS=false /mypage?anything=1",
+      "pass": true
+    },
+    {
+      "name": "race from JS=false /community/topics/unknown",
+      "pass": true
+    },
+    {
+      "name": "race from JS=true /community?type=QUESTION",
+      "pass": true
+    },
+    {
+      "name": "race from JS=true /community/topics/hearing-aid?type=REVIEW",
+      "pass": true
+    },
+    {
+      "name": "race from JS=true /community/posts?type=REVIEW&topic=DAILY",
+      "pass": true
+    },
+    {
+      "name": "race from JS=true null",
+      "pass": true
+    },
+    {
+      "name": "race from JS=true https://evil.example/mypage",
+      "pass": true
+    },
+    {
+      "name": "race from JS=true //evil.example",
+      "pass": true
+    },
+    {
+      "name": "race from JS=true /mypage?anything=1",
+      "pass": true
+    },
+    {
+      "name": "race from JS=true /community/topics/unknown",
+      "pass": true
+    }
+  ]
+}

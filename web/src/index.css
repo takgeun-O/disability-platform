@@ -17,7 +17,7 @@
 }
 
 html {
-  /* Route changes are instant; in-page reading helpers opt into smooth scrolling. */
+  /* Route changes (including mypage → detail) are instant; in-page reading helpers opt into smooth scrolling. */
   scroll-behavior: auto;
 }
 

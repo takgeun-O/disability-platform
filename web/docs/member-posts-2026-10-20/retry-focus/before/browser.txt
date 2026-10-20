@@ -1,0 +1,123 @@
+PASS first ten real fields/order and zero count; no CSRF/per-post/comment list reads
+PASS summary zero does not suppress posts; summary failure does not hide list
+PASS actual empty vs first error retry, profile remains
+PASS more failure retains ten and exact cursor; retry/duplicate click; final keyboard focus
+FAIL keyboard more failure preserves the same button; retry pending and repeated failure retain focus; success focuses new title failed more removed focused button
+STATE {
+  url: 'http://127.0.0.1:8452/mypage',
+  y: 1444,
+  rows: 10,
+  alerts: [ '응답을 확인하지 못했습니다. 잠시 후 다시 확인해 주세요.내 게시글 더 보기 다시 시도' ]
+}
+FAIL keyboard retry with no added final items focuses the end notice The expression evaluated to a falsy value:
+
+  assert(await focused(handle))
+
+STATE { url: 'http://127.0.0.1:8452/mypage', y: 1444, rows: 10, alerts: [] }
+FAIL first query failure keyboard retry pending/repeated failure/success preserves focus (27 items) initial retry pending lost focus
+STATE { url: 'http://127.0.0.1:8452/mypage', y: 0, rows: 0, alerts: [] }
+FAIL first query failure keyboard retry pending/repeated failure/success preserves focus (0 items) initial retry pending lost focus
+STATE { url: 'http://127.0.0.1:8452/mypage', y: 0, rows: 0, alerts: [] }
+FAIL more keyboard retry: Tab while pending keeps user's focus after success The expression evaluated to a falsy value:
+
+  assert(await focused(handle))
+
+STATE { url: 'http://127.0.0.1:8452/mypage', y: 1444, rows: 10, alerts: [] }
+FAIL more keyboard retry: Shift+Tab while pending keeps user's focus after success The expression evaluated to a falsy value:
+
+  assert(await focused(handle))
+
+STATE { url: 'http://127.0.0.1:8452/mypage', y: 1444, rows: 10, alerts: [] }
+FAIL more keyboard retry: click while pending keeps user's focus after success The expression evaluated to a falsy value:
+
+  assert(await focused(handle))
+
+STATE { url: 'http://127.0.0.1:8452/mypage', y: 1444, rows: 10, alerts: [] }
+FAIL more keyboard retry: Tab while pending keeps user's focus after failure The expression evaluated to a falsy value:
+
+  assert(await focused(handle))
+
+STATE { url: 'http://127.0.0.1:8452/mypage', y: 1444, rows: 10, alerts: [] }
+FAIL more keyboard retry: Shift+Tab while pending keeps user's focus after failure The expression evaluated to a falsy value:
+
+  assert(await focused(handle))
+
+STATE { url: 'http://127.0.0.1:8452/mypage', y: 1444, rows: 10, alerts: [] }
+FAIL more keyboard retry: click while pending keeps user's focus after failure The expression evaluated to a falsy value:
+
+  assert(await focused(handle))
+
+STATE { url: 'http://127.0.0.1:8452/mypage', y: 1444, rows: 10, alerts: [] }
+FAIL first keyboard retry: Tab while pending keeps user's focus after success The expression evaluated to a falsy value:
+
+  assert(await focused(handle))
+
+STATE { url: 'http://127.0.0.1:8452/mypage', y: 0, rows: 0, alerts: [] }
+FAIL first keyboard retry: Shift+Tab while pending keeps user's focus after success The expression evaluated to a falsy value:
+
+  assert(await focused(handle))
+
+STATE { url: 'http://127.0.0.1:8452/mypage', y: 0, rows: 0, alerts: [] }
+FAIL first keyboard retry: click while pending keeps user's focus after success The expression evaluated to a falsy value:
+
+  assert(await focused(handle))
+
+STATE { url: 'http://127.0.0.1:8452/mypage', y: 0, rows: 0, alerts: [] }
+FAIL first keyboard retry: Tab while pending keeps user's focus after failure The expression evaluated to a falsy value:
+
+  assert(await focused(handle))
+
+STATE { url: 'http://127.0.0.1:8452/mypage', y: 0, rows: 0, alerts: [] }
+FAIL first keyboard retry: Shift+Tab while pending keeps user's focus after failure The expression evaluated to a falsy value:
+
+  assert(await focused(handle))
+
+STATE { url: 'http://127.0.0.1:8452/mypage', y: 0, rows: 0, alerts: [] }
+FAIL first keyboard retry: click while pending keeps user's focus after failure The expression evaluated to a falsy value:
+
+  assert(await focused(handle))
+
+STATE { url: 'http://127.0.0.1:8452/mypage', y: 0, rows: 0, alerts: [] }
+FAIL keyboard retry: comments tab remains focused and posts stay hidden after success The expression evaluated to a falsy value:
+
+  assert(await focused(handle))
+
+STATE { url: 'http://127.0.0.1:8452/mypage', y: 1444, rows: 10, alerts: [] }
+FAIL keyboard retry: comments tab remains focused and posts stay hidden after failure The expression evaluated to a falsy value:
+
+  assert(await focused(handle))
+
+STATE { url: 'http://127.0.0.1:8452/mypage', y: 1444, rows: 10, alerts: [] }
+FAIL leaving retry focus and returning before success does not re-arm automatic title focus The expression evaluated to a falsy value:
+
+  assert(await focused(handle))
+
+STATE { url: 'http://127.0.0.1:8452/mypage', y: 1444, rows: 10, alerts: [] }
+FAIL mouse more retry never forces title focus mouse retry button removed while pending
+STATE { url: 'http://127.0.0.1:8452/mypage', y: 1444, rows: 10, alerts: [] }
+FAIL mouse first retry never forces title focus mouse retry button removed while pending
+STATE { url: 'http://127.0.0.1:8452/mypage', y: 0, rows: 0, alerts: [] }
+FAIL delayed keyboard retry after leave cannot move focus into old list The expression evaluated to a falsy value:
+
+  assert(await focused(handle))
+
+STATE { url: 'http://127.0.0.1:8452/mypage', y: 1444, rows: 10, alerts: [] }
+FAIL delayed keyboard retry after logout cannot move focus into old list The expression evaluated to a falsy value:
+
+  assert(await focused(handle))
+
+STATE { url: 'http://127.0.0.1:8452/mypage', y: 1444, rows: 10, alerts: [] }
+PASS 1440: 3 pages, detail immediate top and back/link position, tabs, capture
+PASS 390: 3 pages, detail immediate top and back/link position, tabs, capture
+PASS 320: 3 pages, detail immediate top and back/link position, tabs, capture
+PASS long title/preview/large counts stay within320 and keyboard link/newtab semantics
+PASS comment create updates count and summary on link, edit preserves count
+PASS comment create updates count and summary on back, edit preserves count
+PASS post update fields and deletion refresh loaded list/count; deleted anchor uses next row
+PASS late comment success after approved return updates list; earlier refresh response cannot overwrite count
+PASS posts401 expires session, logout/account switch ignores late list and clears old restore
+PASS post create changes summary/list without changing the header UI
+PASS overlapping late successes: abort older GET, latest count wins; no detail draft reset
+PASS mutation refresh failure keeps loaded list and summary separate; retry rebuilds all3
+PASS empty final page after deletion keeps keyboard focus on visible end notice
+PASS nickname and mobile menu remain functional with populated list

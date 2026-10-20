@@ -1,7 +1,7 @@
 "use client"
 // Refresh the visible prefix, keeping editor snapshots separate from server data.
 import { useEffect, useEffectEvent, useRef, useState, type FormEvent } from "react"
-import { postListChanged } from "@/lib/community-mutations"
+import { memberCommentsChanged, postListChanged } from "@/lib/community-mutations"
 import { useRouter } from "next/navigation"
 import { useAuth } from "@/components/AuthProvider"
 import {
@@ -233,6 +233,7 @@ export default function Comments({
       if (result === null) return
       // 이미 보낸 요청의 성공은 이탈 후에도 목록에 반영하되 이전 폼은 건드리지 않는다.
       if (method === "POST" || method === "DELETE") postListChanged()
+      else memberCommentsChanged()
       if (!current()) return
       if (method === "DELETE") {
         removeItem(result)

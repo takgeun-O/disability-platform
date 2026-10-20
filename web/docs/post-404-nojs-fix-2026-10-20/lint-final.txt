@@ -1,0 +1,4 @@
+
+> iyum-web@1.0.0 lint /private/tmp/iyum-nojs-final
+> eslint src tests
+

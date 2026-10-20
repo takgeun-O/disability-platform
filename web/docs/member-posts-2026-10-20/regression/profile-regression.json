@@ -1,0 +1,85 @@
+{
+  "kind": "mock browser on local Next",
+  "results": [
+    {
+      "name": "profile, Korean month, counts, readonly email and posts empty state and comment preparation; no comment APIs",
+      "pass": true
+    },
+    {
+      "name": "zero summary is actual zero",
+      "pass": true
+    },
+    {
+      "name": "checking hides private profile and anonymous message",
+      "pass": true
+    },
+    {
+      "name": "separate profile/summary loading and summary failure retry preserves profile",
+      "pass": true
+    },
+    {
+      "name": "profile failure retry keeps valid summary",
+      "pass": true
+    },
+    {
+      "name": "keyboard edit/cancel; unchanged save disabled; one field error and draft preserved",
+      "pass": true
+    },
+    {
+      "name": "delayed save blocks duplicate/cancel and updates header + profile",
+      "pass": true
+    },
+    {
+      "name": "save error NICKNAME_ALREADY_EXISTS preserves draft without retry",
+      "pass": true
+    },
+    {
+      "name": "save error VALIDATION_FAILED preserves draft without retry",
+      "pass": true
+    },
+    {
+      "name": "save error CSRF_TOKEN_INVALID preserves draft without retry",
+      "pass": true
+    },
+    {
+      "name": "save error MEMBER_NOT_ACTIVE preserves draft without retry",
+      "pass": true
+    },
+    {
+      "name": "save error SERVER_ERROR preserves draft without retry",
+      "pass": true
+    },
+    {
+      "name": "anonymous login return to /mypage",
+      "pass": true
+    },
+    {
+      "name": "401 clears private data and expires current session",
+      "pass": true
+    },
+    {
+      "name": "late PUT after logout cannot restore old member/data",
+      "pass": true
+    },
+    {
+      "name": "session recheck account change clears old data, late GET ignored",
+      "pass": true
+    },
+    {
+      "name": "network save failure keeps input and does not retry",
+      "pass": true
+    },
+    {
+      "name": "save 401 removes personal data and offers login",
+      "pass": true
+    },
+    {
+      "name": "leaving while CSRF pending prevents new PUT",
+      "pass": true
+    },
+    {
+      "name": "1440/390/320 layout, long identity/counts and tab keyboard",
+      "pass": true
+    }
+  ]
+}

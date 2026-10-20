@@ -1,0 +1,65 @@
+{
+  "kind": "mock API / local Next; no real phone keyboard",
+  "results": [
+    {
+      "name": "1440/1024/390/320 page + one responsive edit form; layout unchanged behind modal",
+      "pass": true
+    },
+    {
+      "name": "explicit desktop identity / active mypage link and long names at 1024",
+      "pass": true
+    },
+    {
+      "name": "modal trap, cancel/backdrop/Escape and save error once with field focus",
+      "pass": true
+    },
+    {
+      "name": "saving blocks close/cancel/Escape/backdrop; success synchronizes profile/header/menu",
+      "pass": true
+    },
+    {
+      "name": "drawer open/close preserves scrolled body, traps focus, no hidden links; backdrop",
+      "pass": true
+    },
+    {
+      "name": "drawer short height internally scrolls; resize desktop unlocks; reduced motion",
+      "pass": true
+    },
+    {
+      "name": "mobile edit narrow/low visual viewport and rotation keeps input accessible",
+      "pass": true
+    },
+    {
+      "name": "dirty post: leave cancel keeps drawer + draft; confirm closes both and unlocks",
+      "pass": true
+    },
+    {
+      "name": "browser back while drawer open: cancel keeps state then approve releases lock",
+      "pass": true
+    },
+    {
+      "name": "logout success closes drawer and visible notice survives; privacy cleared",
+      "pass": true
+    },
+    {
+      "name": "logout failure stays authenticated in drawer; close keeps error visible",
+      "pass": true
+    },
+    {
+      "name": "pending logout can close drawer; later success stays visible outside",
+      "pass": true
+    },
+    {
+      "name": "drawer anonymous / checking / auth error and retry",
+      "pass": true
+    },
+    {
+      "name": "no-JS public menu real navigation 1440",
+      "pass": true
+    },
+    {
+      "name": "no-JS public menu real navigation 390",
+      "pass": true
+    }
+  ]
+}

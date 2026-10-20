@@ -1,0 +1,29 @@
+package io.github.takgeun.iyum.member.api.dto;
+
+import io.github.takgeun.iyum.member.application.MemberCommentItemResult;
+import io.swagger.v3.oas.annotations.media.Schema;
+
+import java.time.Instant;
+
+// 댓글 하나를 담는 객체
+@Schema(description = "내가 작성한 댓글과 원본 게시글 정보")
+public record MemberCommentItemResponse(
+        Long commentId,
+        String content,
+        Instant createdAt,
+        Instant updatedAt,
+        MemberCommentPostResponse post
+) {
+
+    public static MemberCommentItemResponse from(
+            MemberCommentItemResult result
+    ) {
+        return new MemberCommentItemResponse(
+                result.commentId(),
+                result.content(),
+                result.createdAt(),
+                result.updatedAt(),
+                MemberCommentPostResponse.from(result.post())
+        );
+    }
+}

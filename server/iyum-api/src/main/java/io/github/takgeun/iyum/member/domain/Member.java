@@ -89,4 +89,10 @@ public class Member {
 
         this.status = MemberStatus.ACTIVE;
     }
+
+    public void changeNickname(String nickname) {
+        // 단순 setter와 달리 가입할 때와 동일한 규칙으로 검증한 값만 저장
+        // 우변의 검증이 성공해야 대입이 실행되므로 잘못된 닉네임 전달하면 예외 발생 + 기존 닉네임 유지
+        this.nickname = MemberInputPolicy.normalizedNickname(nickname);
+    }
 }

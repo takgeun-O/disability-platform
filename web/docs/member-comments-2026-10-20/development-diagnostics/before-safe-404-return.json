@@ -1,0 +1,114 @@
+{
+  "kind": "controlled mock API on production Next; no DB writes",
+  "results": [
+    {
+      "name": "lazy independent DTO, same-post distinct comments, no GET CSRF or memberId",
+      "pass": true
+    },
+    {
+      "name": "three pages raw microsecond commentId cursor, duplicates blocked and final focus",
+      "pass": true
+    },
+    {
+      "name": "stable keyboard more failure, pending retry, refailure and exact-cursor success",
+      "pass": true
+    },
+    {
+      "name": "retry empty last page focuses end, initial failed retry empty focuses empty notice",
+      "pass": true
+    },
+    {
+      "name": "pending retry success, user Tab: no focus theft",
+      "pass": true
+    },
+    {
+      "name": "pending retry success, user Shift+Tab: no focus theft",
+      "pass": true
+    },
+    {
+      "name": "pending retry success, user click: no focus theft",
+      "pass": true
+    },
+    {
+      "name": "pending retry success, user tab: no focus theft",
+      "pass": true
+    },
+    {
+      "name": "pending retry failure, user Tab: no focus theft",
+      "pass": true
+    },
+    {
+      "name": "pending retry failure, user Shift+Tab: no focus theft",
+      "pass": true
+    },
+    {
+      "name": "pending retry failure, user click: no focus theft",
+      "pass": true
+    },
+    {
+      "name": "pending retry failure, user tab: no focus theft",
+      "pass": true
+    },
+    {
+      "name": "mouse retry never focuses result link",
+      "pass": true
+    },
+    {
+      "name": "zero summary and summary error do not hide comments; actual empty remains distinct",
+      "pass": true
+    },
+    {
+      "name": "27 comments detail top + back tab/list/scroll restore and no reread",
+      "pass": true
+    },
+    {
+      "name": "27 comments detail top + link tab/list/scroll restore and no reread",
+      "pass": true
+    },
+    {
+      "name": "PUT comment refreshes content not count and preserves form until return",
+      "pass": true
+    },
+    {
+      "name": "POST and DELETE comment refresh list/summary, no speculative count",
+      "pass": true
+    },
+    {
+      "name": "post edit refreshes original title/type/topic; post delete excludes all its comments",
+      "pass": true
+    },
+    {
+      "name": "refresh intermediate failure preserves old three pages; retry replaces atomically",
+      "pass": true
+    },
+    {
+      "name": "401 clears both lists, late request after logout cannot restore private data",
+      "pass": true
+    },
+    {
+      "name": "pending first read tab switch retains independent posts; later comments show response",
+      "pass": true
+    },
+    {
+      "name": "old pending read after leaving and new session cannot mix into fresh account comments",
+      "pass": true
+    },
+    {
+      "name": "late successful PUT invalidates new comments visit; older GET cannot overwrite fresh data",
+      "pass": true
+    },
+    {
+      "name": "deleted anchor uses adjacent commentId after refresh, without resetting to top",
+      "pass": true
+    },
+    {
+      "name": "original deleted before click: existing 404 safe return restores comments tab",
+      "pass": false,
+      "error": "Error: condition not reached\n    at until (file:///Users/tackeunoh/Developer/iyum/web/tests/member-comments-browser.mjs:27:92)\n    at async ready (file:///Users/tackeunoh/Developer/iyum/web/tests/member-comments-browser.mjs:60:30)\n    at async file:///Users/tackeunoh/Developer/iyum/web/tests/member-comments-browser.mjs:132:575\n    at async check (file:///Users/tackeunoh/Developer/iyum/web/tests/member-comments-browser.mjs:66:35)\n    at async file:///Users/tackeunoh/Developer/iyum/web/tests/member-comments-browser.mjs:131:2"
+    },
+    {
+      "name": "1440/390/320 long content/title safe text, mobile menu and screenshots",
+      "pass": true
+    }
+  ]
+}
