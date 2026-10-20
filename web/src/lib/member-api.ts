@@ -36,17 +36,19 @@ function responseError(status: number, body: unknown): MemberApiError {
   if (status === 403) return new MemberApiError(status, code, '현재 계정으로 이 작업을 할 수 없습니다. 계정 상태를 확인해 주세요.')
   return new MemberApiError(status, code, '응답을 확인하지 못했습니다. 잠시 후 다시 확인해 주세요.')
 }
-async function request(path: string, options: RequestInit, signal?: AbortSignal): Promise<unknown> {
+async function request(path: string, options: RequestInit, signal?: AbortSignal, expectedStatus = 200): Promise<unknown> {
   const base = process.env.NEXT_PUBLIC_API_BASE_URL
   if (!base) throw new MemberApiError(0, 'API_NOT_CONFIGURED', '회원 서비스에 연결할 수 없습니다.')
   let response: Response
   try { response = await fetch(base.replace(/\/$/, '') + '/api/v1/members/me' + path, { ...options,
     credentials: 'include', cache: 'no-store', redirect: 'error', referrerPolicy: 'no-referrer',
     headers: { Accept: 'application/json', ...options.headers }, signal: signal ? AbortSignal.any([signal, AbortSignal.timeout(15000)]) : AbortSignal.timeout(15000) }) }
-  catch { throw new MemberApiError(0, 'NETWORK_ERROR', options.method === 'PUT' ? '저장 결과를 확인하지 못했습니다. 이미 변경되었을 수 있으니 프로필을 다시 확인해 주세요.' : '연결 문제로 정보를 가져오지 못했습니다. 다시 시도해 주세요.') }
+  catch { throw new MemberApiError(0, 'NETWORK_ERROR', options.method === 'POST' ? '탈퇴 결과를 확인하지 못했습니다. 이미 처리되었을 수 있으니 로그인 상태를 확인한 뒤 다시 판단해 주세요.' : options.method === 'PUT' ? '저장 결과를 확인하지 못했습니다. 이미 변경되었을 수 있으니 프로필을 다시 확인해 주세요.' : '연결 문제로 정보를 가져오지 못했습니다. 다시 시도해 주세요.') }
+  if (expectedStatus === 204 && response.status === 204) return null
   let body: unknown = null
   if (/^application\/json(?:;|$)/i.test(response.headers.get('content-type') ?? '')) { try { body = await response.json() } catch {} }
-  if (response.status !== 200) throw responseError(response.status, body)
+  if (path === '/withdrawal' && response.status !== 204) throw withdrawalError(response.status, body)
+  if (response.status !== expectedStatus) throw responseError(response.status, body)
   return body
 }
 function profile(body: unknown, memberId: number): Profile {
@@ -109,4 +111,28 @@ export async function getMemberComments(cursor: MemberCommentCursor | null = nul
     (index > 0 && !olderThan({ id: item.commentId, createdAt: item.createdAt }, { postId: items[index-1].commentId, createdAt: items[index-1].createdAt }))) ||
     (body.hasNext ? (!last || !object(body.nextCursor) || body.nextCursor.createdAt !== last.createdAt || body.nextCursor.commentId !== last.commentId) : body.nextCursor !== null)) throw invalid()
   return body as MemberCommentPage
+}
+
+export class WithdrawalError extends MemberApiError {
+  constructor(status: number, code: string, message: string, public fields: Partial<Record<'currentPassword' | 'confirmed', string>> = {}) { super(status, code, message) }
+}
+function withdrawalError(status: number, body: unknown): WithdrawalError {
+  const code = object(body) && typeof body.code === 'string' ? body.code : 'UNEXPECTED_RESPONSE'
+  const fields: WithdrawalError['fields'] = {}
+  if (code === 'PASSWORD_MISMATCH') fields.currentPassword = '현재 비밀번호가 일치하지 않습니다.'
+  else if (code === 'INVALID_PASSWORD') fields.currentPassword = '현재 비밀번호를 올바르게 입력해 주세요.'
+  if (code === 'VALIDATION_FAILED' && object(body) && Array.isArray(body.fieldErrors)) {
+    for (const field of body.fieldErrors) {
+      if (object(field) && field.field === 'currentPassword') fields.currentPassword = '현재 비밀번호를 입력하고 UTF-8 기준 72바이트 이하인지 확인해 주세요.'
+      if (object(field) && field.field === 'confirmed') fields.confirmed = '탈퇴 안내를 확인하고 동의해 주세요.'
+    }
+  }
+  const message = Object.keys(fields).length ? '' : status === 401 ? '로그인 시간이 만료되었어요. 다시 로그인해 주세요.'
+    : code === 'CSRF_TOKEN_INVALID' ? '보안 확인 정보가 만료되었어요. 내용을 확인하고 다시 제출하면 새 보안 정보를 확인합니다.'
+    : code === 'MEMBER_NOT_ACTIVE' ? '활성 상태의 회원만 탈퇴할 수 있습니다. 계정 상태를 확인해 주세요.'
+    : '탈퇴 결과를 확인하지 못했습니다. 이미 처리되었을 수 있으니 로그인 상태를 확인한 뒤 다시 판단해 주세요.'
+  return new WithdrawalError(status, code, message, fields)
+}
+export async function withdrawMember(currentPassword: string, csrf: CsrfContext): Promise<void> {
+  await request('/withdrawal', { method: 'POST', headers: { 'Content-Type': 'application/json', [csrf.headerName]: csrf.token }, body: JSON.stringify({ currentPassword, confirmed: true }) }, undefined, 204)
 }

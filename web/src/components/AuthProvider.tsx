@@ -5,7 +5,7 @@ import { createMemberActivityCache } from '@/lib/member-activity';
 import { createAuthSession, type AuthState } from '@/lib/auth-session';
 
 type Session = ReturnType<typeof createAuthSession>;
-type AuthContextValue = { activityCache: ReturnType<typeof createMemberActivityCache> } & AuthState & Pick<Session, 'refresh' | 'signIn' | 'signOut' | 'updateNickname' | 'expire'>;
+type AuthContextValue = { withdrawalNotice: boolean; dismissWithdrawalNotice: () => void; completeWithdrawal: (memberId: number) => boolean; activityCache: ReturnType<typeof createMemberActivityCache> } & AuthState & Pick<Session, 'refresh' | 'signIn' | 'signOut' | 'updateNickname' | 'expire'>;
 const AuthContext = createContext<AuthContextValue | null>(null);
 
 export function AuthProvider({ children }: { children: ReactNode }) {
@@ -18,13 +18,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     });
     return { session, activityCache };
   });
+  const [withdrawalNotice, setWithdrawalNotice] = useState(false);
   const state = useSyncExternalStore(session.subscribe, session.getSnapshot, session.getServerSnapshot);
   useEffect(() => {
     session.start(); // 초기 진입·새로고침마다 서버 쿠키로 /me 조회
     return () => { session.stop(); activityCache.setOwner(null); };
   }, [session, activityCache]);
   return (
-    <AuthContext.Provider value={{ ...state, activityCache, refresh: session.refresh, signIn: session.signIn, signOut: session.signOut, updateNickname: session.updateNickname, expire: session.expire }}>
+    <AuthContext.Provider value={{ ...state, activityCache, withdrawalNotice, dismissWithdrawalNotice: () => setWithdrawalNotice(false), completeWithdrawal: (memberId) => { if (!session.expire(memberId)) return false; setWithdrawalNotice(true); return true; }, refresh: session.refresh, signIn: session.signIn, signOut: session.signOut, updateNickname: session.updateNickname, expire: session.expire }}>
       {children}
     </AuthContext.Provider>
   );

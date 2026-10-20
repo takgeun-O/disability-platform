@@ -124,9 +124,10 @@ export function createAuthSession(client: AuthApi = api) {
     stop: () => { active = false; generation++; },
     // A private API 401 expires only the still-current session, never a newer account.
     expire(memberId: number) {
-      if (!active || state.pending || state.status !== 'authenticated' || state.member?.memberId !== memberId) return;
+      if (!active || state.pending || state.status !== 'authenticated' || state.member?.memberId !== memberId) return false;
       generation++;
       publish({ status: 'anonymous', member: null, pending: null });
+      return true;
     },
     // Only a validated profile response for the still-current member may update the header.
     updateNickname(memberId: number, nickname: string) {

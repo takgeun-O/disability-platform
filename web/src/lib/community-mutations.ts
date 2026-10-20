@@ -1,6 +1,8 @@
 "use client"
 // 데이터/인증을 저장하지 않는다. 이 탭에서 변경한 글과 목록만 재조회한다.
 import { useSyncExternalStore } from "react"
+let identityVersion = 0
+export function publicIdentityChanged() { identityVersion++; listeners.forEach(listener => listener()) }
 const versions = new Map<string, number>()
 const listeners = new Set<() => void>()
 export function postChanged(id: string) {
@@ -27,9 +29,9 @@ const subscribe = (listener: () => void) => {
 export function usePostVersion(key: string) {
   return useSyncExternalStore(
     subscribe,
-    () => versions.get(key) ?? 0,
+    () => getPostVersion(key),
     () => 0,
   )
 }
 
-export const getPostVersion = (key: string) => versions.get(key) ?? 0
+export const getPostVersion = (key: string) => (versions.get(key) ?? 0) + identityVersion

@@ -4,9 +4,9 @@ import { useLayoutEffect, useRef, type ReactNode } from "react";
 import { useNavigationGuard } from "./NavigationGuard";
 
 /** Native modal/inert behaviour; one form, one focus scope, one scroll lock. */
-export default function OverlayDialog({ children, titleId, className, onClose, initialFocus, returnFocus, mobileOnly = false }: {
-  children: ReactNode; titleId: string; className: string; onClose: () => void;
-  initialFocus?: string; returnFocus?: string; mobileOnly?: boolean;
+export default function OverlayDialog({ children, titleId, descriptionId, className, onClose, initialFocus, returnFocus, mobileOnly = false, closeOnBackdropClick = true }: {
+  children: ReactNode; titleId: string; descriptionId?: string; className: string; onClose: () => void;
+  initialFocus?: string; returnFocus?: string; mobileOnly?: boolean; closeOnBackdropClick?: boolean;
 }) {
   const dialogRef = useRef<HTMLDialogElement>(null);
   const closeRef = useRef(onClose);
@@ -56,10 +56,10 @@ export default function OverlayDialog({ children, titleId, className, onClose, i
       release(true);
     };
   }, [subscribeNavigation, initialFocus, returnFocus, mobileOnly]);
-  return <dialog ref={dialogRef} className={`iyum-overlay ${className}`} aria-labelledby={titleId}
+  return <dialog ref={dialogRef} className={`iyum-overlay ${className}`} aria-labelledby={titleId} aria-describedby={descriptionId}
     onCancel={event => { event.preventDefault(); onClose(); }}
     onClick={event => {
-      if (event.target !== event.currentTarget) return;
+      if (!closeOnBackdropClick || event.target !== event.currentTarget) return;
       const box = event.currentTarget.getBoundingClientRect();
       if (event.clientX < box.left || event.clientX > box.right || event.clientY < box.top || event.clientY > box.bottom) onClose();
     }}

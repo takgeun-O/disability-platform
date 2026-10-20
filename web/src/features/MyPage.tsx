@@ -1,6 +1,7 @@
 "use client"
 import { useEffect, useRef, useState, type FormEvent } from 'react'
 import Link from '@/components/AppLink'
+import WithdrawalDialog from '@/components/member/WithdrawalDialog'
 import MyActivity from '@/components/member/MyActivity'
 import { usePostVersion, getPostVersion } from '@/lib/community-mutations'
 import OverlayDialog from '@/components/OverlayDialog'
@@ -27,6 +28,7 @@ function MemberPage({ memberId }: { memberId: number }) {
   const [profile, setProfile] = useState<Resource<Profile>>({}), [summary, setSummary] = useState<Resource<ActivitySummary>>({})
   const [profileAttempt, setProfileAttempt] = useState(0), [summaryAttempt, setSummaryAttempt] = useState(0)
   const [expired, setExpired] = useState(false), expiredRef = useRef(false)
+  const [withdrawing, setWithdrawing] = useState(false)
   const [editing, setEditing] = useState(false), [notice, setNotice] = useState('')
   const editButton = useRef<HTMLButtonElement>(null)
   const activityVersion = usePostVersion("list")
@@ -59,7 +61,8 @@ function MemberPage({ memberId }: { memberId: number }) {
     </section>
     <p role="status" className={`mypage-notice${notice ? ' has-notice' : ''}`}>{notice}</p>
     <MyActivity memberId={memberId} summary={summary.data} layoutReady={!!(profile.data || profile.error) && !!(summary.data || summary.error)} />
-    <section className="mypage-account" aria-labelledby="account-title"><h2 id="account-title">계정 관리</h2><dl><dt>이메일</dt><dd>{profile.data?.email ?? (profile.error?'회원 정보를 확인해 주세요.':'불러오는 중…')}</dd><dd className="mypage-readonly">읽기 전용</dd></dl></section>
+    <section className="mypage-account" aria-labelledby="account-title"><h2 id="account-title">계정 관리</h2><dl><dt>이메일</dt><dd>{profile.data?.email ?? (profile.error?'회원 정보를 확인해 주세요.':'불러오는 중…')}</dd><dd className="mypage-readonly">읽기 전용</dd></dl><button id="withdrawal-entry" type="button" className="withdrawal-entry" onClick={() => setWithdrawing(true)}><span>회원 탈퇴</span><svg aria-hidden="true" focusable="false" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round"><path d="m9 5 7 7-7 7"/></svg></button></section>
+    {withdrawing && <WithdrawalDialog memberId={memberId} onClose={() => setWithdrawing(false)} />}
   </>
 }
 function NicknameEditor({ profile, onCancel, onSaved, onExpired }: { profile: Profile; onCancel: () => void; onSaved: (p: Profile) => void; onExpired: () => void }) {
