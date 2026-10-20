@@ -1,0 +1,16 @@
+{
+  "bodyText": "본문 바로가기\nIYUM\nIYUM 소개\n커뮤니티\n정보 찾기\n⌄\n\n로그인 상태를 확인하지 못했습니다.\n\n상태 다시 확인\n게시글\n\n서로의 질문과 경험을 읽어보세요.\n\n게시글을 찾을 수 없어요.\n\n삭제되었거나 없는 글입니다.\n\n목록으로 돌아가기\nIYUM\n\n복잡한 정보는 쉽게, 필요한 경험은 가까이.\n\n서비스 소개\n지원 안내\n커뮤니티\n\n이용약관·개인정보처리방침·운영정책·문의·접근성 안내 페이지는 준비 중입니다.",
+  "links": [
+    {
+      "href": "/mypage",
+      "visible": true,
+      "html": "<a class=\"iyum-button iyum-button-outline\" href=\"/mypage\">목록으로 돌아가기</a>"
+    }
+  ],
+  "heading": [
+    {
+      "visible": true,
+      "html": "<h2>게시글을 찾을 수 없어요.</h2>"
+    }
+  ]
+}

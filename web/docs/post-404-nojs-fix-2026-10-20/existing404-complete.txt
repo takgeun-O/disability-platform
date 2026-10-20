@@ -1,0 +1,10 @@
+PASS 404 return refresh failure retains 27; retry rereads three pages atomically
+PASS posts origin three-page missing post back
+PASS posts origin three-page missing post link
+PASS direct/reload 404 visible HTML JS=false width=390
+PASS direct/reload 404 visible HTML JS=false width=1440
+PASS direct/reload 404 visible HTML JS=true width=390
+PASS direct/reload 404 visible HTML JS=true width=1440
+PASS RSC missing transport 200 text/x-component; document remains 404
+PASS valid private from rendered in no-JS initial HTML
+PASS 503 is an error, not deletion: private cache stays valid

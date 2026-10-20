@@ -38,7 +38,7 @@ async function fixture({width=1440,count=27,...options}={}){
   if(u.pathname.endsWith('/activity-summary'))return state.summary?state.summary(r):r.fulfill({json:{postCount:posts.length,commentCount:comments.length}})
   if(u.pathname==='/api/v1/members/me/posts')return state.get?state.get(r,u):r.fulfill({json:listing(u)})
   if(u.pathname==='/api/v1/members/me/nickname'){state.member.nickname=req.postDataJSON().nickname;state.profile.nickname=state.member.nickname;return r.fulfill({json:state.profile})}
-  if(u.pathname==='/api/v1/members/me/comments')throw Error('Private comment list is OUT OF SCOPE')
+  if(u.pathname==='/api/v1/members/me/comments')return r.fulfill({json:{items:[],hasNext:false,nextCursor:null}})
   if(method==='GET')return r.fulfill(publicRead(u))
   assert.equal(req.headers()['x-csrf-token'],'test-only')
   if(state.write)return state.write(r,u)
@@ -80,7 +80,7 @@ async function check(name,fn){try{await fn();results.push({name,pass:true});cons
 try{
  await check('first ten real fields/order and zero count; no CSRF/per-post/comment list reads',async()=>{
   const{p,state}=await fixture();await ready(p);assert((await rows(p).first().innerText()).includes('보청기 · 질문·답변'));assert((await rows(p).first().innerText()).includes('서로의 경험'));assert(await p.getByText('댓글 0',{exact:true}).first().isVisible());assert.equal(calls(state).length,1);assert(!state.calls.some(c=>c.path.endsWith('/csrf')||c.path.includes('/posts/')))
-  await p.getByRole('tab',{name:/내 댓글/}).click();await p.getByText('내 댓글 목록은 준비 중이에요.').waitFor();await p.getByRole('tab',{name:/내 게시글/}).click();assert.equal(calls(state).length,1);assert.equal(await rows(p).count(),10)
+  await p.getByRole('tab',{name:/내 댓글/}).click();await p.getByText('아직 작성한 댓글이 없어요.').waitFor();await p.getByRole('tab',{name:/내 게시글/}).click();assert.equal(calls(state).length,1);assert.equal(await rows(p).count(),10)
  })
  await check('summary zero does not suppress posts; summary failure does not hide list',async()=>{
   const{p,state}=await fixture({summary:r=>r.fulfill({json:{postCount:0,commentCount:0}})});await ready(p);assert.equal(await p.locator('.mypage-counts strong').first().innerText(),'0');state.summary=r=>r.fulfill({status:503,json:failure('SERVER_ERROR')});await p.reload();await ready(p);await p.getByRole('button',{name:'활동 개수 다시 시도'}).waitFor();assert.equal(await rows(p).count(),10)

@@ -1,0 +1,6 @@
+{
+  "documentReloaded": true,
+  "returnPath": "/mypage",
+  "visibleComments": 10,
+  "limitation": "Existing proxy404 full-document fallback recreates AuthProvider memory; no persistent personal cache was introduced."
+}

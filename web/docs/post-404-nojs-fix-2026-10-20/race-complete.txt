@@ -1,0 +1,28 @@
+PASS race comments 1440 link
+PASS race comments 1440 back
+PASS race comments 390 link
+PASS race comments 390 back
+PASS race document JS=false
+PASS race document JS=true
+PASS race document JS=false width=390
+PASS race document JS=true width=390
+PASS race posts 1440 link
+PASS race posts 1440 back
+PASS race posts 390 link
+PASS race posts 390 back
+PASS race from JS=false /community?type=QUESTION
+PASS race from JS=false /community/topics/hearing-aid?type=REVIEW
+PASS race from JS=false /community/posts?type=REVIEW&topic=DAILY
+PASS race from JS=false null
+PASS race from JS=false https://evil.example/mypage
+PASS race from JS=false //evil.example
+PASS race from JS=false /mypage?anything=1
+PASS race from JS=false /community/topics/unknown
+PASS race from JS=true /community?type=QUESTION
+PASS race from JS=true /community/topics/hearing-aid?type=REVIEW
+PASS race from JS=true /community/posts?type=REVIEW&topic=DAILY
+PASS race from JS=true null
+PASS race from JS=true https://evil.example/mypage
+PASS race from JS=true //evil.example
+PASS race from JS=true /mypage?anything=1
+PASS race from JS=true /community/topics/unknown

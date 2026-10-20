@@ -1,0 +1,49 @@
+{
+  "kind": "actual Spring / existing owned seed account / no business-data mutation",
+  "createdData": [],
+  "results": [
+    {
+      "name": "actual Spring session/CORS/no-store/member-owned comments/raw cursor",
+      "pass": true,
+      "memberId": 34,
+      "pages": 3,
+      "items": 30,
+      "commentIds": [
+        70,
+        67,
+        64,
+        61,
+        58,
+        55,
+        52,
+        49,
+        46,
+        43,
+        40,
+        37,
+        34,
+        31,
+        28,
+        111,
+        108,
+        91,
+        88,
+        25,
+        22,
+        105,
+        85,
+        19,
+        102,
+        99,
+        82,
+        79,
+        16,
+        13
+      ]
+    },
+    {
+      "name": "actual detail top and back comments tab/list/position without reread",
+      "pass": true
+    }
+  ]
+}

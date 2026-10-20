@@ -1,9 +1,10 @@
-import { getMemberPosts } from './member-api'
+import { getMemberPosts, getMemberComments, type MemberCommentItem, type MemberCommentPage } from './member-api'
 import { mergeFeed, type FeedPosition } from './community-feed'
 import type { FeedPage } from './community-api'
 
 export type ActivityTab = 'posts' | 'comments'
-export type MemberPostSnapshot = FeedPage & { segments: number; version: number; tab: ActivityTab; position?: FeedPosition }
+export type MemberCommentSnapshot = MemberCommentPage & { segments: number; version: number }
+export type MemberPostSnapshot = FeedPage & { comments?: MemberCommentSnapshot } & { segments: number; version: number; tab: ActivityTab; position?: FeedPosition }
 // Per AuthProvider, memory only. A lease belongs to one authenticated session, even if the same member logs in again.
 export function createMemberActivityCache() {
   let owner: number | null = null, generation = 0, returnEntry: string | null = null
@@ -40,4 +41,18 @@ export async function refreshMemberPosts(memberId: number, segments: number, sig
     result = { ...page, items: mergeFeed(result.items, page.items) }; loaded++
   } while (loaded < Math.max(1, segments) && result.hasNext)
   return { ...result, segments: loaded }
+}
+
+export function mergeMemberComments(old: MemberCommentItem[], incoming: MemberCommentItem[]) {
+  const ids = new Set(old.map(item => item.commentId))
+  return [...old, ...incoming.filter(item => { if (ids.has(item.commentId)) return false; ids.add(item.commentId); return true })]
+}
+export async function refreshMemberComments(segments: number, signal: AbortSignal,
+  read: typeof getMemberComments = getMemberComments): Promise<MemberCommentSnapshot> {
+  let result: MemberCommentPage = { items: [], hasNext: false, nextCursor: null }, loaded = 0
+  do {
+    const page = await read(result.nextCursor, signal)
+    result = { ...page, items: mergeMemberComments(result.items, page.items) }; loaded++
+  } while (loaded < Math.max(1, segments) && result.hasNext)
+  return { ...result, segments: loaded, version: -1 }
 }

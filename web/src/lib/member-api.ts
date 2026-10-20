@@ -1,5 +1,6 @@
 import { isFeedItem, olderThan, type FeedPage } from './community-api'
-import { parsePostCursor, type PostCursor } from './community-posts'
+import { validateComment } from './community-comments'
+import { normalizeTitle, characterCount, POST_TYPES, POST_TOPICS, parsePostCursor, type PostType, type PostTopic, type PostCursor } from './community-posts'
 import { getAuthCsrf } from './auth-api'
 import type { CsrfContext } from './signup-api'
 export { getAuthCsrf as getMemberCsrf }
@@ -78,4 +79,34 @@ export async function getMemberPosts(memberId: number, cursor: PostCursor | null
       (index > 0 && !olderThan(item, { createdAt: items[index-1].createdAt, postId: items[index-1].id }))) ||
     (body.hasNext ? (!last || !object(body.nextCursor) || body.nextCursor.createdAt !== last.createdAt || body.nextCursor.postId !== last.id) : body.nextCursor !== null)) throw invalid()
   return body as FeedPage
+}
+
+
+export type MemberCommentCursor = { createdAt: string; commentId: number }
+export type MemberCommentItem = {
+  commentId: number; content: string; createdAt: string; updatedAt: string
+  post: { postId: number; title: string; type: PostType; topic: PostTopic }
+}
+export type MemberCommentPage = { items: MemberCommentItem[]; hasNext: boolean; nextCursor: MemberCommentCursor | null }
+const positiveId = (v: unknown): v is number => Number.isSafeInteger(v) && Number(v) > 0
+const instant = (v: unknown): v is string => typeof v === 'string' && !!parsePostCursor(new URLSearchParams({ afterCreatedAt: v, afterId: '1' }))
+function isMemberComment(v: unknown): v is MemberCommentItem {
+  return object(v) && positiveId(v.commentId) && typeof v.content === 'string' && !validateComment(v.content) && instant(v.createdAt) && instant(v.updatedAt) && object(v.post) &&
+    positiveId(v.post.postId) && typeof v.post.title === 'string' && !!normalizeTitle(v.post.title) && characterCount(normalizeTitle(v.post.title)) <= 120 &&
+    typeof v.post.type === 'string' && Object.prototype.hasOwnProperty.call(POST_TYPES, v.post.type) &&
+    typeof v.post.topic === 'string' && Object.prototype.hasOwnProperty.call(POST_TOPICS, v.post.topic)
+}
+// The authenticated server session selects the owner. This DTO intentionally has no author/count fields.
+export async function getMemberComments(cursor: MemberCommentCursor | null = null, signal?: AbortSignal): Promise<MemberCommentPage> {
+  const params = new URLSearchParams({ size: '10' })
+  if (cursor) { params.set('afterCreatedAt', cursor.createdAt); params.set('afterId', String(cursor.commentId)) }
+  const body = await request('/comments?' + params, { method: 'GET' }, signal)
+  const invalid = () => new MemberApiError(200, 'UNEXPECTED_RESPONSE', '내 댓글 응답을 확인하지 못했습니다. 다시 시도해 주세요.')
+  if (!object(body) || !Array.isArray(body.items) || body.items.length > 10 || !body.items.every(isMemberComment) || typeof body.hasNext !== 'boolean') throw invalid()
+  const items = body.items, last = items.at(-1)
+  if (items.some((item, index) =>
+    (cursor && !olderThan({ id: item.commentId, createdAt: item.createdAt }, { postId: cursor.commentId, createdAt: cursor.createdAt })) ||
+    (index > 0 && !olderThan({ id: item.commentId, createdAt: item.createdAt }, { postId: items[index-1].commentId, createdAt: items[index-1].createdAt }))) ||
+    (body.hasNext ? (!last || !object(body.nextCursor) || body.nextCursor.createdAt !== last.createdAt || body.nextCursor.commentId !== last.commentId) : body.nextCursor !== null)) throw invalid()
+  return body as MemberCommentPage
 }

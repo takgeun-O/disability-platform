@@ -1,0 +1,45 @@
+{
+  "kind": "controlled mock API production; no DB writes",
+  "results": [
+    {
+      "name": "404 return refresh failure retains 27; retry rereads three pages atomically",
+      "pass": true
+    },
+    {
+      "name": "posts origin three-page missing post back",
+      "pass": true
+    },
+    {
+      "name": "posts origin three-page missing post link",
+      "pass": true
+    },
+    {
+      "name": "direct/reload 404 visible HTML JS=false width=390",
+      "pass": true
+    },
+    {
+      "name": "direct/reload 404 visible HTML JS=false width=1440",
+      "pass": true
+    },
+    {
+      "name": "direct/reload 404 visible HTML JS=true width=390",
+      "pass": true
+    },
+    {
+      "name": "direct/reload 404 visible HTML JS=true width=1440",
+      "pass": true
+    },
+    {
+      "name": "RSC missing transport 200 text/x-component; document remains 404",
+      "pass": true
+    },
+    {
+      "name": "valid private from rendered in no-JS initial HTML",
+      "pass": true
+    },
+    {
+      "name": "503 is an error, not deletion: private cache stays valid",
+      "pass": true
+    }
+  ]
+}

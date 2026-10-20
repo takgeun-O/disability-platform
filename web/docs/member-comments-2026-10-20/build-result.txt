@@ -1,0 +1,51 @@
+
+> iyum-web@1.0.0 build /private/tmp/iyum-member-comments-build
+> next build
+
+▲ Next.js 16.3.6 (Turbopack)
+✓ Running next.config.ts took 12ms
+
+  Creating an optimized production build ...
+✓ Compiled successfully in 441ms
+  Running TypeScript ...
+  Finished TypeScript in 612ms ...
+  Collecting page data using 11 workers ...
+  Generating static pages using 11 workers (0/22) ...
+  Generating static pages using 11 workers (5/22) 
+  Generating static pages using 11 workers (10/22) 
+  Generating static pages using 11 workers (16/22) 
+✓ Generating static pages using 11 workers (22/22) in 183ms
+  Finalizing page optimization ...
+
+Route (app)
+┌ ○ /
+├ ○ /_not-found
+├ ○ /about
+├ ƒ /community
+├ ○ /community/post-not-found
+├ ƒ /community/posts
+├ ƒ /community/posts/[postId]
+├ ƒ /community/posts/[postId]/edit
+├ ƒ /community/posts/create
+├ ○ /community/topic-not-found
+├ ƒ /community/topics/[slug]
+├ ○ /devices
+├ ○ /forgot-password
+├ ○ /hospitals
+├ ƒ /login
+├ ○ /mypage
+├ ○ /register
+├ ○ /register/info
+├ ○ /register/resend
+├ ○ /register/verify
+├ ○ /robots.txt
+├ ƒ /search
+├ ○ /validation/hearing-aid-health-insurance
+└ ○ /welfare
+
+
+ƒ Proxy (Middleware)
+
+○  (Static)   prerendered as static content
+ƒ  (Dynamic)  server-rendered on demand
+

@@ -88,3 +88,7 @@
 }
 
 .mypage .mypage-list-end { text-align:center; font-size:14px; color:var(--iyum-muted); padding:16px 8px; }
+
+.mypage .mypage-comment-content { font-size:17px; font-weight:600; line-height:1.7; margin:0 0 10px; white-space:pre-line; overflow-wrap:anywhere; display:-webkit-box; -webkit-box-orient:vertical; -webkit-line-clamp:3; overflow:hidden; }
+.mypage-comment-link { display:block; color:var(--iyum-primary); font-size:14px; line-height:1.7; overflow-wrap:anywhere; border-radius:3px; }
+.mypage-comment-link:hover { text-decoration:underline; text-underline-offset:3px; }

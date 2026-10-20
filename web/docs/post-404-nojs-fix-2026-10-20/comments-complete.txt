@@ -1,0 +1,30 @@
+PASS lazy independent DTO, same-post distinct comments, no GET CSRF or memberId
+PASS three pages raw microsecond commentId cursor, duplicates blocked and final focus
+PASS stable keyboard more failure, pending retry, refailure and exact-cursor success
+PASS retry empty last page focuses end, initial failed retry empty focuses empty notice
+PASS pending retry success, user Tab: no focus theft
+PASS pending retry success, user Shift+Tab: no focus theft
+PASS pending retry success, user click: no focus theft
+PASS pending retry success, user tab: no focus theft
+PASS pending retry failure, user Tab: no focus theft
+PASS pending retry failure, user Shift+Tab: no focus theft
+PASS pending retry failure, user click: no focus theft
+PASS pending retry failure, user tab: no focus theft
+PASS mouse retry never focuses result link
+PASS zero summary and summary error do not hide comments; actual empty remains distinct
+PASS 27 comments detail top + back tab/list/scroll restore and no reread
+PASS 27 comments detail top + link tab/list/scroll restore and no reread
+PASS PUT comment refreshes content not count and preserves form until return
+PASS POST and DELETE comment refresh list/summary, no speculative count
+PASS post edit refreshes original title/type/topic; post delete excludes all its comments
+PASS refresh intermediate failure preserves old three pages; retry replaces atomically
+PASS 401 clears both lists, late request after logout cannot restore private data
+PASS pending first read tab switch retains independent posts; later comments show response
+PASS old pending read after leaving and new session cannot mix into fresh account comments
+PASS late successful PUT invalidates new comments visit; older GET cannot overwrite fresh data
+PASS deleted anchor uses adjacent commentId after refresh, without resetting to top
+PASS missing original 1440 back: memory, three pages, group deletion and anchor
+PASS missing original 1440 link: memory, three pages, group deletion and anchor
+PASS missing original 390 back: memory, three pages, group deletion and anchor
+PASS missing original 390 link: memory, three pages, group deletion and anchor
+PASS 1440/390/320 long content/title safe text, mobile menu and screenshots

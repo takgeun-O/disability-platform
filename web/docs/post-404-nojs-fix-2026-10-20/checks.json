@@ -1,0 +1,33 @@
+{
+  "race": {
+    "passed": 28,
+    "total": 28
+  },
+  "existing404": {
+    "passed": 10,
+    "total": 10
+  },
+  "comments": {
+    "passed": 30,
+    "total": 30
+  },
+  "posts": {
+    "passed": 41,
+    "total": 41
+  },
+  "errors": {
+    "passed": 14,
+    "total": 14
+  },
+  "unit": {
+    "passed": 286,
+    "total": 286
+  },
+  "lint": "pass",
+  "typecheck": "pass",
+  "build": "pass",
+  "frozenLockfileInstall": "pass",
+  "scope": "production Next, mock API, Chrome desktop/mobile emulation; no DB writes",
+  "actualSpring": "not run",
+  "physicalIPhoneSafari": "not run"
+}

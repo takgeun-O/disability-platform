@@ -8,13 +8,10 @@ import { refreshMemberPosts, type ActivityTab, type MemberPostSnapshot } from '@
 import { mergeFeed, type FeedPosition } from '@/lib/community-feed'
 import { consumeListReturn, POST_TOPICS, POST_TYPES, postDate } from '@/lib/community-posts'
 import { getPostVersion, usePostVersion } from '@/lib/community-mutations'
+import MyComments from './MyComments'
+import { activityPosition, restoreActivityPosition } from './activity-position'
+import type { MemberCommentSnapshot } from '@/lib/member-activity'
 
-function position(): FeedPosition {
-  const rows = [...document.querySelectorAll<HTMLElement>('[data-member-post-id]')].filter(row => row.getClientRects().length)
-  const index = rows.findIndex(row => row.getBoundingClientRect().bottom > 90), row = rows[index]
-  return { id: Number(row?.dataset.memberPostId) || undefined, next: Number(rows[index+1]?.dataset.memberPostId) || undefined,
-    previous: Number(rows[index-1]?.dataset.memberPostId) || undefined, offset: row?.getBoundingClientRect().top ?? 0, y: window.scrollY }
-}
 const empty: MemberPostSnapshot = { items: [], hasNext: false, nextCursor: null, segments: 0, version: -1, tab: 'posts' }
 export default function MyActivity({ memberId, summary, layoutReady }: { memberId: number; summary?: ActivitySummary; layoutReady: boolean }) {
   const { activityCache, expire } = useAuth(), scope = useNavigationRequest(), version = usePostVersion('list')
@@ -28,7 +25,7 @@ export default function MyActivity({ memberId, summary, layoutReady }: { memberI
   const pendingPosition = useRef<FeedPosition | null>(null), pendingFocus = useRef<number | null>(null)
   const moreTrigger = useRef<HTMLElement | null>(null), keyboardMore = useRef(false)
   const save = useCallback(() => {
-    if (entry.current && lease.valid() && document.body.style.position !== 'fixed') lease.write(entry.current, { ...current.current, position: position() })
+    if (entry.current && lease.valid() && document.body.style.position !== 'fixed') lease.write(entry.current, { ...current.current, position: activityPosition(current.current.tab) })
   }, [lease])
   useLayoutEffect(() => {
     let initialized = false
@@ -52,9 +49,7 @@ export default function MyActivity({ memberId, summary, layoutReady }: { memberI
     const target = pendingPosition.current
     let frame = requestAnimationFrame(() => { frame = requestAnimationFrame(() => {
       if (!scope.isActive() || !lease.valid()) return
-      const row = [target.id, target.next, target.previous].map(id => document.querySelector<HTMLElement>(`[data-member-post-id="${id}"]`)).find(Boolean)
-      if (row && target.y > 0) window.scrollBy({ top: row.getBoundingClientRect().top - target.offset, behavior: 'instant' })
-      else window.scrollTo({ top: target.y, behavior: 'instant' })
+      restoreActivityPosition(target, current.current.tab)
       pendingPosition.current = null; setRestoring(false); save()
     }) })
     return () => cancelAnimationFrame(frame)
@@ -88,13 +83,13 @@ export default function MyActivity({ memberId, summary, layoutReady }: { memberI
       const items = kind === 'more' ? mergeFeed(previous.items, data.items) : data.items
       // Tab selection made while a request was pending wins over the old request's snapshot.
       const updated: MemberPostSnapshot = { ...data, items, segments: data.segments,
-        version: requestedVersion, tab: current.current.tab }
-      if (kind === 'refresh' && previous.segments) { pendingPosition.current = position(); setRestoring(true) }
+        version: requestedVersion, tab: current.current.tab, comments: current.current.comments }
+      if (kind === 'refresh' && previous.segments && current.current.tab === 'posts') { pendingPosition.current = activityPosition(current.current.tab); setRestoring(true) }
       if (keyboardMore.current && document.activeElement === moreTrigger.current && current.current.tab === 'posts') {
         pendingFocus.current = items[kind === 'more' ? previous.items.length : 0]?.id ?? 0
       }
       setError(null)
-      current.current = updated; setView(updated); lease.write(entry.current, { ...updated, position: position() }); failedVersion.current = null
+      current.current = updated; setView(updated); lease.write(entry.current, { ...updated, position: activityPosition(current.current.tab) }); failedVersion.current = null
       setNotice(kind === 'more' ? `${items.length - previous.items.length}개를 더 불러왔습니다.${data.hasNext ? '' : ' 마지막 게시글입니다.'}` : '내 게시글을 확인했습니다.')
     } catch (cause) {
       if (!valid() || requestedVersion !== getPostVersion('list')) return
@@ -106,13 +101,18 @@ export default function MyActivity({ memberId, summary, layoutReady }: { memberI
     }
   }, [expire, lease, memberId, scope])
   useEffect(() => {
-    if (ready && !restoring && view.version !== version && failedVersion.current !== version) void load('refresh')
-  }, [ready, restoring, version, view.version, load])
+    if (ready && view.tab === 'posts' && !restoring && view.version !== version && failedVersion.current !== version) void load('refresh')
+  }, [ready, restoring, version, view.version, view.tab, load])
   function chooseTab(tab: ActivityTab) {
-    keyboardMore.current = false; pendingFocus.current = null
+    keyboardMore.current = false; pendingFocus.current = null; pendingPosition.current = null; setRestoring(false)
     const next = { ...current.current, tab }; current.current = next; setView(next)
-    if (entry.current) lease.write(entry.current, { ...next, position: position() })
+    if (entry.current) lease.write(entry.current, { ...next, position: activityPosition(current.current.tab) })
   }
+  const saveComments = useCallback((comments: MemberCommentSnapshot) => {
+    if (!scope.isActive() || !lease.valid()) return
+    current.current = { ...current.current, comments }
+    if (entry.current) lease.write(entry.current, { ...current.current, position: activityPosition(current.current.tab) })
+  }, [lease, scope])
   function leaving() { save(); lease.markReturn(entry.current) }
   return <section className="mypage-activity" aria-labelledby="my-activity-title">
     <h2 id="my-activity-title">내 활동</h2>
@@ -147,6 +147,9 @@ export default function MyActivity({ memberId, summary, layoutReady }: { memberI
       {!!view.items.length && !view.hasNext && <p id="my-posts-end" tabIndex={-1} className="mypage-list-end">마지막 게시글까지 확인했어요.</p>}
       <p className="sr-only" role="status">{notice}</p>
     </div>
-    <div id="my-panel-comments" role="tabpanel" aria-labelledby="my-tab-comments" hidden={view.tab !== 'comments'} tabIndex={0}><p>내 댓글 목록은 준비 중이에요.</p><p>활동 내역을 이곳에서 확인할 수 있도록 준비하고 있습니다.</p></div>
+    <div id="my-panel-comments" className="mypage-posts" role="tabpanel" aria-labelledby="my-tab-comments" hidden={view.tab !== 'comments'}>
+      {ready && <MyComments memberId={memberId} active={view.tab === 'comments'} restoring={restoring || !layoutReady} initial={view.comments}
+        lease={lease} onSnapshot={saveComments} onLeaving={leaving} />}
+    </div>
   </section>
 }
