@@ -9,6 +9,7 @@ import io.github.takgeun.iyum.member.application.MemberProfileResult;
 import io.github.takgeun.iyum.member.application.MemberProfileService;
 import io.github.takgeun.iyum.member.domain.MemberRole;
 import io.github.takgeun.iyum.member.domain.MemberStatus;
+import io.github.takgeun.iyum.member.infrastructure.MemberRepository;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
@@ -65,9 +66,14 @@ class MemberProfileControllerTest {
     @MockitoBean
     MemberProfileService memberProfileService;
 
+    @MockitoBean
+    private MemberRepository memberRepository;
+
     @Test
     void 로그인한_회원의_최신_프로필을_CSRF_없이_조회한다()
             throws Exception {
+
+        givenActiveMember();
         givenProfile();
 
         mockMvc.perform(
@@ -130,6 +136,8 @@ class MemberProfileControllerTest {
     @Test
     void 다른_회원_ID를_파라미터로_보내도_로그인_회원만_조회한다()
             throws Exception {
+
+        givenActiveMember();
         givenProfile();
 
         mockMvc.perform(
@@ -147,8 +155,39 @@ class MemberProfileControllerTest {
     }
 
     @Test
-    void 세션에_해당하는_회원이_없으면_401을_반환한다()
+    void 세션의_회원이_ACTIVE가_아니면_401이고_서비스를_호출하지_않는다()
             throws Exception {
+        when(memberRepository.existsByIdAndStatus(
+                MEMBER_ID,
+                MemberStatus.ACTIVE
+        )).thenReturn(false);
+
+        mockMvc.perform(
+                        get(URL)
+                                .with(user(principal()))
+                )
+                .andExpect(status().isUnauthorized())
+                .andExpect(jsonPath("$.code")
+                        .value("AUTHENTICATION_REQUIRED"))
+                .andExpect(jsonPath("$.fieldErrors").isEmpty())
+                .andExpect(header().string(
+                        HttpHeaders.CACHE_CONTROL,
+                        containsString("no-store")
+                ));
+
+        verify(memberRepository).existsByIdAndStatus(
+                MEMBER_ID,
+                MemberStatus.ACTIVE
+        );
+        verifyNoInteractions(memberProfileService);
+    }
+
+    @Test
+    void 서비스에서_회원_없음_예외가_발생하면_401을_반환한다()
+            throws Exception {
+
+        givenActiveMember();
+
         when(memberProfileService.getProfile(MEMBER_ID))
                 .thenThrow(new MemberProfileException(
                         MemberProfileException.Code.MEMBER_NOT_FOUND
@@ -166,11 +205,16 @@ class MemberProfileControllerTest {
                         HttpHeaders.CACHE_CONTROL,
                         containsString("no-store")
                 ));
+
+        verify(memberProfileService).getProfile(MEMBER_ID);
+        verifyNoMoreInteractions(memberProfileService);
     }
 
     @Test
-    void 현재_활성_상태가_아닌_회원은_403을_반환한다()
+    void 서비스에서_비활성_회원_예외가_발생하면_403을_반환한다()
             throws Exception {
+        givenActiveMember();
+
         when(memberProfileService.getProfile(MEMBER_ID))
                 .thenThrow(new MemberProfileException(
                         MemberProfileException.Code.MEMBER_NOT_ACTIVE
@@ -188,6 +232,8 @@ class MemberProfileControllerTest {
                         HttpHeaders.CACHE_CONTROL,
                         containsString("no-store")
                 ));
+
+        verify(memberProfileService).getProfile(MEMBER_ID);
     }
 
     @Test
@@ -256,5 +302,13 @@ class MemberProfileControllerTest {
                 MemberStatus.ACTIVE,
                 MemberRole.USER
         );
+    }
+
+    // 필터 검사를 통과시켜 서비스 예외 처리 경로에 도달하도록 하는 설정
+    private void givenActiveMember() {
+        when(memberRepository.existsByIdAndStatus(
+                MEMBER_ID,
+                MemberStatus.ACTIVE
+        )).thenReturn(true);
     }
 }

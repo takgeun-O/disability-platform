@@ -1,6 +1,7 @@
 package io.github.takgeun.iyum.member.infrastructure;
 
 import io.github.takgeun.iyum.member.domain.Member;
+import io.github.takgeun.iyum.member.domain.MemberStatus;
 import jakarta.persistence.LockModeType;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Lock;
@@ -62,5 +63,11 @@ public interface MemberRepository extends JpaRepository<Member, Long> {
     boolean existsByNicknameIgnoreCaseExcludingMemberId(
             @Param("nickname") String nickname,
             @Param("memberId") Long memberId
+    );
+
+    // 회원 엔티티 전체를 가져오는 대신 해당 ID의 회원이 현재 지정한 상태인지 확인
+    boolean existsByIdAndStatus(
+            Long memberId,
+            MemberStatus status
     );
 }

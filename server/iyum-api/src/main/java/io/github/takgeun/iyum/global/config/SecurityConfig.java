@@ -1,8 +1,10 @@
 package io.github.takgeun.iyum.global.config;
 
+import io.github.takgeun.iyum.auth.security.MemberSessionStatusFilter;
 import io.github.takgeun.iyum.auth.session.config.SessionSecurityConfig;
 
 import io.github.takgeun.iyum.global.error.ApiErrorResponse;
+import io.github.takgeun.iyum.member.infrastructure.MemberRepository;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.actuate.endpoint.web.WebServerNamespace;
 import org.springframework.boot.health.actuate.endpoint.HealthEndpoint;
@@ -19,6 +21,7 @@ import org.springframework.security.config.annotation.web.configurers.AbstractHt
 import org.springframework.security.web.AuthenticationEntryPoint;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.access.AccessDeniedHandler;
+import org.springframework.security.web.authentication.AnonymousAuthenticationFilter;
 import org.springframework.security.web.authentication.logout.HttpStatusReturningLogoutSuccessHandler;
 import org.springframework.security.web.context.SecurityContextRepository;
 import org.springframework.security.web.csrf.CsrfException;
@@ -38,6 +41,7 @@ public class SecurityConfig {
             ObjectMapper objectMapper,  // 오류 응답 객체를 JSON으로 변환
             SecurityContextRepository securityContextRepository,    // 인증 정보를 저장하고 조회
             CsrfTokenRepository csrfTokenRepository,    // CSRF 토큰을 저장하고 조회
+            MemberRepository memberRepository,
             @Value("${springdoc.api-docs.enabled:false}")
             boolean apiDocsEnabled, // API 명세 경로의 공개 여부 판단
             @Value("${springdoc.swagger-ui.enabled:false}")
@@ -235,6 +239,25 @@ public class SecurityConfig {
                                 )
                         )
                 );
+
+        // 기존 세션의 인증 정보를 확인한 뒤, 필요하면 인증 제거
+        // 이후 익명 인증 처리와 접근 권한 검사가 진행되므로 공개 조회는 그대로 허용하고 보호된 요청은 차단
+        // 다만 CSRF 검사는 이 필터보다 앞에서 진행될 수 있으며 CSRF 토큰이 잘못된 변경 요청은 회원 상태 필터에 도달하기 전에 403으로 끝날 수 있음을 유념할 것.
+        // 즉, 탈퇴 세션을 사용한 모든 요청이 무조건 401 이라고 가정하면 안된다.
+        // 직접 만든 필터를 Spring Security의 필터 체인에 추가 + 실행 위치 지정
+        // "회원 상태를 확인하는 MemberSessionStatusFilter를 익명 인증 처리 필터보다 먼저 실행하라"
+        // http.addFilterBefore(추가할_필터, 기준이_되는_필터_클래스);
+        http.addFilterBefore(
+                new MemberSessionStatusFilter(
+                        memberRepository,
+                        securityContextRepository
+                ),
+                // 왜 익명 인증 처리보다 앞에 두나?
+                // AnonymousAuthenticationFilter는 현재 인증 정보가 없으면 익명 사용자를 나타내는 인증 객체를 넣어주는 핉러임
+                // MemberSessionStatusFilter가 DB에서 ACTIVE인지 확인하고, 아니면 인증을 제거해주고 나서야
+                // AnonymousAuthenticationFilter에서 인증이 없어진 요청을 익명 사용자로 처리할 수 있다.
+                AnonymousAuthenticationFilter.class
+        );
 
         // 지금까지 설정한 규칙을 바탕으로 보안 필터 체인을 만들어 반환
         return http.build();

@@ -26,13 +26,13 @@ public class Member {
     private Long id;
 
     @Email
-    @Column(name = "email", nullable = false, length = 254)
+    @Column(name = "email", length = 254)
     private String email;
 
-    @Column(name = "password_hash", nullable = false, length = 255)
+    @Column(name = "password_hash", length = 255)
     private String passwordHash;
 
-    @Column(name = "nickname", nullable = false, length = 20)
+    @Column(name = "nickname", length = 20)
     private String nickname;
 
     @Enumerated(EnumType.STRING)
@@ -50,6 +50,9 @@ public class Member {
     @LastModifiedDate
     @Column(name = "updated_at", nullable = false)
     private Instant updatedAt;
+
+    @Column(name = "withdrawn_at")
+    private Instant withdrawnAt;
 
     private Member(
             String email,
@@ -81,7 +84,7 @@ public class Member {
     }
 
     public void activeAfterEmailVerification() {
-        if(status != MemberStatus.PENDING) {
+        if (status != MemberStatus.PENDING) {
             throw new IllegalStateException(
                     "이메일 인증 대기 상태에서만 활성화할 수 있습니다."
             );
@@ -91,8 +94,39 @@ public class Member {
     }
 
     public void changeNickname(String nickname) {
+        // 서비스에서도 상태를 확인하지만
+        // 엔티티 자체에서도 탈퇴한 회원에게 닉네임이 다시 저장되는 것을 막음
+        if (this.status != MemberStatus.ACTIVE) {
+            throw new IllegalStateException(
+                    "활성 회원만 닉네임을 변경할 수 있습니다."
+            );
+        }
         // 단순 setter와 달리 가입할 때와 동일한 규칙으로 검증한 값만 저장
         // 우변의 검증이 성공해야 대입이 실행되므로 잘못된 닉네임 전달하면 예외 발생 + 기존 닉네임 유지
         this.nickname = MemberInputPolicy.normalizedNickname(nickname);
+    }
+
+    public void withdraw(Instant withdrawnAt) {
+        // 모든 검증을 먼저 끝내고 필드를 변경한다.
+        if (withdrawnAt == null) {
+            throw new IllegalArgumentException(
+                    "탈퇴 시각은 필수입니다."
+            );
+        }
+
+        // 정지 계정의 탈퇴 경로는 추후 별도 확장 예정
+        if (this.status != MemberStatus.ACTIVE) {
+            throw new IllegalStateException(
+                    "활성 회원만 탈퇴할 수 있습니다."
+            );
+        }
+
+        this.email = null;
+        this.passwordHash = null;
+        this.nickname = null;
+        // 서비스에서 정한 시각을 전달하고 테스트에서는 고정된 시각으로 검증하기 위해
+        // 메서드 내부에서 Instant.now() 호출하지 않음
+        this.withdrawnAt = withdrawnAt;
+        this.status = MemberStatus.DELETED;
     }
 }

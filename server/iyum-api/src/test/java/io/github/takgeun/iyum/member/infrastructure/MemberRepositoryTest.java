@@ -11,6 +11,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.data.auditing.DateTimeProvider;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
@@ -54,6 +55,9 @@ public class MemberRepositoryTest {
 
     @Autowired
     EntityManager entityManager;
+
+    @Autowired
+    JdbcTemplate jdbcTemplate;
 
     @MockitoBean(name = "auditingDateTimeProvider")
     DateTimeProvider dateTimeProvider;
@@ -170,5 +174,165 @@ public class MemberRepositoryTest {
         assertThatThrownBy(() ->
                 memberRepository.saveAndFlush(duplicate)
         ).isInstanceOf(DataIntegrityViolationException.class);
+    }
+
+    @Test
+    void 개인정보를_제거한_탈퇴_회원은_ID를_유지한다() {
+        Member member = memberRepository.saveAndFlush(
+                Member.createPending(
+                        "withdraw@example.com",
+                        TEST_HASH,
+                        "탈퇴테스트"
+                )
+        );
+
+        Long memberId = member.getId();
+
+        jdbcTemplate.update("""
+                UPDATE members
+                SET status = 'DELETED',
+                    email = NULL,
+                    password_hash = NULL,
+                    nickname = NULL,
+                    withdrawn_at = CURRENT_TIMESTAMP
+                WHERE id = ?
+                """, memberId);
+
+        entityManager.clear();
+
+        Member found = memberRepository.findById(memberId)
+                .orElseThrow();
+
+        assertThat(found.getId()).isEqualTo(memberId);
+        assertThat(found.getStatus()).isEqualTo(MemberStatus.DELETED);
+        assertThat(found.getEmail()).isNull();
+        assertThat(found.getPasswordHash()).isNull();
+        assertThat(found.getNickname()).isNull();
+        assertThat(found.getWithdrawnAt());
+    }
+
+    @Test
+    void 활성_회원의_이메일은_null로_변경할_수_없다() {
+        Member member = Member.createPending(
+                "active@example.com",
+                TEST_HASH,
+                "활성테스트"
+        );
+        member.activeAfterEmailVerification();
+        memberRepository.saveAndFlush(member);
+
+        // 활성 회원의 필수값 제약 유지 확인
+        assertThatThrownBy(() ->
+                jdbcTemplate.update("""
+                    UPDATE members
+                    SET email = NULL
+                    WHERE id = ?
+                    """, member.getId())
+        ).isInstanceOf(DataIntegrityViolationException.class);
+    }
+
+    @Test
+    void 개인정보가_남아_있으면_삭제_완료_상태로_변경할_수_없다() {
+        Member member = memberRepository.saveAndFlush(
+                Member.createPending(
+                        "remaining@example.com",
+                        TEST_HASH,
+                        "정보유지테스트"
+                )
+        );
+
+        assertThatThrownBy(() ->
+                jdbcTemplate.update("""
+                    UPDATE members
+                    SET status = 'DELETED',
+                        withdrawn_at = CURRENT_TIMESTAMP
+                    WHERE id = ?
+                    """, member.getId())
+        ).isInstanceOf(DataIntegrityViolationException.class);
+    }
+
+    @Test
+    void 탈퇴한_이메일과_닉네임으로_새로운_회원이_가입할_수_있다() {
+        Member original = Member.createPending(
+                "reuse@example.com",
+                TEST_HASH,
+                "재사용닉네임"
+        );
+        original.activeAfterEmailVerification();
+        memberRepository.saveAndFlush(original);
+
+        Long originalId = original.getId();
+        Instant withdrawnAt = CREATED_TIME.plusSeconds(60);
+
+        original.withdraw(withdrawnAt);
+        memberRepository.flush();
+        entityManager.clear();
+
+        Member withdrawn = memberRepository.findById(originalId)
+                .orElseThrow();
+
+        assertThat(withdrawn.getStatus()).isEqualTo(MemberStatus.DELETED);
+        assertThat(withdrawn.getEmail()).isNull();
+        assertThat(withdrawn.getPasswordHash()).isNull();
+        assertThat(withdrawn.getNickname()).isNull();
+        assertThat(withdrawn.getWithdrawnAt()).isEqualTo(withdrawnAt);
+
+        assertThat(memberRepository.findByEmail("reuse@example.com"))
+                .isEmpty();
+
+        assertThat(
+                memberRepository.existsByNicknameIgnoreCase("재사용닉네임")
+        ).isFalse();
+
+        Member rejoined = memberRepository.saveAndFlush(
+                Member.createPending(
+                        "reuse@example.com",
+                        TEST_HASH,
+                        "재사용닉네임"
+                )
+        );
+
+        assertThat(rejoined.getId()).isNotEqualTo(originalId);
+        assertThat(rejoined.getStatus()).isEqualTo(MemberStatus.PENDING);
+        assertThat(rejoined.getWithdrawnAt()).isNull();
+    }
+
+    @Test
+    void 개인정보가_null인_탈퇴_회원_여러명을_저장할_수_있다() {
+        Member first = Member.createPending(
+                "first-withdraw@example.com",
+                TEST_HASH,
+                "첫탈퇴회원"
+        );
+        Member second = Member.createPending(
+                "second-withdraw@example.com",
+                TEST_HASH,
+                "둘째탈퇴회원"
+        );
+
+        first.activeAfterEmailVerification();
+        second.activeAfterEmailVerification();
+
+        memberRepository.saveAndFlush(first);
+        memberRepository.saveAndFlush(second);
+
+        Long firstId = first.getId();
+        Long secondId = second.getId();
+
+        first.withdraw(CREATED_TIME.plusSeconds(60));
+        second.withdraw(CREATED_TIME.plusSeconds(60));
+
+        memberRepository.flush();
+        entityManager.clear();
+
+        Member foundFirst = memberRepository.findById(firstId).orElseThrow();
+        Member foundSecond = memberRepository.findById(secondId).orElseThrow();
+
+        assertThat(foundFirst.getStatus()).isEqualTo(MemberStatus.DELETED);
+        assertThat(foundSecond.getStatus()).isEqualTo(MemberStatus.DELETED);
+        assertThat(foundFirst.getEmail()).isNull();
+        assertThat(foundSecond.getEmail()).isNull();
+        assertThat(foundFirst.getNickname()).isNull();
+        assertThat(foundSecond.getNickname()).isNull();
     }
 }

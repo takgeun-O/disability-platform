@@ -1,5 +1,6 @@
 package io.github.takgeun.iyum.member.api;
 
+import io.github.takgeun.iyum.member.infrastructure.MemberRepository;
 import io.github.takgeun.iyum.auth.security.MemberPrincipal;
 import io.github.takgeun.iyum.community.post.application.PostAuthorResult;
 import io.github.takgeun.iyum.community.post.application.PostCursor;
@@ -59,6 +60,9 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 })
 @ActiveProfiles("dev")
 class MemberPostReadControllerTest {
+    @MockitoBean
+    MemberRepository memberRepository;
+
 
     private static final String URL =
             "/api/v1/members/me/posts";
@@ -87,6 +91,7 @@ class MemberPostReadControllerTest {
     @Test
     void 기본_요청은_CSRF_없이_열_개를_조회하고_게시글_응답을_반환한다()
             throws Exception {
+        givenActiveMember();
         when(memberPostReadService.getPosts(
                 MEMBER_ID, null, null, 10
         )).thenReturn(new PostFeedResult(
@@ -148,6 +153,7 @@ class MemberPostReadControllerTest {
     @Test
     void 커서와_조회_개수를_서비스에_전달하고_다음_커서를_응답한다()
             throws Exception {
+        givenActiveMember();
         when(memberPostReadService.getPosts(
                 MEMBER_ID, CREATED_AT, 104L, 2
         )).thenReturn(new PostFeedResult(
@@ -178,6 +184,7 @@ class MemberPostReadControllerTest {
     @Test
     void 게시글이_없으면_빈_목록과_null_커서를_반환한다()
             throws Exception {
+        givenActiveMember();
         when(memberPostReadService.getPosts(
                 MEMBER_ID, null, null, 10
         )).thenReturn(new PostFeedResult(
@@ -216,6 +223,7 @@ class MemberPostReadControllerTest {
     @Test
     void 다른_회원_ID를_파라미터로_보내도_로그인_회원_ID를_사용한다()
             throws Exception {
+        givenActiveMember();
         when(memberPostReadService.getPosts(
                 MEMBER_ID, null, null, 10
         )).thenReturn(new PostFeedResult(
@@ -245,6 +253,7 @@ class MemberPostReadControllerTest {
             String parameter,
             String value
     ) throws Exception {
+        givenActiveMember();
         mockMvc.perform(get(URL)
                         .with(user(principal()))
                         .param(parameter, value))
@@ -258,6 +267,7 @@ class MemberPostReadControllerTest {
     @Test
     void 커서_ID만_전달하면_서비스의_커서_검증_오류를_반환한다()
             throws Exception {
+        givenActiveMember();
         when(memberPostReadService.getPosts(
                 MEMBER_ID, null, 104L, 10
         )).thenThrow(new MemberPostReadException(
@@ -288,6 +298,7 @@ class MemberPostReadControllerTest {
             int expectedStatus,
             String expectedCode
     ) throws Exception {
+        givenActiveMember();
         when(memberPostReadService.getPosts(
                 MEMBER_ID, null, null, 10
         )).thenThrow(new MemberPostReadException(exceptionCode));
@@ -350,6 +361,7 @@ class MemberPostReadControllerTest {
                         HttpHeaders.ACCESS_CONTROL_ALLOW_ORIGIN
                 ));
 
+        verifyNoInteractions(memberRepository);
         verifyNoInteractions(memberPostReadService);
     }
 
@@ -401,5 +413,10 @@ class MemberPostReadControllerTest {
                 CREATED_AT,
                 3L
         );
+    }
+
+    private void givenActiveMember() {
+        when(memberRepository.existsByIdAndStatus(
+                MEMBER_ID, MemberStatus.ACTIVE)).thenReturn(true);
     }
 }

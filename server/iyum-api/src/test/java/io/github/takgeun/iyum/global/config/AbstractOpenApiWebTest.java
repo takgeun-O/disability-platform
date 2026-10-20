@@ -1,5 +1,6 @@
 package io.github.takgeun.iyum.global.config;
 
+import io.github.takgeun.iyum.member.infrastructure.MemberRepository;
 import io.github.takgeun.iyum.auth.session.api.CsrfController;
 import io.github.takgeun.iyum.auth.signup.api.SignupController;
 import io.github.takgeun.iyum.auth.signup.application.SignupService;
@@ -28,6 +29,9 @@ import tools.jackson.databind.ObjectMapper;
         SpringDocWebMvcConfiguration.class, SwaggerConfig.class,
         SwaggerUiConfigProperties.class, SwaggerUiOAuthProperties.class})
 abstract class AbstractOpenApiWebTest {
+    @MockitoBean
+    MemberRepository memberRepository;
+
     @Autowired MockMvc mockMvc;
     @Autowired ObjectMapper objectMapper;
     @MockitoBean SignupService signupService;

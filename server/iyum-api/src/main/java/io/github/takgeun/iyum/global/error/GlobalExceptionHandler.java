@@ -662,6 +662,44 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
                 .body(ApiErrorResponse.of(code, message));
     }
 
+    @ExceptionHandler(MemberWithdrawalException.class)
+    public ResponseEntity<ApiErrorResponse> handleMemberWithdrawal(
+            MemberWithdrawalException exception
+    ) {
+        HttpStatus status = switch (exception.getCode()) {
+            case MEMBER_NOT_FOUND -> HttpStatus.UNAUTHORIZED;
+            case MEMBER_NOT_ACTIVE -> HttpStatus.FORBIDDEN;
+            case INVALID_PASSWORD, PASSWORD_MISMATCH ->
+                    HttpStatus.BAD_REQUEST;
+        };
+
+        ApiErrorResponse body = switch (exception.getCode()) {
+            case MEMBER_NOT_FOUND -> ApiErrorResponse.of(
+                    "AUTHENTICATION_REQUIRED",
+                    "로그인이 필요합니다."
+            );
+
+            case MEMBER_NOT_ACTIVE -> ApiErrorResponse.of(
+                    exception.getCode().name(),
+                    exception.getMessage()
+            );
+
+            case INVALID_PASSWORD, PASSWORD_MISMATCH ->
+                    new ApiErrorResponse(
+                            exception.getCode().name(),
+                            exception.getMessage(),
+                            List.of(new ApiErrorResponse.FieldError(
+                                    "currentPassword",
+                                    exception.getMessage()
+                            ))
+                    );
+        };
+
+        return ResponseEntity.status(status)
+                .cacheControl(CacheControl.noStore())
+                .body(body);
+    }
+
     @ExceptionHandler(Exception.class)
     public ResponseEntity<ApiErrorResponse> handleUnexpected(
             Exception exception

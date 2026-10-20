@@ -273,7 +273,7 @@ class CommentDeleteApiTest {
     }
 
     @Test
-    void 로그인_정보가_ACTIVE여도_DB가_PENDING이면_403이다()
+    void 로그인_정보가_ACTIVE여도_DB가_PENDING이면_401이다()
             throws Exception {
 
         MockHttpServletRequestBuilder request =
@@ -288,7 +288,7 @@ class CommentDeleteApiTest {
                 commentAuthor.getId()
         );
 
-        assertRejected(request, 403, "COMMENT_WRITE_NOT_ALLOWED");
+        assertRejected(request, 401, "AUTHENTICATION_REQUIRED");
     }
 
     @Test

@@ -9,6 +9,7 @@ import io.github.takgeun.iyum.member.application.MemberNicknameUpdateService;
 import io.github.takgeun.iyum.member.application.MemberProfileResult;
 import io.github.takgeun.iyum.member.domain.MemberRole;
 import io.github.takgeun.iyum.member.domain.MemberStatus;
+import io.github.takgeun.iyum.member.infrastructure.MemberRepository;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
@@ -72,9 +73,14 @@ class MemberNicknameUpdateControllerTest {
     @MockitoBean
     MemberNicknameUpdateService nicknameUpdateService;
 
+    @MockitoBean
+    MemberRepository memberRepository;
+
     @Test
     void 닉네임을_변경하고_최신_프로필을_반환한다()
             throws Exception {
+
+        givenActiveMember();
         givenSuccess("  새로운닉네임  ");
 
         mockMvc.perform(
@@ -97,6 +103,8 @@ class MemberNicknameUpdateControllerTest {
                         .value(CREATED_AT.toString()))
                 .andExpect(jsonPath("$.password").doesNotExist())
                 .andExpect(jsonPath("$.passwordHash").doesNotExist())
+                .andExpect(jsonPath("$.role").doesNotExist())
+                .andExpect(jsonPath("$.status").doesNotExist())
                 .andExpect(header().string(
                         HttpHeaders.CACHE_CONTROL,
                         containsString("no-store")
@@ -134,6 +142,10 @@ class MemberNicknameUpdateControllerTest {
     void 잘못된_닉네임은_필드_오류를_반환한다(
             String requestBody
     ) throws Exception {
+
+        // 인증 필터를 통과해야 요청 DTO의 검증까지 도달한다.
+        givenActiveMember();
+
         mockMvc.perform(
                         authenticatedPut(requestBody)
                                 .with(csrf().asHeader())
@@ -154,6 +166,9 @@ class MemberNicknameUpdateControllerTest {
     @Test
     void 요청_본문이_없으면_400을_반환한다()
             throws Exception {
+
+        givenActiveMember();
+
         mockMvc.perform(
                         put(URL)
                                 .with(user(principal()))
@@ -168,6 +183,9 @@ class MemberNicknameUpdateControllerTest {
     @Test
     void 중복_닉네임은_409와_닉네임_필드_오류를_반환한다()
             throws Exception {
+
+        givenActiveMember();
+
         when(nicknameUpdateService.updateNickname(
                 MEMBER_ID,
                 "새로운닉네임"
@@ -192,11 +210,18 @@ class MemberNicknameUpdateControllerTest {
                         HttpHeaders.CACHE_CONTROL,
                         containsString("no-store")
                 ));
+
+        verify(nicknameUpdateService).updateNickname(
+                MEMBER_ID,
+                "새로운닉네임"
+        );
+        verifyNoMoreInteractions(nicknameUpdateService);
     }
 
     @Test
     void 비로그인이면_유효한_CSRF가_있어도_401이다()
             throws Exception {
+
         mockMvc.perform(
                         put(URL)
                                 .with(csrf().asHeader())
@@ -207,14 +232,23 @@ class MemberNicknameUpdateControllerTest {
                 )
                 .andExpect(status().isUnauthorized())
                 .andExpect(jsonPath("$.code")
-                        .value("AUTHENTICATION_REQUIRED"));
+                        .value("AUTHENTICATION_REQUIRED"))
+                .andExpect(jsonPath("$.fieldErrors").isEmpty())
+                .andExpect(header().string(
+                        HttpHeaders.CACHE_CONTROL,
+                        containsString("no-store")
+                ));
 
-        verifyNoInteractions(nicknameUpdateService);
+        verifyNoInteractions(
+                memberRepository,
+                nicknameUpdateService
+        );
     }
 
     @Test
     void 로그인했어도_CSRF가_없으면_403이다()
             throws Exception {
+
         mockMvc.perform(
                         authenticatedPut("""
                                 {"nickname":"새로운닉네임"}
@@ -224,12 +258,17 @@ class MemberNicknameUpdateControllerTest {
                 .andExpect(jsonPath("$.code")
                         .value("CSRF_TOKEN_INVALID"));
 
-        verifyNoInteractions(nicknameUpdateService);
+        // 현재 필터 순서에서는 CSRF 검사에서 먼저 차단된다.
+        verifyNoInteractions(
+                memberRepository,
+                nicknameUpdateService
+        );
     }
 
     @Test
     void 로그인했어도_CSRF가_틀리면_403이다()
             throws Exception {
+
         mockMvc.perform(
                         authenticatedPut("""
                                 {"nickname":"새로운닉네임"}
@@ -240,12 +279,17 @@ class MemberNicknameUpdateControllerTest {
                 .andExpect(jsonPath("$.code")
                         .value("CSRF_TOKEN_INVALID"));
 
-        verifyNoInteractions(nicknameUpdateService);
+        verifyNoInteractions(
+                memberRepository,
+                nicknameUpdateService
+        );
     }
 
     @Test
     void 다른_회원_ID를_전달해도_로그인_회원만_수정한다()
             throws Exception {
+
+        givenActiveMember();
         givenSuccess("새로운닉네임");
 
         mockMvc.perform(
@@ -266,8 +310,45 @@ class MemberNicknameUpdateControllerTest {
     }
 
     @Test
-    void 세션에_해당하는_회원이_없으면_401이다()
+    void DB에_활성_회원이_없으면_유효한_CSRF가_있어도_401이고_서비스를_호출하지_않는다()
             throws Exception {
+
+        // 세션에는 ACTIVE인 MemberPrincipal이 남아 있지만,
+        // DB 조회 결과는 더 이상 활성 회원이 아닌 상황이다.
+        when(memberRepository.existsByIdAndStatus(
+                MEMBER_ID,
+                MemberStatus.ACTIVE
+        )).thenReturn(false);
+
+        mockMvc.perform(
+                        authenticatedPut("""
+                                {"nickname":"새로운닉네임"}
+                                """)
+                                .with(csrf().asHeader())
+                )
+                .andExpect(status().isUnauthorized())
+                .andExpect(jsonPath("$.code")
+                        .value("AUTHENTICATION_REQUIRED"))
+                .andExpect(jsonPath("$.fieldErrors").isEmpty())
+                .andExpect(header().string(
+                        HttpHeaders.CACHE_CONTROL,
+                        containsString("no-store")
+                ));
+
+        verify(memberRepository).existsByIdAndStatus(
+                MEMBER_ID,
+                MemberStatus.ACTIVE
+        );
+        verifyNoInteractions(nicknameUpdateService);
+    }
+
+    @Test
+    void 서비스에서_회원_없음_예외가_발생하면_401을_반환한다()
+            throws Exception {
+
+        // 필터를 통과시킨 뒤 서비스 예외의 응답 변환을 검증한다.
+        givenActiveMember();
+
         when(nicknameUpdateService.updateNickname(
                 MEMBER_ID,
                 "새로운닉네임"
@@ -283,12 +364,27 @@ class MemberNicknameUpdateControllerTest {
                 )
                 .andExpect(status().isUnauthorized())
                 .andExpect(jsonPath("$.code")
-                        .value("AUTHENTICATION_REQUIRED"));
+                        .value("AUTHENTICATION_REQUIRED"))
+                .andExpect(jsonPath("$.fieldErrors").isEmpty())
+                .andExpect(header().string(
+                        HttpHeaders.CACHE_CONTROL,
+                        containsString("no-store")
+                ));
+
+        // 필터에서 발생한 401로 우연히 통과하지 않도록 확인한다.
+        verify(nicknameUpdateService).updateNickname(
+                MEMBER_ID,
+                "새로운닉네임"
+        );
+        verifyNoMoreInteractions(nicknameUpdateService);
     }
 
     @Test
-    void 현재_비활성_회원이면_403이다()
+    void 서비스에서_비활성_회원_예외가_발생하면_403을_반환한다()
             throws Exception {
+
+        givenActiveMember();
+
         when(nicknameUpdateService.updateNickname(
                 MEMBER_ID,
                 "새로운닉네임"
@@ -304,12 +400,24 @@ class MemberNicknameUpdateControllerTest {
                 )
                 .andExpect(status().isForbidden())
                 .andExpect(jsonPath("$.code")
-                        .value("MEMBER_NOT_ACTIVE"));
+                        .value("MEMBER_NOT_ACTIVE"))
+                .andExpect(jsonPath("$.fieldErrors").isEmpty())
+                .andExpect(header().string(
+                        HttpHeaders.CACHE_CONTROL,
+                        containsString("no-store")
+                ));
+
+        verify(nicknameUpdateService).updateNickname(
+                MEMBER_ID,
+                "새로운닉네임"
+        );
+        verifyNoMoreInteractions(nicknameUpdateService);
     }
 
     @Test
     void 허용된_출처의_PUT_사전_요청을_허용한다()
             throws Exception {
+
         mockMvc.perform(
                         options(URL)
                                 .header(HttpHeaders.ORIGIN, ORIGIN)
@@ -336,12 +444,16 @@ class MemberNicknameUpdateControllerTest {
                         containsString("PUT")
                 ));
 
-        verifyNoInteractions(nicknameUpdateService);
+        verifyNoInteractions(
+                memberRepository,
+                nicknameUpdateService
+        );
     }
 
     @Test
     void 허용하지_않은_출처의_사전_요청을_거절한다()
             throws Exception {
+
         mockMvc.perform(
                         options(URL)
                                 .header(
@@ -358,16 +470,28 @@ class MemberNicknameUpdateControllerTest {
                         HttpHeaders.ACCESS_CONTROL_ALLOW_ORIGIN
                 ));
 
-        verifyNoInteractions(nicknameUpdateService);
+        verifyNoInteractions(
+                memberRepository,
+                nicknameUpdateService
+        );
     }
 
     private MockHttpServletRequestBuilder authenticatedPut(
             String requestBody
     ) {
+        // 로그인 정보만 설정한다.
+        // DB 상태 설정은 각 테스트에서 명시적으로 수행한다.
         return put(URL)
                 .with(user(principal()))
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(requestBody);
+    }
+
+    private void givenActiveMember() {
+        when(memberRepository.existsByIdAndStatus(
+                MEMBER_ID,
+                MemberStatus.ACTIVE
+        )).thenReturn(true);
     }
 
     private void givenSuccess(String requestedNickname) {

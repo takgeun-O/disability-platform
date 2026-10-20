@@ -1,5 +1,6 @@
 package io.github.takgeun.iyum.community.post.application;
 
+import io.github.takgeun.iyum.member.application.MemberDisplayName;
 import io.github.takgeun.iyum.member.domain.Member;
 
 /**
@@ -14,7 +15,7 @@ public record PostAuthorResult(
     public static PostAuthorResult from(Member member) {
         return new PostAuthorResult(
                 member.getId(),
-                member.getNickname()
+                MemberDisplayName.resolve(member)
         );
     }
 }

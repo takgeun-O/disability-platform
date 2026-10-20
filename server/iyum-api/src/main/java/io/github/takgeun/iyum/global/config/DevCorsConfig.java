@@ -137,6 +137,18 @@ public class DevCorsConfig {
                 memberActivityCors
         );
 
+        CorsConfiguration memberWithdrawalCors =
+                new CorsConfiguration(cors);
+
+        memberWithdrawalCors.setAllowedMethods(
+                List.of("POST", "OPTIONS")
+        );
+
+        source.registerCorsConfiguration(
+                "/api/v1/members/me/withdrawal",
+                memberWithdrawalCors
+        );
+
         return source;
     }
 }

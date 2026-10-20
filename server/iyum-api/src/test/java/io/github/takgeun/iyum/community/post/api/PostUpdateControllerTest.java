@@ -1,5 +1,6 @@
 package io.github.takgeun.iyum.community.post.api;
 
+import io.github.takgeun.iyum.member.infrastructure.MemberRepository;
 import io.github.takgeun.iyum.auth.security.MemberPrincipal;
 import io.github.takgeun.iyum.community.post.application.*;
 import io.github.takgeun.iyum.community.post.domain.PostTopic;
@@ -23,6 +24,7 @@ import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.request.MockHttpServletRequestBuilder;
 
+import static org.mockito.Mockito.when;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
 import static org.mockito.ArgumentMatchers.any;
@@ -51,6 +53,9 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 })
 @ActiveProfiles("dev")
 class PostUpdateControllerTest {
+    @MockitoBean
+    MemberRepository memberRepository;
+
 
     private static final String API_PATH =
             "/api/v1/community/posts/123";
@@ -85,6 +90,7 @@ class PostUpdateControllerTest {
     @Test
     void 로그인_회원_ID와_수정_내용을_전달하고_204를_반환한다()
             throws Exception {
+        givenActiveMember();
 
         mockMvc.perform(
                         authenticatedPut(VALID_BODY)
@@ -142,6 +148,7 @@ class PostUpdateControllerTest {
                 .andExpect(jsonPath("$.code")
                         .value("CSRF_TOKEN_INVALID"));
 
+        verifyNoInteractions(memberRepository);
         verifyNoInteractions(postUpdateService);
     }
 
@@ -159,6 +166,7 @@ class PostUpdateControllerTest {
                 .andExpect(jsonPath("$.code")
                         .value("CSRF_TOKEN_INVALID"));
 
+        verifyNoInteractions(memberRepository);
         verifyNoInteractions(postUpdateService);
     }
 
@@ -177,6 +185,7 @@ class PostUpdateControllerTest {
     void 필수값_누락이나_공백_입력은_필드_오류를_반환한다(
             String body
     ) throws Exception {
+        givenActiveMember();
 
         mockMvc.perform(
                         authenticatedPut(body)
@@ -208,6 +217,7 @@ class PostUpdateControllerTest {
     void 잘못된_JSON이나_누락된_본문은_400이다(
             String body
     ) throws Exception {
+        givenActiveMember();
 
         mockMvc.perform(
                         authenticatedPut(body)
@@ -223,6 +233,7 @@ class PostUpdateControllerTest {
     @Test
     void 게시글_ID가_숫자가_아니면_400이다()
             throws Exception {
+        givenActiveMember();
 
         mockMvc.perform(
                         put("/api/v1/community/posts/abc")
@@ -250,6 +261,7 @@ class PostUpdateControllerTest {
             int expectedStatus,
             String expectedCode
     ) throws Exception {
+        givenActiveMember();
 
         doThrow(new PostUpdateException(exceptionCode))
                 .when(postUpdateService)
@@ -275,6 +287,7 @@ class PostUpdateControllerTest {
                         HttpHeaders.ACCESS_CONTROL_ALLOW_ORIGIN,
                         ORIGIN
                 ));
+        verify(postUpdateService).update(eq(7L), eq(123L), any(PostUpdateCommand.class));
     }
 
     @Test
@@ -327,6 +340,7 @@ class PostUpdateControllerTest {
                         HttpHeaders.ACCESS_CONTROL_ALLOW_ORIGIN
                 ));
 
+        verifyNoInteractions(memberRepository);
         verifyNoInteractions(postUpdateService);
     }
 
@@ -370,5 +384,10 @@ class PostUpdateControllerTest {
                 MemberStatus.ACTIVE,
                 MemberRole.USER
         );
+    }
+
+    private void givenActiveMember() {
+        when(memberRepository.existsByIdAndStatus(
+                7L, MemberStatus.ACTIVE)).thenReturn(true);
     }
 }

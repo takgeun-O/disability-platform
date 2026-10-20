@@ -1,5 +1,6 @@
 package io.github.takgeun.iyum.community.post.api;
 
+import io.github.takgeun.iyum.member.infrastructure.MemberRepository;
 import io.github.takgeun.iyum.auth.security.MemberPrincipal;
 import io.github.takgeun.iyum.community.post.application.PostCreateService;
 import io.github.takgeun.iyum.community.post.application.PostDeleteException;
@@ -25,6 +26,7 @@ import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.request.MockHttpServletRequestBuilder;
 
+import static org.mockito.Mockito.when;
 import static org.hamcrest.Matchers.containsString;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.verify;
@@ -50,6 +52,9 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 })
 @ActiveProfiles("dev")
 class PostDeleteControllerTest {
+    @MockitoBean
+    MemberRepository memberRepository;
+
 
     private static final String API_PATH =
             "/api/v1/community/posts/123";
@@ -75,6 +80,7 @@ class PostDeleteControllerTest {
     @Test
     void 인증된_회원_ID로_삭제하고_본문_없이_204를_반환한다()
             throws Exception {
+        givenActiveMember();
 
         mockMvc.perform(
                         authenticatedDelete()
@@ -129,6 +135,7 @@ class PostDeleteControllerTest {
                 .andExpect(jsonPath("$.code")
                         .value("CSRF_TOKEN_INVALID"));
 
+        verifyNoInteractions(memberRepository);
         verifyNoInteractions(postDeleteService);
     }
 
@@ -146,12 +153,14 @@ class PostDeleteControllerTest {
                 .andExpect(jsonPath("$.code")
                         .value("CSRF_TOKEN_INVALID"));
 
+        verifyNoInteractions(memberRepository);
         verifyNoInteractions(postDeleteService);
     }
 
     @Test
     void 게시글_ID가_숫자가_아니면_400이다()
             throws Exception {
+        givenActiveMember();
 
         mockMvc.perform(
                         delete("/api/v1/community/posts/abc")
@@ -177,6 +186,7 @@ class PostDeleteControllerTest {
             int expectedStatus,
             String expectedCode
     ) throws Exception {
+        givenActiveMember();
 
         PostDeleteException exception =
                 new PostDeleteException(exceptionCode);
@@ -271,6 +281,7 @@ class PostDeleteControllerTest {
                         HttpHeaders.ACCESS_CONTROL_ALLOW_ORIGIN
                 ));
 
+        verifyNoInteractions(memberRepository);
         verifyNoInteractions(postDeleteService);
     }
 
@@ -313,5 +324,10 @@ class PostDeleteControllerTest {
                 MemberStatus.ACTIVE,
                 MemberRole.USER
         );
+    }
+
+    private void givenActiveMember() {
+        when(memberRepository.existsByIdAndStatus(
+                7L, MemberStatus.ACTIVE)).thenReturn(true);
     }
 }

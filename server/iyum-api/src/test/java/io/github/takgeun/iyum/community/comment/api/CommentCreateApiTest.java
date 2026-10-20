@@ -362,7 +362,7 @@ class CommentCreateApiTest {
     }
 
     @Test
-    void 로그인_정보가_ACTIVE여도_DB가_PENDING이면_403이다()
+    void 로그인_정보가_ACTIVE여도_DB가_PENDING이면_401이다()
             throws Exception {
 
         MockHttpServletRequestBuilder request =
@@ -382,8 +382,8 @@ class CommentCreateApiTest {
 
         assertRejected(
                 request,
-                403,
-                "COMMENT_WRITE_NOT_ALLOWED"
+                401,
+                "AUTHENTICATION_REQUIRED"
         );
     }
 

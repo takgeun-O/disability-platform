@@ -1,5 +1,6 @@
 package io.github.takgeun.iyum.community.post.api;
 
+import io.github.takgeun.iyum.member.infrastructure.MemberRepository;
 import io.github.takgeun.iyum.community.post.application.*;
 import io.github.takgeun.iyum.community.post.domain.PostTopic;
 import io.github.takgeun.iyum.community.post.domain.PostType;
@@ -49,6 +50,9 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 })
 @ActiveProfiles("dev")
 class PostReadControllerTest {
+    @MockitoBean
+    MemberRepository memberRepository;
+
 
     private static final String BASE =
             "/api/v1/community/posts";

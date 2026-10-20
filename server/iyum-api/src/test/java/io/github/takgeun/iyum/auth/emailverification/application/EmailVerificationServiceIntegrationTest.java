@@ -1,5 +1,6 @@
 package io.github.takgeun.iyum.auth.emailverification.application;
 
+import io.github.takgeun.iyum.support.MemberStatusFixture;
 import io.github.takgeun.iyum.auth.emailverification.domain.EmailVerificationToken;
 import io.github.takgeun.iyum.auth.emailverification.infrastructure.EmailVerificationTokenHasher;
 import io.github.takgeun.iyum.auth.emailverification.infrastructure.EmailVerificationTokenRepository;
@@ -238,11 +239,7 @@ public class EmailVerificationServiceIntegrationTest {
         saveToken(TOKEN_A);
 
         // 다양한 회원 상태를 준비하기 위한 테스트 DB 설정입니다.
-        jdbcTemplate.update(
-                "update members set status = ? where id = ?",
-                memberStatus.name(),
-                memberId
-        );
+        MemberStatusFixture.setStatus(jdbcTemplate, memberId, memberStatus);
 
         assertRejected(TOKEN_A);
 
