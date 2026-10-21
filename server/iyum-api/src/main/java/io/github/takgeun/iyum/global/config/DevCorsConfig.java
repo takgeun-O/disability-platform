@@ -149,6 +149,23 @@ public class DevCorsConfig {
                 memberWithdrawalCors
         );
 
+        CorsConfiguration passwordResetCors =
+                new CorsConfiguration(cors);
+
+        passwordResetCors.setAllowedMethods(
+                List.of("POST", "OPTIONS")
+        );
+
+        source.registerCorsConfiguration(
+                "/api/v1/auth/password-reset/request",
+                passwordResetCors
+        );
+
+        source.registerCorsConfiguration(
+                "/api/v1/auth/password-reset/complete",
+                passwordResetCors
+        );
+
         return source;
     }
 }

@@ -17,6 +17,7 @@ import java.io.IOException;
 
 /**
  * 세션에 로그인 정보가 남아 있더라도, DB에서 더 이상 ACTIVE 회원이 아니라면 로그아웃 시키는 필터
+ *
  * @Component 없이 Spring Security 필터 체인에 직접 등록할 것 (SpringConfig)
  */
 public class MemberSessionStatusFilter extends OncePerRequestFilter {
@@ -75,17 +76,21 @@ public class MemberSessionStatusFilter extends OncePerRequestFilter {
             // 2. 세션에 남아있는 정보인 이전 로그인 정보를 불러온다.
             Long memberId = principal.getMemberId();
 
-            boolean activeMember =
+            // 로그인 당시 세션에 저장한 버전
+            long credentialVersion = principal.getCredentialVersion();
+
+            boolean validSession =
                     memberId != null
                             && memberId > 0
-                            // 3. DB 상태를 확인한다.
-                            && memberRepository.existsByIdAndStatus(
+                            && credentialVersion >= 0
+                            && memberRepository
+                            .existsByIdAndStatusAndCredentialVersion(
                                     memberId,
-                                    MemberStatus.ACTIVE
+                                    MemberStatus.ACTIVE,
+                                    credentialVersion
                             );
 
-            // 4. 회원이 ACTIVE가 아니면 현재 세션을 로그아웃 처리
-            if(!activeMember) {
+            if(!validSession) {
                 securityContextLogoutHandler.logout(
                         request,
                         response,

@@ -54,7 +54,8 @@ public class MemberUserDetailsService implements UserDetailsService {
                 member.getPasswordHash(),
                 member.getNickname(),
                 member.getStatus(),
-                member.getRole()
+                member.getRole(),
+                member.getCredentialVersion()   // 여기서는 반드시 DB에서 읽은 회원의 버전 전달
         );
     }
 }

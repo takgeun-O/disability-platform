@@ -470,7 +470,8 @@ class CommentCreateApiTest {
                 commentAuthor.getPasswordHash(),
                 commentAuthor.getNickname(),
                 commentAuthor.getStatus(),
-                commentAuthor.getRole()
+                commentAuthor.getRole(),
+                commentAuthor.getCredentialVersion()
         );
 
         return post(COMMENTS_URL, targetPostId)

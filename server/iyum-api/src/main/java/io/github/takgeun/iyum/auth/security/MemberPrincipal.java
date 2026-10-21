@@ -26,13 +26,18 @@ public class MemberPrincipal extends User {
     private final MemberStatus status;
     private final MemberRole role;
 
+    private final long credentialVersion;
+
     public MemberPrincipal(
             Long memberId,
             String email,
             String passwordHash,
             String nickname,
             MemberStatus status,
-            MemberRole role
+            MemberRole role,
+            // 이 값은 로그인 당시 버전이다. 이후 DB값이 바뀌어도 기존 세션 안의 버전은 그대로 남아 있어야
+            // 이전 로그인인지 구분할 수 있음.
+            long credentialVersion
     ) {
         super(
                 email,
@@ -51,9 +56,16 @@ public class MemberPrincipal extends User {
                 )
         );
 
+        if(credentialVersion < 0) {
+            throw new IllegalArgumentException(
+                    "인증 버전은 0 이상이어야 합니다."
+            );
+        }
+
         this.memberId = memberId;
         this.nickname = nickname;
         this.status = status;
         this.role = role;
+        this.credentialVersion = credentialVersion;
     }
 }

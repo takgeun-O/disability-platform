@@ -442,7 +442,8 @@ class CommentDeleteApiTest {
                 member.getPasswordHash(),
                 member.getNickname(),
                 member.getStatus(),
-                member.getRole()
+                member.getRole(),
+                member.getCredentialVersion()
         );
 
         return delete(COMMENT_URL, targetPostId, targetCommentId)

@@ -401,7 +401,8 @@ class MemberCommentReadControllerTest {
                 "{noop}unused-password",
                 "테스트회원",
                 MemberStatus.ACTIVE,
-                MemberRole.USER
+                MemberRole.USER,
+                0L
         );
     }
 
@@ -429,7 +430,7 @@ class MemberCommentReadControllerTest {
     }
 
     private void givenActiveMember() {
-        when(memberRepository.existsByIdAndStatus(
-                MEMBER_ID, MemberStatus.ACTIVE)).thenReturn(true);
+        when(memberRepository.existsByIdAndStatusAndCredentialVersion(
+                MEMBER_ID, MemberStatus.ACTIVE, 0L)).thenReturn(true);
     }
 }
