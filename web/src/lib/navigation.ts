@@ -15,7 +15,7 @@ export function safeReturnPath(value: string): string {
     }
     if (pathname.startsWith('//') || /[\\\u0000-\u001f\u007f]/.test(pathname)) return '/';
     const normalized = new URL(pathname, base);
-    if (normalized.origin !== base || /^\/login(?:\/|$)/i.test(normalized.pathname)) return '/';
+    if (normalized.origin !== base || /^\/(?:login|reset-password)(?:\/|$)/i.test(normalized.pathname)) return '/';
     return `${url.pathname}${url.search}${url.hash}`;
   } catch { return '/'; }
 }

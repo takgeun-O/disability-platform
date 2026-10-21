@@ -128,6 +128,8 @@ public class SecurityConfig {
                             .requestMatchers(
                                     HttpMethod.GET,
                                     "/api/v1/auth/csrf",
+                                    // 읽기 전용 사전 확인만 공개한다. POST의 CSRF 검사는 유지한다.
+                                    "/api/v1/auth/password-reset/validate",
                                     "/api/v1/community/posts",
                                     "/api/v1/community/posts/*",
                                     "/api/v1/community/posts/*/comments"

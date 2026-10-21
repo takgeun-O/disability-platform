@@ -1,0 +1,723 @@
+[
+  {
+    "name": "io.github.takgeun.iyum.member.application.MemberWithdrawalServiceIntegrationTest",
+    "tests": "14",
+    "failures": "0",
+    "errors": "0",
+    "skipped": "0"
+  },
+  {
+    "name": "io.github.takgeun.iyum.auth.emailverification.infrastructure.EmailVerificationTokenRepositoryTest",
+    "tests": "4",
+    "failures": "0",
+    "errors": "0",
+    "skipped": "0"
+  },
+  {
+    "name": "io.github.takgeun.iyum.community.comment.api.CommentCreateApiTest",
+    "tests": "20",
+    "failures": "0",
+    "errors": "0",
+    "skipped": "0"
+  },
+  {
+    "name": "io.github.takgeun.iyum.community.comment.application.CommentCreateServiceTest",
+    "tests": "17",
+    "failures": "0",
+    "errors": "0",
+    "skipped": "0"
+  },
+  {
+    "name": "io.github.takgeun.iyum.community.comment.infrastructure.CommentRepositoryTest",
+    "tests": "17",
+    "failures": "0",
+    "errors": "0",
+    "skipped": "0"
+  },
+  {
+    "name": "io.github.takgeun.iyum.auth.passwordreset.infrastructure.SmtpPasswordResetMailSenderTest",
+    "tests": "19",
+    "failures": "0",
+    "errors": "0",
+    "skipped": "0"
+  },
+  {
+    "name": "io.github.takgeun.iyum.community.comment.api.CommentDeleteApiTest",
+    "tests": "19",
+    "failures": "0",
+    "errors": "0",
+    "skipped": "0"
+  },
+  {
+    "name": "io.github.takgeun.iyum.community.comment.application.CommentReadServiceTest",
+    "tests": "20",
+    "failures": "0",
+    "errors": "0",
+    "skipped": "0"
+  },
+  {
+    "name": "io.github.takgeun.iyum.auth.session.api.AuthSessionControllerTest",
+    "tests": "9",
+    "failures": "0",
+    "errors": "0",
+    "skipped": "0"
+  },
+  {
+    "name": "io.github.takgeun.iyum.auth.passwordreset.application.PasswordResetSessionIntegrationTest",
+    "tests": "3",
+    "failures": "0",
+    "errors": "0",
+    "skipped": "0"
+  },
+  {
+    "name": "io.github.takgeun.iyum.member.api.MemberCommentSessionIntegrationTest",
+    "tests": "2",
+    "failures": "0",
+    "errors": "0",
+    "skipped": "0"
+  },
+  {
+    "name": "io.github.takgeun.iyum.auth.emailverification.application.EmailVerificationMailRequestedListenerTest",
+    "tests": "3",
+    "failures": "0",
+    "errors": "0",
+    "skipped": "0"
+  },
+  {
+    "name": "io.github.takgeun.iyum.global.config.CorsDisabledTest",
+    "tests": "1",
+    "failures": "0",
+    "errors": "0",
+    "skipped": "0"
+  },
+  {
+    "name": "io.github.takgeun.iyum.auth.security.config.AuthenticationConfigTest",
+    "tests": "13",
+    "failures": "0",
+    "errors": "0",
+    "skipped": "0"
+  },
+  {
+    "name": "io.github.takgeun.iyum.community.post.api.PostReadControllerTest",
+    "tests": "20",
+    "failures": "0",
+    "errors": "0",
+    "skipped": "0"
+  },
+  {
+    "name": "io.github.takgeun.iyum.community.post.application.PostContentPreviewTest",
+    "tests": "6",
+    "failures": "0",
+    "errors": "0",
+    "skipped": "0"
+  },
+  {
+    "name": "io.github.takgeun.iyum.auth.passwordreset.application.PasswordResetServiceTest",
+    "tests": "21",
+    "failures": "0",
+    "errors": "0",
+    "skipped": "0"
+  },
+  {
+    "name": "io.github.takgeun.iyum.community.post.infrastructure.PostRepositoryTest",
+    "tests": "10",
+    "failures": "0",
+    "errors": "0",
+    "skipped": "0"
+  },
+  {
+    "name": "io.github.takgeun.iyum.auth.emailverification.infrastructure.EmailVerificationTokenHasherTest",
+    "tests": "7",
+    "failures": "0",
+    "errors": "0",
+    "skipped": "0"
+  },
+  {
+    "name": "io.github.takgeun.iyum.auth.emailverification.infrastructure.LocalEmailVerificationMailTest",
+    "tests": "1",
+    "failures": "0",
+    "errors": "0",
+    "skipped": "1"
+  },
+  {
+    "name": "io.github.takgeun.iyum.community.post.application.PostCreateServiceIntegrationTest",
+    "tests": "10",
+    "failures": "0",
+    "errors": "0",
+    "skipped": "0"
+  },
+  {
+    "name": "io.github.takgeun.iyum.auth.signup.application.SignupEmailVerificationIntegrationTest",
+    "tests": "5",
+    "failures": "0",
+    "errors": "0",
+    "skipped": "0"
+  },
+  {
+    "name": "io.github.takgeun.iyum.auth.passwordreset.application.PasswordResetTokenValidationServiceTest",
+    "tests": "14",
+    "failures": "0",
+    "errors": "0",
+    "skipped": "0"
+  },
+  {
+    "name": "io.github.takgeun.iyum.community.comment.api.CommentUpdateApiTest",
+    "tests": "28",
+    "failures": "0",
+    "errors": "0",
+    "skipped": "0"
+  },
+  {
+    "name": "io.github.takgeun.iyum.community.post.api.dto.PostCreateRequestValidationTest",
+    "tests": "20",
+    "failures": "0",
+    "errors": "0",
+    "skipped": "0"
+  },
+  {
+    "name": "io.github.takgeun.iyum.community.post.api.PostControllerTest",
+    "tests": "30",
+    "failures": "0",
+    "errors": "0",
+    "skipped": "0"
+  },
+  {
+    "name": "io.github.takgeun.iyum.auth.session.api.dto.LoginDtoTest",
+    "tests": "21",
+    "failures": "0",
+    "errors": "0",
+    "skipped": "0"
+  },
+  {
+    "name": "io.github.takgeun.iyum.auth.signup.api.dto.SignupRequestValidationTest",
+    "tests": "32",
+    "failures": "0",
+    "errors": "0",
+    "skipped": "0"
+  },
+  {
+    "name": "io.github.takgeun.iyum.auth.signup.application.SignupServiceIntegrationTest",
+    "tests": "7",
+    "failures": "0",
+    "errors": "0",
+    "skipped": "0"
+  },
+  {
+    "name": "io.github.takgeun.iyum.auth.emailverification.application.EmailVerificationTokenIssueServiceIntegrationTest",
+    "tests": "4",
+    "failures": "0",
+    "errors": "0",
+    "skipped": "0"
+  },
+  {
+    "name": "io.github.takgeun.iyum.community.post.application.PostDeleteServiceIntegrationTest",
+    "tests": "18",
+    "failures": "0",
+    "errors": "0",
+    "skipped": "0"
+  },
+  {
+    "name": "io.github.takgeun.iyum.member.domain.MemberTest",
+    "tests": "24",
+    "failures": "0",
+    "errors": "0",
+    "skipped": "0"
+  },
+  {
+    "name": "io.github.takgeun.iyum.auth.emailverification.application.EmailVerificationServiceIntegrationTest",
+    "tests": "20",
+    "failures": "0",
+    "errors": "0",
+    "skipped": "0"
+  },
+  {
+    "name": "io.github.takgeun.iyum.IyumApiApplicationTests",
+    "tests": "2",
+    "failures": "0",
+    "errors": "0",
+    "skipped": "0"
+  },
+  {
+    "name": "io.github.takgeun.iyum.auth.passwordreset.api.PasswordResetApiIntegrationTest",
+    "tests": "3",
+    "failures": "0",
+    "errors": "0",
+    "skipped": "0"
+  },
+  {
+    "name": "io.github.takgeun.iyum.auth.passwordreset.infrastructure.SmtpPasswordResetCompletedMailSenderTest",
+    "tests": "8",
+    "failures": "0",
+    "errors": "0",
+    "skipped": "0"
+  },
+  {
+    "name": "io.github.takgeun.iyum.member.api.MemberNicknameSessionIntegrationTest",
+    "tests": "5",
+    "failures": "0",
+    "errors": "0",
+    "skipped": "0"
+  },
+  {
+    "name": "io.github.takgeun.iyum.global.config.SecurityConfigTest",
+    "tests": "3",
+    "failures": "0",
+    "errors": "0",
+    "skipped": "0"
+  },
+  {
+    "name": "io.github.takgeun.iyum.global.config.OpenApiDocumentationTest",
+    "tests": "2",
+    "failures": "0",
+    "errors": "0",
+    "skipped": "0"
+  },
+  {
+    "name": "io.github.takgeun.iyum.auth.passwordreset.api.dto.PasswordResetCompleteRequestValidationTest",
+    "tests": "25",
+    "failures": "0",
+    "errors": "0",
+    "skipped": "0"
+  },
+  {
+    "name": "io.github.takgeun.iyum.member.api.MemberPostReadControllerTest",
+    "tests": "16",
+    "failures": "0",
+    "errors": "0",
+    "skipped": "0"
+  },
+  {
+    "name": "io.github.takgeun.iyum.member.api.MemberWithdrawalControllerTest",
+    "tests": "26",
+    "failures": "0",
+    "errors": "0",
+    "skipped": "0"
+  },
+  {
+    "name": "io.github.takgeun.iyum.auth.passwordreset.infrastructure.PasswordResetIpRateLimiterTest",
+    "tests": "7",
+    "failures": "0",
+    "errors": "0",
+    "skipped": "0"
+  },
+  {
+    "name": "io.github.takgeun.iyum.auth.emailverification.application.EmailVerificationResendIntegrationTest",
+    "tests": "29",
+    "failures": "0",
+    "errors": "0",
+    "skipped": "0"
+  },
+  {
+    "name": "io.github.takgeun.iyum.member.infrastructure.MemberAgreementRepositoryTest",
+    "tests": "4",
+    "failures": "0",
+    "errors": "0",
+    "skipped": "0"
+  },
+  {
+    "name": "io.github.takgeun.iyum.auth.security.config.PasswordConfigTest",
+    "tests": "4",
+    "failures": "0",
+    "errors": "0",
+    "skipped": "0"
+  },
+  {
+    "name": "io.github.takgeun.iyum.global.config.DevCorsConfigTest",
+    "tests": "7",
+    "failures": "0",
+    "errors": "0",
+    "skipped": "0"
+  },
+  {
+    "name": "io.github.takgeun.iyum.community.post.application.PostUpdateServiceIntegrationTest",
+    "tests": "18",
+    "failures": "0",
+    "errors": "0",
+    "skipped": "0"
+  },
+  {
+    "name": "io.github.takgeun.iyum.auth.emailverification.infrastructure.SmtpEmailVerificationMailSenderTest",
+    "tests": "3",
+    "failures": "0",
+    "errors": "0",
+    "skipped": "0"
+  },
+  {
+    "name": "io.github.takgeun.iyum.member.application.MemberActivitySummaryServiceTest",
+    "tests": "8",
+    "failures": "0",
+    "errors": "0",
+    "skipped": "0"
+  },
+  {
+    "name": "io.github.takgeun.iyum.community.post.api.dto.PostUpdateRequestTest",
+    "tests": "21",
+    "failures": "0",
+    "errors": "0",
+    "skipped": "0"
+  },
+  {
+    "name": "io.github.takgeun.iyum.community.post.infrastructure.PostReadRepositoryTest",
+    "tests": "9",
+    "failures": "0",
+    "errors": "0",
+    "skipped": "0"
+  },
+  {
+    "name": "io.github.takgeun.iyum.member.domain.MemberPasswordResetTest",
+    "tests": "14",
+    "failures": "0",
+    "errors": "0",
+    "skipped": "0"
+  },
+  {
+    "name": "io.github.takgeun.iyum.community.post.application.PostReadServiceTest",
+    "tests": "24",
+    "failures": "0",
+    "errors": "0",
+    "skipped": "0"
+  },
+  {
+    "name": "io.github.takgeun.iyum.member.api.MemberCommentReadControllerTest",
+    "tests": "16",
+    "failures": "0",
+    "errors": "0",
+    "skipped": "0"
+  },
+  {
+    "name": "io.github.takgeun.iyum.auth.passwordreset.application.PasswordResetMailRequestedListenerTest",
+    "tests": "3",
+    "failures": "0",
+    "errors": "0",
+    "skipped": "0"
+  },
+  {
+    "name": "io.github.takgeun.iyum.community.comment.domain.CommentTest",
+    "tests": "17",
+    "failures": "0",
+    "errors": "0",
+    "skipped": "0"
+  },
+  {
+    "name": "io.github.takgeun.iyum.auth.emailverification.config.EmailVerificationPropertiesTest",
+    "tests": "9",
+    "failures": "0",
+    "errors": "0",
+    "skipped": "0"
+  },
+  {
+    "name": "io.github.takgeun.iyum.member.application.MemberPostReadServiceTest",
+    "tests": "17",
+    "failures": "0",
+    "errors": "0",
+    "skipped": "0"
+  },
+  {
+    "name": "io.github.takgeun.iyum.member.infrastructure.MemberRepositoryTest",
+    "tests": "10",
+    "failures": "0",
+    "errors": "0",
+    "skipped": "0"
+  },
+  {
+    "name": "io.github.takgeun.iyum.community.comment.api.validation.CommentUpdateRequestValidatorTest",
+    "tests": "13",
+    "failures": "0",
+    "errors": "0",
+    "skipped": "0"
+  },
+  {
+    "name": "io.github.takgeun.iyum.community.comment.domain.CommentInputPolicyTest",
+    "tests": "13",
+    "failures": "0",
+    "errors": "0",
+    "skipped": "0"
+  },
+  {
+    "name": "io.github.takgeun.iyum.member.application.MemberNicknameUpdateServiceTest",
+    "tests": "17",
+    "failures": "0",
+    "errors": "0",
+    "skipped": "0"
+  },
+  {
+    "name": "io.github.takgeun.iyum.auth.passwordreset.api.dto.PasswordResetIssueRequestValidationTest",
+    "tests": "12",
+    "failures": "0",
+    "errors": "0",
+    "skipped": "0"
+  },
+  {
+    "name": "io.github.takgeun.iyum.auth.passwordreset.infrastructure.PasswordResetTokenCryptoTest",
+    "tests": "10",
+    "failures": "0",
+    "errors": "0",
+    "skipped": "0"
+  },
+  {
+    "name": "io.github.takgeun.iyum.auth.passwordreset.api.PasswordResetIpRateLimitIntegrationTest",
+    "tests": "1",
+    "failures": "0",
+    "errors": "0",
+    "skipped": "0"
+  },
+  {
+    "name": "io.github.takgeun.iyum.auth.passwordreset.application.PasswordResetCompletedListenerTest",
+    "tests": "3",
+    "failures": "0",
+    "errors": "0",
+    "skipped": "0"
+  },
+  {
+    "name": "io.github.takgeun.iyum.auth.passwordreset.api.PasswordResetControllerTest",
+    "tests": "32",
+    "failures": "0",
+    "errors": "0",
+    "skipped": "0"
+  },
+  {
+    "name": "io.github.takgeun.iyum.auth.passwordreset.application.PasswordResetServiceIntegrationTest",
+    "tests": "12",
+    "failures": "0",
+    "errors": "0",
+    "skipped": "0"
+  },
+  {
+    "name": "io.github.takgeun.iyum.member.api.MemberActivityControllerTest",
+    "tests": "10",
+    "failures": "0",
+    "errors": "0",
+    "skipped": "0"
+  },
+  {
+    "name": "io.github.takgeun.iyum.auth.passwordreset.application.PasswordResetCompletedMailIntegrationTest",
+    "tests": "5",
+    "failures": "0",
+    "errors": "0",
+    "skipped": "0"
+  },
+  {
+    "name": "io.github.takgeun.iyum.member.api.MemberActivitySessionIntegrationTest",
+    "tests": "4",
+    "failures": "0",
+    "errors": "0",
+    "skipped": "0"
+  },
+  {
+    "name": "io.github.takgeun.iyum.auth.passwordreset.domain.PasswordResetTokenTest",
+    "tests": "23",
+    "failures": "0",
+    "errors": "0",
+    "skipped": "0"
+  },
+  {
+    "name": "io.github.takgeun.iyum.member.api.MemberProfileControllerTest",
+    "tests": "8",
+    "failures": "0",
+    "errors": "0",
+    "skipped": "0"
+  },
+  {
+    "name": "io.github.takgeun.iyum.auth.emailverification.domain.EmailVerificationTokenTest",
+    "tests": "9",
+    "failures": "0",
+    "errors": "0",
+    "skipped": "0"
+  },
+  {
+    "name": "io.github.takgeun.iyum.community.post.domain.PostInputPolicyTest",
+    "tests": "20",
+    "failures": "0",
+    "errors": "0",
+    "skipped": "0"
+  },
+  {
+    "name": "io.github.takgeun.iyum.community.comment.application.CommentUpdateServiceTest",
+    "tests": "25",
+    "failures": "0",
+    "errors": "0",
+    "skipped": "0"
+  },
+  {
+    "name": "io.github.takgeun.iyum.auth.emailverification.api.EmailVerificationApiIntegrationTest",
+    "tests": "20",
+    "failures": "0",
+    "errors": "0",
+    "skipped": "0"
+  },
+  {
+    "name": "io.github.takgeun.iyum.auth.session.api.LoginControllerTest",
+    "tests": "13",
+    "failures": "0",
+    "errors": "0",
+    "skipped": "0"
+  },
+  {
+    "name": "io.github.takgeun.iyum.member.api.MemberPostSessionIntegrationTest",
+    "tests": "2",
+    "failures": "0",
+    "errors": "0",
+    "skipped": "0"
+  },
+  {
+    "name": "io.github.takgeun.iyum.auth.passwordreset.infrastructure.PasswordResetTokenRepositoryTest",
+    "tests": "8",
+    "failures": "0",
+    "errors": "0",
+    "skipped": "0"
+  },
+  {
+    "name": "io.github.takgeun.iyum.auth.emailverification.infrastructure.EmailVerificationTokenGeneratorTest",
+    "tests": "2",
+    "failures": "0",
+    "errors": "0",
+    "skipped": "0"
+  },
+  {
+    "name": "io.github.takgeun.iyum.global.config.OpenApiDisabledTest",
+    "tests": "4",
+    "failures": "0",
+    "errors": "0",
+    "skipped": "0"
+  },
+  {
+    "name": "io.github.takgeun.iyum.member.infrastructure.MemberCommentCursorRepositoryTest",
+    "tests": "8",
+    "failures": "0",
+    "errors": "0",
+    "skipped": "0"
+  },
+  {
+    "name": "io.github.takgeun.iyum.community.post.domain.PostTest",
+    "tests": "10",
+    "failures": "0",
+    "errors": "0",
+    "skipped": "0"
+  },
+  {
+    "name": "io.github.takgeun.iyum.member.application.MemberProfileServiceTest",
+    "tests": "6",
+    "failures": "0",
+    "errors": "0",
+    "skipped": "0"
+  },
+  {
+    "name": "io.github.takgeun.iyum.community.comment.api.validation.CommentCreateRequestValidatorTest",
+    "tests": "13",
+    "failures": "0",
+    "errors": "0",
+    "skipped": "0"
+  },
+  {
+    "name": "io.github.takgeun.iyum.auth.passwordreset.application.PasswordResetTokenIssueServiceTest",
+    "tests": "11",
+    "failures": "0",
+    "errors": "0",
+    "skipped": "0"
+  },
+  {
+    "name": "io.github.takgeun.iyum.auth.passwordreset.application.PasswordResetMailIntegrationTest",
+    "tests": "5",
+    "failures": "0",
+    "errors": "0",
+    "skipped": "0"
+  },
+  {
+    "name": "io.github.takgeun.iyum.community.post.api.PostUpdateControllerTest",
+    "tests": "19",
+    "failures": "0",
+    "errors": "0",
+    "skipped": "0"
+  },
+  {
+    "name": "io.github.takgeun.iyum.member.infrastructure.MemberPostCursorRepositoryTest",
+    "tests": "7",
+    "failures": "0",
+    "errors": "0",
+    "skipped": "0"
+  },
+  {
+    "name": "io.github.takgeun.iyum.auth.passwordreset.config.PasswordResetPropertiesTest",
+    "tests": "9",
+    "failures": "0",
+    "errors": "0",
+    "skipped": "0"
+  },
+  {
+    "name": "io.github.takgeun.iyum.auth.passwordreset.config.PasswordResetMailConfigTest",
+    "tests": "5",
+    "failures": "0",
+    "errors": "0",
+    "skipped": "0"
+  },
+  {
+    "name": "io.github.takgeun.iyum.community.comment.api.CommentReadApiTest",
+    "tests": "20",
+    "failures": "0",
+    "errors": "0",
+    "skipped": "0"
+  },
+  {
+    "name": "io.github.takgeun.iyum.auth.security.MemberUserDetailsServiceTest",
+    "tests": "14",
+    "failures": "0",
+    "errors": "0",
+    "skipped": "0"
+  },
+  {
+    "name": "io.github.takgeun.iyum.member.api.MemberWithdrawalSessionIntegrationTest",
+    "tests": "5",
+    "failures": "0",
+    "errors": "0",
+    "skipped": "0"
+  },
+  {
+    "name": "io.github.takgeun.iyum.auth.signup.api.SignupControllerTest",
+    "tests": "29",
+    "failures": "0",
+    "errors": "0",
+    "skipped": "0"
+  },
+  {
+    "name": "io.github.takgeun.iyum.community.comment.application.CommentDeleteServiceTest",
+    "tests": "20",
+    "failures": "0",
+    "errors": "0",
+    "skipped": "0"
+  },
+  {
+    "name": "io.github.takgeun.iyum.community.post.api.PostDeleteControllerTest",
+    "tests": "13",
+    "failures": "0",
+    "errors": "0",
+    "skipped": "0"
+  },
+  {
+    "name": "io.github.takgeun.iyum.auth.signup.application.SignupTermsPolicyTest",
+    "tests": "8",
+    "failures": "0",
+    "errors": "0",
+    "skipped": "0"
+  },
+  {
+    "name": "io.github.takgeun.iyum.member.application.MemberCommentReadServiceTest",
+    "tests": "17",
+    "failures": "0",
+    "errors": "0",
+    "skipped": "0"
+  },
+  {
+    "name": "io.github.takgeun.iyum.member.api.MemberNicknameUpdateControllerTest",
+    "tests": "21",
+    "failures": "0",
+    "errors": "0",
+    "skipped": "0"
+  },
+  {
+    "name": "io.github.takgeun.iyum.auth.security.MemberSessionStatusFilterTest",
+    "tests": "10",
+    "failures": "0",
+    "errors": "0",
+    "skipped": "0"
+  }
+]

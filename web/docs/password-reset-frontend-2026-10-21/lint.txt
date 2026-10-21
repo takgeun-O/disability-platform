@@ -1,0 +1,4 @@
+
+> iyum-web@1.0.0 lint <repository>/web
+> eslint src tests
+

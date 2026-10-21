@@ -129,6 +129,18 @@ class PasswordResetApiIntegrationTest {
         assertThat(issuedToken.getRevokedAt()).isNull();
         assertThat(issuedToken.isUsable(NOW)).isTrue();
 
+        // 사전 확인 GET은 쿠키/CSRF 없이 가능하며 토큰을 소비하지 않는다.
+        for (int i = 0; i < 2; i++) {
+            var checked = mockMvc.perform(get("/api/v1/auth/password-reset/validate").param("token", rawToken))
+                    .andExpect(status().isNoContent()).andExpect(content().string(""))
+                    .andExpect(header().string(HttpHeaders.CACHE_CONTROL, containsString("no-store")))
+                    .andExpect(unauthenticated()).andReturn();
+            assertThat(checked.getRequest().getSession(false)).isNull();
+        }
+        assertThat(findToken(rawToken).getUsedAt()).isNull();
+        assertThat(findToken(rawToken).getRevokedAt()).isNull();
+        assertThat(findMember(account.memberId()).getCredentialVersion()).isZero();
+
         // 실제 완료 API를 호출한다.
         complete(
                 csrf,
@@ -163,6 +175,11 @@ class PasswordResetApiIntegrationTest {
         assertThat(usedToken.getUsedAt()).isEqualTo(NOW);
         assertThat(usedToken.getRevokedAt()).isNull();
         assertThat(usedToken.isUsable(NOW)).isFalse();
+
+        mockMvc.perform(get("/api/v1/auth/password-reset/validate").param("token", rawToken))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("PASSWORD_RESET_TOKEN_INVALID"))
+                .andExpect(header().string(HttpHeaders.CACHE_CONTROL, containsString("no-store")));
 
         String changedHash = changed.getPasswordHash();
 

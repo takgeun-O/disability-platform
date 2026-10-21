@@ -6,7 +6,7 @@ const checks = [
  ['/community/posts/create?type='+encodeURIComponent('질문·답변'), '게시글 작성'],
  ['/search?q='+encodeURIComponent('보청기'), '보청기'], ['/login?from=%2Fcommunity', '로그인'],
  ['/register', '동의'], ['/register/info', '닉네임'], ['/register/verify', '인증 정보를 확인하고 있습니다.'], ['/register/resend', '인증 메일 재전송'], ['/welfare','보청기'],
- ['/forgot-password','준비 중입니다.'], ['/hospitals','준비 중입니다.'], ['/devices','준비 중입니다.'],
+ ['/forgot-password','비밀번호를 잊으셨나요?'], ['/reset-password','새 재설정 메일 요청'], ['/hospitals','준비 중입니다.'], ['/devices','준비 중입니다.'],
  ['/validation/hearing-aid-health-insurance', '공식 출처'],
 ];
 for(const [path, expected] of checks) {

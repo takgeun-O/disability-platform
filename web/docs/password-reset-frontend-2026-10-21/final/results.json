@@ -1,0 +1,223 @@
+{
+  "results": [
+    {
+      "name": "login link, email field single error, 202 generic notice, manual retry",
+      "pass": true
+    },
+    {
+      "name": "request PASSWORD_RESET_RATE_LIMITED, safe common error and explicit recovery",
+      "pass": true
+    },
+    {
+      "name": "request CSRF_TOKEN_INVALID, safe common error and explicit recovery",
+      "pass": true
+    },
+    {
+      "name": "request SERVER_ERROR, safe common error and explicit recovery",
+      "pass": true
+    },
+    {
+      "name": "request INVALID_REQUEST_BODY, safe common error and explicit recovery",
+      "pass": true
+    },
+    {
+      "name": "missing, malformed, repeated token; no completion call on entry or reload; privacy headers",
+      "pass": true
+    },
+    {
+      "name": "password validation, keyboard toggle, mismatch, raw whitespace and byte limit",
+      "pass": true
+    },
+    {
+      "name": "complete PASSWORD_RESET_PASSWORD_UNCHANGED: single field error, value retained",
+      "pass": true
+    },
+    {
+      "name": "complete PASSWORD_RESET_PASSWORD_INVALID: single field error, value retained",
+      "pass": true
+    },
+    {
+      "name": "complete VALIDATION_FAILED: single field error, value retained",
+      "pass": true
+    },
+    {
+      "name": "expired/used token becomes link error with new request entry",
+      "pass": true
+    },
+    {
+      "name": "pending duplicate prevention, 204 cleanup and authenticated header refresh",
+      "pass": true
+    },
+    {
+      "name": "CSRF preparation failure sends no POST; subsequent explicit retry works",
+      "pass": true
+    },
+    {
+      "name": "network failure does not replay or lose password; explicit retry",
+      "pass": true
+    },
+    {
+      "name": "late completion cannot navigate away from current page",
+      "pass": true
+    },
+    {
+      "name": "server email field error appears once and successful user retry clears it",
+      "pass": true
+    },
+    {
+      "name": "completion CSRF_TOKEN_INVALID: values preserved and manual recovery",
+      "pass": true
+    },
+    {
+      "name": "completion SERVER_ERROR: values preserved and manual recovery",
+      "pass": true
+    },
+    {
+      "name": "HTTP null Origin with cross-site metadata is rejected before API",
+      "pass": true
+    },
+    {
+      "name": "HTTP null Origin with same-site metadata is rejected before API",
+      "pass": true
+    },
+    {
+      "name": "HTTP null Origin with missing metadata is rejected before API",
+      "pass": true
+    },
+    {
+      "name": "no-JS request validation, error, retry, accepted and cookie forwarding",
+      "pass": true
+    },
+    {
+      "name": "no-JS password field error, retry, 204 redirect and token-free completion document",
+      "pass": true
+    },
+    {
+      "name": "no-JS invalid token from API and malformed initial link remain visible",
+      "pass": true
+    }
+  ],
+  "layouts": [
+    {
+      "name": "request",
+      "width": 1440,
+      "overflow": false
+    },
+    {
+      "name": "request",
+      "width": 390,
+      "overflow": false
+    },
+    {
+      "name": "request",
+      "width": 320,
+      "overflow": false
+    },
+    {
+      "name": "accepted",
+      "width": 1440,
+      "overflow": false
+    },
+    {
+      "name": "accepted",
+      "width": 390,
+      "overflow": false
+    },
+    {
+      "name": "accepted",
+      "width": 320,
+      "overflow": false
+    },
+    {
+      "name": "rate-limit",
+      "width": 1440,
+      "overflow": false
+    },
+    {
+      "name": "rate-limit",
+      "width": 390,
+      "overflow": false
+    },
+    {
+      "name": "rate-limit",
+      "width": 320,
+      "overflow": false
+    },
+    {
+      "name": "invalid-link",
+      "width": 1440,
+      "overflow": false
+    },
+    {
+      "name": "invalid-link",
+      "width": 390,
+      "overflow": false
+    },
+    {
+      "name": "invalid-link",
+      "width": 320,
+      "overflow": false
+    },
+    {
+      "name": "password",
+      "width": 1440,
+      "overflow": false
+    },
+    {
+      "name": "password",
+      "width": 390,
+      "overflow": false
+    },
+    {
+      "name": "password",
+      "width": 320,
+      "overflow": false
+    },
+    {
+      "name": "field-error",
+      "width": 1440,
+      "overflow": false
+    },
+    {
+      "name": "field-error",
+      "width": 390,
+      "overflow": false
+    },
+    {
+      "name": "field-error",
+      "width": 320,
+      "overflow": false
+    },
+    {
+      "name": "expired",
+      "width": 1440,
+      "overflow": false
+    },
+    {
+      "name": "expired",
+      "width": 390,
+      "overflow": false
+    },
+    {
+      "name": "expired",
+      "width": 320,
+      "overflow": false
+    },
+    {
+      "name": "complete",
+      "width": 1440,
+      "overflow": false
+    },
+    {
+      "name": "complete",
+      "width": 390,
+      "overflow": false
+    },
+    {
+      "name": "complete",
+      "width": 320,
+      "overflow": false
+    }
+  ],
+  "mode": "Mock API only; no real SMTP/accounts changed"
+}

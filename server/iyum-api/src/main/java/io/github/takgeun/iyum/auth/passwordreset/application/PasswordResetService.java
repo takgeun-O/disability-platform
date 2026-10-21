@@ -30,9 +30,6 @@ import java.util.regex.Pattern;
 @RequiredArgsConstructor
 public class PasswordResetService {
 
-    private static final Pattern RAW_TOKEN_PATTERN =
-            Pattern.compile("[A-Za-z0-9_-]{43}");
-
     // 회원가입과 동일하게 영문과 숫자를 각각 1개 이상 요구한다.
     private static final Pattern PASSWORD_PATTERN =
             Pattern.compile("(?s)(?=.*[A-Za-z])(?=.*[0-9]).*");
@@ -50,7 +47,7 @@ public class PasswordResetService {
 
     @Transactional
     public void reset(String rawToken, String newPassword) {
-        validateRawToken(rawToken);
+        PasswordResetTokenInput.validate(rawToken);
         validateNewPassword(newPassword);
 
         String tokenHash = tokenHasher.hash(rawToken);
@@ -132,13 +129,6 @@ public class PasswordResetService {
                         now // 비밀번호 변경 직전에 확인한 시각
                 )
         );
-    }
-
-    private void validateRawToken(String rawToken) {
-        if (rawToken == null
-                || !RAW_TOKEN_PATTERN.matcher(rawToken).matches()) {
-            throw PasswordResetException.invalidToken();
-        }
     }
 
     private void validateNewPassword(String newPassword) {

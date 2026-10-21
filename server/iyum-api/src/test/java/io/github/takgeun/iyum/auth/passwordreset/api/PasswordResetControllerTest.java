@@ -2,6 +2,7 @@ package io.github.takgeun.iyum.auth.passwordreset.api;
 
 import io.github.takgeun.iyum.auth.passwordreset.application.PasswordResetException;
 import io.github.takgeun.iyum.auth.passwordreset.application.PasswordResetService;
+import io.github.takgeun.iyum.auth.passwordreset.application.PasswordResetTokenValidationService;
 import io.github.takgeun.iyum.auth.passwordreset.application.PasswordResetTokenIssueService;
 import io.github.takgeun.iyum.auth.passwordreset.infrastructure.PasswordResetIpRateLimiter;
 import io.github.takgeun.iyum.global.config.DevCorsConfig;
@@ -79,6 +80,9 @@ class PasswordResetControllerTest {
     @MockitoBean
     PasswordResetService resetService;
 
+    @MockitoBean
+    PasswordResetTokenValidationService validationService;
+
     // SecurityConfig의 MemberSessionStatusFilter 생성에 필요하다.
     // 이번 비로그인 요청에서는 조회되지 않아야 한다.
     @MockitoBean
@@ -86,6 +90,64 @@ class PasswordResetControllerTest {
 
     @MockitoBean
     PasswordResetIpRateLimiter ipRateLimiter;
+
+    @Test
+    void 비로그인_사전_확인은_CSRF나_세션_생성_없이_204를_반환한다() throws Exception {
+        var result = mockMvc.perform(get("/api/v1/auth/password-reset/validate")
+                        .param("token", TOKEN).header(HttpHeaders.ORIGIN, ORIGIN))
+                .andExpect(status().isNoContent()).andExpect(content().string(""))
+                .andExpect(header().string(HttpHeaders.CACHE_CONTROL, containsString("no-store")))
+                .andExpect(header().string(HttpHeaders.ACCESS_CONTROL_ALLOW_ORIGIN, ORIGIN))
+                .andExpect(unauthenticated()).andReturn();
+        assertThat(result.getRequest().getSession(false)).isNull();
+        verify(validationService).validate(TOKEN);
+        verifyNoMoreInteractions(validationService);
+        verifyNoInteractions(issueService, resetService, memberRepository, ipRateLimiter);
+    }
+
+    @Test
+    void 무효_토큰은_공통_400과_no_store이며_개인정보를_노출하지_않는다() throws Exception {
+        doThrow(PasswordResetException.invalidToken()).when(validationService).validate(TOKEN);
+        var result = mockMvc.perform(get("/api/v1/auth/password-reset/validate").param("token", TOKEN)
+                        .header(HttpHeaders.ORIGIN, ORIGIN))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("PASSWORD_RESET_TOKEN_INVALID"))
+                .andExpect(jsonPath("$.fieldErrors").isEmpty())
+                .andExpect(jsonPath("$.token").doesNotExist()).andExpect(jsonPath("$.memberId").doesNotExist())
+                .andExpect(header().string(HttpHeaders.CACHE_CONTROL, containsString("no-store")))
+                .andExpect(header().string(HttpHeaders.ACCESS_CONTROL_ALLOW_ORIGIN, ORIGIN))
+                .andExpect(unauthenticated()).andReturn();
+        assertThat(result.getResponse().getContentAsString()).doesNotContain(TOKEN);
+        verify(validationService).validate(TOKEN);
+        verifyNoInteractions(issueService, resetService, memberRepository, ipRateLimiter);
+    }
+
+    @Test
+    void 누락과_중복_토큰은_서비스_호출_없이_거절한다() throws Exception {
+        for (var request : java.util.List.of(
+                get("/api/v1/auth/password-reset/validate"),
+                get("/api/v1/auth/password-reset/validate").param("token", TOKEN, TOKEN))) {
+            mockMvc.perform(request).andExpect(status().isBadRequest())
+                    .andExpect(jsonPath("$.code").value("PASSWORD_RESET_TOKEN_INVALID"))
+                    .andExpect(header().string(HttpHeaders.CACHE_CONTROL, containsString("no-store")));
+        }
+        verifyNoInteractions(validationService, issueService, resetService, memberRepository, ipRateLimiter);
+    }
+
+    @Test
+    void 사전_확인_CORS는_허용_출처의_GET만_허용한다() throws Exception {
+        mockMvc.perform(options("/api/v1/auth/password-reset/validate").header(HttpHeaders.ORIGIN, ORIGIN)
+                        .header(HttpHeaders.ACCESS_CONTROL_REQUEST_METHOD, "GET"))
+                .andExpect(status().isOk())
+                .andExpect(header().string(HttpHeaders.ACCESS_CONTROL_ALLOW_ORIGIN, ORIGIN));
+        mockMvc.perform(options("/api/v1/auth/password-reset/validate").header(HttpHeaders.ORIGIN, ORIGIN)
+                        .header(HttpHeaders.ACCESS_CONTROL_REQUEST_METHOD, "POST"))
+                .andExpect(status().isForbidden());
+        mockMvc.perform(get("/api/v1/auth/password-reset/validate").param("token", TOKEN)
+                        .header(HttpHeaders.ORIGIN, "https://untrusted.example"))
+                .andExpect(status().isForbidden());
+        verifyNoInteractions(validationService, issueService, resetService, memberRepository, ipRateLimiter);
+    }
 
     @Test
     void 비로그인_메일_요청은_이메일을_정규화하여_전달하고_202를_반환한다()

@@ -1,0 +1,25 @@
+2026-10-21 Asia/Seoul · 이번 작업에서 직접 실행
+
+server/iyum-api:
+./gradlew test --tests '*PasswordResetTokenValidationServiceTest' --tests '*PasswordResetControllerTest' --tests '*PasswordResetServiceIntegrationTest' --tests '*PasswordResetServiceTest'
+초기 80건 중 1건 fixture 실패. attempts.json에 원인과 수정 기록.
+./gradlew test
+최종 103개 클래스, 1,285건: 통과 1,284 / 실패 0 / 오류 0 / 조건부 제외 1.
+제외: LocalEmailVerificationMailTest (IYUM_RUN_LOCAL_MAIL_TEST=true 미설정).
+compileJava/compileTestJava 포함. Testcontainers PostgreSQL 사용, 개발 DB 변경 없음.
+
+web (PATH=/opt/homebrew/opt/node@24/bin:$PATH):
+pnpm lint → 통과
+pnpm typecheck → 통과
+pnpm test → 307 통과, 실패·skip 0
+NEXT_PUBLIC_API_BASE_URL=http://127.0.0.1:8857 IYUM_API_INTERNAL_URL=http://127.0.0.1:8857 pnpm build → 통과
+PLAYWRIGHT_MODULE=<기존 Playwright 모듈> RESET_ARTIFACT_DIR=<외부 결과 폴더> node tests/password-reset-browser.mjs
+→ 최종 33/33 통과, 33개 레이아웃 검사, 39개 PNG. 모의 HTTP API, Chrome 1440/390/320px.
+BASE_URL 기본값 http://127.0.0.1:8457, 테스트 내부 mock API 8857.
+관련 프로덕션 서버: 동일 API 환경변수로 pnpm exec next start --hostname 127.0.0.1 --port 8457.
+git diff --check → 통과.
+
+기존 8082 실행 서버 읽기 전용 probe: 합성 잘못된 토큰 GET → 401 AUTHENTICATION_REQUIRED.
+아직 새 코드가 반영되지 않은 프로세스로 판단. 재시작하지 않았으며 실제 회원 비밀번호/SMTP는 테스트하지 않음.
+기존 8443 PID 21622, 8082 PID 17798 보존. 직접 실행한 8457 및 8857 서버 종료.
+실기기 Safari/소프트키보드/배포 프록시 로그·쿠키는 미검증.

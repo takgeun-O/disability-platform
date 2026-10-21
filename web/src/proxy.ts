@@ -3,6 +3,8 @@ import { CommunityApiError, getPost } from "@/lib/community-api"
 import { safeListReturn } from "@/lib/community-posts"
 import { topicBySlug } from "@/lib/community-topics"
 
+import { resetFormOrigin } from "@/lib/password-reset-request"
+
 const missingPostPath = "/community/post-not-found"
 const missingTopicPath = "/community/topic-not-found"
 
@@ -10,6 +12,10 @@ const missingTopicPath = "/community/topic-not-found"
 // 고정 주제는 설정으로, 게시글은 공개 API의 POST_NOT_FOUND로 렌더 전에 판정한다.
 export async function proxy(request: NextRequest) {
   const path = request.nextUrl.pathname
+  if (path === "/forgot-password" || path === "/reset-password") {
+    const headers = resetFormOrigin(request.method, path, request.headers, `${request.nextUrl.protocol}//${request.headers.get("host")}`)
+    return headers ? NextResponse.next({ request: { headers } }) : NextResponse.next()
+  }
   // RSC is a transport for client navigation. A non-2xx Flight response makes
   // Next 16.3.6 fall back to a full document navigation and discard private memory.
   // Actual document requests (including reload/no-JS) still return HTTP 404.
@@ -57,5 +63,5 @@ export async function proxy(request: NextRequest) {
 }
 
 export const config = {
-  matcher: ["/community/topics/:slug", "/community/topic-not-found", "/community/posts/:postId", "/community/post-not-found"],
+  matcher: ["/forgot-password", "/reset-password", "/community/topics/:slug", "/community/topic-not-found", "/community/posts/:postId", "/community/post-not-found"],
 }

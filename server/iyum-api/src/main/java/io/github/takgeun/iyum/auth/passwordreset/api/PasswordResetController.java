@@ -5,6 +5,8 @@ import io.github.takgeun.iyum.auth.passwordreset.api.dto.PasswordResetIssueReque
 import io.github.takgeun.iyum.auth.passwordreset.api.dto.PasswordResetIssueResponse;
 import io.github.takgeun.iyum.auth.passwordreset.application.PasswordResetRateLimitException;
 import io.github.takgeun.iyum.auth.passwordreset.application.PasswordResetService;
+import io.github.takgeun.iyum.auth.passwordreset.application.PasswordResetTokenValidationService;
+import io.github.takgeun.iyum.auth.passwordreset.application.PasswordResetException;
 import io.github.takgeun.iyum.auth.passwordreset.application.PasswordResetTokenIssueService;
 import io.github.takgeun.iyum.auth.passwordreset.infrastructure.PasswordResetIpRateLimiter;
 import io.swagger.v3.oas.annotations.Operation;
@@ -16,6 +18,9 @@ import org.springframework.http.CacheControl;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.RequestParam;
+import org.springframework.util.MultiValueMap;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
@@ -33,6 +38,29 @@ public class PasswordResetController {
     private final PasswordResetTokenIssueService issueService;
     private final PasswordResetService resetService;
     private final PasswordResetIpRateLimiter ipRateLimiter;
+    private final PasswordResetTokenValidationService validationService;
+
+    @Operation(
+            summary = "비밀번호 재설정 토큰 사전 확인",
+            description = "현재 토큰의 사용 가능 여부만 확인합니다. 실제 변경 시 다시 검증합니다."
+    )
+    @GetMapping("/validate")
+    public ResponseEntity<Void> validate(
+            @RequestParam MultiValueMap<String, String> query
+    ) {
+        var tokens = query.get("token");
+
+        if (tokens == null
+                || tokens.size() != 1
+        ) {
+            throw PasswordResetException.invalidToken();
+        }
+
+        validationService.validate(tokens.getFirst());
+        // 성공 여부가 캐시에 남지 않게 한다. 실패도 기존 예외 처리기의 no-store를 사용한다.
+        return ResponseEntity.noContent().cacheControl(CacheControl.noStore()).build();
+    }
+
 
     @Operation(
             summary = "비밀번호 재설정 메일 요청",

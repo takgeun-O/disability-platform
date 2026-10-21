@@ -45,6 +45,7 @@ import static org.mockito.Mockito.when;
         "iyum.auth.email-verification.mail.enabled=false"
 })
 @Testcontainers
+@org.springframework.test.context.event.RecordApplicationEvents
 class PasswordResetServiceIntegrationTest {
 
     private static final Instant NOW =
@@ -66,6 +67,12 @@ class PasswordResetServiceIntegrationTest {
 
     @Autowired
     PasswordResetService service;
+
+    @Autowired
+    PasswordResetTokenValidationService validation;
+
+    @Autowired
+    org.springframework.test.context.event.ApplicationEvents applicationEvents;
 
     @Autowired
     MemberRepository memberRepository;
@@ -94,6 +101,52 @@ class PasswordResetServiceIntegrationTest {
     @BeforeEach
     void setUpClock() {
         when(clock.instant()).thenReturn(NOW);
+    }
+
+    @Test
+    void 사전_확인을_반복해도_DB와_이벤트는_변하지_않고_이후_변경할_수_있다() {
+        Fixture fixture = createFixture();
+        var before = databaseSnapshot(fixture.memberId());
+        validation.validate(fixture.rawToken()); validation.validate(fixture.rawToken());
+        assertThat(databaseSnapshot(fixture.memberId())).isEqualTo(before);
+        assertThat(applicationEvents.stream(PasswordResetCompleted.class).count()).isZero();
+        assertThat(applicationEvents.stream(PasswordResetMailRequested.class).count()).isZero();
+        service.reset(fixture.rawToken(), NEW_PASSWORD);
+        assertThat(findVersion(fixture.memberId())).isEqualTo(1L);
+        assertThatThrownBy(() -> validation.validate(fixture.rawToken())).isInstanceOf(PasswordResetException.class);
+        // 계정의 과거 재설정 여부가 아니라 새 토큰의 현재 사용 가능 여부를 확인한다.
+        var raw = tokenGenerator.generate();
+        tokenRepository.saveAndFlush(PasswordResetToken.issue(fixture.memberId(), tokenHasher.hash(raw), NOW, NOW.plusSeconds(60)));
+        validation.validate(raw);
+        service.reset(raw, "AnotherPassword789!");
+        assertThat(findVersion(fixture.memberId())).isEqualTo(2L);
+    }
+
+    private long findVersion(Long memberId) { return memberRepository.findById(memberId).orElseThrow().getCredentialVersion(); }
+
+    @Test
+    void 사전_확인_후_만료되면_완료_API의_재검증이_거절한다() {
+        Fixture fixture = createFixture();
+        validation.validate(fixture.rawToken());
+        var before = databaseSnapshot(fixture.memberId());
+        when(clock.instant()).thenReturn(NOW.plusSeconds(1800));
+        assertThatThrownBy(() -> service.reset(fixture.rawToken(), NEW_PASSWORD))
+                .isInstanceOfSatisfying(PasswordResetException.class, e ->
+                        assertThat(e.getCode()).isEqualTo(PasswordResetException.Code.PASSWORD_RESET_TOKEN_INVALID));
+        assertThat(databaseSnapshot(fixture.memberId())).isEqualTo(before);
+        assertThat(applicationEvents.stream(PasswordResetCompleted.class).count()).isZero();
+    }
+
+    @Test
+    void 사전_확인_후_다른_요청이_사용하면_완료_API가_다시_거절한다() {
+        Fixture fixture = createFixture();
+        validation.validate(fixture.rawToken());
+        service.reset(fixture.rawToken(), NEW_PASSWORD);
+        var before = databaseSnapshot(fixture.memberId());
+        assertThatThrownBy(() -> service.reset(fixture.rawToken(), "AnotherPassword789!"))
+                .isInstanceOfSatisfying(PasswordResetException.class, e ->
+                        assertThat(e.getCode()).isEqualTo(PasswordResetException.Code.PASSWORD_RESET_TOKEN_INVALID));
+        assertThat(databaseSnapshot(fixture.memberId())).isEqualTo(before);
     }
 
     @Test
@@ -354,6 +407,7 @@ class PasswordResetServiceIntegrationTest {
         );
 
         var before = databaseSnapshot(fixture.memberId());
+        assertThatThrownBy(() -> validation.validate(fixture.rawToken())).isInstanceOf(PasswordResetException.class);
 
         assertThatThrownBy(() ->
                 service.reset(fixture.rawToken(), NEW_PASSWORD)
@@ -382,6 +436,7 @@ class PasswordResetServiceIntegrationTest {
 
         oldMember.withdraw(NOW);
         memberRepository.saveAndFlush(oldMember);
+        assertThatThrownBy(() -> validation.validate(fixture.rawToken())).isInstanceOf(PasswordResetException.class);
 
         String signupPassword = "RejoinedPassword123!";
         String nicknameSuffix = UUID.randomUUID()
