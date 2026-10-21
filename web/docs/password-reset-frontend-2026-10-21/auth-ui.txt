@@ -1,0 +1,10 @@
+PASS mock 로그인 1440/390/320: 입력·버튼 크기·상단 배치·키보드 비밀번호 토글
+PASS mock 로그인 입력 오류: 요청 없음·첫 오류 초점·설명 연결
+PASS mock 본문·입력·placeholder·주 버튼·초점의 대비
+PASS mock 약관 키보드 Space·부분 동의·필수 오류·모바일
+PASS mock 가입 오류 필드와 초점 연결·표시 토글·약관 유지
+PASS mock 가입 서버 필드 오류·CSRF 복구 후 수동 재시도만 허용
+PASS mock 가입 요청 중 비활성·중복 차단·201/PENDING만 대기·자동 로그인 없음
+PASS mock 이메일 인증 대기·진행·성공·실패와 초점·재전송 연결
+PASS mock 재전송 오류·진행·접수의 구분·새 CSRF·입력 보존
+PASS mock 브라우저 런타임 오류 없음

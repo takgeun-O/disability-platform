@@ -1,0 +1,6 @@
+
+> iyum-web@1.0.0 typecheck <repository>/web
+> next typegen && tsc --noEmit
+
+Generating route types...
+✓ Types generated successfully

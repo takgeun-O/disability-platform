@@ -1,6 +1,8 @@
 package io.github.takgeun.iyum.global.error;
 
 import io.github.takgeun.iyum.auth.emailverification.application.InvalidEmailVerificationTokenException;
+import io.github.takgeun.iyum.auth.passwordreset.application.PasswordResetException;
+import io.github.takgeun.iyum.auth.passwordreset.application.PasswordResetRateLimitException;
 import io.github.takgeun.iyum.auth.session.application.CurrentMemberReadException;
 import io.github.takgeun.iyum.auth.signup.application.SignupConflictException;
 import io.github.takgeun.iyum.auth.signup.application.SignupTermsException;
@@ -31,6 +33,7 @@ import org.springframework.web.servlet.mvc.method.annotation.ResponseEntityExcep
 import java.util.Comparator;
 import java.util.List;
 
+import static io.github.takgeun.iyum.auth.passwordreset.application.PasswordResetException.Code.PASSWORD_RESET_PASSWORD_UNCHANGED;
 import static io.github.takgeun.iyum.community.comment.application.CommentUpdateException.Code.COMMENT_NOT_FOUND;
 
 @RestControllerAdvice
@@ -698,6 +701,58 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
         return ResponseEntity.status(status)
                 .cacheControl(CacheControl.noStore())
                 .body(body);
+    }
+
+    @ExceptionHandler(PasswordResetException.class)
+    public ResponseEntity<ApiErrorResponse> handlePasswordReset(
+            PasswordResetException exception
+    ) {
+        ApiErrorResponse body = switch (exception.getCode()) {
+
+            case PASSWORD_RESET_TOKEN_INVALID ->
+                    ApiErrorResponse.of(
+                            exception.getCode().name(),
+                            exception.getMessage()
+                    );
+
+            case PASSWORD_RESET_PASSWORD_INVALID,
+                 PASSWORD_RESET_PASSWORD_UNCHANGED ->
+                    new ApiErrorResponse(
+                            exception.getCode().name(),
+                            exception.getMessage(),
+                            List.of(
+                                    new ApiErrorResponse.FieldError(
+                                            "newPassword",
+                                            exception.getMessage()
+                                    )
+                            )
+                    );
+        };
+
+        return ResponseEntity
+                .badRequest()
+                .cacheControl(CacheControl.noStore())
+                .body(body);
+    }
+
+    @ExceptionHandler(PasswordResetRateLimitException.class)
+    public ResponseEntity<ApiErrorResponse> handlePasswordResetRateLimit(
+            PasswordResetRateLimitException exception
+    ) {
+        /**
+         * {
+         *   "code": "PASSWORD_RESET_RATE_LIMITED",
+         *   "message": "비밀번호 재설정 요청이 많습니다. 잠시 후 다시 시도해주세요.",
+         *   "fieldErrors": []
+         * }
+         */
+        return ResponseEntity
+                .status(HttpStatus.TOO_MANY_REQUESTS)
+                .cacheControl(CacheControl.noStore())
+                .body(ApiErrorResponse.of(
+                        "PASSWORD_RESET_RATE_LIMITED",
+                        exception.getMessage()
+                ));
     }
 
     @ExceptionHandler(Exception.class)

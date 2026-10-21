@@ -159,7 +159,7 @@ export default function Login() {
       )}
       <nav className="auth-links" aria-label="계정 관련 이동">
         <Link href="/register" className="iyum-text-link">회원가입</Link>
-        <Link href="/forgot-password" className="iyum-text-link">비밀번호 찾기</Link>
+        <Link href="/forgot-password" className="iyum-text-link">비밀번호를 잊으셨나요?</Link>
       </nav>
     </AuthFrame>
   );

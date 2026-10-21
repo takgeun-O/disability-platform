@@ -149,6 +149,28 @@ public class DevCorsConfig {
                 memberWithdrawalCors
         );
 
+        CorsConfiguration passwordResetCors =
+                new CorsConfiguration(cors);
+
+        passwordResetCors.setAllowedMethods(
+                List.of("POST", "OPTIONS")
+        );
+
+        source.registerCorsConfiguration(
+                "/api/v1/auth/password-reset/request",
+                passwordResetCors
+        );
+
+        source.registerCorsConfiguration(
+                "/api/v1/auth/password-reset/complete",
+                passwordResetCors
+        );
+
+        // 사전 확인은 쿠키 발급·변경 없이 GET으로 조회한다. 기존 POST 허용 범위는 그대로 둔다.
+        CorsConfiguration resetValidationCors = new CorsConfiguration(cors);
+        resetValidationCors.setAllowedMethods(List.of("GET", "OPTIONS"));
+        source.registerCorsConfiguration("/api/v1/auth/password-reset/validate", resetValidationCors);
+
         return source;
     }
 }

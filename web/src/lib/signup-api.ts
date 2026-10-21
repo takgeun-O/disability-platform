@@ -27,8 +27,7 @@ export class SignupApiError extends Error {
   }
 }
 
-function apiUrl(path: string): string {
-  const base = process.env.NEXT_PUBLIC_API_BASE_URL;
+function apiUrl(path: string, base = process.env.NEXT_PUBLIC_API_BASE_URL): string {
   if (!base) {
     throw new SignupApiError(0, 'API_NOT_CONFIGURED', '가입 서비스에 연결할 수 없습니다. 잠시 후 다시 시도해 주세요.');
   }
@@ -74,11 +73,11 @@ export async function getCsrfToken(): Promise<string> {
 export type CsrfContext = { headerName: 'X-CSRF-TOKEN'; token: string };
 
 // 인증 기능들이 공유하는 세션 CSRF 조회. 호출자가 기능에 맞는 오류 문구로 변환한다.
-export async function getCsrfContext(): Promise<CsrfContext> {
-  const url = apiUrl('/api/v1/auth/csrf');
+export async function getCsrfContext(base = process.env.NEXT_PUBLIC_API_BASE_URL, fetcher: typeof fetch = fetch): Promise<CsrfContext> {
+  const url = apiUrl('/api/v1/auth/csrf', base);
   let response: Response;
   try {
-    response = await fetch(url, {
+    response = await fetcher(url, {
       method: 'GET',
       redirect: 'error',
       referrerPolicy: 'no-referrer',

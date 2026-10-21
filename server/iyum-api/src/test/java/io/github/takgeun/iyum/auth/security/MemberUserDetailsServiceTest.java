@@ -127,6 +127,57 @@ class MemberUserDetailsServiceTest {
         verifyNoInteractions(memberRepository);
     }
 
+    @Test
+    void DB의_인증_버전을_로그인_정보에_복사한다() {
+        Member member = storedMember(
+                MemberStatus.ACTIVE,
+                MemberRole.USER
+        );
+
+        // 기본값 0이 아닌 값으로 검증해서
+        // 실제로 DB 값을 전달하는지 확인한다.
+        when(member.getCredentialVersion()).thenReturn(7L);
+
+        when(memberRepository.findByEmail(EMAIL))
+                .thenReturn(Optional.of(member));
+
+        MemberPrincipal principal =
+                userDetailsService.loadUserByUsername(EMAIL);
+
+        assertThat(principal.getCredentialVersion()).isEqualTo(7L);
+
+        // DB 회원 값이 바뀌어도 이미 만든 로그인 정보는 유지되어야 한다.
+        when(member.getCredentialVersion()).thenReturn(8L);
+
+        assertThat(member.getCredentialVersion()).isEqualTo(8L);
+        assertThat(principal.getCredentialVersion()).isEqualTo(7L);
+    }
+
+    @Test
+    void 재설정_후_새_로그인만_최신_버전을_받는다() {
+        // Mock long의 기본값에 의존하지 않고 실제 엔티티의 재설정을 사용한다.
+        Member member = Member.createPending(EMAIL, TEST_HASH, "재설정회원");
+        member.activeAfterEmailVerification();
+        for (int i = 0; i < 7; i++) {
+            member.resetPassword("test-only-reset-hash-" + i);
+        }
+        when(memberRepository.findByEmail(EMAIL)).thenReturn(Optional.of(member));
+
+        MemberPrincipal previousLogin = userDetailsService.loadUserByUsername(EMAIL);
+        assertThat(previousLogin.getCredentialVersion()).isEqualTo(7L);
+
+        member.resetPassword("test-only-latest-hash");
+        MemberPrincipal newLogin = userDetailsService.loadUserByUsername(EMAIL);
+
+        assertThat(member.getCredentialVersion()).isEqualTo(8L);
+        assertThat(previousLogin.getCredentialVersion()).isEqualTo(7L);
+        assertThat(previousLogin.getPassword()).isEqualTo("test-only-reset-hash-6");
+        assertThat(newLogin.getCredentialVersion()).isEqualTo(8L);
+        assertThat(newLogin.getPassword()).isEqualTo("test-only-latest-hash");
+        assertThat(newLogin).isNotSameAs(previousLogin);
+        verify(memberRepository, times(2)).findByEmail(EMAIL);
+    }
+
     private Member storedMember(
             MemberStatus status,
             MemberRole role

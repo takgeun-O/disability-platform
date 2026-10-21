@@ -70,4 +70,11 @@ public interface MemberRepository extends JpaRepository<Member, Long> {
             Long memberId,
             MemberStatus status
     );
+
+    // 회원 상태가 ACTIVE 이면서 DB의 credentialVersion과 로그인 당시 버전이 일치하는지 여부
+    boolean existsByIdAndStatusAndCredentialVersion(
+            Long memberId,
+            MemberStatus status,
+            long credentialVersion
+    );
 }

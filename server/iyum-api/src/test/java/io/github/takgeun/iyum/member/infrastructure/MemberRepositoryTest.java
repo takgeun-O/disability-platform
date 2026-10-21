@@ -90,6 +90,7 @@ public class MemberRepositoryTest {
         assertThat(found.getNickname()).isEqualTo("Takkeun");
         assertThat(found.getStatus()).isEqualTo(MemberStatus.PENDING);
         assertThat(found.getRole()).isEqualTo(MemberRole.USER);
+        assertThat(found.getCredentialVersion()).isZero();
         assertThat(found.getCreatedAt()).isEqualTo(CREATED_TIME);
         assertThat(found.getUpdatedAt()).isEqualTo(CREATED_TIME);
 
@@ -334,5 +335,51 @@ public class MemberRepositoryTest {
         assertThat(foundSecond.getEmail()).isNull();
         assertThat(foundFirst.getNickname()).isNull();
         assertThat(foundSecond.getNickname()).isNull();
+    }
+
+    @Test
+    void 활성_상태와_인증_버전이_모두_일치해야_세션을_허용한다() {
+        Member member = Member.createPending(
+                "session-version@example.com",
+                TEST_HASH,
+                "세션버전회원"
+        );
+
+        memberRepository.saveAndFlush(member);
+
+        Long memberId = member.getId();
+
+        // 버전이 맞아도 PENDING 회원이면 허용하지 않는다.
+        assertThat(
+                memberRepository.existsByIdAndStatusAndCredentialVersion(
+                        memberId, MemberStatus.ACTIVE, 0L
+                )
+        ).isFalse();
+
+        member.activeAfterEmailVerification();
+        memberRepository.flush();
+
+        assertThat(
+                memberRepository.existsByIdAndStatusAndCredentialVersion(
+                        memberId, MemberStatus.ACTIVE, 0L
+                )
+        ).isTrue();
+
+        member.resetPassword("new-test-password-hash");
+        memberRepository.flush();
+
+        // 비밀번호 재설정 전 버전은 더 이상 유효하지 않다.
+        assertThat(
+                memberRepository.existsByIdAndStatusAndCredentialVersion(
+                        memberId, MemberStatus.ACTIVE, 0L
+                )
+        ).isFalse();
+
+        // 최신 버전은 유효하다.
+        assertThat(
+                memberRepository.existsByIdAndStatusAndCredentialVersion(
+                        memberId, MemberStatus.ACTIVE, 1L
+                )
+        ).isTrue();
     }
 }

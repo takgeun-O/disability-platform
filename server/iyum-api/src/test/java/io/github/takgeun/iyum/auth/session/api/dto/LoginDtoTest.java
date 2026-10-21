@@ -172,7 +172,8 @@ class LoginDtoTest {
                 passwordHash,
                 "타끈",
                 MemberStatus.ACTIVE,
-                MemberRole.USER
+                MemberRole.USER,
+                0L
         );
 
         LoginResponse response =

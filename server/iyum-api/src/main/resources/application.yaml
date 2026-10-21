@@ -42,6 +42,7 @@ spring:
 # Spring 서버 포트
 server:
   port: 8082
+  forward-headers-strategy: none
 
 # 서버 상태 확인
 # 서버 상태를 확인하는 API를 열되, 내부 상세 정보는 응답에 표시하지 않는다.
@@ -70,3 +71,9 @@ iyum:
       token-ttl: 30m
       resend-min-interval: 60s
       resend-max-per-hour: 5
+
+    password-reset:
+      token-ttl: 30m
+      resend-min-interval: 60s
+      resend-max-per-hour: 5
+      request-max-per-ip-per-hour: 30

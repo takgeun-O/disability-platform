@@ -315,9 +315,10 @@ class MemberNicknameUpdateControllerTest {
 
         // 세션에는 ACTIVE인 MemberPrincipal이 남아 있지만,
         // DB 조회 결과는 더 이상 활성 회원이 아닌 상황이다.
-        when(memberRepository.existsByIdAndStatus(
+        when(memberRepository.existsByIdAndStatusAndCredentialVersion(
                 MEMBER_ID,
-                MemberStatus.ACTIVE
+                MemberStatus.ACTIVE,
+                0L
         )).thenReturn(false);
 
         mockMvc.perform(
@@ -335,9 +336,10 @@ class MemberNicknameUpdateControllerTest {
                         containsString("no-store")
                 ));
 
-        verify(memberRepository).existsByIdAndStatus(
+        verify(memberRepository).existsByIdAndStatusAndCredentialVersion(
                 MEMBER_ID,
-                MemberStatus.ACTIVE
+                MemberStatus.ACTIVE,
+                0L
         );
         verifyNoInteractions(nicknameUpdateService);
     }
@@ -488,9 +490,10 @@ class MemberNicknameUpdateControllerTest {
     }
 
     private void givenActiveMember() {
-        when(memberRepository.existsByIdAndStatus(
+        when(memberRepository.existsByIdAndStatusAndCredentialVersion(
                 MEMBER_ID,
-                MemberStatus.ACTIVE
+                MemberStatus.ACTIVE,
+                0L
         )).thenReturn(true);
     }
 
@@ -513,7 +516,8 @@ class MemberNicknameUpdateControllerTest {
                 "test-only-password-hash",
                 "기존닉네임",
                 MemberStatus.ACTIVE,
-                MemberRole.USER
+                MemberRole.USER,
+                0L
         );
     }
 }

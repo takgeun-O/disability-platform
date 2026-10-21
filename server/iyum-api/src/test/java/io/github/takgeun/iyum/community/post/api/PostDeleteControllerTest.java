@@ -322,12 +322,13 @@ class PostDeleteControllerTest {
                 "test-only-password-hash",
                 "게시글작성자",
                 MemberStatus.ACTIVE,
-                MemberRole.USER
+                MemberRole.USER,
+                0L
         );
     }
 
     private void givenActiveMember() {
-        when(memberRepository.existsByIdAndStatus(
-                7L, MemberStatus.ACTIVE)).thenReturn(true);
+        when(memberRepository.existsByIdAndStatusAndCredentialVersion(
+                7L, MemberStatus.ACTIVE, 0L)).thenReturn(true);
     }
 }

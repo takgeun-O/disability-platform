@@ -506,7 +506,8 @@ class CommentUpdateApiTest {
                 member.getPasswordHash(),
                 member.getNickname(),
                 member.getStatus(),
-                member.getRole()
+                member.getRole(),
+                member.getCredentialVersion()
         );
 
         return put(COMMENT_URL, targetPostId, targetCommentId)

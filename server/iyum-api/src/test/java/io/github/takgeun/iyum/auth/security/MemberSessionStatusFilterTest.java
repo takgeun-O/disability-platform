@@ -32,10 +32,10 @@ class MemberSessionStatusFilterTest {
 
     @Test
     void activeMemberContinuesWithTheExactPrincipalId() throws Exception {
-        when(members.existsByIdAndStatus(7L, MemberStatus.ACTIVE)).thenReturn(true);
+        when(members.existsByIdAndStatusAndCredentialVersion(7L, MemberStatus.ACTIVE, 0L)).thenReturn(true);
         mvc.perform(get("/test/session-protected").with(user(principal())))
                 .andExpect(status().isOk());
-        verify(members).existsByIdAndStatus(7L, MemberStatus.ACTIVE);
+        verify(members).existsByIdAndStatusAndCredentialVersion(7L, MemberStatus.ACTIVE, 0L);
         verify(service).read();
     }
 
@@ -48,7 +48,7 @@ class MemberSessionStatusFilterTest {
                 .andExpect(cookie().maxAge("JSESSIONID", 0))
                 .andExpect(unauthenticated());
         assertThat(session.isInvalid()).isTrue();
-        verify(members).existsByIdAndStatus(7L, MemberStatus.ACTIVE);
+        verify(members).existsByIdAndStatusAndCredentialVersion(7L, MemberStatus.ACTIVE, 0L);
         verifyNoInteractions(service);
     }
 
@@ -58,7 +58,7 @@ class MemberSessionStatusFilterTest {
         mvc.perform(get("/api/v1/community/posts").session(session).with(user(principal())))
                 .andExpect(status().isOk()).andExpect(unauthenticated());
         assertThat(session.isInvalid()).isTrue();
-        verify(members).existsByIdAndStatus(7L, MemberStatus.ACTIVE);
+        verify(members).existsByIdAndStatusAndCredentialVersion(7L, MemberStatus.ACTIVE, 0L);
         verify(service).read();
     }
 
@@ -67,7 +67,7 @@ class MemberSessionStatusFilterTest {
         mvc.perform(post("/test/session-protected").with(user(principal())).with(csrf()))
                 .andExpect(status().isUnauthorized())
                 .andExpect(jsonPath("$.code").value("AUTHENTICATION_REQUIRED"));
-        verify(members).existsByIdAndStatus(7L, MemberStatus.ACTIVE);
+        verify(members).existsByIdAndStatusAndCredentialVersion(7L, MemberStatus.ACTIVE, 0L);
         verifyNoInteractions(service);
     }
 
@@ -98,9 +98,118 @@ class MemberSessionStatusFilterTest {
         verify(service).read();
     }
 
+    @Test
+    void 인증_버전이_일치하면_로그인을_유지한다() throws Exception {
+        when(members.existsByIdAndStatusAndCredentialVersion(
+                7L,
+                MemberStatus.ACTIVE,
+                7L
+        )).thenReturn(true);
+
+        MockHttpSession session = new MockHttpSession();
+
+        mvc.perform(
+                        get("/test/session-protected")
+                                .session(session)
+                                .with(user(principal(7L)))
+                )
+                .andExpect(status().isOk())
+                .andExpect(
+                        org.springframework.security.test.web.servlet
+                                .response.SecurityMockMvcResultMatchers
+                                .authenticated()
+                );
+
+        assertThat(session.isInvalid()).isFalse();
+
+        verify(members).existsByIdAndStatusAndCredentialVersion(
+                7L,
+                MemberStatus.ACTIVE,
+                7L
+        );
+        verify(service).read();
+    }
+
+    @Test
+    void 이전_인증_버전의_세션은_보호된_요청에서_로그아웃된다()
+            throws Exception {
+
+        when(members.existsByIdAndStatusAndCredentialVersion(
+                7L,
+                MemberStatus.ACTIVE,
+                6L
+        )).thenReturn(false);
+
+        MockHttpSession session = new MockHttpSession();
+
+        mvc.perform(
+                        get("/test/session-protected")
+                                .session(session)
+                                .with(user(principal(6L)))
+                )
+                .andExpect(status().isUnauthorized())
+                .andExpect(
+                        jsonPath("$.code")
+                                .value("AUTHENTICATION_REQUIRED")
+                )
+                .andExpect(cookie().maxAge("JSESSIONID", 0))
+                .andExpect(unauthenticated());
+
+        assertThat(session.isInvalid()).isTrue();
+
+        verify(members).existsByIdAndStatusAndCredentialVersion(
+                7L,
+                MemberStatus.ACTIVE,
+                6L
+        );
+        verifyNoInteractions(service);
+    }
+
+    @Test
+    void 이전_인증_버전이라도_공개_조회는_비로그인으로_진행한다()
+            throws Exception {
+
+        when(members.existsByIdAndStatusAndCredentialVersion(
+                7L,
+                MemberStatus.ACTIVE,
+                6L
+        )).thenReturn(false);
+
+        MockHttpSession session = new MockHttpSession();
+
+        mvc.perform(
+                        get("/api/v1/community/posts")
+                                .session(session)
+                                .with(user(principal(6L)))
+                )
+                .andExpect(status().isOk())
+                .andExpect(unauthenticated())
+                .andExpect(cookie().maxAge("JSESSIONID", 0));
+
+        assertThat(session.isInvalid()).isTrue();
+
+        verify(members).existsByIdAndStatusAndCredentialVersion(
+                7L,
+                MemberStatus.ACTIVE,
+                6L
+        );
+        verify(service).read();
+    }
+
     private MemberPrincipal principal() {
-        return new MemberPrincipal(7L, "fixture@example.com", "test-only-hash",
-                "테스트회원", MemberStatus.ACTIVE, MemberRole.USER);
+        return principal(0L);
+    }
+
+    private MemberPrincipal principal(long credentialVersion) {
+        return new MemberPrincipal(
+                7L,
+                "fixture@example.com",
+                "test-only-hash",
+                "테스트회원",
+                MemberStatus.ACTIVE,
+                MemberRole.USER,
+                credentialVersion
+        );
     }
 
     interface EndpointService { void read(); }

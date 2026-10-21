@@ -82,7 +82,7 @@ class LoginControllerTest {
     void 로그인하면_세션ID가_바뀌고_다음_요청에도_인증이_유지된다()
             throws Exception {
         givenMember(MemberStatus.ACTIVE);
-        when(memberRepository.existsByIdAndStatus(1L, MemberStatus.ACTIVE)).thenReturn(true);
+        when(memberRepository.existsByIdAndStatusAndCredentialVersion(1L, MemberStatus.ACTIVE, 0L)).thenReturn(true);
 
         CsrfSession csrf = csrf(null);
         String previousSessionId = csrf.session().getId();
@@ -136,7 +136,7 @@ class LoginControllerTest {
     void 로그인_이전_CSRF는_거절하고_새_CSRF는_허용한다()
             throws Exception {
         givenMember(MemberStatus.ACTIVE);
-        when(memberRepository.existsByIdAndStatus(1L, MemberStatus.ACTIVE)).thenReturn(true);
+        when(memberRepository.existsByIdAndStatusAndCredentialVersion(1L, MemberStatus.ACTIVE, 0L)).thenReturn(true);
 
         CsrfSession beforeLogin = csrf(null);
 

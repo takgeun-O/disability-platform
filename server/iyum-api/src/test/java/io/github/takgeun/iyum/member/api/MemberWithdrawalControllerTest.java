@@ -377,9 +377,10 @@ class MemberWithdrawalControllerTest {
 
         MockHttpSession session = authenticatedSession();
 
-        when(memberRepository.existsByIdAndStatus(
+        when(memberRepository.existsByIdAndStatusAndCredentialVersion(
                 MEMBER_ID,
-                MemberStatus.ACTIVE
+                MemberStatus.ACTIVE,
+                0L
         )).thenReturn(false);
 
         mockMvc.perform(
@@ -395,9 +396,10 @@ class MemberWithdrawalControllerTest {
                 .andExpect(cookie().maxAge("JSESSIONID", 0))
                 .andExpect(unauthenticated());
 
-        verify(memberRepository).existsByIdAndStatus(
+        verify(memberRepository).existsByIdAndStatusAndCredentialVersion(
                 MEMBER_ID,
-                MemberStatus.ACTIVE
+                MemberStatus.ACTIVE,
+                0L
         );
         verifyNoInteractions(withdrawalService);
 
@@ -500,9 +502,10 @@ class MemberWithdrawalControllerTest {
     }
 
     private void givenActiveMember() {
-        when(memberRepository.existsByIdAndStatus(
+        when(memberRepository.existsByIdAndStatusAndCredentialVersion(
                 MEMBER_ID,
-                MemberStatus.ACTIVE
+                MemberStatus.ACTIVE,
+                0L
         )).thenReturn(true);
     }
 
@@ -532,7 +535,8 @@ class MemberWithdrawalControllerTest {
                 "test-only-password-hash",
                 "탈퇴테스트회원",
                 MemberStatus.ACTIVE,
-                MemberRole.USER
+                MemberRole.USER,
+                0L
         );
 
         var authentication =

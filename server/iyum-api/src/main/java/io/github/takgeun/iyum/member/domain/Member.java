@@ -54,6 +54,9 @@ public class Member {
     @Column(name = "withdrawn_at")
     private Instant withdrawnAt;
 
+    @Column(name = "credential_version", nullable = false)
+    private long credentialVersion;
+
     private Member(
             String email,
             String passwordHash,
@@ -128,5 +131,32 @@ public class Member {
         // 메서드 내부에서 Instant.now() 호출하지 않음
         this.withdrawnAt = withdrawnAt;
         this.status = MemberStatus.DELETED;
+    }
+
+    // 비밀번호 재설정 메서드
+    // 새로운 비밀번호 해시를 저장한다
+    // 기존 로그인을 구분하는 credentialVersion을 1 증가시킨다.
+    public void resetPassword(String newPasswordHash) {
+        if (this.status != MemberStatus.ACTIVE) {
+            throw new IllegalStateException(
+                    "활성 회원만 비밀번호를 재설정할 수 있습니다."
+            );
+        }
+
+        if (newPasswordHash == null
+                || newPasswordHash.isBlank()
+                || newPasswordHash.length() > 255) {
+            throw new IllegalArgumentException(
+                    "유효한 비밀번호 해시가 필요합니다."
+            );
+        }
+
+        // 증가할 수 있는지 먼저 계산한다.
+        // 범위를 초과하면 필드를 변경하기 전에 예외가 발생한다.
+        long nextCredentialVersion =
+                Math.addExact(this.credentialVersion, 1L);
+
+        this.passwordHash = newPasswordHash;
+        this.credentialVersion = nextCredentialVersion;
     }
 }

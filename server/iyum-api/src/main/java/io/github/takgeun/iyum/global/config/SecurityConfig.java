@@ -118,7 +118,9 @@ public class SecurityConfig {
                                     "/api/v1/auth/signup",
                                     "/api/v1/auth/email/verify",
                                     "/api/v1/auth/email/resend",
-                                    "/api/v1/auth/login"
+                                    "/api/v1/auth/login",
+                                    "/api/v1/auth/password-reset/request",
+                                    "/api/v1/auth/password-reset/complete"
                             )
                             .permitAll()    // 로그인하지 않아도 접근 허용 (단, CSRF 검사는 계속 동작. Spring Security는 기본적으로 POST 같은 요청을 CSRF 보호 대상으로 처리)
 
@@ -126,6 +128,8 @@ public class SecurityConfig {
                             .requestMatchers(
                                     HttpMethod.GET,
                                     "/api/v1/auth/csrf",
+                                    // 읽기 전용 사전 확인만 공개한다. POST의 CSRF 검사는 유지한다.
+                                    "/api/v1/auth/password-reset/validate",
                                     "/api/v1/community/posts",
                                     "/api/v1/community/posts/*",
                                     "/api/v1/community/posts/*/comments"
