@@ -1,5 +1,7 @@
 package io.github.takgeun.iyum.auth.session.config;
 
+import io.github.takgeun.iyum.auth.session.security.SessionLockingSecurityContextRepository;
+import org.springframework.boot.web.servlet.ServletListenerRegistrationBean;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.security.web.authentication.session.ChangeSessionIdAuthenticationStrategy;
@@ -13,6 +15,7 @@ import org.springframework.security.web.csrf.CsrfAuthenticationStrategy;
 import org.springframework.security.web.csrf.CsrfTokenRepository;
 import org.springframework.security.web.csrf.HttpSessionCsrfTokenRepository;
 import org.springframework.security.web.csrf.XorCsrfTokenRequestAttributeHandler;
+import org.springframework.web.util.HttpSessionMutexListener;
 
 import java.util.List;
 
@@ -24,34 +27,48 @@ import java.util.List;
  * 4. 로그인한 사용자의 SecurityContext를 저장한다.
  * 5. 로그인 성공 응답을 반환한다.
  * 6. 프론트엔드가 CSRF 토큰을 다시 받아 이후 요청에 사용한다.
- *
  * 로그인 컨트롤러에서 이런 세션 처리를 우리가 직접 호출해야 한다.
+ *
+ * 이 클래스는 로그인에 필요한 세션·인증 정보·CSRF 처리 도구를 만들어 Spring에 등록하는 설정 클래스임.
+ * 이 클래스 자체가 로그인 요청을 처리하는 것이 아니라 로그인 컨트롤러와 보안 설정이 여기서 등록한 객체를 사용해서 실제 처리 수행
  */
 @Configuration(proxyBeanMethods = false)
 public class SessionSecurityConfig {
 
-    // SecurityContextRepository : 인증 정보를 저장하는 역할
+    // SecurityContextRepository : 인증 정보를 요청 속성과 세션에 저장
+    // LoginController 쪽에서 주입 받아 사용한다.
+    // 저장 흐름 : 기존 세션의 잠금 획득 -> 요청 속성에 저장 -> 세션에 저장 -> 잠금 해제
+    // 기존 세션이 없다면 잠금 없이 실제 저장소에 위임
     @Bean
     public SecurityContextRepository securityContextRepository() {
 
-        // 현재 요청과 HTTP 세션, 두 곳을 활용해 인증 정보를 유지하도록 구성
-        // SecurityContext: 현재 사용자의 인증 정보(그러니까 Authentication)를 담는 객체. 안에 있는 Authentication에는 MemberPrincipal과 권한 등이 들어감.
-        // SecurityContextRepository: SecurityContext를 저장하고 불러오는 역할 (이름에 Repository가 있지만 JPA로 DB테이블에 저장하는 리포지토리는 아님.)
-        // 등록된 아래 저장소에 저장 임무를 위임한다고 생각하기.
-        return new DelegatingSecurityContextRepository(
-                // RequestAttributeSecurityCOntextRepository(): 현재 요청 안에서 보관
-                // SecurityContext를 현재 HTTP 요청의 속성에 저장한다.
-                // 주요 목적 : 하나의 요청이 오류 처리 등으로 다시 전달될 때도 인증 정보를 참조할 수 있게 하는 것.
-                // -> 다만 이 저장소만으로는 다음 HTTP 요청까지 로그인 상태를 유지할 수 없다.
-                new RequestAttributeSecurityContextRepository(),
+        // 1. 인증 정보 저장소를 조합한다.
+        SecurityContextRepository delegate =
+                new DelegatingSecurityContextRepository(
+                        new RequestAttributeSecurityContextRepository(),    // 현재 HTTP 요청의 속성에 Context 보관
+                        new HttpSessionSecurityContextRepository()  // 다음 요청에서도 사용할 수 있도록 세션에 Context 보관
+                );
 
-                // HttpSessionSecurityContextRepository : 다음 요청에서도 로그인 유지
-                // SecurityContext를 서버의 HTTP 세션에 저장하고 불러오는 역할
-                new HttpSessionSecurityContextRepository()
+        // 기존 세션에 저장할 때 공통 잠금 사용
+        return new SessionLockingSecurityContextRepository(delegate);
+    }
+
+    // 세션마다 공통 잠금 객체를 준비
+    // 이 리스너는 특정 사건이 발생했을 때 호출되는 객체. (이 리스너가 관심 갖는 사건은 세션 생성과 소멸임)
+    //  - 세션이 만들어지면 -> 세션 속성에 mutex 객체를 넣는다.
+    //  - 세션이 소멸하면 -> 해당 속성을 정리한다.
+    @Bean
+    public ServletListenerRegistrationBean<HttpSessionMutexListener> sessionMutexListener() {
+        // ServletListenerRegistrationBean: 이 리스너를 서블릿 컨테이너에 등록해서 실제로 호출되게 해주는 연결 장치
+        // Object mutex = WebUtils.getSessionMutex(session); 이런 코드가 가능하게 해줌. (같은 세션에 마련된 공통 객체를 얻을 수 있게 해줌)
+        return new ServletListenerRegistrationBean<>(
+                new HttpSessionMutexListener()
         );
     }
 
-    // CSRF 토큰을 세션에 저장
+    // CSRF 토큰을 세션에 저장·조회
+    // SecurityContext: 누가 로그인했는지와 권한을 확인
+    // CSRF 토큰: 상태 변경 요청의 CSRF 검증에 사용
     @Bean
     public CsrfTokenRepository csrfTokenRepository() {
         // CsrfTokenRepository : CSRF 토큰을 생성·저장·조회·삭제하는 역할
@@ -59,6 +76,7 @@ public class SessionSecurityConfig {
         return new HttpSessionCsrfTokenRepository();
     }
 
+    // 로그인 성공 후 실행할 두 가지 작업을 묶는다.
     @Bean
     public SessionAuthenticationStrategy loginSessionAuthenticationStrategy(
             CsrfTokenRepository csrfTokenRepository
@@ -83,7 +101,7 @@ public class SessionSecurityConfig {
                 List.of(
                         // 로그인 성공 시 세션 ID 변경
                         // 기존 세션이 있다면 세션에 담긴 속성을 유지하면서 세션 ID를 변경한다.
-                        // 세션 고정 공격을 방지하기 위해 하는 작업임. 공격자가 로그인 전에 알아낸 세션 ID를 로그인 후에도 이요하지 못하게 하는 게 목적
+                        // 세션 고정 공격을 방지하기 위해 하는 작업임. 공격자가 로그인 전에 알아낸 세션 ID를 로그인 후에도 이용하지 못하게 하는 게 목적
                         new ChangeSessionIdAuthenticationStrategy(),
                         csrfStrategy
                 )
