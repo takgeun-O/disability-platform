@@ -551,6 +551,9 @@ public class MemberPasswordChangeSessionUpdater {
         HttpSessionSecurityContextRepository sessionRepository =
                 new HttpSessionSecurityContextRepository();
 
+        // 요청 래퍼에서도 새 세션 생성을 막고 있지만, 저장소 자체에도 세션 생성 막기
+        sessionRepository.setAllowSessionCreation(false);
+
         SecurityContextRepository delegate =
                 new DelegatingSecurityContextRepository(
                         new RequestAttributeSecurityContextRepository(),
