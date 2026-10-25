@@ -97,6 +97,13 @@ export function safeListReturn(value: string | null, fallback = "/community/post
     return defaultPath
   }
 }
+// The label follows the validated destination, including direct-entry fallbacks.
+export function listReturnLabel(back: string): string {
+  const destination = safeListReturn(back)
+  if (destination === "/mypage") return "마이페이지로 돌아가기"
+  const space = topicByPath(destination.split("?")[0])
+  return space ? `${space.name} 게시글 목록으로` : "게시글 목록으로"
+}
 export function queryLabel(query: PostQuery): string {
   return `${query.type ? POST_TYPES[query.type] : "전체 유형"} · ${
     query.topic ? POST_TOPICS[query.topic] : "전체 주제"

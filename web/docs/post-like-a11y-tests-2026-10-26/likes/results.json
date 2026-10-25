@@ -1,0 +1,130 @@
+{
+  "results": [
+    {
+      "name": "anonymous SSR/noJS readonly count; no cookies to SSR",
+      "pass": true
+    },
+    {
+      "name": "guest detail prompt, login return position, no auto-register",
+      "pass": true
+    },
+    {
+      "name": "PUT DELETE PUT, readonly public/own count and accessible selected state",
+      "pass": true
+    },
+    {
+      "name": "duplicate blocked, other post independent through navigation, server count 17",
+      "pass": true
+    },
+    {
+      "name": "old detail GET after confirmed mutation does not overwrite",
+      "pass": true
+    },
+    {
+      "name": "error CSRF_TOKEN_INVALID, no replay, manual recovery",
+      "pass": true
+    },
+    {
+      "name": "error POST_LIKE_NOT_ALLOWED, no replay, manual recovery",
+      "pass": true
+    },
+    {
+      "name": "error SERVER_ERROR, no replay, manual recovery",
+      "pass": true
+    },
+    {
+      "name": "error INVALID_SUCCESS, no replay, manual recovery",
+      "pass": true
+    },
+    {
+      "name": "error NETWORK, no replay, manual recovery",
+      "pass": true
+    },
+    {
+      "name": "current 401 expires session and prompts login",
+      "pass": true
+    },
+    {
+      "name": "404 informs; return rereads and removes missing list item",
+      "pass": true
+    },
+    {
+      "name": "late success after same login incl old finally",
+      "pass": true
+    },
+    {
+      "name": "late 401 after same login incl old finally",
+      "pass": true
+    },
+    {
+      "name": "late success after other login incl old finally",
+      "pass": true
+    },
+    {
+      "name": "late 401 after other login incl old finally",
+      "pass": true
+    },
+    {
+      "name": "late success after logout alone cannot restore selected description",
+      "pass": true
+    },
+    {
+      "name": "late 401 after logout alone cannot restore selected description",
+      "pass": true
+    },
+    {
+      "name": "logout and other account remove selected a11y state without document reload",
+      "pass": true
+    },
+    {
+      "name": "pending detail -> list -> same detail lock and late success",
+      "pass": true
+    },
+    {
+      "name": "60 loaded posts/detail toggle/back preserves rows and position 1440",
+      "pass": true
+    },
+    {
+      "name": "60 loaded posts/detail toggle/back preserves rows and position 390",
+      "pass": true
+    },
+    {
+      "name": "readonly a11y, layout and detail key action /community 1440",
+      "pass": true
+    },
+    {
+      "name": "readonly a11y, layout and detail key action /mypage 1440",
+      "pass": true
+    },
+    {
+      "name": "readonly a11y, layout and detail key action /community 390",
+      "pass": true
+    },
+    {
+      "name": "readonly a11y, layout and detail key action /mypage 390",
+      "pass": true
+    },
+    {
+      "name": "readonly a11y, layout and detail key action /community 320",
+      "pass": true
+    },
+    {
+      "name": "readonly a11y, layout and detail key action /mypage 320",
+      "pass": true
+    }
+  ],
+  "serverCalls": [
+    {
+      "path": "/api/v1/community/posts/1000",
+      "query": ""
+    },
+    {
+      "path": "/api/v1/community/posts/1000",
+      "query": ""
+    },
+    {
+      "path": "/api/v1/community/posts/1000/comments",
+      "query": "?size=20"
+    }
+  ]
+}

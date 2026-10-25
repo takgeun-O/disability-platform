@@ -1,4 +1,6 @@
 "use client"
+import PostLikeButton from "@/components/community/PostLikeButton"
+import { useAuth } from "@/components/AuthProvider"
 import Comments from "@/components/community/Comments"
 import type { CommentPage } from "@/lib/community-comments"
 import type { PublicResult } from "@/lib/community-load"
@@ -17,14 +19,28 @@ import {
   type PostDetail as Detail,
 } from "@/lib/community-api"
 import { isMissingPost, type InitialPostDetail, type ReadError } from "@/lib/community-load"
-import { postDate, safeListReturn, requestListScrollRestore, listenForListReturn } from "@/lib/community-posts"
+import { postDate, safeListReturn, listReturnLabel, requestListScrollRestore, listenForListReturn } from "@/lib/community-posts"
 
 import { topicByValue, topicPath } from "@/lib/community-topics"
 
 export default function PostDetail({ initial, initialComments }: { initial: InitialPostDetail; initialComments: PublicResult<CommentPage> }) {
   const { postId } = useParams<{ postId: string }>()
+  const { likes, memberRequests, status, pending } = useAuth()
   const params = useSearchParams()
   useEffect(listenForListReturn, [])
+  // Only an explicit comments destination opts into motion; ordinary detail entry
+  // and background refreshes retain their existing scroll policy.
+  useEffect(() => {
+    if (location.hash !== "#comments-title") return
+    const frame = requestAnimationFrame(() => {
+      const heading = document.getElementById("comments-title")
+      if (!heading) return
+      heading.focus({ preventScroll: true })
+      heading.scrollIntoView({ behavior: matchMedia("(prefers-reduced-motion: reduce)").matches ? "instant" : "smooth", block: "start" })
+    })
+    return () => cancelAnimationFrame(frame)
+  }, [postId])
+
   const [retry, setRetry] = useState(0)
   const mutation = usePostVersion(postId)
   const key = `${postId}:${retry}:${mutation}`
@@ -34,14 +50,15 @@ export default function PostDetail({ initial, initialComments }: { initial: Init
     error?: ReadError
   }>({ key: `${postId}:0:0`, post: initial.data ?? undefined, error: initial.error ?? undefined })
   useEffect(() => {
-    if (retry === 0 && mutation === 0) return
+    if ((retry === 0 && mutation === 0) || status === "checking" || pending || memberRequests.paused) return
     const controller = new AbortController()
+    const likeRead = likes.read()
     getPost(postId, controller.signal)
       .then((post) => {
-        if (!controller.signal.aborted) setResult({ key, post })
+        if (!controller.signal.aborted && likeRead.valid()) { setResult({ key, post }); likeRead.accept([post]) }
       })
       .catch((error) => {
-        if (!controller.signal.aborted)
+        if (!controller.signal.aborted && likeRead.valid())
           setResult({
             key,
             error:
@@ -55,12 +72,19 @@ export default function PostDetail({ initial, initialComments }: { initial: Init
           })
       })
     return () => controller.abort()
-  }, [postId, key, retry, mutation])
+  }, [postId, key, retry, mutation, likes, memberRequests, status, pending])
+  useEffect(() => {
+    if (retry !== 0 || mutation !== 0 || status === "checking" || pending || memberRequests.paused) return
+    const controller = new AbortController(), ticket = likes.read()
+    getPost(postId, controller.signal).then(post => { if (!controller.signal.aborted) ticket.accept([post]) }).catch(() => { /* The button offers an explicit read retry; body remains available. */ })
+    return () => controller.abort()
+  }, [postId, retry, mutation, likes, memberRequests, status, pending])
   const loading = result.key !== key
   const post = !loading ? result.post : undefined
   const error = !loading ? result.error : undefined
   const space = post && topicByValue(post.topic)
   const back = safeListReturn(params.get("from"), space ? topicPath(space) : "/community/posts")
+  const backLabel = listReturnLabel(back)
   return (
     <main id="main-content" className="community-screen">
       <CommunityBanner
@@ -74,7 +98,7 @@ export default function PostDetail({ initial, initialComments }: { initial: Init
           onNavigate={() => requestListScrollRestore(back)}
           scroll={false}
         >
-          ← 목록으로
+          ← {backLabel}
         </Link>
         {loading && (
           <p className="community-loading" role="status">
@@ -116,6 +140,7 @@ export default function PostDetail({ initial, initialComments }: { initial: Init
               </div>
             </header>
             <div className="community-post-body">{post.content}</div>
+            <PostLikeButton post={post} />
 
           </article>
         )}
@@ -129,7 +154,7 @@ export default function PostDetail({ initial, initialComments }: { initial: Init
           onNavigate={() => requestListScrollRestore(back)}
             scroll={false}
           >
-            목록으로 돌아가기
+            {backLabel}
           </Link>
         )}
       </div>

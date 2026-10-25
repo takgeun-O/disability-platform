@@ -20,6 +20,7 @@ const post = {
   topic: "HEARING_AID",
   title: "댓글 연동 검증 예시",
   content: "게시글 본문은 댓글 조회와 독립적입니다.",
+  likeCount: 0, liked: false,
   author: { memberId: 123, nickname: "게시글 작성자" },
   createdAt: "2026-10-17T00:00:00Z",
   updatedAt: "2026-10-17T00:00:00Z",
@@ -187,6 +188,62 @@ async function until(fn) {
   throw Error("controlled request was not reached")
 }
 try {
+  await check('edit/delete use one success toast, replace lifetime, retain focus and no inline duplicate',async()=>{
+    const {ctx,p}=await fixture(member,1)
+    try {
+      await p.clock.install()
+      await p.locator('#comment-edit-button-1').click()
+      await p.locator('#comment-edit-1').fill('수정 토스트 검증')
+      await p.getByRole('button',{name:'댓글 저장',exact:true}).click()
+      await p.locator('.comment-success-toast').getByText('댓글을 수정했습니다.',{exact:true}).waitFor()
+      assert.equal(await p.getByText('댓글을 수정했습니다.',{exact:true}).count(),1)
+      assert(!(await p.locator('.community-comments-status').textContent()).includes('댓글을 수정했습니다.'))
+      await p.waitForFunction(()=>document.activeElement?.id==='comment-edit-button-1')
+      await p.clock.runFor(4000)
+      await p.locator('#comment-1').getByRole('button',{name:'댓글 삭제',exact:true}).click()
+      await p.getByRole('button',{name:'댓글 삭제하기',exact:true}).click()
+      await p.locator('.comment-success-toast').getByText('댓글을 삭제했습니다.',{exact:true}).waitFor()
+      assert.equal(await p.getByText('댓글을 삭제했습니다.',{exact:true}).count(),1)
+      assert.equal(await p.getByText('댓글을 수정했습니다.',{exact:true}).count(),0)
+      assert(!(await p.locator('.community-comments-status').textContent()).includes('댓글을 삭제했습니다.'))
+      await p.clock.runFor(1500);assert.equal(await p.locator('.comment-success-toast').count(),1)
+      await p.clock.runFor(3500);await p.clock.runFor(250)
+      assert.equal(await p.locator('.comment-success-toast').count(),0)
+    } finally {await ctx.close()}
+  })
+  for (const width of [1440,390,320]) await check(`registration toast ${width}: single live announcement, layout and timed removal`,async()=>{
+    const {ctx,p}=await fixture(member,0)
+    try {
+      await p.setViewportSize({width,height:850});await p.emulateMedia({reducedMotion:width===320?'reduce':'no-preference'})
+      await p.locator('#comment-draft').fill('토스트 모의 댓글')
+      const submit=p.getByRole('button',{name:'댓글 등록',exact:true});await submit.focus()
+      await p.keyboard.press('Enter');await p.locator('.comment-success-toast').waitFor()
+      assert.equal(await p.getByText('댓글을 등록했습니다.',{exact:true}).count(),1)
+      assert.equal(await p.locator('.community-comments-status').textContent(),'')
+      assert(await p.locator('.comment-toast-announcer').getAttribute('role')==='status')
+      assert.equal(await p.locator('.comment-success-toast button').count(),0)
+      assert(await p.evaluate(()=>document.documentElement.scrollWidth<=innerWidth))
+      const before=await p.evaluate(()=>({y:scrollY,focus:document.activeElement.id,top:document.querySelector('#comment-draft').getBoundingClientRect().top}))
+      await p.screenshot({path:output+`/toast-visible-${width}.png`})
+      await p.locator('.comment-success-toast').waitFor({state:'detached',timeout:7000})
+      const after=await p.evaluate(()=>({y:scrollY,focus:document.activeElement.id,top:document.querySelector('#comment-draft').getBoundingClientRect().top}))
+      assert.deepEqual(after,before)
+      await p.screenshot({path:output+`/toast-removed-${width}.png`})
+    } finally {await ctx.close()}
+  })
+  await check('consecutive registration replaces timer; old exit cannot remove fresh toast',async()=>{
+    const {ctx,p}=await fixture(member,0)
+    try {
+      await p.clock.install()
+      const submit=p.getByRole('button',{name:'댓글 등록',exact:true})
+      await p.locator('#comment-draft').fill('첫 성공');await submit.click();await p.locator('.comment-success-toast').waitFor()
+      await p.clock.runFor(5000)
+      await p.locator('#comment-draft').fill('다음 성공');await submit.click()
+      await p.waitForFunction(()=>document.querySelector('.comment-success-toast')?.className==='comment-success-toast')
+      await p.clock.runFor(300);assert.equal(await p.locator('.comment-success-toast').count(),1)
+      await p.clock.runFor(4950);assert.equal(await p.locator('.comment-success-toast').count(),0)
+    } finally {await ctx.close()}
+  })
   await check("automatic in-flight response is buffered while typing; manual append reuses it once",async()=>{
     const {ctx,p,state}=await fixture(member,65,true)
     let release
@@ -310,7 +367,7 @@ try {
       assert.equal(await links.count(),8)
       for(const link of await links.all()) assert(await link.isVisible())
       for(const name of ["IYUM 소개","복지·지원정보","기기 정보","병원·전문기관"])
-        assert(await p.getByRole("navigation",{name:"주 메뉴",exact:true}).getByRole("link",{name,exact:true}).isVisible())
+        assert(await p.locator(".iyum-header").getByRole("link",{name,exact:true}).isVisible())
       assert(await p.evaluate(()=>document.documentElement.scrollWidth<=innerWidth))
       await p.screenshot({path:`${output}/nojs-navigation-${width}.png`,fullPage:true})
       await links.filter({hasText:"인공와우"}).click()
@@ -327,7 +384,7 @@ try {
       try {for(const route of ["/community","/community/topics/hearing-aid"]){
         ssrCommentRequests=0
         await p.goto(base+route)
-        assert(await p.getByText(`댓글 ${count}`,{exact:true}).isVisible())
+        assert(await p.getByText(`댓글 ${count.toLocaleString("ko-KR")}`,{exact:true}).isVisible())
         assert.equal(ssrCommentRequests,0)
         for(const width of [1440,390,320]){
           await p.setViewportSize({width,height:950})
@@ -382,6 +439,8 @@ try {
       await p.locator(".community-back").click();await p.getByRole("button",{name:"나가기",exact:true}).click()
       await p.getByText("댓글 1",{exact:true}).waitFor()
       const location=p.url()
+      // Complete the new authenticated likes read before controlling the explicit refresh.
+      await p.waitForFunction(()=>document.querySelector('.post-like-count')&&document.querySelector('.feed-posts')?.getAttribute('aria-busy')==='false')
       state.get=async(r,u)=>{
         if(u.pathname!=="/api/v1/community/posts/feed")return r.fulfill(read(u))
         const old=read(u);state.get=null
@@ -393,6 +452,7 @@ try {
       release();await p.getByText("댓글 2",{exact:true}).waitFor()
       releaseRead();await p.waitForTimeout(100)
       assert(await p.getByText("댓글 2",{exact:true}).isVisible())
+      assert.equal(await p.locator(".comment-success-toast").count(),0)
       assert.equal(new URL(p.url()).pathname,new URL(location).pathname)
       assert.equal(state.calls.filter(c=>c.method==="POST").length,1)
     }finally{release?.();releaseRead?.();await ctx.close()}
@@ -566,6 +626,7 @@ try {
       )
       release()
       await p.locator(".community-comments [role=alert]").waitFor()
+      assert.equal(await p.locator(".comment-success-toast").count(),0)
       assert.equal(await p.locator(".community-comment-list > li").count(), 20)
       state.get = null
       await p.getByRole("button", { name: "댓글 더 보기", exact: true }).click()
@@ -749,6 +810,7 @@ try {
       await p.getByRole("button", { name: "댓글 등록", exact: true }).click()
       await p.getByText("댓글을 등록했습니다.", { exact: true }).waitFor()
       await p.locator(".community-comments [role=alert]").waitFor()
+      assert.equal(await p.locator(".comment-success-toast").count(),1)
       assert.equal(await p.locator("#comment-draft").inputValue(), "")
       assert.equal(state.calls.filter((c) => c.method === "POST").length, 1)
       assert.equal(await p.locator("#comment-1").count(), 1)
@@ -847,6 +909,7 @@ try {
       await p.locator("#comment-draft").fill("보존할 댓글")
       await p.getByRole("button", { name: "댓글 등록", exact: true }).click()
       await p.locator(".community-comments [role=alert]").waitFor()
+      assert.equal(await p.locator(".comment-success-toast").count(),0)
       assert.equal(
         await p.locator("#comment-draft").inputValue(),
         "보존할 댓글",
@@ -1024,6 +1087,36 @@ try {
       await p.keyboard.press("Escape");assert.equal(await p.evaluate(()=>document.activeElement.textContent),"댓글 삭제")
     }
     await ctx.close()
+  })
+  await check('pending and late POST after logout never show a success toast',async()=>{
+    const {ctx,p,state}=await fixture(member,0)
+    let release,complete
+    const completed=new Promise(resolve=>complete=resolve)
+    try {
+      state.write=async r=>{await new Promise(resolve=>release=resolve);await r.fulfill({status:201,json:{commentId:1}});complete()}
+      await p.locator('#comment-draft').fill('늦은 계정 응답')
+      await p.getByRole('button',{name:'댓글 등록',exact:true}).click();await until(()=>release)
+      assert.equal(await p.locator('.comment-success-toast').count(),0)
+      await p.getByRole('button',{name:'로그아웃',exact:true}).first().click()
+      await p.getByRole('button',{name:'로그인하고 댓글 등록',exact:true}).waitFor()
+      release();await completed
+      await p.evaluate(()=>new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve))))
+      assert.equal(await p.locator('.comment-success-toast').count(),0)
+    } finally {release?.();await ctx.close()}
+  })
+  await check('visible toast is disposed on departure',async()=>{
+    const {ctx,p}=await fixture(member,0)
+    try {
+      await p.clock.install()
+      await p.locator('#comment-draft').fill('이탈 전 성공')
+      await p.getByRole('button',{name:'댓글 등록',exact:true}).click()
+      await p.locator('.comment-success-toast').waitFor()
+      await p.locator('.community-back').click()
+      await p.waitForURL(u=>!u.pathname.includes('/posts/7'))
+      assert.equal(await p.locator('.comment-success-toast').count(),0)
+      await p.clock.runFor(6000)
+      assert.equal(await p.locator('.comment-success-toast').count(),0)
+    } finally {await ctx.close()}
   })
 } finally {
   await fs.writeFile(

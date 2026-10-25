@@ -7,8 +7,8 @@ const base=process.env.BASE_URL??'http://127.0.0.1:8452',out=process.env.MEMBER_
 await fs.mkdir(out,{recursive:true})
 const stamp='2026-10-20T00:00:00.123456Z',member={memberId:321,nickname:'검토회원',email:'review@example.test',role:'USER'}
 const fail=code=>({code,message:'test error',fieldErrors:[]})
-const makePost=id=>({id,type:'QUESTION',topic:'HEARING_AID',title:`[검토 예시] 원본 게시글 ${id}`,content:'상세 본문\n'.repeat(30),contentPreview:'본문 미리보기',author:{memberId:321,nickname:'검토회원'},createdAt:stamp,updatedAt:stamp,commentCount:0})
-let posts=[],comments=[]
+const makePost=id=>({id,type:'QUESTION',topic:'HEARING_AID',title:`[검토 예시] 원본 게시글 ${id}`,content:'상세 본문\n'.repeat(30),contentPreview:'본문 미리보기',likeCount: 0, liked: false, author:{memberId:321,nickname:'검토회원'},createdAt:stamp,updatedAt:stamp,commentCount:0})
+let posts=[],comments=[],publicPageSize=Infinity
 const makeComment=(id,index)=>({commentId:id,content:`[검토 예시] 내가 나눈 경험 ${id}\n도움이 되었던 경험을 함께 나눠요.`,createdAt:stamp,updatedAt:stamp,postId:1000-Math.floor(index/3)})
 const owned=()=>comments.filter(c=>posts.some(p=>p.id===c.postId))
 const dto=c=>{const p=posts.find(p=>p.id===c.postId);return{commentId:c.commentId,content:c.content,createdAt:c.createdAt,updatedAt:c.updatedAt,post:{postId:p.id,title:p.title,type:p.type,topic:p.topic}}}
@@ -17,7 +17,11 @@ function publicRead(u){
  const id=Number(u.pathname.split('/')[5]),post=posts.find(p=>p.id===id)
  if(u.pathname.endsWith('/feed'))return{json:{items:posts.slice(0,10),hasNext:false,nextCursor:null}}
  if(!post)return{status:404,json:fail('POST_NOT_FOUND')}
- if(u.pathname.endsWith('/comments'))return{json:{items:owned().filter(c=>c.postId===id).map(c=>({commentId:c.commentId,content:c.content,createdAt:c.createdAt,updatedAt:c.updatedAt,author:post.author})),hasNext:false,nextCursor:null}}
+ if(u.pathname.endsWith('/comments')) {
+  const all=owned().filter(c=>c.postId===id),start=u.searchParams.has('afterId')?all.findIndex(c=>String(c.commentId)===u.searchParams.get('afterId'))+1:0
+  const slice=all.slice(start,start+publicPageSize),hasNext=start+slice.length<all.length
+  return{json:{items:slice.map(c=>({commentId:c.commentId,content:c.content,createdAt:c.createdAt,updatedAt:c.updatedAt,author:post.author})),hasNext,nextCursor:hasNext?{createdAt:slice.at(-1).createdAt,commentId:slice.at(-1).commentId}:null}}
+ }
  const detail={...post};delete detail.commentCount;delete detail.contentPreview;return{json:detail}
 }
 const server=http.createServer((req,res)=>{assert(!req.headers.cookie);assert(!req.headers.authorization);const d=publicRead(new URL(req.url,'http://mock'));res.writeHead(d.status??200,{'Content-Type':'application/json'});res.end(JSON.stringify(d.json))})
@@ -31,7 +35,7 @@ const retry=p=>panel(p).getByRole('button',{name:/^내 댓글 (더 보기 )?다�
 const calls=s=>s.calls.filter(c=>c.path==='/api/v1/members/me/comments')
 const focused=h=>h.evaluate(e=>e.isConnected&&e===document.activeElement)
 async function fixture({width=1440,count=27,...options}={}){
- posts=Array.from({length:10},(_,i)=>makePost(1000-i));comments=Array.from({length:count},(_,i)=>makeComment(2000-i,i))
+ publicPageSize=Infinity;posts=Array.from({length:10},(_,i)=>makePost(1000-i));comments=Array.from({length:count},(_,i)=>makeComment(2000-i,i))
  const ctx=await browser.newContext({viewport:{width,height:900},reducedMotion:'no-preference'}),p=await ctx.newPage();p.setDefaultTimeout(8000)
  const state={member:{...member},profile:{...member,createdAt:stamp},calls:[],get:null,summary:null,write:null,...options}
  await p.route(u=>u.pathname.startsWith('/api/v1/'),async r=>{
@@ -61,12 +65,41 @@ async function ready(p,n=10){await until(async()=>await rows(p).count()===n)}
 async function all(p){await more(p).click();await ready(p,20);await more(p).click();await ready(p,27)}
 function held(state){let release;const requested=new Promise(resolve=>{state.get=async(r,u)=>{await new Promise(done=>{release=async payload=>{await r.fulfill(payload??{json:listing(u)});done()};resolve()})}});return{requested,respond:payload=>release(payload)}}
 async function failMore(p,state){state.get=r=>r.fulfill({status:503,json:fail('SERVER_ERROR')});await more(p).focus();await p.keyboard.press('Enter');await retry(p).waitFor()}
-async function detail(p,index=0){const link=rows(p).nth(index).locator('a');await link.scrollIntoViewIfNeeded();const y=await p.evaluate(()=>scrollY);await link.click();await p.waitForURL(u=>/^\/community\/posts\/\d+$/.test(u.pathname));await p.locator('.community-post-body').waitFor();assert.equal(await p.evaluate(()=>scrollY),0);assert.equal(new URL(p.url()).searchParams.get('from'),'/mypage');assert.equal(new URL(p.url()).hash,'');return y}
-async function back(p,kind='back'){if(kind==='back')await p.goBack();else await p.locator('.community-back').click();await p.waitForURL(u=>u.pathname==='/mypage');await until(async()=>await p.getByRole('tab',{name:/내 댓글/}).getAttribute('aria-selected')==='true')}
+async function detail(p,index=0){const link=rows(p).nth(index).locator('a');await link.scrollIntoViewIfNeeded();const y=await p.evaluate(()=>scrollY);await link.click();await p.waitForURL(u=>/^\/community\/posts\/\d+$/.test(u.pathname));await p.locator('.community-post-body').waitFor();await until(()=>p.evaluate(()=>document.activeElement?.id===location.hash.slice(1))); assert.equal(new URL(p.url()).searchParams.get('from'),'/mypage');assert.match(new URL(p.url()).hash,/^#comment-[1-9]\d*$/);return y}
+async function back(p,kind='back'){if(kind==='back')await p.goBack();else {const link=p.getByRole('link',{name:'← 마이페이지로 돌아가기',exact:true});assert.equal(await link.getAttribute('href'),'/mypage');await link.click()}await p.waitForURL(u=>u.pathname==='/mypage');await until(async()=>await p.getByRole('tab',{name:/내 댓글/}).getAttribute('aria-selected')==='true')}
 async function check(name,fn){if(process.env.CASE_FILTER&&!name.includes(process.env.CASE_FILTER))return;try{await fn();results.push({name,pass:true});console.log('PASS',name)}catch(e){results.push({name,pass:false,error:e.stack});console.log('FAIL',name,e.message);process.exitCode=1;const p=browser.contexts().at(-1)?.pages()[0];if(p)await p.screenshot({path:`${out}/failure-${results.length}.png`}).catch(()=>{})}finally{for(const c of browser.contexts())await c.close()}}
 try{
+ await check('activity/account layout and explicit comment/source labels',async()=>{
+  const{p}=await fixture();await open(p)
+  await more(p).click();await ready(p,20);await more(p).click();await ready(p,27)
+  for(const width of [1440,1024,390,320]) {
+   await p.setViewportSize({width,height:900});await p.evaluate(()=>scrollTo(0,0))
+   const account=await p.locator('.mypage-account').boundingBox(),activity=await p.locator('.mypage-activity').boundingBox()
+   if(width>900){assert(account.x>=activity.x+activity.width);assert(Math.abs(account.y-activity.y)<2)}else assert(account.y+account.height<=activity.y)
+   const first=rows(p).first();assert(await first.getByText('내가 쓴 댓글',{exact:true}).isVisible());assert(await first.getByText('원문 게시글',{exact:true}).isVisible())
+   assert(await p.evaluate(()=>document.documentElement.scrollWidth<=innerWidth))
+   await p.screenshot({path:`${out}/workspace-${width}.png`})
+   if(width>900){await rows(p).nth(20).scrollIntoViewIfNeeded();const sticky=await p.locator('.mypage-account').boundingBox();assert(sticky.y>=0 && sticky.y+sticky.height<900);await p.screenshot({path:`${out}/workspace-scrolled-${width}.png`})}
+  }
+ })
+ for(const width of [1440,390]) await check(`exact comment across cursor pages and verified email ${width}`,async()=>{
+  const{p,state}=await fixture({width});publicPageSize=10;comments.forEach(c=>c.postId=1000)
+  await p.getByText('이메일 인증 완료',{exact:true}).waitFor();assert.equal(await p.getByText('읽기 전용',{exact:true}).count(),0)
+  await open(p);await all(p);await detail(p,22)
+  assert.equal(await p.evaluate(()=>document.activeElement.id),'comment-1978')
+  await until(async()=>{const box=await p.locator('#comment-1978').boundingBox();return box.y>=0&&box.y+box.height<=900})
+  const reads=state.calls.filter(c=>c.path==='/api/v1/community/posts/1000/comments')
+  assert(reads.some(c=>new URL(c.url).searchParams.get('afterId')==='1991'));assert(reads.some(c=>new URL(c.url).searchParams.get('afterId')==='1981'))
+  await p.screenshot({path:`${out}/exact-comment-${width}.png`})
+  await back(p);await ready(p,27)
+ })
+ await check('missing linked comment explains absence without inventing a target',async()=>{
+  const{p}=await fixture();await open(p);comments=comments.filter(c=>c.commentId!==2000)
+  await rows(p).first().locator('a').click();await p.getByText('해당 댓글을 찾을 수 없어요.',{exact:false}).waitFor()
+  assert.equal(await p.locator('#comment-2000').count(),0)
+ })
  await check('lazy independent DTO, same-post distinct comments, no GET CSRF or memberId',async()=>{
-  const{p,state}=await fixture();assert.equal(calls(state).length,0);await open(p);assert((await rows(p).first().innerText()).includes('보청기 · 질문·답변'));assert((await rows(p).first().innerText()).includes('내가 나눈 경험'));assert.equal(await rows(p).nth(0).locator('a').getAttribute('href'),await rows(p).nth(1).locator('a').getAttribute('href'))
+  const{p,state}=await fixture();assert.equal(calls(state).length,0);await open(p);assert((await rows(p).first().innerText()).includes('보청기 · 질문·답변'));assert((await rows(p).first().innerText()).includes('내가 나눈 경험'));assert.equal(await rows(p).nth(0).locator('a').getAttribute('href'),'/community/posts/1000?from=%2Fmypage#comment-2000');assert.equal(await rows(p).nth(1).locator('a').getAttribute('href'),'/community/posts/1000?from=%2Fmypage#comment-1999')
   assert(!state.calls.some(c=>c.path.endsWith('/csrf')));assert.equal(new URL(calls(state)[0].url).search,'?size=10');await p.getByRole('tab',{name:/내 게시글/}).click();await p.getByRole('tab',{name:/내 댓글/}).click();assert.equal(calls(state).length,1)
  })
  await check('three pages raw microsecond commentId cursor, duplicates blocked and final focus',async()=>{
@@ -91,7 +124,7 @@ try{
  await check('zero summary and summary error do not hide comments; actual empty remains distinct',async()=>{
   const{p,state}=await fixture({summary:r=>r.fulfill({json:{postCount:10,commentCount:0}})});await open(p);assert.equal(await rows(p).count(),10);state.summary=r=>r.fulfill({status:503,json:fail('SERVER_ERROR')});await p.reload();await open(p);assert(await p.getByRole('button',{name:'활동 개수 다시 시도'}).isVisible());comments=[];await p.reload();await open(p,0);await p.getByText('아직 작성한 댓글이 없어요.').waitFor()
  })
- for(const kind of ['back','link'])await check(`27 comments detail top + ${kind} tab/list/scroll restore and no reread`,async()=>{
+ for(const kind of ['back','link'])await check(`27 comments exact comment focus + ${kind} tab/list/scroll restore and no reread`,async()=>{
   const{p,state}=await fixture();await open(p);await all(p);const n=calls(state).length,y=await detail(p,22);await back(p,kind);await ready(p,27);await until(async()=>Math.abs(await p.evaluate(()=>scrollY)-y)<4);assert.equal(calls(state).length,n);assert.equal(await rows(p).nth(22).getAttribute('data-member-comment-id'),'1978')
  })
  await check('PUT comment refreshes content not count and preserves form until return',async()=>{

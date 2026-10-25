@@ -74,7 +74,7 @@ try {
     for (const width of [1440, 390, 320]) { await page.setViewportSize({ width, height: width < 600 ? 844 : 1000 }); assert(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)); if (width !== 320) await shot(`real-detail-${width}`); }
   });
   await check('실제 작성 글 필터 목록·새로고침·모바일 적용·상세 복귀', async () => {
-    await page.getByRole('link', { name: '← 목록으로', exact: true }).click(); await listReady(); assert.equal(new URL(page.url()).pathname + new URL(page.url()).search, listPath); await page.getByRole('link', { name: textTitle, exact: true }).waitFor();
+    await page.getByRole('link', { name: '← 게시글 목록으로', exact: true }).click(); await listReady(); assert.equal(new URL(page.url()).pathname + new URL(page.url()).search, listPath); await page.getByRole('link', { name: textTitle, exact: true }).waitFor();
     await page.reload(); await listReady(); await page.getByRole('link', { name: textTitle, exact: true }).waitFor();
     for (const width of [1440, 390]) { await page.setViewportSize({ width, height: width < 600 ? 844 : 1000 }); await shot(`real-list-${width}`); }
     await page.getByRole('button', { name: '필터', exact: true }).click(); await page.getByRole('dialog').getByLabel('글 유형', { exact: true }).selectOption('REVIEW'); await page.getByRole('dialog').getByRole('button', { name: '적용', exact: true }).click(); await page.waitForURL('**type=REVIEW&topic=WELFARE_LIFE'); await listReady(); await page.getByText('아직 표시할 게시글이 없어요.').waitFor();

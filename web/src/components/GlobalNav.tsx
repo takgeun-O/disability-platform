@@ -13,6 +13,17 @@ const INFORMATION = [
   { label: "기기 정보", href: "/devices", description: "준비 중" },
   { label: "병원·전문기관", href: "/hospitals", description: "준비 중" },
 ];
+const DESKTOP_INFORMATION = [
+  { label: "이용 가이드", href: "/validation/hearing-aid-health-insurance", description: "보청기 지원 절차를 차근차근 확인해요", icon: "guide" },
+  { ...INFORMATION[0], description: "현재 제공하는 복지·지원 안내를 살펴봐요", icon: "document" },
+  { ...INFORMATION[1], description: "보조기기 정보를 준비하고 있어요", icon: "device" },
+  { ...INFORMATION[2], description: "병원·전문기관 정보를 준비하고 있어요", icon: "hospital" },
+];
+function InformationIcon({ kind }: { kind: string }) {
+  return <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" focusable="false">
+    {kind === "guide" ? <path d="M4 4h16v15H7l-3 2V4Z" /> : kind === "document" ? <><path d="M6 3h8l4 4v14H6Z M14 3v5h4 M9 12h6 M9 16h6" /></> : kind === "device" ? <><path d="M7 9a5 5 0 0 1 10 0c0 4-4 4-4 7a3 3 0 0 1-6 0 M10 9a2 2 0 0 1 4 0c0 2-3 2-3 4" /></> : <><path d="M4 21V6l8-3 8 3v15 M9 21v-6h6v6 M8 8v2 M16 8v2 M11 8h2" /></>}
+  </svg>;
+}
 export default function GlobalNav() {
   const pathname = usePathname();
   const guard = useNavigationGuard();
@@ -60,7 +71,16 @@ export default function GlobalNav() {
           aria-current={INFORMATION.some(item => pathname === item.href) || pathname.startsWith("/validation/") ? true : undefined}
           onClick={() => setInformation(infoOpen ? null : pathname)}>정보 찾기 <span className={infoOpen ? "iyum-chevron is-open" : "iyum-chevron"} aria-hidden="true">⌄</span></button>
         <div id="iyum-information-menu" className="iyum-information-menu" hidden={!infoOpen}>
-          {INFORMATION.map(item => <Link key={item.href} href={item.href} onNavigate={onNavigate(item.href, true)} aria-current={pathname === item.href ? "page" : undefined}><span>{item.label}</span><small>{item.description}</small></Link>)}
+          <div className="iyum-information-intro">
+            <p className="iyum-eyebrow">INFORMATION</p>
+            <h2>필요한 정보를<br />상황에 맞게 찾아보세요.</h2>
+            <p>이용 안내부터 지원 정보까지,<br />현재 제공하는 내용을 확인해 보세요.</p>
+          </div>
+          <div className="iyum-information-links">
+            {DESKTOP_INFORMATION.map(item => <Link key={item.href} href={item.href} onNavigate={onNavigate(item.href, true)} aria-current={pathname === item.href ? "page" : undefined}>
+              <InformationIcon kind={item.icon} /><span className="iyum-information-copy"><span>{item.label}</span><small>{item.description}</small></span>
+            </Link>)}
+          </div>
         </div>
       </div>
     </nav>

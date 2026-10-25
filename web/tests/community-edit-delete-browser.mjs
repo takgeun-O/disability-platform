@@ -23,6 +23,7 @@ const seed = {
   topic: "HEARING_AID",
   title: "[검증 예시] 수정 전 제목",
   content: "첫 줄\n둘째 줄",
+  likeCount: 0, liked: false,
   author: { memberId: 123, nickname: "검증회원" },
   createdAt: "2026-10-17T01:00:00Z",
   updatedAt: "2026-10-17T01:00:00Z",
@@ -232,7 +233,7 @@ try {
     await p.getByRole("button", { name: "취소", exact: true }).click()
     await p.getByRole("button", { name: "나가기", exact: true }).click()
     await p.getByRole("heading", { name: "이전 화면에서 저장한 제목", exact: true }).waitFor()
-    await p.getByRole("link", { name: "← 목록으로", exact: true }).click()
+    await p.getByRole("link", { name: "← 보청기 게시글 목록으로", exact: true }).click()
     await p.getByRole("link", { name: "이전 화면에서 저장한 제목", exact: true }).waitFor()
     assert.equal(state.count.PUT, 1)
     await ctx.close()
@@ -347,7 +348,7 @@ try {
         "수정 내용\n보존",
       )
       assert.equal(state.count.PUT, 1)
-      await p.getByRole("link", { name: "← 목록으로", exact: true }).click()
+      await p.getByRole("link", { name: "← 보청기 게시글 목록으로", exact: true }).click()
       await p.getByRole("link", { name: "새로운 제목", exact: true }).waitFor()
       await ctx.close()
     },
@@ -711,7 +712,7 @@ try {
       assert.equal(await p.getByLabel("주제", { exact: true }).inputValue(), topic)
       await p.getByRole("button", { name: "취소", exact: true }).click()
       await p.waitForURL(u => u.pathname === "/community/posts/7")
-      const returnLink = p.getByRole("link", { name: "← 목록으로", exact: true })
+      const returnLink = p.getByRole("link", { name: "← 보청기 게시글 목록으로", exact: true })
       assert.equal(await returnLink.getAttribute("href"), back)
       await returnLink.click()
       await p.getByText("아직 표시할 게시글이 없어요.").waitFor()

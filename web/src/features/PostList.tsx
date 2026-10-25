@@ -1,5 +1,7 @@
 "use client"
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react"
+import PostListReactions from "@/components/community/PostListReactions"
+import { useAuth } from "@/components/AuthProvider"
 import { useRouter } from "next/navigation"
 import Link from "@/components/AppLink"
 import { useNavigationRequest } from "@/components/NavigationGuard"
@@ -19,6 +21,8 @@ function position(): FeedPosition {
     previous: Number(rows[index-1]?.dataset.feedId) || undefined, offset: row?.getBoundingClientRect().top ?? 0, y: window.scrollY }
 }
 export default function PostList({ initial, space }: { initial: InitialFeed; space?: CommunityTopic }) {
+  const { likes, memberRequests, status, pending } = useAuth()
+  const authKey = `${memberRequests.revision}:${status}:${pending}`, loadedAuth = useRef("")
   const router = useRouter(), scope = useNavigationRequest()
   const version = usePostVersion("list"), href = initial.href
   const [view, setView] = useState<FeedSnapshot>({ ...(initial.data ?? { items: [], hasNext: false, nextCursor: null }), segments: 1, version: 0 })
@@ -79,32 +83,35 @@ export default function PostList({ initial, space }: { initial: InitialFeed; spa
     return () => { window.removeEventListener("wheel", arm); window.removeEventListener("touchmove", arm); window.removeEventListener("keydown", key) }
   }, [restoring, error])
   const load = useCallback(async (kind: "more" | "refresh", latest = false) => {
-    if (!scope.isActive() || (busyRef.current && kind === "more")) return
+    if (status === "checking" || pending || memberRequests.paused || !scope.isActive() || (busyRef.current && kind === "more")) return
     const previous = currentView.current
     if (kind === "more" && (!previous.hasNext || previous.segments >= MAX_FEED_SEGMENTS)) return
     request.current?.abort()
     const controller = new AbortController(); request.current = controller
-    const valid = () => !controller.signal.aborted && scope.isActive() && request.current === controller
+    const likeRead = likes.read()
+    const valid = () => likeRead.valid() && !controller.signal.aborted && scope.isActive() && request.current === controller
     const requestedVersion = getPostVersion("list")
     busyRef.current = true; setBusy(kind); setError(null)
     try {
       const data = kind === "more" ? await getFeed(initial.query, previous.nextCursor, controller.signal) : latest ?
         await getFeed(initial.query, null, controller.signal) : await reconcileFeed(initial.query, initial.cursor, previous, controller.signal)
       if (!valid() || requestedVersion !== getPostVersion("list")) return
-      if (kind === "refresh" && !latest) { pendingPosition.current = position(); setRestoring(true); setAuto(false) }
+      const refreshForAuth = loadedAuth.current !== authKey && previous.version === requestedVersion
+      likeRead.accept(data.items); loadedAuth.current = authKey
+      if (kind === "refresh" && !latest) { pendingPosition.current = position(); setRestoring(true); if (!refreshForAuth) setAuto(false) }
       const updated = { ...data, items: kind === "more" ? mergeFeed(previous.items, data.items) : data.items,
         segments: kind === "more" ? previous.segments + 1 : latest ? 1 : previous.segments, version: requestedVersion }
       currentView.current = updated; setView(updated)
       cacheFeed(entry.current, href, { ...updated, position: position() })
     } catch (e) {
-      if (valid()) { setAuto(false); setError({ kind, latest, message: e instanceof CommunityApiError ? e.message : "게시글을 불러오지 못했습니다. 다시 시도해 주세요." }) }
+      if (valid()) { loadedAuth.current = authKey; setAuto(false); setError({ kind, latest, message: e instanceof CommunityApiError ? e.message : "게시글을 불러오지 못했습니다. 다시 시도해 주세요." }) }
     } finally {
       if (request.current === controller) { busyRef.current = false; if (scope.isActive()) setBusy(null) }
     }
-  }, [initial.query, initial.cursor, href, scope])
+  }, [initial.query, initial.cursor, href, scope, likes, authKey, status, pending, memberRequests.paused])
   useEffect(() => {
-    if (ready && !restoring && currentView.current.version !== version) void load("refresh")
-  }, [ready, restoring, version, load])
+    if (ready && !restoring && (currentView.current.version !== version || loadedAuth.current !== authKey)) void load("refresh")
+  }, [ready, restoring, version, authKey, load])
   useEffect(() => {
     if (!ready || restoring || view.version !== version || busy || error || !auto || !view.hasNext || view.segments >= MAX_FEED_SEGMENTS || !sentinel.current || !("IntersectionObserver" in window)) return
     const observer = new IntersectionObserver(entries => { if (entries.some(e => e.isIntersecting)) void load("more") }, { rootMargin: "120px" })
@@ -139,7 +146,7 @@ export default function PostList({ initial, space }: { initial: InitialFeed; spa
             <FeedAvatar/><div className="feed-post-content"><div className="feed-author"><strong>{post.author.nickname}</strong><div className="feed-meta"><span>{POST_TOPICS[post.topic]}</span><span>{POST_TYPES[post.type]}</span><time dateTime={post.createdAt}>{postDate(post.createdAt)}</time></div></div>
             <h3><Link href={`/community/posts/${post.id}?from=${encodeURIComponent(href)}`} onNavigate={leaving} prefetch={false}>{post.title}</Link></h3>
             <p className="feed-preview">{post.contentPreview}</p>
-            <span className="feed-comment-count"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" aria-hidden="true" focusable="false"><path d="M21 11.5a9 9 0 0 1-9 9 10 10 0 0 1-4-.8L3 21l1.3-4.9a9 9 0 1 1 16.7-4.6Z"/></svg>댓글 {post.commentCount}</span>
+            <PostListReactions post={post} href={`/community/posts/${post.id}?from=${encodeURIComponent(href)}`} onLeaving={leaving}/>
           </div></article></li>)}
         </ol>
         <div ref={sentinel} className="feed-end">

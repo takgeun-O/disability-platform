@@ -1,0 +1,11 @@
+- listitem:
+  - paragraph:
+    - text: 보청기 · 질문·답변 ·
+    - time: 2026. 10. 25.
+  - heading "[검토 예시] 경험 나누기 1000" [level=3]:
+    - link "[검토 예시] 경험 나누기 1000":
+      - /url: /community/posts/1000?from=%2Fmypage
+  - paragraph: 같은 경험을 가진 사람들과 이야기를 나누어 보세요.
+  - text: 좋아요 2
+  - link "댓글 3":
+    - /url: /community/posts/1000?from=%2Fmypage#comments-title

@@ -20,6 +20,8 @@ type PostCommon = {
   title: string
   author: { memberId: number; nickname: string }
   createdAt: string
+  likeCount: number
+  liked: boolean
 }
 export type PostSummary = PostCommon & { commentCount: number }
 export type PostDetail = PostCommon & { content: string; updatedAt: string }
@@ -55,6 +57,10 @@ const instant = (v: unknown): v is string =>
   typeof v === "string" &&
   /^\d{4}-\d\d-\d\dT.+Z$/.test(v) &&
   Number.isFinite(Date.parse(v))
+export type LikeState = { likeCount: number; liked: boolean }
+export function isLikeState(v: unknown): v is LikeState {
+  return object(v) && nonnegative(v.likeCount) && typeof v.liked === "boolean"
+}
 function isCommon(v: unknown): v is PostCommon {
   return (
     object(v) &&
@@ -69,7 +75,7 @@ function isCommon(v: unknown): v is PostCommon {
     positiveId(v.author.memberId) &&
     typeof v.author.nickname === "string" &&
     !!v.author.nickname.trim() &&
-    instant(v.createdAt)
+    instant(v.createdAt) && isLikeState(v)
   )
 }
 function isSummary(v: unknown): v is PostSummary {
@@ -222,7 +228,8 @@ async function request(
       base.replace(/\/$/, "") + "/api/v1/community/posts" + path,
       {
         ...options,
-        credentials: writing ? "include" : "omit",
+        // Server reads stay anonymous; only browser reads carry the current session.
+        credentials: writing || typeof window !== "undefined" ? "include" : "omit",
         cache: "no-store",
         redirect: "error",
         referrerPolicy: "no-referrer",
@@ -379,4 +386,24 @@ export async function getFeed(query: PostQuery, cursor: PostCursor | null = null
     (body.hasNext ? (!last || !object(body.nextCursor) || body.nextCursor.createdAt !== last.createdAt || body.nextCursor.postId !== last.id) : body.nextCursor !== null))
     throw responseError(response.status, null, false)
   return body as FeedPage
+}
+
+// Explicit, bodyless PUT/DELETE. Never retry an ambiguous mutation automatically.
+export async function changePostLike(id: number, liked: boolean, isCurrent: () => boolean): Promise<LikeState | null> {
+  if (!positiveId(id)) throw new CommunityApiError(0, "INVALID_POST_ID", "게시글을 확인해 주세요.")
+  let csrf
+  try { csrf = await getCsrfContext() }
+  catch { throw new CommunityApiError(0, "CSRF_PREPARATION_FAILED", "보안 정보를 확인하지 못해 좋아요 요청을 보내지 않았습니다. 다시 시도해 주세요.") }
+  if (!isCurrent()) return null
+  const { response, body } = await request(`/${id}/like`, { method: liked ? "PUT" : "DELETE", headers: { [csrf.headerName]: csrf.token } }, true).catch(error => {
+    if (error instanceof CommunityApiError && error.uncertain) error.message = "좋아요 처리 결과를 확인하지 못했습니다. 현재 상태를 다시 확인한 뒤 시도해 주세요."
+    throw error
+  })
+  if (response.status === 200 && object(body) && body.postId === id && isLikeState(body)) return { liked: body.liked, likeCount: body.likeCount }
+  if (response.status === 403 && isApiError(body) && body.code === "POST_LIKE_NOT_ALLOWED")
+    throw new CommunityApiError(403, body.code, "현재 계정 상태에서는 좋아요를 변경할 수 없습니다.")
+  const error = responseError(response.status, body, true)
+  if (error.uncertain) error.message = "좋아요 처리 결과를 확인하지 못했습니다. 현재 상태를 다시 확인한 뒤 시도해 주세요."
+  if (error.code === "CSRF_TOKEN_INVALID") error.message = "보안 확인 정보가 만료되었습니다. 좋아요를 다시 누르면 새 정보로 요청합니다."
+  throw error
 }

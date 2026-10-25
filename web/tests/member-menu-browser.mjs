@@ -40,6 +40,23 @@ async function clean(p){assert.equal(await p.evaluate(()=>document.body.style.po
 async function focusWithin(p,el){assert(await el.evaluate(e=>e.contains(document.activeElement)))}
 async function check(name,fn){try{await fn();results.push({name,pass:true});console.log('PASS',name)}catch(e){results.push({name,pass:false,error:e.message});console.log('FAIL',name,e.message);process.exitCode=1}finally{for(const c of browser.contexts())await c.close()}}
 try{
+ await check('desktop information panel: 2-column links, no layout shift, keyboard and outside close',async()=>{
+  for(const width of [1440,1024]) {
+   const{p,ctx}=await fixture({width,height:900});await ready(p)
+   const before=await p.locator('main').boundingBox(),button=p.getByRole('button',{name:'정보 찾기'}),dropdown=p.locator('#iyum-information-menu')
+   await button.focus();await p.keyboard.press('Enter');await dropdown.waitFor();await settle(p)
+   assert.equal(await dropdown.getByRole('link').count(),4)
+   assert.equal(await dropdown.getByRole('link',{name:/이용 가이드/}).getAttribute('href'),'/validation/hearing-aid-health-insurance')
+   assert.deepEqual(await p.locator('main').boundingBox(),before)
+   const bounds=await dropdown.boundingBox();assert(bounds.x>=0 && bounds.x+bounds.width<=width)
+   assert.equal(await p.locator('.iyum-information-links').evaluate(e=>getComputedStyle(e).gridTemplateColumns.split(' ').length),2)
+   await p.screenshot({path:`${out}/information-panel-pointer-${width}.png`})
+   await p.keyboard.press('Tab');assert(await dropdown.getByRole('link').first().evaluate(e=>e===document.activeElement))
+   await p.screenshot({path:`${out}/information-panel-${width}.png`})
+   await p.keyboard.press('Escape');assert(await button.evaluate(e=>e===document.activeElement));assert(!await dropdown.isVisible())
+   await button.click();await p.mouse.click(4,200);assert(!await dropdown.isVisible());await ctx.close()
+  }
+ })
  await check('1440/1024/390/320 page + one responsive edit form; layout unchanged behind modal',async()=>{
   for(const width of [1440,1024,390,320]){
    const{p,ctx}=await fixture({width,height:1000});await ready(p);await settle(p);await p.evaluate(()=>scrollTo(0,0));assert(await p.evaluate(()=>document.documentElement.scrollWidth<=innerWidth))
@@ -53,7 +70,7 @@ try{
  for(const input of ['mouse','keyboard','unfocused-link'])await check(`desktop current information link closes without navigation (${input})`,async()=>{
   const{p}=await fixture({width:1440,height:600});await ready(p);await p.goto(base+'/welfare');await p.evaluate(()=>scrollTo(0,24));
   const button=p.getByRole('button',{name:'정보 찾기'}),dropdown=p.locator('#iyum-information-menu'),link=dropdown.getByRole('link',{name:/복지·지원정보/});
-  if(input==='keyboard'){await button.focus();await p.keyboard.press('Enter');await p.keyboard.press('Tab');assert(await link.evaluate(e=>e===document.activeElement))}else await button.click();
+  if(input==='keyboard'){await button.focus();await p.keyboard.press('Enter');await p.keyboard.press('Tab');assert(await dropdown.getByRole('link',{name:/이용 가이드/}).evaluate(e=>e===document.activeElement));await p.keyboard.press('Tab');assert(await link.evaluate(e=>e===document.activeElement))}else await button.click();
   const before=await p.evaluate(()=>({url:location.href,y:scrollY,history:history.length,time:performance.timeOrigin}));assert(before.y>0);
   let navigations=0;const navigated=frame=>{if(frame===p.mainFrame())navigations++};p.on('framenavigated',navigated);
   if(input==='keyboard')await p.keyboard.press('Enter');else if(input==='mouse')await link.click();else await link.evaluate(e=>{document.querySelector('.iyum-information button').focus();e.click()});

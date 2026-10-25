@@ -8,7 +8,7 @@ const entries = new Map<string, { href: string; snapshot: FeedSnapshot }>()
 let returnEntry: { id: string; href: string } | null = null
 export function cacheFeed(id: string, href: string, snapshot: FeedSnapshot) {
   if (snapshot.items.length > 1000) { entries.delete(id); return }
-  entries.delete(id); entries.set(id, { href, snapshot })
+  entries.delete(id); entries.set(id, { href, snapshot: { ...snapshot, items: snapshot.items.map(item => ({ ...item, liked: false })) } })
   while (entries.size > 8) entries.delete(entries.keys().next().value!)
 }
 export function readFeedCache(id: string, href: string) {

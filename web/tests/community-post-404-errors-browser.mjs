@@ -13,7 +13,7 @@ const server=http.createServer((req,res)=>{
  if (/^\/api\/v1\/community\/posts\/\d+$/.test(path)) detailReads++
  if(id==='46'){setTimeout(()=>{if(!res.destroyed){res.writeHead(503);res.end()}},16000);return}
  let status=200,body={items:[],hasNext:false,nextCursor:null},type='application/json'
- if(id==='47') body={id:47,type:'QUESTION',topic:'HEARING_AID',title:'정상 상세 호출 측정',content:'실제 표시되는 정상 본문',author:{memberId:123,nickname:'검증'},createdAt:'2026-10-17T00:00:00Z',updatedAt:'2026-10-17T00:00:00Z'}
+ if(id==='47') body={id:47,type:'QUESTION',topic:'HEARING_AID',title:'정상 상세 호출 측정',content:'실제 표시되는 정상 본문',likeCount: 0, liked: false, author:{memberId:123,nickname:'검증'},createdAt:'2026-10-17T00:00:00Z',updatedAt:'2026-10-17T00:00:00Z'}
  if(id==='41'){status=404;body=error('POST_NOT_FOUND')}
  if(id==='42'){status=502;body='<html>gateway</html>';type='text/html'}
  if(id==='43'){body='{damaged'}

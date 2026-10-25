@@ -1,0 +1,34 @@
+{
+  "results": [
+    {
+      "name": "404 informs; return rereads and removes missing list item",
+      "pass": true
+    },
+    {
+      "name": "404 return waits for gated feed completion, not cached row 999",
+      "pass": true
+    }
+  ],
+  "serverCalls": [
+    {
+      "path": "/api/v1/community/posts/feed",
+      "query": "?size=20"
+    },
+    {
+      "path": "/api/v1/community/posts/1000",
+      "query": ""
+    },
+    {
+      "path": "/api/v1/community/posts/1000",
+      "query": ""
+    },
+    {
+      "path": "/api/v1/community/posts/1000/comments",
+      "query": "?size=20"
+    },
+    {
+      "path": "/api/v1/community/posts/feed",
+      "query": "?size=20"
+    }
+  ]
+}

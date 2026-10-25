@@ -70,17 +70,19 @@ function MemberPage({ memberId, onPasswordNotice }: { memberId: number; onPasswo
       </div>
     </section>
     {toast && <SuccessToast key={toast.id} message={toast.message} returnFocus={toast.returnFocus} onDismiss={dismissToast} />}
-    <MyActivity memberId={memberId} summary={summary.data} layoutReady={!!(profile.data || profile.error) && !!(summary.data || summary.error)} />
+    <div className="mypage-workspace">
     <section className="mypage-account" aria-labelledby="account-title">
       <h2 id="account-title">계정 관리</h2>
       <div className="mypage-account-card">
-        <dl><dt>이메일</dt><dd>{profile.data?.email ?? (profile.error?'회원 정보를 확인해 주세요.':'불러오는 중…')}</dd><dd className="mypage-readonly">읽기 전용</dd></dl>
+        <dl><dt>이메일</dt><dd>{profile.data?.email ?? (profile.error?'회원 정보를 확인해 주세요.':'불러오는 중…')}</dd>{profile.data && <dd className="mypage-readonly mypage-email-verified">이메일 인증 완료</dd>}</dl>
         <button id="password-change-entry" type="button" className="password-change-entry" aria-label="비밀번호 변경" onClick={() => { onPasswordNotice(''); dismissToast(); setChangingPassword(true) }}>
           <span>비밀번호</span><span className="mypage-account-action">변경<svg aria-hidden="true" focusable="false" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round"><path d="m9 5 7 7-7 7"/></svg></span>
         </button>
       </div>
       <button id="withdrawal-entry" type="button" className="withdrawal-entry" onClick={() => { dismissToast(); setWithdrawing(true) }}><span>회원 탈퇴</span><svg aria-hidden="true" focusable="false" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round"><path d="m9 5 7 7-7 7"/></svg></button>
     </section>
+    <MyActivity memberId={memberId} summary={summary.data} layoutReady={!!(profile.data || profile.error) && !!(summary.data || summary.error)} />
+    </div>
     {changingPassword && <PasswordChangeDialog memberId={memberId} onClose={completed => { setChangingPassword(false); if (completed && scope.isActive()) showSuccess('비밀번호가 변경되었습니다.', '#password-change-entry') }} onNotice={onPasswordNotice} />}
     {withdrawing && <WithdrawalDialog memberId={memberId} onClose={() => setWithdrawing(false)} />}
   </>

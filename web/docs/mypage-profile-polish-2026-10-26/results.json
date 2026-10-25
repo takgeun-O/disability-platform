@@ -1,0 +1,9 @@
+{
+  "kind": "controlled mock API on production Next; no DB writes",
+  "results": [
+    {
+      "name": "activity/account layout and explicit comment/source labels",
+      "pass": true
+    }
+  ]
+}

@@ -5,7 +5,7 @@ const {getMemberPosts}=await loadTypeScript('../src/lib/member-api.ts',import.me
 const {createMemberActivityCache,refreshMemberPosts}=await loadTypeScript('../src/lib/member-activity.ts',import.meta.url)
 const {safeListReturn}=await loadTypeScript('../src/lib/community-posts.ts',import.meta.url)
 const stamp='2026-10-20T00:00:00.123456Z'
-const item=id=>({id,type:'QUESTION',topic:'HEARING_AID',title:'내 글',contentPreview:'미리보기',author:{memberId:1,nickname:'회원'},createdAt:stamp,commentCount:0})
+const item=id=>({id,type:'QUESTION',topic:'HEARING_AID',title:'내 글',contentPreview:'미리보기',likeCount: 0, liked: false, author:{memberId:1,nickname:'회원'},createdAt:stamp,commentCount:0})
 const page={items:[item(10),item(9)],hasNext:true,nextCursor:{createdAt:stamp,postId:9}}
 process.env.NEXT_PUBLIC_API_BASE_URL='http://test.invalid'
 test('private posts: size10, session/no-store/no CSRF, raw microsecond cursor and postId -> afterId',async t=>{

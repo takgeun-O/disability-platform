@@ -10,6 +10,7 @@ import {
   useUnsavedChanges,
 } from "@/components/NavigationGuard"
 import CommunityDialog from "./CommunityDialog"
+import CommentSuccessToast from "./CommentSuccessToast"
 import {
   changeComment,
   CommentError,
@@ -54,7 +55,11 @@ export default function Comments({
   const [editor, setEditor] = useState<Editor | null>(null)
   const [busy, setBusy] = useState(false),
     [loading, setLoading] = useState(false)
+  const toastSequence = useRef(0)
+  const [toast, setToast] = useState<{ id: number; message: string; valid: () => boolean; dismiss: () => void } | null>(null)
   const [notice, setNotice] = useState("")
+  const [linkedComment, setLinkedComment] = useState<number | null>(null)
+  const [linkNotice, setLinkNotice] = useState("")
   const [created, setCreated] = useState<{ commentId: number; content: string }[]>([])
   const [loginPrompt, setLoginPrompt] = useState(false)
   const loginMoving = useRef(false)
@@ -91,6 +96,44 @@ export default function Comments({
     },
     [],
   )
+
+  // An explicit comment link may point beyond the first public cursor page.
+  useEffect(() => {
+    const select = () => {
+      const match = /^#comment-([1-9]\d*)$/.exec(location.hash)
+      const id = match ? Number(match[1]) : NaN
+      setLinkedComment(Number.isSafeInteger(id) ? id : null)
+      setLinkNotice("")
+    }
+    select()
+    const cancel = () => setLinkedComment(null)
+    window.addEventListener("hashchange", select)
+    window.addEventListener("pointerdown", cancel)
+    window.addEventListener("keydown", cancel)
+    return () => {
+      window.removeEventListener("hashchange", select)
+      window.removeEventListener("pointerdown", cancel)
+      window.removeEventListener("keydown", cancel)
+    }
+  }, [postId])
+  const followComment = useEffectEvent(() => {
+    if (!linkedComment || !scope.isActive() || reading.current || writing.current || readError) return
+    const target = document.getElementById(`comment-${linkedComment}`)
+    if (target) {
+      target.focus({ preventScroll: true })
+      target.scrollIntoView({ behavior: matchMedia("(prefers-reduced-motion: reduce)").matches ? "instant" : "smooth", block: "center" })
+      setLinkedComment(null)
+    } else if (page.hasNext && page.nextCursor) {
+      void load(true)
+    } else {
+      setLinkNotice("해당 댓글을 찾을 수 없어요. 삭제되었거나 더 이상 표시되지 않는 댓글일 수 있습니다.")
+      setLinkedComment(null)
+    }
+  })
+  useEffect(() => {
+    const frame = requestAnimationFrame(() => followComment())
+    return () => cancelAnimationFrame(frame)
+  }, [linkedComment, page, loading, readError])
 
   const refreshIdentity = useEffectEvent(() => { void load() })
   useEffect(() => { if (identityVersion > 0) refreshIdentity() }, [identityVersion])
@@ -231,6 +274,7 @@ export default function Comments({
     setError(null)
     setNotice("")
     const current = scope.begin()
+    const session = auth.member ? auth.captureMemberRequest(auth.member.memberId) : null
     let refresh = false
     try {
       const result = await changeComment(postId, method, id, content, current)
@@ -239,19 +283,21 @@ export default function Comments({
       if (method === "POST" || method === "DELETE") postListChanged()
       else memberCommentsChanged()
       if (!current()) return
+      if (session?.isCurrent()) {
+        const toastId = ++toastSequence.current
+        const message = method === "POST" ? "댓글을 등록했습니다." : method === "PUT" ? "댓글을 수정했습니다." : "댓글을 삭제했습니다."
+        setToast({ id: toastId, message, valid: session.isCurrent, dismiss: () => setToast(previous => previous?.id === toastId ? null : previous) })
+      }
       if (method === "DELETE") {
         removeItem(result)
-        setNotice("댓글을 삭제했습니다.")
       }
       if (method === "POST") {
         setDraft(value => value === content ? "" : value)
         setCreated(receipts => [...receipts.filter(receipt => receipt.commentId !== result), { commentId: result, content }])
-        setNotice("댓글을 등록했습니다.")
         refresh = true
       }
       if (method === "PUT") {
         setEditor(null)
-        setNotice("댓글을 수정했습니다.")
         requestFocus(`comment-edit-button-${id}`)
         refresh = true
       }
@@ -322,7 +368,7 @@ export default function Comments({
       onFocusCapture={e => setInputFocused(!!(e.target as HTMLElement).closest('.community-comment-form'))}
       onBlurCapture={e => { if (!(e.relatedTarget instanceof HTMLElement) || !e.relatedTarget.closest('.community-comment-form')) setInputFocused(false) }}>
       <div className="community-list-heading">
-        <h2 id="comments-title">댓글</h2>
+        <h2 id="comments-title" tabIndex={-1}>댓글</h2>
         <button
           id="comments-refresh"
           className="iyum-text-link community-comments-refresh"
@@ -335,6 +381,10 @@ export default function Comments({
       <p className="community-help">
         오래된 댓글부터 표시합니다. 좋아요 기능은 준비 중입니다.
       </p>
+      {linkNotice && <p role="status" className="community-help">{linkNotice}</p>}
+      <div role="status" aria-atomic="true" className="comment-toast-announcer">
+        {toast && toast.valid() && scope.isActive() && <CommentSuccessToast key={toast.id} message={toast.message} onDismiss={toast.dismiss} />}
+      </div>
       <p role="status" className="community-comments-status">
         {notice}
         {loading ? " 댓글을 불러오고 있습니다." : ""}
@@ -356,7 +406,7 @@ export default function Comments({
       )}
       <ul className="community-comment-list">
         {page.items.map((c) => (
-          <li key={c.commentId} id={`comment-${c.commentId}`}>
+          <li key={c.commentId} id={`comment-${c.commentId}`} tabIndex={-1}>
             <div className="community-comment-meta">
               <strong>{c.author.nickname}</strong>
               <time dateTime={c.createdAt}>{postDate(c.createdAt)}</time>

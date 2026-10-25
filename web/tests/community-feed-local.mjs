@@ -18,7 +18,7 @@ try{
  await check('Spring topic+type feed and production SSR/noJS count/preview',async()=>{
   const p=first.items[0],q=new URLSearchParams({topic:p.topic,type:p.type,size:'20'});const data=await(await fetch(api+'/api/v1/community/posts/feed?'+q)).json();assert(data.items.every(i=>i.type===p.type&&i.topic===p.topic))
   const ctx=await browser.newContext({javaScriptEnabled:false}),page=await ctx.newPage()
-  try{assert.equal((await page.goto(base+'/community?'+q)).status(),200);const row=page.locator(`[data-feed-id="${p.id}"]`);assert(await row.isVisible());assert.equal(await row.locator('h3').innerText(),p.title);assert.equal(await row.locator('.feed-preview').innerText(),p.contentPreview);assert.equal(await row.locator('.feed-comment-count').innerText(),'댓글 '+p.commentCount)}finally{await ctx.close()}
+  try{assert.equal((await page.goto(base+'/community?'+q)).status(),200);const row=page.locator(`[data-feed-id="${p.id}"]`);assert(await row.isVisible());assert.equal(await row.locator('h3').innerText(),p.title);assert.equal(await row.locator('.feed-preview').innerText(),p.contentPreview);assert.equal(await row.locator('.post-comment-link').innerText(),'댓글 '+p.commentCount)}finally{await ctx.close()}
  })
  await check('Spring noJS detail/body/comment visible, metadata intact',async()=>{
   const all=await(await fetch(api+'/api/v1/community/posts/feed?size=20')).json();const chosen=all.items.find(p=>p.commentCount>0);assert(chosen,'existing commented post needed')

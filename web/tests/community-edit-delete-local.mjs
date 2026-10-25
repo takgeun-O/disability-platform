@@ -241,7 +241,7 @@ try {
         await page.locator(".community-post-body").textContent(),
         textBody + "\n수정 검증 추가",
       )
-      await page.getByRole("link", { name: "← 목록으로", exact: true }).click()
+      await page.getByRole("link", { name: "← 게시글 목록으로", exact: true }).click()
       await listReady()
       await page.getByRole("link", { name: title, exact: true }).click()
       await page.locator(".community-post-body").waitFor()
@@ -281,7 +281,7 @@ try {
       assert.equal(await page.getByLabel("주제", { exact: true }).inputValue(), topic)
       await page.getByRole("button", { name: "취소", exact: true }).click()
       await page.waitForURL(u => u.pathname === "/community/posts/" + created.postId)
-      const backLink = page.getByRole("link", { name: "← 목록으로", exact: true })
+      const backLink = page.getByRole("link", { name: "← 게시글 목록으로", exact: true })
       assert.equal(await backLink.getAttribute("href"), listPath)
       await backLink.click(); await listReady()
       assert.equal(await page.getByRole("link", { name: textTitle + " 수정 완료", exact: true }).count(), 0)

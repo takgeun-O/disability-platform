@@ -1,0 +1,46 @@
+{
+  "likes": {
+    "passed": 28,
+    "failed": 0,
+    "mock": true
+  },
+  "navigation": {
+    "passed": 10,
+    "failed": 0,
+    "mock": true
+  },
+  "edit": {
+    "passed": 30,
+    "failed": 0,
+    "mock": true
+  },
+  "feed": {
+    "passed": 22,
+    "failed": 0,
+    "mock": true
+  },
+  "member-posts": {
+    "passed": 41,
+    "failed": 0,
+    "mock": true
+  },
+  "member-comments": {
+    "passed": 30,
+    "failed": 0,
+    "mock": true
+  },
+  "comments": {
+    "passed": 50,
+    "failed": 0,
+    "mock": true
+  },
+  "legacy-failures": {
+    "community-topics-browser.mjs": "First check fails: heading expects 보청기 커뮤니티, actual 보청기; legacy page/filter/hero selectors also remain.",
+    "community-browser.mjs": "First SSR check fails: mock handles /posts but not /posts/feed, treating feed as detail ID and returning POST_NOT_FOUND. Legacy numbered-pagination UI remains."
+  },
+  "not-run": [
+    "real Spring writes/local account tests",
+    "real mobile Safari/screen reader devices",
+    "full separate 404-specific suites"
+  ]
+}

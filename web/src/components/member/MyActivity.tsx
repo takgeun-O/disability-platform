@@ -8,13 +8,14 @@ import { refreshMemberPosts, type ActivityTab, type MemberPostSnapshot } from '@
 import { mergeFeed, type FeedPosition } from '@/lib/community-feed'
 import { consumeListReturn, POST_TOPICS, POST_TYPES, postDate } from '@/lib/community-posts'
 import { getPostVersion, usePostVersion } from '@/lib/community-mutations'
+import PostListReactions from '@/components/community/PostListReactions'
 import MyComments from './MyComments'
 import { activityPosition, restoreActivityPosition } from './activity-position'
 import type { MemberCommentSnapshot } from '@/lib/member-activity'
 
 const empty: MemberPostSnapshot = { items: [], hasNext: false, nextCursor: null, segments: 0, version: -1, tab: 'posts' }
 export default function MyActivity({ memberId, summary, layoutReady }: { memberId: number; summary?: ActivitySummary; layoutReady: boolean }) {
-  const { activityCache, captureMemberRequest, memberRequests } = useAuth(), scope = useNavigationRequest(), version = usePostVersion('list')
+  const { activityCache, captureMemberRequest, memberRequests, likes } = useAuth(), scope = useNavigationRequest(), version = usePostVersion('list')
   const [lease] = useState(() => activityCache.lease(memberId))
   const [view, setView] = useState<MemberPostSnapshot>(empty), current = useRef(view)
   const [ready, setReady] = useState(false), [restoring, setRestoring] = useState(false)
@@ -80,6 +81,7 @@ export default function MyActivity({ memberId, summary, layoutReady }: { memberI
     if (!session.isCurrent()) return
     const controller = new AbortController(); request.current = controller
     const valid = () => !controller.signal.aborted && request.current === controller && scope.isActive() && lease.valid() && session.isCurrent()
+    const likeRead = likes.read()
     const requestedVersion = getPostVersion('list')
     // Keep the retry action mounted (and focusable) until this request settles.
     setBusy(kind); setNotice('')
@@ -87,6 +89,7 @@ export default function MyActivity({ memberId, summary, layoutReady }: { memberI
       const data = kind === 'more' ? { ...await getMemberPosts(memberId, previous.nextCursor, controller.signal), segments: previous.segments + 1 }
         : await refreshMemberPosts(memberId, previous.segments, controller.signal)
       if (!valid() || requestedVersion !== getPostVersion('list')) return
+      likeRead.accept(data.items)
       const items = kind === 'more' ? mergeFeed(previous.items, data.items) : data.items
       // Tab selection made while a request was pending wins over the old request's snapshot.
       const updated: MemberPostSnapshot = { ...data, items, segments: data.segments,
@@ -106,7 +109,7 @@ export default function MyActivity({ memberId, summary, layoutReady }: { memberI
     } finally {
       if (request.current === controller) { request.current = null; if (scope.isActive() && lease.valid()) setBusy(null) }
     }
-  }, [captureMemberRequest, memberRequests, lease, memberId, scope])
+  }, [captureMemberRequest, memberRequests, lease, memberId, scope, likes])
   useEffect(() => {
     if (ready && view.tab === 'posts' && !restoring && (view.version !== version || view.requestRevision !== memberRequests.revision) && failedVersion.current !== version) void load('refresh')
   }, [ready, restoring, version, view.version, view.requestRevision, memberRequests, view.tab, load])
@@ -138,7 +141,7 @@ export default function MyActivity({ memberId, summary, layoutReady }: { memberI
         <div className="mypage-post-copy"><p className="mypage-post-meta">{POST_TOPICS[post.topic]} · {POST_TYPES[post.type]} · <time dateTime={post.createdAt}>{postDate(post.createdAt)}</time></p>
           <h3><Link href={`/community/posts/${post.id}?from=%2Fmypage`} prefetch={false} onNavigate={leaving}>{post.title}</Link></h3>
           <p className="mypage-post-preview">{post.contentPreview}</p></div>
-        <span className="mypage-post-comments"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" aria-hidden="true" focusable="false"><path d="M21 11.5a8.4 8.4 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.4 8.4 0 0 1-3.8-.9L3 21l1.9-5.7a8.4 8.4 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.4 8.4 0 0 1 3.8-.9h.5a8.5 8.5 0 0 1 8 8v.5Z" strokeLinecap="round" strokeLinejoin="round" /></svg>댓글 {post.commentCount.toLocaleString('ko-KR')}</span>
+        <PostListReactions post={post} href={`/community/posts/${post.id}?from=%2Fmypage`} onLeaving={leaving}/>
       </li>)}</ul>
       {busy === 'refresh' && !!view.segments && <p role="status">내 게시글을 갱신하고 있습니다.</p>}
       <div className={error ? 'mypage-list-message' : undefined}>

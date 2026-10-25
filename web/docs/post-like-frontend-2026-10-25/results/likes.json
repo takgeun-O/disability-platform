@@ -1,0 +1,126 @@
+{
+  "results": [
+    {
+      "name": "anonymous SSR/noJS shows true count; no cookies to SSR",
+      "pass": true
+    },
+    {
+      "name": "guest prompt, login return, never auto-register",
+      "pass": true
+    },
+    {
+      "name": "register/cancel/register, exact server value, detail and own posts share state",
+      "pass": true
+    },
+    {
+      "name": "double click same post blocked; other post independent; returned count not arithmetic",
+      "pass": true
+    },
+    {
+      "name": "old feed GET released after mutation cannot revert shared state",
+      "pass": true
+    },
+    {
+      "name": "error CSRF_TOKEN_INVALID, no replay, manual recovery",
+      "pass": true
+    },
+    {
+      "name": "error POST_LIKE_NOT_ALLOWED, no replay, manual recovery",
+      "pass": true
+    },
+    {
+      "name": "error SERVER_ERROR, no replay, manual recovery",
+      "pass": true
+    },
+    {
+      "name": "error INVALID_SUCCESS, no replay, manual recovery",
+      "pass": true
+    },
+    {
+      "name": "error NETWORK, no replay, manual recovery",
+      "pass": true
+    },
+    {
+      "name": "current 401 expires session and prompts login",
+      "pass": true
+    },
+    {
+      "name": "404 informs and refreshes stale list",
+      "pass": true
+    },
+    {
+      "name": "late success after same member relogin cannot overwrite",
+      "pass": true
+    },
+    {
+      "name": "late 401 after same member relogin cannot overwrite",
+      "pass": true
+    },
+    {
+      "name": "late success after other member relogin cannot overwrite",
+      "pass": true
+    },
+    {
+      "name": "late 401 after other member relogin cannot overwrite",
+      "pass": true
+    },
+    {
+      "name": "same post remains locked after client navigation to detail; late success shared",
+      "pass": true
+    },
+    {
+      "name": "60 loaded posts/detail toggle/back preserves rows and position 1440",
+      "pass": true
+    },
+    {
+      "name": "60 loaded posts/detail toggle/back preserves rows and position 390",
+      "pass": true
+    },
+    {
+      "name": "own posts reactions 1440, server count and layout",
+      "pass": true
+    },
+    {
+      "name": "own posts reactions 390, server count and layout",
+      "pass": true
+    },
+    {
+      "name": "own posts reactions 320, server count and layout",
+      "pass": true
+    },
+    {
+      "name": "layout/key focus 1440, long title and count",
+      "pass": true
+    },
+    {
+      "name": "layout/key focus 390, long title and count",
+      "pass": true
+    },
+    {
+      "name": "layout/key focus 320, long title and count",
+      "pass": true
+    }
+  ],
+  "serverCalls": [
+    {
+      "path": "/api/v1/community/posts/feed",
+      "query": "?size=20"
+    },
+    {
+      "path": "/api/v1/community/posts/feed",
+      "query": "?size=20"
+    },
+    {
+      "path": "/api/v1/community/posts/1000",
+      "query": ""
+    },
+    {
+      "path": "/api/v1/community/posts/1000",
+      "query": ""
+    },
+    {
+      "path": "/api/v1/community/posts/1000/comments",
+      "query": "?size=20"
+    }
+  ]
+}
