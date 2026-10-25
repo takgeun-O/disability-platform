@@ -1,0 +1,32 @@
+{
+  "mode": "production Next / mock GET only / no real account mutation",
+  "results": [
+    {
+      "width": 1440,
+      "pass": true,
+      "cardContainsEmailAndPassword": true,
+      "withdrawalSeparateCentered": true,
+      "passwordHeight": 57,
+      "withdrawalHeight": 44,
+      "keyboardOpenCloseFocusRestored": true
+    },
+    {
+      "width": 390,
+      "pass": true,
+      "cardContainsEmailAndPassword": true,
+      "withdrawalSeparateCentered": true,
+      "passwordHeight": 56,
+      "withdrawalHeight": 44,
+      "keyboardOpenCloseFocusRestored": true
+    },
+    {
+      "width": 320,
+      "pass": true,
+      "cardContainsEmailAndPassword": true,
+      "withdrawalSeparateCentered": true,
+      "passwordHeight": 56,
+      "withdrawalHeight": 44,
+      "keyboardOpenCloseFocusRestored": true
+    }
+  ]
+}

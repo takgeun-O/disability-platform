@@ -1,0 +1,4 @@
+
+> iyum-web@1.0.0 lint /Users/tackeunoh/Developer/iyum/web
+> eslint src tests
+

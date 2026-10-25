@@ -1,0 +1,10 @@
+[
+  {
+    "name": "posts",
+    "exit": 0
+  },
+  {
+    "name": "comments",
+    "exit": 0
+  }
+]

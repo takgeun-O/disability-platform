@@ -5,7 +5,7 @@ import { createMemberActivityCache } from '@/lib/member-activity';
 import { createAuthSession, type AuthState } from '@/lib/auth-session';
 
 type Session = ReturnType<typeof createAuthSession>;
-type AuthContextValue = { withdrawalNotice: boolean; dismissWithdrawalNotice: () => void; completeWithdrawal: (memberId: number) => boolean; activityCache: ReturnType<typeof createMemberActivityCache> } & AuthState & Pick<Session, 'refresh' | 'signIn' | 'signOut' | 'updateNickname' | 'expire'>;
+type AuthContextValue = { memberRequests: ReturnType<Session['getMemberRequestSnapshot']>; withdrawalNotice: boolean; dismissWithdrawalNotice: () => void; completeWithdrawal: (memberId: number) => boolean; activityCache: ReturnType<typeof createMemberActivityCache> } & AuthState & Pick<Session, 'refresh' | 'signIn' | 'signOut' | 'updateNickname' | 'expire' | 'captureMemberRequest' | 'beginCredentialChange'>;
 const AuthContext = createContext<AuthContextValue | null>(null);
 
 export function AuthProvider({ children }: { children: ReactNode }) {
@@ -20,12 +20,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   });
   const [withdrawalNotice, setWithdrawalNotice] = useState(false);
   const state = useSyncExternalStore(session.subscribe, session.getSnapshot, session.getServerSnapshot);
+  const memberRequests = useSyncExternalStore(session.subscribe, session.getMemberRequestSnapshot, session.getServerMemberRequestSnapshot);
   useEffect(() => {
     session.start(); // 초기 진입·새로고침마다 서버 쿠키로 /me 조회
     return () => { session.stop(); activityCache.setOwner(null); };
   }, [session, activityCache]);
   return (
-    <AuthContext.Provider value={{ ...state, activityCache, withdrawalNotice, dismissWithdrawalNotice: () => setWithdrawalNotice(false), completeWithdrawal: (memberId) => { if (!session.expire(memberId)) return false; setWithdrawalNotice(true); return true; }, refresh: session.refresh, signIn: session.signIn, signOut: session.signOut, updateNickname: session.updateNickname, expire: session.expire }}>
+    <AuthContext.Provider value={{ ...state, memberRequests, activityCache, withdrawalNotice, dismissWithdrawalNotice: () => setWithdrawalNotice(false), completeWithdrawal: (memberId) => { if (!session.expire(memberId)) return false; setWithdrawalNotice(true); return true; }, refresh: session.refresh, signIn: session.signIn, signOut: session.signOut, updateNickname: session.updateNickname, expire: session.expire, captureMemberRequest: session.captureMemberRequest, beginCredentialChange: session.beginCredentialChange }}>
       {children}
     </AuthContext.Provider>
   );

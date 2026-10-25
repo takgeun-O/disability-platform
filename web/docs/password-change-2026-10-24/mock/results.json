@@ -1,0 +1,117 @@
+{
+  "mode": "mock API only",
+  "results": [
+    {
+      "name": "layout, raw input, backdrop, keyboard, reset and short viewport 1440",
+      "pass": true
+    },
+    {
+      "name": "layout, raw input, backdrop, keyboard, reset and short viewport 390",
+      "pass": true
+    },
+    {
+      "name": "layout, raw input, backdrop, keyboard, reset and short viewport 320",
+      "pass": true
+    },
+    {
+      "name": "duplicate submit and close blocked; successful fields clear before delayed follow-up CSRF; no auth remount",
+      "pass": true
+    },
+    {
+      "name": "pre-submit CSRF failure sends no POST and preserves fields",
+      "pass": true
+    },
+    {
+      "name": "CSRF rejection renews GET only; next manual submit gets a fresh token",
+      "pass": true
+    },
+    {
+      "name": "confirmed success survives follow-up CSRF failure with separate warning",
+      "pass": true
+    },
+    {
+      "name": "safe error VALIDATION_FAILED, inputs and no replay",
+      "pass": true
+    },
+    {
+      "name": "safe error PASSWORD_CHANGE_INVALID_CURRENT_PASSWORD, inputs and no replay",
+      "pass": true
+    },
+    {
+      "name": "safe error PASSWORD_CHANGE_INVALID_NEW_PASSWORD, inputs and no replay",
+      "pass": true
+    },
+    {
+      "name": "safe error PASSWORD_CHANGE_CURRENT_PASSWORD_MISMATCH, inputs and no replay",
+      "pass": true
+    },
+    {
+      "name": "safe error PASSWORD_CHANGE_PASSWORD_UNCHANGED, inputs and no replay",
+      "pass": true
+    },
+    {
+      "name": "safe error CSRF_TOKEN_INVALID, inputs and no replay",
+      "pass": true
+    },
+    {
+      "name": "safe error ACCESS_DENIED, inputs and no replay",
+      "pass": true
+    },
+    {
+      "name": "safe error INTERNAL_SERVER_ERROR, inputs and no replay",
+      "pass": true
+    },
+    {
+      "name": "200 relogin expires private state with success notice, no logout POST",
+      "pass": true
+    },
+    {
+      "name": "401 expires current generation and offers safe login return",
+      "pass": true
+    },
+    {
+      "name": "429 Retry-After 1, no automatic retry",
+      "pass": true
+    },
+    {
+      "name": "429 Retry-After null, no automatic retry",
+      "pass": true
+    },
+    {
+      "name": "429 Retry-After bad, no automatic retry",
+      "pass": true
+    },
+    {
+      "name": "uncertain html response never guessed or retried",
+      "pass": true
+    },
+    {
+      "name": "uncertain json response never guessed or retried",
+      "pass": true
+    },
+    {
+      "name": "uncertain missing response never guessed or retried",
+      "pass": true
+    },
+    {
+      "name": "uncertain string response never guessed or retried",
+      "pass": true
+    },
+    {
+      "name": "uncertain network response never guessed or retried",
+      "pass": true
+    },
+    {
+      "name": "approved departure and same-member login ignore late 401",
+      "pass": true
+    },
+    {
+      "name": "approved departure and same-member login ignore late relogin",
+      "pass": true
+    },
+    {
+      "name": "approved departure and same-member login ignore late success",
+      "pass": true
+    }
+  ]
+}

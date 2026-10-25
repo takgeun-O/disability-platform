@@ -1,0 +1,20 @@
+PASS profile, Korean month, counts, readonly email; lazy comments empty state
+PASS zero summary is actual zero
+PASS checking hides private profile and anonymous message
+PASS separate profile/summary loading and summary failure retry preserves profile
+PASS profile failure retry keeps valid summary
+PASS keyboard edit/cancel; unchanged save disabled; one field error and draft preserved
+PASS delayed save blocks duplicate/cancel and updates header + profile
+PASS save error NICKNAME_ALREADY_EXISTS preserves draft without retry
+PASS save error VALIDATION_FAILED preserves draft without retry
+PASS save error CSRF_TOKEN_INVALID preserves draft without retry
+PASS save error MEMBER_NOT_ACTIVE preserves draft without retry
+PASS save error SERVER_ERROR preserves draft without retry
+PASS anonymous login return to /mypage
+PASS 401 clears private data and expires current session
+PASS late PUT after logout cannot restore old member/data
+PASS session recheck account change clears old data, late GET ignored
+PASS network save failure keeps input and does not retry
+PASS save 401 removes personal data and offers login
+PASS leaving while CSRF pending prevents new PUT
+PASS 1440/390/320 layout, long identity/counts and tab keyboard

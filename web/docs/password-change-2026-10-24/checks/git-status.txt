@@ -1,0 +1,12 @@
+ M web/src/components/AuthProvider.tsx
+ M web/src/features/MyPage.tsx
+ M web/src/lib/auth-session.ts
+ M web/src/styles/mypage.css
+?? web/docs/Member-Password-Change-2026-10-24.md
+?? web/docs/password-change-2026-10-24/
+?? web/src/components/member/PasswordChangeDialog.tsx
+?? web/src/lib/password-change-api.ts
+?? web/src/lib/password-change.ts
+?? web/tests/password-change-browser.mjs
+?? web/tests/password-change-local.mjs
+?? web/tests/password-change.test.mjs

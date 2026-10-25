@@ -7,6 +7,7 @@ export type AuthState = {
   member: Member | null;
   pending: 'login' | 'logout' | null;
 };
+const INITIAL_REQUESTS = { revision: 0, paused: false };
 const INITIAL: AuthState = { status: 'checking', member: null, pending: null };
 export type LoginResult = { kind: 'authenticated'; csrfReady: boolean; recovered: boolean } | { kind: 'ignored' };
 export type LogoutResult = { kind: 'anonymous'; confirmedBy: 'logout' | 'me' } | { kind: 'ignored' };
@@ -16,6 +17,13 @@ export function createAuthSession(client: AuthApi = api) {
   let state = INITIAL;
   let generation = 0;
   let active = false;
+  let memberRequests = INITIAL_REQUESTS;
+  let credentialChange: symbol | null = null;
+  function advanceGeneration() {
+    credentialChange = null;
+    memberRequests = { revision: memberRequests.revision + 1, paused: false };
+    return ++generation;
+  }
   const listeners = new Set<() => void>();
   const publish = (next: AuthState) => { state = next; listeners.forEach(listener => listener()); };
   const current = (ticket: number) => active && ticket === generation;
@@ -37,7 +45,7 @@ export function createAuthSession(client: AuthApi = api) {
   }
   async function refresh() {
     if (!active || state.pending) return;
-    const ticket = ++generation;
+    const ticket = advanceGeneration();
     publish({ status: 'checking', member: null, pending: null });
     await readCurrent(ticket);
   }
@@ -48,7 +56,7 @@ export function createAuthSession(client: AuthApi = api) {
   }
   async function signIn(values: LoginRequest, onAuthenticated: () => void): Promise<LoginResult> {
     if (!active || state.pending) return { kind: 'ignored' };
-    const ticket = ++generation;
+    const ticket = advanceGeneration();
     publish({ ...state, pending: 'login' });
     try {
       const csrf = await client.getAuthCsrf();
@@ -88,7 +96,7 @@ export function createAuthSession(client: AuthApi = api) {
   }
   async function signOut(): Promise<LogoutResult> {
     if (!active || state.pending) return { kind: 'ignored' };
-    const ticket = ++generation;
+    const ticket = advanceGeneration();
     publish({ ...state, pending: 'logout' });
     try {
       const csrf = await client.getAuthCsrf();
@@ -117,15 +125,63 @@ export function createAuthSession(client: AuthApi = api) {
     }
   }
   return {
+    // Every private response owns BOTH the login and the personal-read revision.
+    // IDs alone cannot distinguish re-login or the credential replacement of one member.
+    captureMemberRequest(memberId: number) {
+      const ticket = generation, revision = memberRequests.revision;
+      const isCurrent = () => current(ticket) && revision === memberRequests.revision && !memberRequests.paused
+        && !state.pending && state.status === 'authenticated' && state.member?.memberId === memberId;
+      return {
+        isCurrent,
+        expire() {
+          if (!isCurrent()) return false;
+          advanceGeneration();
+          publish({ status: 'anonymous', member: null, pending: null });
+          return true;
+        },
+        updateNickname(nickname: string) {
+          if (!isCurrent()) return false;
+          publish({ ...state, member: { ...state.member!, nickname } });
+          return true;
+        },
+      };
+    },
+    // Invalidate old reads BEFORE sending the credential mutation. This is not a
+    // success signal: keep the current UI and resume fresh reads for every outcome.
+    beginCredentialChange(memberId: number) {
+      if (!active || state.pending || credentialChange || state.status !== 'authenticated' || state.member?.memberId !== memberId) return null;
+      const ticket = advanceGeneration(), operation = Symbol();
+      credentialChange = operation;
+      memberRequests = { ...memberRequests, paused: true };
+      publish({ ...state });
+      const isCurrent = () => current(ticket) && !state.pending && state.status === 'authenticated' && state.member?.memberId === memberId;
+      return {
+        isCurrent,
+        expire() {
+          if (!isCurrent()) return false;
+          advanceGeneration();
+          publish({ status: 'anonymous', member: null, pending: null });
+          return true;
+        },
+        finish() {
+          if (credentialChange !== operation || !isCurrent()) return;
+          credentialChange = null;
+          memberRequests = { revision: memberRequests.revision + 1, paused: false };
+          publish({ ...state });
+        },
+      };
+    },
+    getMemberRequestSnapshot: () => memberRequests,
+    getServerMemberRequestSnapshot: () => INITIAL_REQUESTS,
     getSnapshot: () => state,
     getServerSnapshot: () => INITIAL,
     subscribe: (listener: () => void) => { listeners.add(listener); return () => { listeners.delete(listener); }; },
     start: () => { active = true; publish({ ...state, pending: null }); void refresh(); },
-    stop: () => { active = false; generation++; },
+    stop: () => { active = false; advanceGeneration(); },
     // A private API 401 expires only the still-current session, never a newer account.
     expire(memberId: number) {
       if (!active || state.pending || state.status !== 'authenticated' || state.member?.memberId !== memberId) return false;
-      generation++;
+      advanceGeneration();
       publish({ status: 'anonymous', member: null, pending: null });
       return true;
     },

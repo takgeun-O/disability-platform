@@ -17,7 +17,7 @@ export default function MyComments({ memberId, active, restoring, initial, lease
   memberId: number; active: boolean; restoring: boolean; initial?: MemberCommentSnapshot; lease: Lease
   onSnapshot: (view: MemberCommentSnapshot) => void; onLeaving: () => void
 }) {
-  const { expire } = useAuth(), scope = useNavigationRequest(), version = usePostVersion('member-comments')
+  const { captureMemberRequest, memberRequests } = useAuth(), scope = useNavigationRequest(), version = usePostVersion('member-comments')
   const [view, setView] = useState(initial ?? empty), current = useRef(view), visible = useRef(active)
   const [busy, setBusy] = useState<'more' | 'refresh' | null>(null)
   const [error, setError] = useState<{ kind: 'more' | 'refresh'; message: string } | null>(null)
@@ -26,18 +26,23 @@ export default function MyComments({ memberId, active, restoring, initial, lease
   const pendingPosition = useRef<FeedPosition | null>(null), pendingFocus = useRef<number | null>(null)
   const trigger = useRef<HTMLElement | null>(null), keyboard = useRef(false)
   useLayoutEffect(() => {
+    request.current?.abort(); request.current = null
+    failedVersion.current = null; pendingFocus.current = null
+    keyboard.current = false
+  }, [memberRequests])
+  useLayoutEffect(() => {
     visible.current = active
     if (!active) { keyboard.current = false; pendingFocus.current = null; pendingPosition.current = null }
   }, [active])
   useEffect(() => () => { request.current?.abort(); request.current = null }, [])
   useLayoutEffect(() => {
     const id = pendingFocus.current; pendingFocus.current = null
-    if (id === null || !keyboard.current || !active || !scope.isActive() || !lease.valid() || view.version !== getPostVersion('member-comments')) return
+    if (id === null || !keyboard.current || !active || !scope.isActive() || !lease.valid() || view.version !== getPostVersion('member-comments') || view.requestRevision !== memberRequests.revision) return
     if (trigger.current?.isConnected && document.activeElement !== trigger.current) return
     const target = document.querySelector<HTMLElement>(`[data-member-comment-id="${id}"] .mypage-comment-link`)
       ?? document.getElementById('my-comments-end') ?? document.getElementById('my-comments-empty')
     if (target?.getClientRects().length) target.focus({ preventScroll: true })
-  }, [view, active, scope, lease])
+  }, [view, active, scope, lease, memberRequests])
   useLayoutEffect(() => {
     if (!active || !pendingPosition.current) return
     const target = pendingPosition.current
@@ -49,12 +54,14 @@ export default function MyComments({ memberId, active, restoring, initial, lease
     return () => cancelAnimationFrame(frame)
   }, [view, active, scope, lease, onSnapshot])
   const load = useCallback(async (kind: 'more' | 'refresh', source?: { trigger: HTMLElement; keyboard: boolean }) => {
-    if (!visible.current || !scope.isActive() || !lease.valid() || (request.current && (kind === 'more' || source))) return
+    if (memberRequests.paused || !visible.current || !scope.isActive() || !lease.valid() || (request.current && (kind === 'more' || source))) return
     const previous = current.current, requestedVersion = getPostVersion('member-comments')
-    if (kind === 'more' && (!previous.hasNext || previous.version !== requestedVersion)) return
+    if (kind === 'more' && (!previous.hasNext || previous.version !== requestedVersion || previous.requestRevision !== memberRequests.revision)) return
     request.current?.abort()
+    const session = captureMemberRequest(memberId)
+    if (!session.isCurrent()) return
     const controller = new AbortController(); request.current = controller
-    const valid = () => !controller.signal.aborted && request.current === controller && scope.isActive() && lease.valid()
+    const valid = () => !controller.signal.aborted && request.current === controller && scope.isActive() && lease.valid() && session.isCurrent()
     trigger.current = source?.trigger ?? null; keyboard.current = source?.keyboard ?? false; pendingFocus.current = null
     setBusy(kind); setNotice('')
     try {
@@ -63,21 +70,21 @@ export default function MyComments({ memberId, active, restoring, initial, lease
         : await refreshMemberComments(previous.segments, controller.signal)
       if (!valid() || requestedVersion !== getPostVersion('member-comments')) return
       const items = kind === 'more' ? mergeMemberComments(previous.items, data.items) : data.items
-      const updated = { ...data, items, version: requestedVersion }
+      const updated = { ...data, items, version: requestedVersion, requestRevision: memberRequests.revision }
       if (kind === 'refresh' && previous.segments && visible.current) pendingPosition.current = activityPosition('comments')
       if (keyboard.current && visible.current && document.activeElement === trigger.current) pendingFocus.current = items[kind === 'more' ? previous.items.length : 0]?.commentId ?? 0
       current.current = updated; setView(updated); onSnapshot(updated); failedVersion.current = null; setError(null)
       setNotice(kind === 'more' ? `${items.length-previous.items.length}개를 더 불러왔습니다.${data.hasNext ? '' : ' 마지막 댓글입니다.'}` : '내 댓글을 확인했습니다.')
     } catch (cause) {
       if (!valid() || requestedVersion !== getPostVersion('member-comments')) return
-      if (cause instanceof MemberApiError && cause.status === 401) { expire(memberId); return }
+      if (cause instanceof MemberApiError && cause.status === 401) { session.expire(); return }
       failedVersion.current = requestedVersion
       setError({ kind, message: cause instanceof Error ? cause.message : '내 댓글을 불러오지 못했습니다. 다시 시도해 주세요.' })
-    } finally { if (valid()) { request.current = null; setBusy(null) } }
-  }, [expire, memberId, scope, lease, onSnapshot])
+    } finally { if (request.current === controller) { request.current = null; if (scope.isActive() && lease.valid()) setBusy(null) } }
+  }, [captureMemberRequest, memberRequests, memberId, scope, lease, onSnapshot])
   useEffect(() => {
-    if (active && !restoring && view.version !== version && failedVersion.current !== version) void load('refresh')
-  }, [active, restoring, version, view.version, load])
+    if (active && !restoring && (view.version !== version || view.requestRevision !== memberRequests.revision) && failedVersion.current !== version) void load('refresh')
+  }, [active, restoring, version, view.version, view.requestRevision, memberRequests, load])
   return <>
     {!view.segments && (!error || !!busy) && <p role="status" className="mypage-list-message">내 댓글을 불러오고 있습니다.</p>}
     {!!view.segments && !view.items.length && <p id="my-comments-empty" tabIndex={-1} className="mypage-list-message">아직 작성한 댓글이 없어요.</p>}
@@ -92,7 +99,7 @@ export default function MyComments({ memberId, active, restoring, initial, lease
     <div className={error ? 'mypage-list-message' : undefined}>
       {error && <p role="alert">{error.message}</p>}
       {(view.hasNext || error) && <button className={`iyum-button iyum-button-outline${error ? '' : ' mypage-post-more'}`}
-        aria-disabled={!!busy || (!error && view.version !== version)} onBlur={() => { keyboard.current = false }}
+        aria-disabled={!!busy || memberRequests.paused || (!error && (view.version !== version || view.requestRevision !== memberRequests.revision))} onBlur={() => { keyboard.current = false }}
         onClick={event => { void load(error?.kind ?? 'more', { trigger: event.currentTarget, keyboard: event.detail === 0 }) }}>
         {busy ? '불러오는 중…' : error ? `내 댓글 ${error.kind === 'more' ? '더 보기 ' : ''}다시 시도` : '더 보기'}
       </button>}

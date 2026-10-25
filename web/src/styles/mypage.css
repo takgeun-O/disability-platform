@@ -25,7 +25,13 @@
 .mypage-sort { font-size:14px; flex-shrink:0; }
 .mypage [role=tabpanel] { padding:30px 16px; background:var(--iyum-mist); border-radius:0 0 10px 10px; color:var(--iyum-muted); }
 .mypage [role=tabpanel] p { margin:0 0 4px; }
-.mypage-account dl { display:flex; align-items:center; gap:20px; padding:18px 22px; border:1px solid var(--iyum-border); border-radius:10px; margin-top:14px; }
+.mypage-account-card { border:1px solid var(--iyum-border); border-radius:10px; margin-top:14px; background:white; }
+.mypage-account dl { display:flex; align-items:center; gap:20px; padding:18px 22px; margin:0; }
+.password-change-entry { display:flex; align-items:center; justify-content:space-between; gap:20px; width:100%; min-height:56px; padding:16px 22px; border-top:1px solid var(--iyum-border); border-radius:0 0 9px 9px; color:var(--iyum-ink); text-align:left; font:inherit; cursor:pointer; }
+.password-change-entry > span:first-child { font-weight:600; }
+.mypage-account-action { display:flex; align-items:center; gap:4px; flex-shrink:0; color:var(--iyum-primary); font-size:14px; }
+.password-change-entry:hover { background:var(--iyum-mist); }
+.password-change-entry:focus-visible { outline:2px solid var(--iyum-primary); outline-offset:-3px; }
 .mypage-account dt { font-weight:600; }
 .mypage-account dd { margin:0; overflow-wrap:anywhere; min-width:0; flex:1; }
 .mypage-account .mypage-readonly { flex:0 0 auto; font-size:13px; color:var(--iyum-muted); }
@@ -44,6 +50,7 @@
  .mypage-name { flex-basis:90px; }.mypage-name h2 { font-size:20px; }.mypage-name p { font-size:13px; }
  .mypage-counts { margin-top:24px; }.mypage-counts strong { font-size:19px; }.mypage-counts > div:not(.mypage-summary-error) { gap:8px; }
  .mypage-tabs [role=tablist] { gap:0; }.mypage-tabs button { padding:10px 8px; }.mypage-tabs button span { margin-left:5px; }
+ .password-change-entry { padding:16px; }
  .mypage-account dl { padding:16px; gap:10px; flex-wrap:wrap; }.mypage-account dd { flex-basis:65%; }.mypage-account .mypage-readonly { margin-left:auto; }
 }
 
@@ -93,7 +100,7 @@
 .mypage-comment-link { display:block; color:var(--iyum-primary); font-size:14px; line-height:1.7; overflow-wrap:anywhere; border-radius:3px; }
 .mypage-comment-link:hover { text-decoration:underline; text-underline-offset:3px; }
 
-.withdrawal-entry { display:flex; align-items:center; justify-content:space-between; gap:16px; width:100%; margin-top:12px; min-height:56px; padding:14px 22px; border-top:1px solid var(--iyum-border); color:var(--iyum-muted); font-size:15px; cursor:pointer; }
+.withdrawal-entry { display:flex; align-items:center; justify-content:center; gap:4px; width:max-content; max-width:100%; margin:8px auto 0; min-height:44px; padding:10px 12px; border-radius:6px; color:var(--iyum-muted); font-size:14px; cursor:pointer; }
 .withdrawal-entry:hover { background:var(--iyum-mist); }
 .withdrawal-entry:focus-visible { outline:2px solid var(--iyum-primary); outline-offset:2px; border-radius:4px; }
 .withdrawal-entry svg { flex-shrink:0; }
@@ -128,6 +135,40 @@
  .withdrawal-heading h2 { margin-bottom:6px; }
  .withdrawal-guidance { margin-top:14px; padding-left:30px; }
  .withdrawal-help { margin-bottom:14px; }
- .withdrawal-entry { padding-inline:16px; }
  .withdrawal-heading h2 { font-size:23px; }
+}
+
+/* Password change shares the existing account row and responsive modal. */
+.password-change-dialog { color:var(--iyum-ink); }
+.password-change-dialog p { line-height:1.65; word-break:keep-all; overflow-wrap:anywhere; }
+.password-change-dialog .password-change-help { font-size:14px; color:var(--iyum-muted); margin:12px 0; }
+.password-change-field { margin:16px 0; }
+.password-change-dialog .auth-input { width:100%; min-width:0; font-size:16px; }
+.password-change-dialog .auth-password .auth-input { padding-right:52px; }
+.password-change-dialog .auth-password-toggle { display:grid; place-items:center; min-width:44px; }
+.password-change-actions { display:flex; justify-content:flex-end; gap:12px; margin-top:20px; }
+.password-change-actions button { min-height:48px; }
+.password-change-dialog button:disabled,.password-change-dialog button[aria-disabled=true] { cursor:default; opacity:.6; }
+.password-change-success { margin:0 0 12px; }
+.password-change-success strong { display:block; font-size:24px; font-weight:700; line-height:1.45; color:var(--iyum-primary); }
+.password-change-success span { display:block; margin-top:10px; font-size:16px; color:var(--iyum-muted); }
+
+/* Fixed success feedback does not change the profile/list layout. */
+.mypage-toast { position:fixed; z-index:90; top:calc(env(safe-area-inset-top,0px) + 100px); left:50%; transform:translateX(-50%); width:max-content; max-width:min(480px,calc(100vw - 32px)); }
+.mypage-toast-card { display:flex; align-items:center; gap:12px; padding:12px 12px 12px 18px; border:1px solid var(--iyum-primary); border-radius:12px; background:white; color:var(--iyum-ink); box-shadow:0 8px 28px rgb(9 35 74 / 18%); animation:mypage-toast-in 180ms ease-out both; }
+.mypage-toast-icon { flex-shrink:0; color:var(--iyum-primary); }
+.mypage-toast p { margin:0; font-size:16px; font-weight:600; line-height:1.5; word-break:keep-all; overflow-wrap:anywhere; }
+.mypage-toast button { display:grid; place-items:center; flex-shrink:0; width:44px; height:44px; border-radius:8px; color:var(--iyum-muted); cursor:pointer; }
+.mypage-toast button:hover { background:var(--iyum-mist); color:var(--iyum-primary); }
+.mypage-toast button:focus-visible { outline:2px solid var(--iyum-primary); outline-offset:2px; }
+.mypage-toast-card.is-leaving { animation:mypage-toast-out 180ms ease-in forwards; }
+@keyframes mypage-toast-in { from { opacity:0; transform:translateY(-8px); } to { opacity:1; transform:translateY(0); } }
+@keyframes mypage-toast-out { from { opacity:1; transform:translateY(0); } to { opacity:0; transform:translateY(-6px); } }
+@media(max-width:600px) {
+ .mypage-toast { top:calc(env(safe-area-inset-top,0px) + 96px); }
+ .mypage-toast-card { gap:8px; padding:10px 8px 10px 12px; }
+}
+@media(prefers-reduced-motion:reduce) {
+ .mypage-toast-card,.mypage-toast-card.is-leaving { animation:none; }
+ .mypage-toast-card.is-leaving { opacity:0; }
 }

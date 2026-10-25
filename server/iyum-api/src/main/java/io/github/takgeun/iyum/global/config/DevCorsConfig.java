@@ -4,6 +4,7 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Profile;
+import org.springframework.http.HttpHeaders;
 import org.springframework.web.cors.CorsConfiguration;
 import org.springframework.web.cors.CorsConfigurationSource;
 import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
@@ -170,6 +171,25 @@ public class DevCorsConfig {
         CorsConfiguration resetValidationCors = new CorsConfiguration(cors);
         resetValidationCors.setAllowedMethods(List.of("GET", "OPTIONS"));
         source.registerCorsConfiguration("/api/v1/auth/password-reset/validate", resetValidationCors);
+
+
+        CorsConfiguration memberPasswordCors =
+                new CorsConfiguration(cors);
+
+        memberPasswordCors.setAllowedMethods(
+                List.of("POST", "OPTIONS")
+        );
+
+        // 프론트 JavaScript에서 Retry-After 응답 헤더를 읽을 수 있도록 허용
+        memberPasswordCors.setExposedHeaders(
+                List.of(HttpHeaders.RETRY_AFTER)
+        );
+
+        source.registerCorsConfiguration(
+                "/api/v1/members/me/password",
+                memberPasswordCors
+        );
+
 
         return source;
     }

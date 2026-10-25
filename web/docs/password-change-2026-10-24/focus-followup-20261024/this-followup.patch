@@ -1,0 +1,114 @@
+--- a/web/src/components/member/PasswordChangeDialog.tsx
++++ b/web/src/components/member/PasswordChangeDialog.tsx
+@@ -18,6 +18,7 @@
+   const auth = useAuth(), scope = useNavigationRequest();
+   const [values, setValues] = useState(empty), [shown, setShown] = useState<Partial<Record<PasswordChangeField, boolean>>>({});
+   const [fields, setFields] = useState<PasswordChangeFields>({}), [error, setError] = useState('');
++  const pendingErrorFocus = useRef<PasswordChangeField | null>(null);
+   const [saving, setSaving] = useState(false), busy = useRef(false);
+   const [completed, setCompleted] = useState(false), [preparation, setPreparation] = useState('');
+   const [retryAt, setRetryAt] = useState<number | null>(null), [remaining, setRemaining] = useState(0);
+@@ -28,16 +29,22 @@
+     return () => window.clearInterval(timer);
+   }, [retryAt]);
+   useEffect(() => {
+-    if (saving || !scope.isActive()) return;
+-    const first = PASSWORD_CHANGE_FIELDS.find(field => fields[field]);
+-    if (first) document.getElementById(id(first))?.focus({ preventScroll: true });
++    if (saving) return;
++    const field = pendingErrorFocus.current;
++    pendingErrorFocus.current = null;
++    if (field && scope.isActive()) document.getElementById(id(field))?.focus({ preventScroll: true });
+   }, [fields, saving, scope]);
+   function close() { if (!busy.current) onClose(); }
+-  function clear() { setValues(empty()); setShown({}); setFields({}); }
++  function reportFieldErrors(errors: PasswordChangeFields) {
++    // Focus once per validation result, never when typing clears an existing error.
++    pendingErrorFocus.current = PASSWORD_CHANGE_FIELDS.find(field => errors[field]) ?? null;
++    setFields(errors);
++  }
++  function clear() { pendingErrorFocus.current = null; setValues(empty()); setShown({}); setFields({}); }
+   async function submit(event: FormEvent) {
+     event.preventDefault();
+     if (busy.current || completed || !scope.isActive() || (retryAt !== null && remainingSeconds(retryAt) > 0)) return;
+-    const errors = validatePasswordChange(values); setFields(errors); setError('');
++    const errors = validatePasswordChange(values); reportFieldErrors(errors); setError('');
+     if (Object.keys(errors).length) return;
+     const session = auth.captureMemberRequest(memberId);
+     if (!session.isCurrent()) return;
+@@ -67,7 +74,7 @@
+         clear(); onNotice('로그인 시간이 만료되었습니다. 다시 로그인해 주세요.'); session.expire(); return;
+       }
+       if (e instanceof PasswordChangeError) {
+-        setFields(e.fields); setError(e.message); setRetryAt(e.retryAt); setRemaining(e.retryAt === null ? 0 : remainingSeconds(e.retryAt));
++        reportFieldErrors(e.fields); setError(e.message); setRetryAt(e.retryAt); setRemaining(e.retryAt === null ? 0 : remainingSeconds(e.retryAt));
+         if (e.status === 403 && e.code === 'CSRF_TOKEN_INVALID') {
+           try { await getAuthCsrf(); }
+           catch { if (valid()) setPreparation('보안 정보를 가져오지 못했습니다. 연결을 확인해 주세요. 다시 제출할 때 새로 조회합니다.'); }
+--- a/web/tests/password-change-browser.mjs
++++ b/web/tests/password-change-browser.mjs
+@@ -39,7 +39,64 @@
+ const submit = f => f.d.getByRole('button', { name: '비밀번호 변경', exact: true });
+ async function fill(f) { for (const [key, value] of Object.entries(values)) await f.p.locator('#change-' + key).fill(value); }
+ async function check(name, fn) { try { await fn(); results.push({ name, pass: true }); console.log('PASS', name); } catch (e) { results.push({ name, pass: false, error: e.message }); console.error('FAIL', name, e.message); process.exitCode = 1; } finally { for (const c of browser.contexts()) await c.close(); } }
++async function typeKeepingFocus(f, field, text) {
++  const input = f.p.locator('#change-' + field);
++  await input.click();
++  await f.p.keyboard.press('End');
++  const initial = await input.inputValue();
++  for (const [index, character] of [...text].entries()) {
++    // Real successive key input: fill() would refocus each field and hide this regression.
++    await f.p.keyboard.type(character);
++    await f.p.evaluate(() => new Promise(resolve => requestAnimationFrame(resolve)));
++    assert.equal(await f.p.evaluate(() => document.activeElement?.id), 'change-' + field,
++      `typing character ${index + 1} must keep focus in ${field}`);
++    assert.equal(await input.inputValue(), initial + [...text].slice(0, index + 1).join(''));
++  }
++}
+ try {
++  for (const width of [1440, 390, 320]) await check(`empty submit then consecutive typing keeps chosen field focus ${width}`, async () => {
++    const f = await fixture(width), { p, d, state } = f;
++    await submit(f).click();
++    await p.waitForFunction(() => document.activeElement?.id === 'change-currentPassword');
++    assert.equal(await d.getByRole('alert').count(), 3);
++    try {
++      await typeKeepingFocus(f, 'currentPassword', values.currentPassword);
++      assert.equal(await d.getByRole('alert').count(), 2);
++      // Even when a preceding field still has an error, the user chooses where to type.
++      await typeKeepingFocus(f, 'newPasswordConfirm', values.newPasswordConfirm);
++      assert.equal(await d.getByRole('alert').count(), 1);
++      await typeKeepingFocus(f, 'newPassword', values.newPassword);
++      assert.equal(await d.getByRole('alert').count(), 0);
++      await p.keyboard.press('Tab');
++      assert(await d.locator('[aria-controls="change-newPassword"]').evaluate(el => el === document.activeElement));
++      await p.keyboard.press('Shift+Tab');
++      assert.equal(await p.evaluate(() => document.activeElement?.id), 'change-newPassword');
++      for (const [field, value] of Object.entries(values)) assert.equal(await p.locator('#change-' + field).inputValue(), value);
++      assert.equal(state.posts, 0); assert.equal(state.csrfCount, 0);
++      assert.deepEqual(state.pageErrors, []);
++      await p.screenshot({ path: `${out}/typing-after-errors-${width}.png` });
++    } catch (e) {
++      await fs.writeFile(`${out}/typing-focus-${width}.json`, JSON.stringify(await p.evaluate(() => ({
++        activeId: document.activeElement?.id,
++        inputs: [...document.querySelectorAll('.password-change-field input')].map(el => ({ id: el.id, length: el.value.length })),
++      })), null, 2));
++      await p.screenshot({ path: `${out}/typing-after-errors-${width}.png` });
++      throw e;
++    }
++  });
++  await check('server field errors focus once; editing a different field does not jump back', async () => {
++    const f = await fixture();
++    f.state.change = r => r.fulfill(fail(400, 'VALIDATION_FAILED', { fieldErrors: Object.keys(values).map(field => ({ field, message: 'untrusted' })) }));
++    await fill(f); await submit(f).click();
++    await f.p.waitForFunction(() => !document.querySelector('form[aria-busy=true]') && document.activeElement?.id === 'change-currentPassword');
++    assert.equal(await f.d.getByRole('alert').count(), 3);
++    await typeKeepingFocus(f, 'newPasswordConfirm', 'x');
++    assert.equal(await f.d.getByRole('alert').count(), 2);
++    await f.p.keyboard.press('Backspace');
++    assert.equal(await f.p.evaluate(() => document.activeElement?.id), 'change-newPasswordConfirm');
++    assert.equal(await f.p.locator('#change-newPasswordConfirm').inputValue(), values.newPasswordConfirm);
++    assert.equal(f.state.posts, 1);
++  });
+   for (const width of [1440, 390, 320]) await check(`layout, raw input, backdrop, keyboard, reset and short viewport ${width}`, async () => {
+     const f = await fixture(width), { p, d, state } = f;
+     assert(await p.locator('#password-change-close').evaluate(el => el === document.activeElement));

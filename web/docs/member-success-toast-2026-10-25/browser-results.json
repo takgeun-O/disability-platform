@@ -1,0 +1,65 @@
+{
+  "mode": "production Next + mock API; Playwright clock timers; no real account writes",
+  "results": [
+    {
+      "name": "nickname toast visible without layout/focus jump and auto-dismisses 1440",
+      "pass": true
+    },
+    {
+      "name": "nickname toast visible without layout/focus jump and auto-dismisses 390",
+      "pass": true
+    },
+    {
+      "name": "nickname toast visible without layout/focus jump and auto-dismisses 320",
+      "pass": true
+    },
+    {
+      "name": "password success modal stays; toast begins after close 1440",
+      "pass": true
+    },
+    {
+      "name": "password success modal stays; toast begins after close 390",
+      "pass": true
+    },
+    {
+      "name": "password success modal stays; toast begins after close 320",
+      "pass": true
+    },
+    {
+      "name": "hover and keyboard focus pause lifetime; manual close restores trigger without scrolling",
+      "pass": true
+    },
+    {
+      "name": "background visibility pauses timeout; returning resumes remaining lifetime",
+      "pass": true
+    },
+    {
+      "name": "new success has a fresh timer and a single toast",
+      "pass": true
+    },
+    {
+      "name": "navigation and logout clear toast; old timeout cannot recreate it",
+      "pass": true
+    },
+    {
+      "name": "nickname failure remains inline and never produces success toast",
+      "pass": true
+    },
+    {
+      "name": "reloginRequired keeps actionable inline notice",
+      "pass": true
+    },
+    {
+      "name": "current 401 keeps actionable inline notice",
+      "pass": true
+    },
+    {
+      "name": "confirmed password success still toasts after follow-up CSRF failure",
+      "pass": true
+    },
+    {
+      "name": "reduced motion disables entrance/exit motion and keeps mobile text in bounds",
+      "pass": true
+    }
+  ]
+}
