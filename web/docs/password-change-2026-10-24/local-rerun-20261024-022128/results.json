@@ -1,0 +1,29 @@
+{
+  "mode": "actual Spring, owned local seed account only",
+  "results": [
+    {
+      "name": "two separate contexts authenticated as manifest-owned seed account",
+      "pass": true
+    },
+    {
+      "name": "real browser POST200/CORS, retained-session notice and fresh CSRF",
+      "pass": true
+    },
+    {
+      "name": "A protected GET200; B next protected GET401",
+      "pass": true
+    },
+    {
+      "name": "old CSRF403; fresh CSRF passes to DTO validation400 without mutation",
+      "pass": true
+    },
+    {
+      "name": "old password login401; new password login200",
+      "pass": true
+    },
+    {
+      "name": "original seed password restored and login verified; credential version advanced twice",
+      "pass": true
+    }
+  ]
+}

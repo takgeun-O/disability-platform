@@ -1,0 +1,33 @@
+PASS login link, email field single error, 202 generic notice, manual retry
+PASS request PASSWORD_RESET_RATE_LIMITED, safe common error and explicit recovery
+PASS request CSRF_TOKEN_INVALID, safe common error and explicit recovery
+PASS request SERVER_ERROR, safe common error and explicit recovery
+PASS request INVALID_REQUEST_BODY, safe common error and explicit recovery
+PASS initial validation gate JS=true: no password before server result
+PASS initial validation gate JS=false: no password before server result
+PASS preflight JS=true: used/expired/revoked/missing token rejected before inputs
+PASS preflight JS=true: server error visible, retry really rechecks, valid SSR form
+PASS preflight JS=false: used/expired/revoked/missing token rejected before inputs
+PASS preflight JS=false: server error visible, retry really rechecks, valid SSR form
+PASS no-JS byte limit uses same friendly field error and preserves token
+PASS preflight unexpected/limited 200 is never expired or editable
+PASS preflight unexpected/limited 429 is never expired or editable
+PASS missing, malformed, repeated token; no completion call on entry or reload; privacy headers
+PASS password validation, keyboard toggle, mismatch, raw whitespace and byte limit
+PASS complete PASSWORD_RESET_PASSWORD_UNCHANGED: single field error, value retained
+PASS complete PASSWORD_RESET_PASSWORD_INVALID: single field error, value retained
+PASS complete VALIDATION_FAILED: single field error, value retained
+PASS expired/used token becomes link error with new request entry
+PASS pending duplicate prevention, 204 cleanup and authenticated header refresh
+PASS CSRF preparation failure sends no POST; subsequent explicit retry works
+PASS network failure does not replay or lose password; explicit retry
+PASS late completion cannot navigate away from current page
+PASS server email field error appears once and successful user retry clears it
+PASS completion CSRF_TOKEN_INVALID: values preserved and manual recovery
+PASS completion SERVER_ERROR: values preserved and manual recovery
+PASS HTTP null Origin with cross-site metadata is rejected before API
+PASS HTTP null Origin with same-site metadata is rejected before API
+PASS HTTP null Origin with missing metadata is rejected before API
+PASS no-JS request validation, error, retry, accepted and cookie forwarding
+PASS no-JS password field error, retry, 204 redirect and token-free completion document
+PASS no-JS invalid token from API and malformed initial link remain visible

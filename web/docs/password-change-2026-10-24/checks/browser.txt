@@ -1,0 +1,28 @@
+PASS layout, raw input, backdrop, keyboard, reset and short viewport 1440
+PASS layout, raw input, backdrop, keyboard, reset and short viewport 390
+PASS layout, raw input, backdrop, keyboard, reset and short viewport 320
+PASS duplicate submit and close blocked; successful fields clear before delayed follow-up CSRF; no auth remount
+PASS pre-submit CSRF failure sends no POST and preserves fields
+PASS CSRF rejection renews GET only; next manual submit gets a fresh token
+PASS confirmed success survives follow-up CSRF failure with separate warning
+PASS safe error VALIDATION_FAILED, inputs and no replay
+PASS safe error PASSWORD_CHANGE_INVALID_CURRENT_PASSWORD, inputs and no replay
+PASS safe error PASSWORD_CHANGE_INVALID_NEW_PASSWORD, inputs and no replay
+PASS safe error PASSWORD_CHANGE_CURRENT_PASSWORD_MISMATCH, inputs and no replay
+PASS safe error PASSWORD_CHANGE_PASSWORD_UNCHANGED, inputs and no replay
+PASS safe error CSRF_TOKEN_INVALID, inputs and no replay
+PASS safe error ACCESS_DENIED, inputs and no replay
+PASS safe error INTERNAL_SERVER_ERROR, inputs and no replay
+PASS 200 relogin expires private state with success notice, no logout POST
+PASS 401 expires current generation and offers safe login return
+PASS 429 Retry-After 1, no automatic retry
+PASS 429 Retry-After null, no automatic retry
+PASS 429 Retry-After bad, no automatic retry
+PASS uncertain html response never guessed or retried
+PASS uncertain json response never guessed or retried
+PASS uncertain missing response never guessed or retried
+PASS uncertain string response never guessed or retried
+PASS uncertain network response never guessed or retried
+PASS approved departure and same-member login ignore late 401
+PASS approved departure and same-member login ignore late relogin
+PASS approved departure and same-member login ignore late success

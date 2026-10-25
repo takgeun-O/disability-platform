@@ -1,0 +1,17 @@
+{
+  "activeId": "change-newPassword",
+  "inputs": [
+    {
+      "id": "change-currentPassword",
+      "length": 1
+    },
+    {
+      "id": "change-newPassword",
+      "length": 0
+    },
+    {
+      "id": "change-newPasswordConfirm",
+      "length": 0
+    }
+  ]
+}

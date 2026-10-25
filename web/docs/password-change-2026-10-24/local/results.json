@@ -1,0 +1,26 @@
+{
+  "mode": "actual Spring, owned local seed account only",
+  "results": [
+    {
+      "name": "two separate contexts authenticated as manifest-owned seed account",
+      "pass": true
+    },
+    {
+      "name": "real browser CORS unavailable; POST was not sent by UI",
+      "pass": null,
+      "preflightStatus": 200
+    },
+    {
+      "name": "actual Spring verification",
+      "pass": false,
+      "errorType": "AssertionError",
+      "stage": "direct API request (browser CORS blocked)",
+      "responses": [
+        {
+          "path": "/api/v1/members/me/password",
+          "status": 404
+        }
+      ]
+    }
+  ]
+}

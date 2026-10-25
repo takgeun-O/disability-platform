@@ -1,0 +1,63 @@
+{
+  "before-production": {
+    "passed": 16,
+    "failed": 21,
+    "total": 37,
+    "mode": "controlled mock API; production Next.js; no DB writes"
+  },
+  "after": {
+    "passed": 37,
+    "failed": 0,
+    "total": 37,
+    "mode": "controlled mock API; production Next.js; no DB writes"
+  },
+  "regression-password": {
+    "passed": 32,
+    "failed": 0,
+    "total": 32,
+    "mode": "controlled mock API; production Next.js; no DB writes"
+  },
+  "regression-auth": {
+    "passed": 26,
+    "failed": 0,
+    "total": 26,
+    "mode": "controlled mock API; production Next.js; no DB writes"
+  },
+  "regression-member": {
+    "passed": 20,
+    "failed": 0,
+    "total": 20,
+    "mode": "controlled mock API; production Next.js; no DB writes"
+  },
+  "regression-menu": {
+    "passed": 22,
+    "failed": 0,
+    "total": 22,
+    "mode": "controlled mock API; production Next.js; no DB writes"
+  },
+  "regression-posts": {
+    "passed": 41,
+    "failed": 0,
+    "total": 41,
+    "mode": "controlled mock API; production Next.js; no DB writes"
+  },
+  "regression-comments": {
+    "passed": 30,
+    "failed": 0,
+    "total": 30,
+    "mode": "controlled mock API; production Next.js; no DB writes"
+  },
+  "commands": {
+    "pnpm lint": "pass",
+    "pnpm typecheck": "pass",
+    "pnpm test": {
+      "pass": 325,
+      "fail": 0,
+      "skip": 0
+    },
+    "pnpm build": "pass",
+    "git diff --check": "pass"
+  },
+  "executedAt": "2026-10-24T03:34:12+09:00",
+  "actualSpring": "NOT RUN in this task; no real passwords, accounts or DB data changed"
+}

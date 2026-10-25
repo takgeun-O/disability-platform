@@ -1,0 +1,100 @@
+FAIL profile: old 401 after password response cannot expire retained login The expression evaluated to a falsy value:
+
+  assert(await d.isVisible())
+
+FAIL profile: old 401 before password response cannot expire retained login The expression evaluated to a falsy value:
+
+  assert(await d.isVisible())
+
+FAIL summary: old 401 after password response cannot expire retained login The expression evaluated to a falsy value:
+
+  assert(await d.isVisible())
+
+FAIL summary: old 401 before password response cannot expire retained login The expression evaluated to a falsy value:
+
+  assert(await d.isVisible())
+
+FAIL posts: old 401 after password response cannot expire retained login The expression evaluated to a falsy value:
+
+  assert(await d.isVisible())
+
+FAIL posts: old 401 before password response cannot expire retained login The expression evaluated to a falsy value:
+
+  assert(await d.isVisible())
+
+FAIL comments: old 401 after password response cannot expire retained login The expression evaluated to a falsy value:
+
+  assert(await d.isVisible())
+
+FAIL comments: old 401 before password response cannot expire retained login The expression evaluated to a falsy value:
+
+  assert(await d.isVisible())
+
+FAIL profile: old success cannot overwrite renewed personal data Expected values to be strictly equal:
+
+'오래된회원' !== '검토회원'
+
+FAIL summary: old success cannot overwrite renewed personal data Expected values to be strictly equal:
+
+'999' !== '2'
+
+FAIL posts: old success cannot overwrite renewed personal data The expression evaluated to a falsy value:
+
+  assert(!(await f.p.locator('main').innerText()).includes('오래된회원'))
+
+FAIL comments: old success cannot overwrite renewed personal data The expression evaluated to a falsy value:
+
+  assert(!(await f.p.locator('main').innerText()).includes('오래된회원'))
+
+FAIL profile: new generation 401 still expires current session The expression evaluated to a falsy value:
+
+  assert(f.state.counts[kind] >= 2)
+
+FAIL summary: new generation 401 still expires current session The expression evaluated to a falsy value:
+
+  assert(f.state.counts[kind] >= 2)
+
+FAIL posts: new generation 401 still expires current session The expression evaluated to a falsy value:
+
+  assert(f.state.counts[kind] >= 2)
+
+FAIL comments: new generation 401 still expires current session The expression evaluated to a falsy value:
+
+  assert(f.state.counts[kind] >= 2)
+
+PASS profile: 401 after same-member login is stale
+PASS summary: 401 after same-member login is stale
+PASS posts: 401 after same-member login is stale
+PASS comments: 401 after same-member login is stale
+PASS profile: success after same-member login is stale
+PASS summary: success after same-member login is stale
+PASS posts: success after same-member login is stale
+PASS comments: success after same-member login is stale
+PASS profile: 401 after other-member login is stale
+PASS summary: 401 after other-member login is stale
+PASS posts: 401 after other-member login is stale
+PASS comments: 401 after other-member login is stale
+PASS profile: success after other-member login is stale
+PASS summary: success after other-member login is stale
+PASS posts: success after other-member login is stale
+PASS comments: success after other-member login is stale
+FAIL confirmed change survives follow-up CSRF failure and resumed reads finish locator.waitFor: Timeout 6000ms exceeded.
+Call log:
+[2m  - waiting for getByRole('dialog', { name: '비밀번호 변경', exact: true }).getByRole('alert') to be visible[22m
+
+FAIL old 401 first then password relogin uses only confirmed outcome The expression evaluated to a falsy value:
+
+  assert(await d.isVisible())
+
+FAIL old 401 first then password 401 uses only confirmed outcome The expression evaluated to a falsy value:
+
+  assert(await d.isVisible())
+
+FAIL old 401 first then password 503 uses only confirmed outcome The expression evaluated to a falsy value:
+
+  assert(await d.isVisible())
+
+FAIL old 401 first then password 400 uses only confirmed outcome The expression evaluated to a falsy value:
+
+  assert(await d.isVisible())
+

@@ -1,0 +1,22 @@
+PASS 1440/1024/390/320 page + one responsive edit form; layout unchanged behind modal
+PASS desktop current information link closes without navigation (mouse)
+PASS desktop current information link closes without navigation (keyboard)
+PASS desktop current information link closes without navigation (unfocused-link)
+PASS information destination preserves query/hash distinction and modified new-tab click
+PASS desktop different information destination keeps dirty form/menu on cancel then navigates on approval
+PASS mobile current information link closes drawer and restores scroll/focus
+PASS fresh 1440 header DOM + viewport/full-page after reload, editor, resize and scroll unlock
+PASS explicit desktop identity / active mypage link and long names at 1024
+PASS modal trap, cancel/backdrop/Escape and save error once with field focus
+PASS saving blocks close/cancel/Escape/backdrop; success synchronizes profile/header/menu
+PASS drawer open/close preserves scrolled body, traps focus, no hidden links; backdrop
+PASS drawer short height internally scrolls; resize desktop unlocks; reduced motion
+PASS mobile edit narrow/low visual viewport and rotation keeps input accessible
+PASS dirty post: leave cancel keeps drawer + draft; confirm closes both and unlocks
+PASS browser back while drawer open: cancel keeps state then approve releases lock
+PASS logout success closes drawer and visible notice survives; privacy cleared
+PASS logout failure stays authenticated in drawer; close keeps error visible
+PASS pending logout can close drawer; later success stays visible outside
+PASS drawer anonymous / checking / auth error and retry
+PASS no-JS public menu real navigation 1440
+PASS no-JS public menu real navigation 390

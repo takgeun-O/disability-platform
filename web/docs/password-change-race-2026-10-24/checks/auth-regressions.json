@@ -1,0 +1,14 @@
+[
+  {
+    "name": "auth",
+    "exit": 0
+  },
+  {
+    "name": "member",
+    "exit": 0
+  },
+  {
+    "name": "menu",
+    "exit": 0
+  }
+]

@@ -3,8 +3,8 @@ import { mergeFeed, type FeedPosition } from './community-feed'
 import type { FeedPage } from './community-api'
 
 export type ActivityTab = 'posts' | 'comments'
-export type MemberCommentSnapshot = MemberCommentPage & { segments: number; version: number }
-export type MemberPostSnapshot = FeedPage & { comments?: MemberCommentSnapshot } & { segments: number; version: number; tab: ActivityTab; position?: FeedPosition }
+export type MemberCommentSnapshot = MemberCommentPage & { requestRevision?: number; segments: number; version: number }
+export type MemberPostSnapshot = FeedPage & { requestRevision?: number; comments?: MemberCommentSnapshot } & { segments: number; version: number; tab: ActivityTab; position?: FeedPosition }
 // Per AuthProvider, memory only. A lease belongs to one authenticated session, even if the same member logs in again.
 export function createMemberActivityCache() {
   let owner: number | null = null, generation = 0, returnEntry: string | null = null

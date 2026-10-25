@@ -1,0 +1,15 @@
+PASS nickname toast visible without layout/focus jump and auto-dismisses 1440
+PASS nickname toast visible without layout/focus jump and auto-dismisses 390
+PASS nickname toast visible without layout/focus jump and auto-dismisses 320
+PASS password success modal stays; toast begins after close 1440
+PASS password success modal stays; toast begins after close 390
+PASS password success modal stays; toast begins after close 320
+PASS hover and keyboard focus pause lifetime; manual close restores trigger without scrolling
+PASS background visibility pauses timeout; returning resumes remaining lifetime
+PASS new success has a fresh timer and a single toast
+PASS navigation and logout clear toast; old timeout cannot recreate it
+PASS nickname failure remains inline and never produces success toast
+PASS reloginRequired keeps actionable inline notice
+PASS current 401 keeps actionable inline notice
+PASS confirmed password success still toasts after follow-up CSRF failure
+PASS reduced motion disables entrance/exit motion and keeps mobile text in bounds

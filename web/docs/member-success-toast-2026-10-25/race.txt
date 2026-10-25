@@ -1,0 +1,37 @@
+PASS profile: old 401 after password response cannot expire retained login
+PASS profile: old 401 before password response cannot expire retained login
+PASS summary: old 401 after password response cannot expire retained login
+PASS summary: old 401 before password response cannot expire retained login
+PASS posts: old 401 after password response cannot expire retained login
+PASS posts: old 401 before password response cannot expire retained login
+PASS comments: old 401 after password response cannot expire retained login
+PASS comments: old 401 before password response cannot expire retained login
+PASS profile: old success cannot overwrite renewed personal data
+PASS summary: old success cannot overwrite renewed personal data
+PASS posts: old success cannot overwrite renewed personal data
+PASS comments: old success cannot overwrite renewed personal data
+PASS profile: new generation 401 still expires current session
+PASS summary: new generation 401 still expires current session
+PASS posts: new generation 401 still expires current session
+PASS comments: new generation 401 still expires current session
+PASS profile: 401 after same-member login is stale
+PASS summary: 401 after same-member login is stale
+PASS posts: 401 after same-member login is stale
+PASS comments: 401 after same-member login is stale
+PASS profile: success after same-member login is stale
+PASS summary: success after same-member login is stale
+PASS posts: success after same-member login is stale
+PASS comments: success after same-member login is stale
+PASS profile: 401 after other-member login is stale
+PASS summary: 401 after other-member login is stale
+PASS posts: 401 after other-member login is stale
+PASS comments: 401 after other-member login is stale
+PASS profile: success after other-member login is stale
+PASS summary: success after other-member login is stale
+PASS posts: success after other-member login is stale
+PASS comments: success after other-member login is stale
+PASS confirmed change survives follow-up CSRF failure and resumed reads finish
+PASS old 401 first then password relogin uses only confirmed outcome
+PASS old 401 first then password 401 uses only confirmed outcome
+PASS old 401 first then password 503 uses only confirmed outcome
+PASS old 401 first then password 400 uses only confirmed outcome
