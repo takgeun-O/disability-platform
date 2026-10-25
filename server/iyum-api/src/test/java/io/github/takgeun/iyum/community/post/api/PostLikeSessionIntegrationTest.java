@@ -333,6 +333,110 @@ class PostLikeSessionIntegrationTest {
                 .isEqualTo(beforeCount);
     }
 
+    @ParameterizedTest
+    @ValueSource(strings = {"LIST", "FEED", "DETAIL"})
+    void 공개_조회는_실제_세션의_좋아요_상태와_취소를_반영한다(
+            String route
+    ) throws Exception {
+        CsrfSession myClient = login(me.getEmail());
+        CsrfSession otherClient = login(other.getEmail());
+        String url = readUrl(route);
+        String itemPath = route.equals("DETAIL") ? "$" : "$.items[0]";
+
+        assertSuccess(change("PUT", myClient), true, 1);
+
+        // 조회에는 CSRF 헤더를 전달하지 않는다.
+        assertRead(read(url, null), itemPath, 1, false);
+        assertRead(read(url, myClient), itemPath, 1, true);
+        assertRead(read(url, otherClient), itemPath, 1, false);
+
+        // viewerId 쿼리로 다른 회원의 좋아요 상태를 선택할 수 없다.
+        assertRead(mockMvc.perform(
+                get(url).param("viewerId", me.getId().toString())
+        ), itemPath, 1, false);
+        assertRead(mockMvc.perform(
+                get(url)
+                        .session(otherClient.session())
+                        .param("viewerId", me.getId().toString())
+        ), itemPath, 1, false);
+
+        assertSuccess(change("DELETE", myClient), false, 0);
+        assertRead(read(url, myClient), itemPath, 0, false);
+    }
+
+    @Test
+    void 내_게시글은_전체_좋아요_수와_작성자_자신의_좋아요를_반환한다()
+            throws Exception {
+        CsrfSession myClient = login(me.getEmail());
+        CsrfSession otherClient = login(other.getEmail());
+        String url = "/api/v1/members/me/posts";
+
+        assertSuccess(change("PUT", myClient), true, 1);
+        assertSuccess(change("PUT", otherClient), true, 2);
+        assertRead(read(url, myClient), "$.items[0]", 2, true);
+
+        assertSuccess(change("DELETE", myClient), false, 1);
+        assertRead(read(url, myClient), "$.items[0]", 1, false);
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"LIST", "FEED", "DETAIL"})
+    void 인증이_무효화된_세션도_공개_조회는_비로그인_상태로_계속한다(
+            String route
+    ) throws Exception {
+        CsrfSession client = login(me.getEmail());
+        assertSuccess(change("PUT", client), true, 1);
+
+        // 이 클래스의 Testcontainers DB에서만 로그인 당시 버전을 무효화한다.
+        assertThat(jdbcTemplate.update("""
+                UPDATE members
+                SET credential_version = credential_version + 1
+                WHERE id = ?
+                """, me.getId())).isEqualTo(1);
+
+        String itemPath = route.equals("DETAIL") ? "$" : "$.items[0]";
+        assertRead(read(readUrl(route), client), itemPath, 1, false);
+        assertThat(client.session().isInvalid()).isTrue();
+    }
+
+    private String readUrl(String route) {
+        return switch (route) {
+            case "LIST" -> "/api/v1/community/posts";
+            case "FEED" -> "/api/v1/community/posts/feed";
+            case "DETAIL" -> "/api/v1/community/posts/" + postId;
+            default -> throw new IllegalArgumentException(route);
+        };
+    }
+
+    private ResultActions read(String url, CsrfSession client)
+            throws Exception {
+        MockHttpServletRequestBuilder request = get(url);
+        if (client != null) {
+            request.session(client.session());
+        }
+        return mockMvc.perform(request);
+    }
+
+    private void assertRead(
+            ResultActions result,
+            String itemPath,
+            int likeCount,
+            boolean liked
+    ) throws Exception {
+        result
+                .andExpect(status().isOk())
+                .andExpect(content().contentTypeCompatibleWith(
+                        MediaType.APPLICATION_JSON
+                ))
+                .andExpect(jsonPath(itemPath + ".id").value(postId))
+                .andExpect(jsonPath(itemPath + ".likeCount").value(likeCount))
+                .andExpect(jsonPath(itemPath + ".liked").value(liked))
+                .andExpect(header().string(
+                        HttpHeaders.CACHE_CONTROL,
+                        containsString("no-store")
+                ));
+    }
+
     private CsrfSession login(String email) throws Exception {
         // 로그인 전 CSRF 토큰과 세션
         CsrfSession beforeLogin = fetchCsrf(null);

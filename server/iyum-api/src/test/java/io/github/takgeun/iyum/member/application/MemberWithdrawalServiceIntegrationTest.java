@@ -396,7 +396,7 @@ class MemberWithdrawalServiceIntegrationTest {
         withdrawalService.withdraw(memberId, RAW_PASSWORD);
 
         // 게시글 상세
-        var detail = postReadService.getPost(postId);
+        var detail = postReadService.getPost(postId, null);
 
         assertThat(detail.author().memberId()).isEqualTo(memberId);
         assertThat(detail.author().nickname()).isEqualTo("탈퇴한 회원");
@@ -404,7 +404,7 @@ class MemberWithdrawalServiceIntegrationTest {
         assertThat(detail.content()).isEqualTo("탈퇴 후에도 유지할 본문");
 
         // 기존 페이지 방식 목록
-        var page = postReadService.getPosts(null, null, 0, 10);
+        var page = postReadService.getPosts(null, null, 0, 10, null);
 
         assertThat(page.getContent()).hasSize(1);
         assertThat(page.getContent().getFirst().author().nickname())
@@ -414,7 +414,7 @@ class MemberWithdrawalServiceIntegrationTest {
 
         // 커서 방식 피드
         var feed = postReadService.getFeed(
-                null, null, null, null, 10
+                null, null, null, null, 10, null
         );
 
         assertThat(feed.items()).hasSize(1);
@@ -481,7 +481,7 @@ class MemberWithdrawalServiceIntegrationTest {
                 memberId
         );
 
-        var detail = postReadService.getPost(postId);
+        var detail = postReadService.getPost(postId, null);
         var comments = commentReadService.getComments(
                 postId, null, null, 10
         );

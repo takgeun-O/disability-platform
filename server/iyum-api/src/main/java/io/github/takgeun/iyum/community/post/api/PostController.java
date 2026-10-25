@@ -165,7 +165,10 @@ public class PostController {
     // Spring이 반환한 PostDetailResponse를 JSON으로 변환해서 응답 본문에 넣어줌.
     // 참고로 ResponseEntity는 상태 코드나 헤더를 직접 설정할 떄 유용함.
     // 게시글 작성 메서드는 기본값인 200 대신 201 Created를 반환하기 위해서 ResponseEntity를 사용한 것.
-    public PostListResponse getPosts(
+    public ResponseEntity<PostListResponse> getPosts(
+            @Parameter(hidden = true)
+            @AuthenticationPrincipal MemberPrincipal principal,
+
             @Parameter(description = "글 유형. 생략하면 전체 유형")
             @RequestParam(name = "type", required = false)
             @Nullable PostType type,
@@ -182,11 +185,18 @@ public class PostController {
             @RequestParam(name = "size", defaultValue = "20")
             int size
     ) {
-        return PostListResponse.from(
+        Long viewerId =
+                principal == null ? null : principal.getMemberId();
+
+        PostListResponse response = PostListResponse.from(
                 postReadService.getPosts(
-                        type, topic, page, size
+                        type, topic, page, size, viewerId
                 )
         );
+
+        return ResponseEntity.ok()
+                .cacheControl(CacheControl.noStore())
+                .body(response);
     }
 
     @GetMapping(
@@ -229,7 +239,10 @@ public class PostController {
                     )
             )
     })
-    public PostFeedResponse getFeed(
+    public ResponseEntity<PostFeedResponse> getFeed(
+            @Parameter(hidden = true)
+            @AuthenticationPrincipal MemberPrincipal principal,
+
             @Parameter(description = "글 유형. 생략하면 전체 유형")
             @RequestParam(name = "type", required = false)
             @Nullable PostType type,
@@ -260,15 +273,23 @@ public class PostController {
             @RequestParam(name = "size", defaultValue = "20")
             int size
     ) {
-        return PostFeedResponse.from(
+        Long viewerId =
+                principal == null ? null : principal.getMemberId();
+
+        PostFeedResponse response = PostFeedResponse.from(
                 postReadService.getFeed(
                         type,
                         topic,
                         afterCreatedAt,
                         afterId,
-                        size
+                        size,
+                        viewerId
                 )
         );
+
+        return ResponseEntity.ok()
+                .cacheControl(CacheControl.noStore())
+                .body(response);
     }
 
     @GetMapping(
@@ -302,13 +323,23 @@ public class PostController {
                     )
             )
     })
-    public PostDetailResponse getPost(
+    public ResponseEntity<PostDetailResponse> getPost(
+            @Parameter(hidden = true)
+            @AuthenticationPrincipal MemberPrincipal principal,
+
             @Parameter(description = "게시글 ID", example = "123")
             @PathVariable("postId") Long postId
     ) {
-        return PostDetailResponse.from(
-                postReadService.getPost(postId)
+        Long viewerId =
+                principal == null ? null : principal.getMemberId();
+
+        PostDetailResponse response = PostDetailResponse.from(
+                postReadService.getPost(postId, viewerId)
         );
+
+        return ResponseEntity.ok()
+                .cacheControl(CacheControl.noStore())
+                .body(response);
     }
 
     // PUT 방식 : 대상의 상태를 전달한 내용으로 교체 (PATCH는 대상에 일부 변경을 적용하는 것)

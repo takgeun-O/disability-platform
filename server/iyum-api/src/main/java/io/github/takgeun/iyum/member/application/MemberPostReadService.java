@@ -2,9 +2,7 @@ package io.github.takgeun.iyum.member.application;
 
 import io.github.takgeun.iyum.community.comment.infrastructure.CommentRepository;
 import io.github.takgeun.iyum.community.comment.infrastructure.PostCommentCount;
-import io.github.takgeun.iyum.community.post.application.PostCursor;
-import io.github.takgeun.iyum.community.post.application.PostFeedItemResult;
-import io.github.takgeun.iyum.community.post.application.PostFeedResult;
+import io.github.takgeun.iyum.community.post.application.*;
 import io.github.takgeun.iyum.community.post.domain.Post;
 import io.github.takgeun.iyum.community.post.infrastructure.PostRepository;
 import io.github.takgeun.iyum.member.domain.Member;
@@ -30,6 +28,7 @@ public class MemberPostReadService {
     private final MemberRepository memberRepository;
     private final PostRepository postRepository;
     private final CommentRepository commentRepository;
+    private final PostLikeReadService postLikeReadService;
 
     @Transactional(readOnly = true)
     public PostFeedResult getPosts(
@@ -132,16 +131,23 @@ public class MemberPostReadService {
             );
         }
 
-        /**
-         * 엔티티를 결과 객체로 변환
-         * 트랜잭션 안에서 필요한 엔티티 값을 읽고 복사하므로
-         * 이후 컨트롤러는 결과 객체의 값을 사용하면 된다.
-         */
+        Map<Long, PostLikeState> likeStates =
+                postLikeReadService.getStates(postIds, memberId);
+
         List<PostFeedItemResult> items = returnedPosts.stream()
-                .map(post -> PostFeedItemResult.from(
-                        post,
-                        commentCounts.getOrDefault(post.getId(), 0L)
-                ))
+                .map(post -> {
+                    PostLikeState likeState = likeStates.getOrDefault(
+                            post.getId(),
+                            PostLikeState.EMPTY
+                    );
+
+                    return PostFeedItemResult.from(
+                            post,
+                            commentCounts.getOrDefault(post.getId(), 0L),
+                            likeState.likeCount(),
+                            likeState.liked()
+                    );
+                })
                 .toList();
 
         PostCursor nextCursor = null;

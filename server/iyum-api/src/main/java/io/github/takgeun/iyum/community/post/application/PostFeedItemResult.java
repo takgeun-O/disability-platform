@@ -15,12 +15,16 @@ public record PostFeedItemResult(
         String contentPreview,
         PostAuthorResult author,
         Instant createdAt,
-        long commentCount
+        long commentCount,
+        long likeCount,
+        boolean liked
 ) {
 
     public static PostFeedItemResult from(
             Post post,
-            long commentCount
+            long commentCount,
+            long likeCount,
+            boolean liked
     ) {
         return new PostFeedItemResult(
                 post.getId(),
@@ -30,7 +34,9 @@ public record PostFeedItemResult(
                 PostContentPreview.from(post.getContent()),
                 PostAuthorResult.from(post.getAuthor()),
                 post.getCreatedAt(),
-                commentCount
+                commentCount,
+                likeCount,
+                liked
         );
     }
 }

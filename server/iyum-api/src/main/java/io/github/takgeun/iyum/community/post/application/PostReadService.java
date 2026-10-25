@@ -32,12 +32,14 @@ public class PostReadService {
 
     private final PostRepository postRepository;
     private final CommentRepository commentRepository;
+    private final PostLikeReadService postLikeReadService;
 
     public Page<PostSummaryResult> getPosts(
             @Nullable PostType type,
             @Nullable PostTopic topic,
             int page,
-            int size
+            int size,
+            @Nullable Long viewerId
     ) {
         validatePage(page, size);
 
@@ -51,9 +53,9 @@ public class PostReadService {
 
         // 현재 페이지에 게시글이 없으면 댓글 집계 쿼리 실행 X
         // 원래 Page의 전체 개수와 페이지 정보는 그대로 유지
-        if(!posts.hasContent()) {
+        if (!posts.hasContent()) {
             return posts.map(
-                    post -> PostSummaryResult.from(post, 0L)
+                    post -> PostSummaryResult.from(post, 0L, 0L, false)
             );
         }
 
@@ -77,15 +79,29 @@ public class PostReadService {
             );
         }
 
-        // 댓글이 없는 게시글은 집계 결과에 없으므로 0으로 채운다.
-        return posts.map(post -> PostSummaryResult.from(
-                post,
-                commentCounts.getOrDefault(post.getId(), 0L)
-        ));
+        Map<Long, PostLikeState> likeStates =
+                postLikeReadService.getStates(postIds, viewerId);
+
+        return posts.map(post -> {
+            PostLikeState likeState = likeStates.getOrDefault(
+                    post.getId(),
+                    PostLikeState.EMPTY
+            );
+
+            return PostSummaryResult.from(
+                    post,
+                    commentCounts.getOrDefault(post.getId(), 0L),
+                    likeState.likeCount(),
+                    likeState.liked()
+            );
+        });
     }
 
-    public PostDetailResult getPost(Long postId) {
-        if(postId == null || postId <= 0) {
+    public PostDetailResult getPost(
+            Long postId,
+            @Nullable Long viewerId
+    ) {
+        if (postId == null || postId <= 0) {
             throw new PostReadException(
                     PostReadException.Code.POST_NOT_FOUND
             );
@@ -102,7 +118,15 @@ public class PostReadService {
                         )
                 );
 
-        return PostDetailResult.from(post);
+        PostLikeState likeState = postLikeReadService
+                .getStates(List.of(post.getId()), viewerId)
+                .getOrDefault(post.getId(), PostLikeState.EMPTY);
+
+        return PostDetailResult.from(
+                post,
+                likeState.likeCount(),
+                likeState.liked()
+        );
     }
 
     // 게시글을 일정 개수씩 조회해서 댓글 수와 조회 위치까지 묶어 반환하는 서비스 메소드
@@ -111,7 +135,8 @@ public class PostReadService {
             @Nullable PostTopic topic,
             @Nullable Instant afterCreatedAt,
             @Nullable Long afterId,
-            int size    // 이번 요청에서 사용자에게 최대 몇 개의 게시글을 반환할 것인가?
+            int size,    // 이번 요청에서 사용자에게 최대 몇 개의 게시글을 반환할 것인가?
+            @Nullable Long viewerId
     ) {
         validateFeedSize(size);
         validateCursor(afterCreatedAt, afterId);
@@ -122,7 +147,7 @@ public class PostReadService {
 
         List<Post> fetched;
 
-        if(afterCreatedAt == null && afterId == null) {
+        if (afterCreatedAt == null && afterId == null) {
             fetched = postRepository.findFirstVisiblePosts(
                     type,
                     topic,
@@ -147,7 +172,7 @@ public class PostReadService {
         List<Post> returnedPosts = fetched.subList(0, returnedSize);
 
         // 빈 목록이면 댓글 집계 쿼리도 실행하지 않는다.
-        if(returnedPosts.isEmpty()) {
+        if (returnedPosts.isEmpty()) {
             return new PostFeedResult(
                     List.of(),
                     false,
@@ -172,16 +197,28 @@ public class PostReadService {
             );
         }
 
+        Map<Long, PostLikeState> likeStates =
+                postLikeReadService.getStates(postIds, viewerId);
+
         List<PostFeedItemResult> items = returnedPosts.stream()
-                .map(post -> PostFeedItemResult.from(
-                        post,
-                        commentCounts.getOrDefault(post.getId(), 0L)
-                ))
+                .map(post -> {
+                    PostLikeState likeState = likeStates.getOrDefault(
+                            post.getId(),
+                            PostLikeState.EMPTY
+                    );
+
+                    return PostFeedItemResult.from(
+                            post,
+                            commentCounts.getOrDefault(post.getId(), 0L),
+                            likeState.likeCount(),
+                            likeState.liked()
+                    );
+                })
                 .toList();
 
         PostCursor nextCursor = null;
 
-        if(hasNext) {
+        if (hasNext) {
             // 추가 확인용 게시글이 아니라
             // 실제 반환한 마지막 게시글로 커서를 만든다.
             PostFeedItemResult last = items.getLast();
@@ -200,7 +237,7 @@ public class PostReadService {
     }
 
     private void validatePage(int page, int size) {
-        if(page < 0 || size < 1 || size > MAX_PAGE_SIZE) {
+        if (page < 0 || size < 1 || size > MAX_PAGE_SIZE) {
             throw new PostReadException(
                     PostReadException.Code.INVALID_PAGE_REQUEST
             );
@@ -211,7 +248,7 @@ public class PostReadService {
         // (long)은 곱셈 중 정수 범위 초과를 방지하기 위한 형 변환
         long offset = (long) page * size;
 
-        if(offset > Integer.MAX_VALUE) {
+        if (offset > Integer.MAX_VALUE) {
             throw new PostReadException(
                     PostReadException.Code.INVALID_PAGE_REQUEST
             );
@@ -219,7 +256,7 @@ public class PostReadService {
     }
 
     private void validateFeedSize(int size) {
-        if(size < 1 || size > MAX_PAGE_SIZE) {
+        if (size < 1 || size > MAX_PAGE_SIZE) {
             throw new PostReadException(
                     PostReadException.Code.INVALID_PAGE_REQUEST
             );
@@ -231,12 +268,12 @@ public class PostReadService {
             @Nullable Long afterId
     ) {
         // 둘 다 생략하면 첫 조회
-        if(afterCreatedAt == null && afterId == null) {
+        if (afterCreatedAt == null && afterId == null) {
             return;
         }
 
         // 후속 조회에서는 생성 시각과 양수 ID가 모두 필요
-        if(afterCreatedAt == null || afterId == null || afterId <= 0) {
+        if (afterCreatedAt == null || afterId == null || afterId <= 0) {
             throw new PostReadException(
                     PostReadException.Code.INVALID_CURSOR
             );

@@ -17,7 +17,20 @@ public record PostDetailResponse(
         String content,
         PostAuthorResponse author,
         Instant createdAt,
-        Instant updatedAt
+        Instant updatedAt,
+
+        @Schema(
+                description = "게시글 좋아요 수",
+                example = "5",
+                minimum = "0"
+        )
+        long likeCount,
+
+        @Schema(
+                description = "현재 로그인한 회원의 좋아요 여부. 비로그인은 false",
+                example = "true"
+        )
+        boolean liked
 ) {
     public static PostDetailResponse from(
             PostDetailResult result
@@ -30,7 +43,9 @@ public record PostDetailResponse(
                 result.content(),
                 PostAuthorResponse.from(result.author()),
                 result.createdAt(),
-                result.updatedAt()
+                result.updatedAt(),
+                result.likeCount(),
+                result.liked()
         );
     }
 }
