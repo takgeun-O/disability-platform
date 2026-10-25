@@ -1,0 +1,17 @@
+{
+  "kind": "mock",
+  "results": [
+    {
+      "name": "logout success: detail URL/body, comment drafts, focus and dirty protection remain",
+      "status": "passed"
+    },
+    {
+      "name": "session check pending/error: honest pending label, manual retry, no comment write",
+      "status": "passed"
+    },
+    {
+      "name": "pending and late POST after logout never show a success toast",
+      "status": "passed"
+    }
+  ]
+}

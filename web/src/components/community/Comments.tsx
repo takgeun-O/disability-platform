@@ -23,6 +23,7 @@ import {
 import type { PublicResult } from "@/lib/community-load"
 import { characterCount, postDate } from "@/lib/community-posts"
 
+type EditorAction = { kind: "edit" | "delete"; comment: Comment } | { kind: "cancel" }
 type Editor = { id: number; original: string; value: string; notFound?: boolean }
 export default function Comments({
   postId,
@@ -68,7 +69,7 @@ export default function Comments({
   const buffered = useRef<{ cursor: string; page: CommentPage } | null>(null)
   const [inputFocused, setInputFocused] = useState(false)
   const [deleting, setDeleting] = useState<Comment | null>(null)
-  const [discard, setDiscard] = useState(false)
+  const [discard, setDiscard] = useState<EditorAction | null>(null)
   const [focusTarget, setFocusTarget] = useState<{ id: string } | null>(null)
   const requestFocus = (id: string | null) => setFocusTarget(id ? { id } : null)
   const blocker = useUnsavedChanges(
@@ -86,58 +87,6 @@ export default function Comments({
     permitted &&
     auth.member?.memberId ===
       c.author.memberId
-  useEffect(() => {
-    if (focusTarget && scope.isActive())
-      document.getElementById(focusTarget.id)?.focus({ preventScroll: true })
-  }, [focusTarget, scope])
-  useEffect(
-    () => () => {
-      reads.current++
-    },
-    [],
-  )
-
-  // An explicit comment link may point beyond the first public cursor page.
-  useEffect(() => {
-    const select = () => {
-      const match = /^#comment-([1-9]\d*)$/.exec(location.hash)
-      const id = match ? Number(match[1]) : NaN
-      setLinkedComment(Number.isSafeInteger(id) ? id : null)
-      setLinkNotice("")
-    }
-    select()
-    const cancel = () => setLinkedComment(null)
-    window.addEventListener("hashchange", select)
-    window.addEventListener("pointerdown", cancel)
-    window.addEventListener("keydown", cancel)
-    return () => {
-      window.removeEventListener("hashchange", select)
-      window.removeEventListener("pointerdown", cancel)
-      window.removeEventListener("keydown", cancel)
-    }
-  }, [postId])
-  const followComment = useEffectEvent(() => {
-    if (!linkedComment || !scope.isActive() || reading.current || writing.current || readError) return
-    const target = document.getElementById(`comment-${linkedComment}`)
-    if (target) {
-      target.focus({ preventScroll: true })
-      target.scrollIntoView({ behavior: matchMedia("(prefers-reduced-motion: reduce)").matches ? "instant" : "smooth", block: "center" })
-      setLinkedComment(null)
-    } else if (page.hasNext && page.nextCursor) {
-      void load(true)
-    } else {
-      setLinkNotice("해당 댓글을 찾을 수 없어요. 삭제되었거나 더 이상 표시되지 않는 댓글일 수 있습니다.")
-      setLinkedComment(null)
-    }
-  })
-  useEffect(() => {
-    const frame = requestAnimationFrame(() => followComment())
-    return () => cancelAnimationFrame(frame)
-  }, [linkedComment, page, loading, readError])
-
-  const refreshIdentity = useEffectEvent(() => { void load() })
-  useEffect(() => { if (identityVersion > 0) refreshIdentity() }, [identityVersion])
-
   function pauseAuto() {
     // 입력 중 도착한 자동 GET도 폼을 밀어내지 않는다. 수동 추가는 명시적 조작이다.
     const area = section.current
@@ -146,24 +95,6 @@ export default function Comments({
       !!area.querySelector('.community-comment-form:focus-within') ||
       (composer.current?.getBoundingClientRect().top ?? Infinity) < window.innerHeight
   }
-  const autoLoad = useEffectEvent(() => {
-    if (!pauseAuto()) void load(true, true)
-  })
-  useEffect(() => {
-    if (!page.hasNext || loading || busy || readError || draft || editor || inputFocused || loginPrompt || deleting || discard ||
-      !sentinel.current || !("IntersectionObserver" in window)) return
-    let near = false
-    const observer = new IntersectionObserver(entries => {
-      near = entries.some(entry => entry.isIntersecting)
-      if (near) autoLoad()
-    }, { rootMargin: "320px 0px" })
-    // 폼이 보일 때 멈춘 뒤 위로 이동하면, 감시 영역을 벗어나지 않아도 재평가한다.
-    const onScroll = () => { if (near) autoLoad() }
-    observer.observe(sentinel.current)
-    window.addEventListener("scroll", onScroll, { passive: true })
-    return () => { observer.disconnect(); window.removeEventListener("scroll", onScroll) }
-  }, [page.hasNext, page.nextCursor, loading, busy, readError, draft, editor, inputFocused, loginPrompt, deleting, discard])
-
   async function load(more = false, automatic = false) {
     if (reading.current || writing.current || !scope.isActive()) return
     if (more && (!page.hasNext || !page.nextCursor)) return
@@ -218,22 +149,117 @@ export default function Comments({
       }
     }
   }
+
+  useEffect(() => {
+    if (focusTarget && scope.isActive())
+      document.getElementById(focusTarget.id)?.focus({ preventScroll: true })
+  }, [focusTarget, scope])
+  useEffect(
+    () => () => {
+      reads.current++
+    },
+    [],
+  )
+
+  // An explicit comment link may point beyond the first public cursor page.
+  useEffect(() => {
+    const select = () => {
+      const match = /^#comment-([1-9]\d*)$/.exec(location.hash)
+      const id = match ? Number(match[1]) : NaN
+      setLinkedComment(Number.isSafeInteger(id) ? id : null)
+      setLinkNotice("")
+    }
+    select()
+    const cancel = () => setLinkedComment(null)
+    window.addEventListener("hashchange", select)
+    window.addEventListener("pointerdown", cancel)
+    window.addEventListener("keydown", cancel)
+    return () => {
+      window.removeEventListener("hashchange", select)
+      window.removeEventListener("pointerdown", cancel)
+      window.removeEventListener("keydown", cancel)
+    }
+  }, [postId])
+  const followComment = useEffectEvent(() => {
+    if (!linkedComment || !scope.isActive() || reading.current || writing.current || readError) return
+    const target = document.getElementById(`comment-${linkedComment}`)
+    if (target) {
+      target.focus({ preventScroll: true })
+      target.scrollIntoView({ behavior: matchMedia("(prefers-reduced-motion: reduce)").matches ? "instant" : "smooth", block: "center" })
+      setLinkedComment(null)
+    } else if (page.hasNext && page.nextCursor) {
+      void load(true)
+    } else {
+      setLinkNotice("해당 댓글을 찾을 수 없어요. 삭제되었거나 더 이상 표시되지 않는 댓글일 수 있습니다.")
+      setLinkedComment(null)
+    }
+  })
+  useEffect(() => {
+    const frame = requestAnimationFrame(() => followComment())
+    return () => cancelAnimationFrame(frame)
+  }, [linkedComment, page, loading, readError])
+
+  const refreshIdentity = useEffectEvent(() => { void load() })
+  useEffect(() => {
+    let active = true
+    if (identityVersion > 0) queueMicrotask(() => { if (active) refreshIdentity() })
+    return () => { active = false }
+  }, [identityVersion])
+
+  const autoLoad = useEffectEvent(() => {
+    if (!pauseAuto()) void load(true, true)
+  })
+  useEffect(() => {
+    if (!page.hasNext || loading || busy || readError || draft || editor || inputFocused || loginPrompt || deleting || discard ||
+      !sentinel.current || !("IntersectionObserver" in window)) return
+    let near = false
+    const observer = new IntersectionObserver(entries => {
+      near = entries.some(entry => entry.isIntersecting)
+      if (near) autoLoad()
+    }, { rootMargin: "320px 0px" })
+    // 폼이 보일 때 멈춘 뒤 위로 이동하면, 감시 영역을 벗어나지 않아도 재평가한다.
+    const onScroll = () => { if (near) autoLoad() }
+    observer.observe(sentinel.current)
+    window.addEventListener("scroll", onScroll, { passive: true })
+    return () => { observer.disconnect(); window.removeEventListener("scroll", onScroll) }
+  }, [page.hasNext, page.nextCursor, loading, busy, readError, draft, editor, inputFocused, loginPrompt, deleting, discard])
+
   function edit(c: Comment) {
     setEditor({ id: c.commentId, original: c.content, value: c.content })
     setFields(f => ({ ...f, [String(c.commentId)]: "" }))
     setError(null)
     requestFocus(`comment-edit-${c.commentId}`)
   }
-  function cancelEdit() {
-    if (editor?.value !== editor?.original) setDiscard(true)
-    else finishEdit()
+  function transitionEditor(action: EditorAction) {
+    if (writing.current || busy || !scope.isActive()) return
+    if (editor && editor.value !== editor.original) {
+      setDiscard(action)
+      requestFocus(null)
+      return
+    }
+    finishEdit(action)
   }
-  function finishEdit() {
+  function cancelEdit() { transitionEditor({ kind: "cancel" }) }
+  function finishEdit(action: EditorAction = { kind: "cancel" }) {
+    if (writing.current || busy || !scope.isActive()) return
+    // Recheck the live list/ownership after a confirmation, rather than acting
+    // on a stale comment snapshot or a previous login.
+    const target = action.kind === "cancel" ? null : page.items.find(c => c.commentId === action.comment.commentId)
+    if (action.kind !== "cancel" && (!target || !owner(target))) {
+      setDiscard(null)
+      setNotice("해당 댓글을 수정하거나 삭제할 수 없습니다. 목록을 다시 확인해 주세요.")
+      requestFocus(editor ? `comment-edit-${editor.id}` : "comments-refresh")
+      return
+    }
     const id = editor?.id
     setEditor(null)
-    setDiscard(false)
+    setDiscard(null)
     setError(null)
-    requestFocus(page.items.some(c => c.commentId === id) ? `comment-edit-button-${id}` : "comments-refresh")
+    if (action.kind === "edit" && target) edit(target)
+    else if (action.kind === "delete" && target) {
+      requestFocus(null)
+      setDeleting(target)
+    } else requestFocus(page.items.some(c => c.commentId === id) ? `comment-edit-button-${id}` : "comments-refresh")
   }
   function removeItem(id: number, preserveEditor = false) {
     removed.current.add(id)
@@ -422,19 +448,15 @@ export default function Comments({
                     <button
                       id={`comment-edit-button-${c.commentId}`}
                       className="community-owner-action community-owner-action-edit"
-                      disabled={busy || !!editor}
-                      onClick={() => edit(c)}
+                      disabled={busy}
+                      onClick={() => transitionEditor({ kind: "edit", comment: c })}
                     >
                       댓글 수정
                     </button>
                     <button
                       className="community-owner-action"
                       disabled={busy}
-                      onClick={() => {
-                        setDeleting(c)
-                        setError(null)
-                        requestFocus(null)
-                      }}
+                      onClick={() => transitionEditor({ kind: "delete", comment: c })}
                     >
                       댓글 삭제
                     </button>
@@ -591,20 +613,21 @@ export default function Comments({
       {discard && (
         <CommunityDialog
           titleId="comment-discard-title"
-          onCancel={() => setDiscard(false)}
+          onCancel={() => setDiscard(null)}
         >
           <h2 id="comment-discard-title">수정한 내용을 버릴까요?</h2>
+          <p>저장하지 않은 수정 내용은 사라집니다.{discard.kind === "edit" ? " 다른 댓글 수정으로 이동합니다." : discard.kind === "delete" ? " 선택한 댓글의 삭제 확인으로 이동합니다." : ""}</p>
           <div className="community-dialog-actions">
             <button
               data-initial-focus
               className="iyum-button iyum-button-outline"
-              onClick={() => setDiscard(false)}
+              onClick={() => setDiscard(null)}
             >
               계속 수정
             </button>
             <button
               className="iyum-button iyum-button-primary"
-              onClick={finishEdit}
+              onClick={() => finishEdit(discard)}
             >
               수정 내용 버리기
             </button>
