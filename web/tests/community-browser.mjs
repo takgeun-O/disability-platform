@@ -23,7 +23,7 @@ const types = ['QUESTION', 'REVIEW', 'GENERAL'];
 const topics = ['HEARING_AID', 'COCHLEAR_IMPLANT', 'DAILY', 'EMPLOYMENT', 'COMMUNICATION', 'TREATMENT_REHABILITATION'];
 const titles = ['처음 보청기를 맞출 때 무엇부터 확인하면 좋을까요?', '인공와우 적응 중, 일상에서 도움이 된 작은 습관', '오늘 나누고 싶은 소소한 일상 이야기', '직장에서 소통할 때 어떤 방법을 사용하시나요?', '가족과 함께 자막 앱을 사용해 본 경험', '집에서 꾸준히 할 수 있는 청취 연습이 궁금해요'];
 const items = Array.from({ length: 63 }, (_, index) => ({ id: index + 1, type: types[index % 3], topic: topics[index % 6],
-  title: `[검증 예시] ${titles[index % 6]} ${index + 1}`, author: { memberId: 123, nickname: '예시회원' }, createdAt: '2026-10-14T01:00:00Z' }));
+  title: `[검증 예시] ${titles[index % 6]} ${index + 1}`, likeCount: 0, liked: false, author: { memberId: 123, nickname: '예시회원' }, createdAt: '2026-10-14T01:00:00Z' }));
 function listBody(url) {
   const q = new URL(url).searchParams, page = Number(q.get('page') ?? 0), size = Number(q.get('size') ?? 20);
   const filtered = items.filter(item => (!q.get('type') || item.type === q.get('type')) && (!q.get('topic') || item.topic === q.get('topic')));
@@ -140,7 +140,7 @@ try {
   });
   await check('상세 왕복 필터·페이지·스크롤 복원 / 브라우저 Back·Forward', async () => {
     const savedUrl = page.url(); const link = posts(page).nth(7).getByRole('link'); await link.scrollIntoViewIfNeeded(); const y = await page.evaluate(() => scrollY); assert(y > 200);
-    await link.click(); await page.locator('.community-post-body').waitFor(); await page.getByRole('link', { name: '← 목록으로', exact: true }).click(); await listReady(page);
+    await link.click(); await page.locator('.community-post-body').waitFor(); await page.getByRole('link', { name: '← 게시글 목록으로', exact: true }).click(); await listReady(page);
     assert.equal(page.url(), savedUrl); await waitFor(async () => Math.abs((await page.evaluate(() => scrollY)) - y) < 6);
     await posts(page).nth(7).getByRole('link').click(); await page.locator('.community-post-body').waitFor(); await page.goBack(); await listReady(page); assert.equal(page.url(), savedUrl);
     await waitFor(async () => Math.abs((await page.evaluate(() => scrollY)) - y) < 6);
@@ -231,7 +231,7 @@ try {
   await check('공개 상세의 줄바꿈·HTML 비실행·긴 문자열·직접 진입 기본 복귀', async () => {
     await page.goto(base + '/community/posts/1'); await page.locator('.community-post-body').waitFor();
     assert.match(await page.locator('.community-post-body').innerText(), /첫 줄\n\n둘째 줄/); assert.equal(await page.evaluate(() => window.communityXss), undefined); assert.equal(await page.locator('.community-post-body script').count(), 0);
-    assert.equal(await page.getByRole('link', { name: '← 목록으로', exact: true }).getAttribute('href'), '/community/topics/hearing-aid');
+    assert.equal(await page.getByRole('link', { name: '← 보청기 게시글 목록으로', exact: true }).getAttribute('href'), '/community/topics/hearing-aid');
     for (const width of [320, 390, 1440]) { await page.setViewportSize({ width, height: width < 600 ? 844 : 1000 }); await noOverflow(page); if (width !== 320) await shot(page, `mock-detail-${width}`); }
   });
   for (const [name, handler, expected] of [

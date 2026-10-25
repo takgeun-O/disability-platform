@@ -330,7 +330,9 @@ class PostControllerTest {
                                 "첫 번째 본문 미리보기",
                                 new PostAuthorResult(7L, "게시글작성자"),
                                 latestTime,
-                                3L
+                                3L,
+                                0L,
+                                false
                         ),
                         new PostFeedItemResult(
                                 104L,
@@ -340,7 +342,9 @@ class PostControllerTest {
                                 "두 번째 본문 미리보기",
                                 new PostAuthorResult(7L, "게시글작성자"),
                                 nextTime,
-                                0L
+                                0L,
+                                0L,
+                                false
                         )
                 ),
                 true,
@@ -348,7 +352,7 @@ class PostControllerTest {
         );
 
         when(postReadService.getFeed(
-                null, null, null, null, 2
+                null, null, null, null, 2, null
         )).thenReturn(result);
 
         // 로그인 사용자·세션·CSRF 토큰을 넣지 않는다.
@@ -363,6 +367,8 @@ class PostControllerTest {
                 ))
                 .andExpect(jsonPath("$.items.length()").value(2))
                 .andExpect(jsonPath("$.items[0].id").value(105))
+                .andExpect(jsonPath("$.items[0].likeCount").value(0))
+                .andExpect(jsonPath("$.items[0].liked").value(false))
                 .andExpect(jsonPath("$.items[0].type").value("QUESTION"))
                 .andExpect(jsonPath("$.items[0].topic").value("HEARING_AID"))
                 .andExpect(jsonPath("$.items[0].title")
@@ -392,7 +398,7 @@ class PostControllerTest {
                 ));
 
         verify(postReadService).getFeed(
-                null, null, null, null, 2
+                null, null, null, null, 2, null
         );
     }
 
@@ -413,7 +419,9 @@ class PostControllerTest {
                                 "마지막 본문 미리보기",
                                 new PostAuthorResult(7L, "게시글작성자"),
                                 cursorTime.minusSeconds(1),
-                                0L
+                                0L,
+                                0L,
+                                false
                         )
                 ),
                 false,
@@ -425,7 +433,7 @@ class PostControllerTest {
                 PostTopic.HEARING_AID,
                 cursorTime,
                 104L,
-                2
+                2, null
         )).thenReturn(result);
 
         mockMvc.perform(
@@ -448,7 +456,7 @@ class PostControllerTest {
                 PostTopic.HEARING_AID,
                 cursorTime,
                 104L,
-                2
+                2, null
         );
     }
 
@@ -457,7 +465,7 @@ class PostControllerTest {
             throws Exception {
 
         when(postReadService.getFeed(
-                null, null, null, null, 20
+                null, null, null, null, 20, null
         )).thenReturn(new PostFeedResult(
                 List.of(),
                 false,
@@ -476,7 +484,7 @@ class PostControllerTest {
                 .andExpect(jsonPath("$.totalPages").doesNotExist());
 
         verify(postReadService).getFeed(
-                null, null, null, null, 20
+                null, null, null, null, 20, null
         );
     }
 
@@ -512,7 +520,7 @@ class PostControllerTest {
             throws Exception {
 
         when(postReadService.getFeed(
-                null, null, null, null, size
+                null, null, null, null, size, null
         )).thenThrow(new PostReadException(
                 PostReadException.Code.INVALID_PAGE_REQUEST
         ));
@@ -526,7 +534,7 @@ class PostControllerTest {
                         .value("INVALID_PAGE_REQUEST"));
 
         verify(postReadService).getFeed(
-                null, null, null, null, size
+                null, null, null, null, size, null
         );
     }
 
@@ -550,7 +558,7 @@ class PostControllerTest {
                 : Instant.parse(timeText);
 
         when(postReadService.getFeed(
-                null, null, time, afterId, 20
+                null, null, time, afterId, 20, null
         )).thenThrow(new PostReadException(
                 PostReadException.Code.INVALID_CURSOR
         ));
@@ -571,7 +579,7 @@ class PostControllerTest {
                 .andExpect(jsonPath("$.code").value("INVALID_CURSOR"));
 
         verify(postReadService).getFeed(
-                null, null, time, afterId, 20
+                null, null, time, afterId, 20, null
         );
     }
 

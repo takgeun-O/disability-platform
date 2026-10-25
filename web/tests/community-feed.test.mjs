@@ -5,7 +5,7 @@ const api = await loadTypeScript('../src/lib/community-api.ts', import.meta.url)
 const model = await loadTypeScript('../src/lib/community-posts.ts', import.meta.url)
 const cache = await loadTypeScript('../src/lib/community-feed.ts', import.meta.url)
 const query = {type:'QUESTION',topic:'HEARING_AID',page:0}
-const row = id => ({id,type:query.type,topic:query.topic,title:'실제 텍스트',contentPreview:'<b>일반 텍스트</b>',author:{memberId:1,nickname:'회원'},createdAt:'2026-10-18T00:00:00.123456Z',commentCount:0})
+const row = id => ({id,type:query.type,topic:query.topic,title:'실제 텍스트',contentPreview:'<b>일반 텍스트</b>',likeCount: 0, liked: false, author:{memberId:1,nickname:'회원'},createdAt:'2026-10-18T00:00:00.123456Z',commentCount:0})
 const page = {items:[row(30),row(29)],hasNext:true,nextCursor:{createdAt:row(29).createdAt,postId:29}}
 async function response(body, run) {
  const original=globalThis.fetch

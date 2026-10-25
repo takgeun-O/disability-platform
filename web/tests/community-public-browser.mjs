@@ -28,7 +28,7 @@ try {
  });
  await check('실제 공개 상세·작성자/본문 초기 HTML·필터 복귀',async()=>{
   await page.goto(base+'/community/posts?'+query);await ready();await page.getByRole('link',{name:post.title,exact:true}).click();await page.locator('.community-post-body').waitFor();
-  assert.equal((await page.locator('.community-article h2').innerText()),post.title);await page.getByRole('link',{name:'← 목록으로',exact:true}).click();await ready();assert.equal(new URL(page.url()).search.slice(1),query);
+  assert.equal((await page.locator('.community-article h2').innerText()),post.title);await page.getByRole('link',{name:'← 게시글 목록으로',exact:true}).click();await ready();assert.equal(new URL(page.url()).search.slice(1),query);
   const nojs=await browser.newContext({javaScriptEnabled:false});const p=await nojs.newPage();await p.goto(base+'/community/posts/'+post.id);assert(await p.locator('.community-post-body').isVisible());assert((await p.locator('.community-article').innerText()).includes(post.author.nickname));await nojs.close();
  });
  await check('과거 page=99 링크는 같은 조건의 첫 커서 피드로 정규화',async()=>{
@@ -50,7 +50,7 @@ try {
  const spaces=[['hearing-aid','HEARING_AID','보청기'],['cochlear-implant','COCHLEAR_IMPLANT','인공와우'],['daily','DAILY','자유·일상'],['treatment-rehabilitation','TREATMENT_REHABILITATION','치료·재활'],['communication','COMMUNICATION','의사소통'],['employment','EMPLOYMENT','취업·직장'],['welfare-life','WELFARE_LIFE','복지·생활']];
  for(const[slug,topic,name]of spaces)await check('실제 주제 초기 HTML/무JS/새로고침 '+slug,async()=>{
   const d=await(await fetch(api+'/api/v1/community/posts/feed?topic='+topic+'&size=20')).json();
-  const c=await browser.newContext({javaScriptEnabled:false}),p=await c.newPage();try{assert.equal((await p.goto(base+'/community/topics/'+slug)).status(),200);assert(await p.getByRole('heading',{name,exact:true}).isVisible());assert(await p.locator('.feed-heading p').isVisible());assert.equal(await p.locator('[data-feed-id]').count(),d.items.length);if(d.items.length){assert(await p.getByRole('link',{name:d.items[0].title,exact:true}).isVisible());assert.equal(await p.locator('[data-feed-id]').first().locator('.feed-comment-count').innerText(),'댓글 '+d.items[0].commentCount)}assert.equal((await p.reload()).status(),200)}finally{await c.close()}
+  const c=await browser.newContext({javaScriptEnabled:false}),p=await c.newPage();try{assert.equal((await p.goto(base+'/community/topics/'+slug)).status(),200);assert(await p.getByRole('heading',{name,exact:true}).isVisible());assert(await p.locator('.feed-heading p').isVisible());assert.equal(await p.locator('[data-feed-id]').count(),d.items.length);if(d.items.length){assert(await p.getByRole('link',{name:d.items[0].title,exact:true}).isVisible());assert.equal(await p.locator('[data-feed-id]').first().locator('.post-comment-link').innerText(),'댓글 '+d.items[0].commentCount)}assert.equal((await p.reload()).status(),200)}finally{await c.close()}
  });
  await check('공개 비로그인 작성 안내·런타임 오류 없음·실제 쓰기 없음',async()=>{
   await page.goto(base+'/community/posts/create');await page.getByRole('link',{name:'로그인하고 글쓰기'}).waitFor();assert.deepEqual(writes,[]);assert.deepEqual(errors,[]);

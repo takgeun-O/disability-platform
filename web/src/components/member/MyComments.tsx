@@ -91,8 +91,11 @@ export default function MyComments({ memberId, active, restoring, initial, lease
     <ul className="mypage-post-list mypage-comment-list">{view.items.map(comment => <li key={comment.commentId} data-member-comment-id={comment.commentId}>
       <div className="mypage-post-copy">
         <p className="mypage-post-meta">{POST_TOPICS[comment.post.topic]} · {POST_TYPES[comment.post.type]} · <time dateTime={comment.createdAt}>{postDate(comment.createdAt)}</time></p>
-        <p className="mypage-comment-content">{comment.content}</p>
-        <Link className="mypage-comment-link" href={`/community/posts/${comment.post.postId}?from=%2Fmypage`} prefetch={false} onNavigate={onLeaving}>원문 · {comment.post.title}</Link>
+        <div className="mypage-comment-bubble">
+          <span className="mypage-comment-label">내가 쓴 댓글</span>
+          <p className="mypage-comment-content">{comment.content}</p>
+        </div>
+        <Link className="mypage-comment-link" href={`/community/posts/${comment.post.postId}?from=%2Fmypage#comment-${comment.commentId}`} prefetch={false} scroll={false} onNavigate={onLeaving}><span className="mypage-comment-source-label">원문 게시글</span><span>{comment.post.title}</span><span aria-hidden="true">→</span></Link>
       </div>
     </li>)}</ul>
     {busy === 'refresh' && !!view.segments && <p role="status">내 댓글을 갱신하고 있습니다.</p>}

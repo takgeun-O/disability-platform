@@ -1,0 +1,24 @@
+{
+  "results": [
+    {
+      "name": "actual Chrome 8443 → Spring 8082 session/CORS/CSRF PUT/read/DELETE/read",
+      "pass": true,
+      "postId": 14,
+      "originalCount": 0,
+      "restored": true
+    }
+  ],
+  "requests": [
+    {
+      "path": "/api/v1/community/posts/14/like",
+      "method": "PUT",
+      "status": 200
+    },
+    {
+      "path": "/api/v1/community/posts/14/like",
+      "method": "DELETE",
+      "status": 200
+    }
+  ],
+  "notes": "No account credentials, tokens, cookies or account identifiers included. Seed intent/receipt retained privately; no posts/comments/accounts created or deleted."
+}

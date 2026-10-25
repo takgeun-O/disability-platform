@@ -39,11 +39,27 @@
 .iyum-nav-link[aria-current] { border-bottom-color: var(--iyum-primary); }
 .iyum-chevron { transition: transform .15s ease; }
 .iyum-chevron.is-open { transform: rotate(180deg); }
-.iyum-information { position: relative; }
-.iyum-information-menu { position: absolute; z-index: 40; top: calc(100% + 12px); left: -24px; width: 300px; padding: 10px; border: 1px solid var(--iyum-border); border-radius: 12px; background: white; box-shadow: 0 16px 40px rgb(9 35 74 / 12%); }
-.iyum-information-menu a { display: flex; flex-direction: column; gap: 4px; padding: 14px; border-radius: 8px; font-weight: 600; color: var(--iyum-ink); text-decoration: none; }
-.iyum-information-menu a:hover { background: var(--iyum-mist); }
-.iyum-information-menu small { color: var(--iyum-muted); font-size: 14px; font-weight: 400; }
+/* Anchor the desktop panel to the full header, without pushing page content. */
+.iyum-information { position: static; }
+.iyum-information-menu { position: absolute; z-index: 40; top: 100%; left: 50%; transform: translateX(-50%); width: calc(100% - 32px); max-width: 1280px; display: grid; grid-template-columns: minmax(260px, .9fr) minmax(0, 2fr); border: 1px solid var(--iyum-border); border-radius: 0 0 20px 20px; background: var(--iyum-surface); box-shadow: 0 20px 40px rgb(9 35 74 / 12%); }
+.iyum-information-menu[hidden] { display: none; }
+.iyum-information-intro { padding: 32px; background: var(--iyum-mist); border-radius: 0 0 0 20px; }
+.iyum-information-intro h2 { margin: 16px 0; color: var(--iyum-ink); font-size: clamp(22px, 2vw, 28px); line-height: 1.5; font-weight: 700; letter-spacing: -.03em; word-break: keep-all; }
+.iyum-information-intro > p:last-child { margin: 0; color: var(--iyum-muted); font-size: 14px; line-height: 1.8; word-break: keep-all; }
+.iyum-information-links { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px 16px; padding: 24px; }
+.iyum-information-menu a { display: flex; align-items: flex-start; gap: 16px; padding: 20px 16px; border-radius: 10px; color: var(--iyum-ink); text-decoration: none; }
+.iyum-information-menu a > svg { flex-shrink: 0; margin-top: 2px; }
+.iyum-information-copy { display: flex; flex-direction: column; gap: 10px; min-width: 0; font-size: 19px; font-weight: 700; word-break: keep-all; overflow-wrap: anywhere; }
+.iyum-information-menu a:hover, .iyum-information-menu a[aria-current] { background: var(--iyum-mist); color: var(--iyum-primary); }
+.iyum-information-menu a:focus-visible { outline: 2px solid var(--iyum-primary); outline-offset: 2px; }
+.iyum-information-menu small { color: var(--iyum-muted); font-size: 14px; font-weight: 400; line-height: 1.7; }
+@media (min-width: 901px) and (max-width: 1100px) {
+  .iyum-information-intro { padding: 24px; }
+  .iyum-information-links { padding: 16px; gap: 8px; }
+  .iyum-information-menu a { padding: 16px 12px; gap: 12px; }
+  .iyum-information-copy { font-size: 17px; }
+}
+
 .iyum-mobile-toggle { display: none; }
 .iyum-auth-controls { justify-self: end; position: relative; min-width: 0; max-width: 300px; }
 .iyum-member-menu { display: flex; align-items: center; gap: 8px; font-size: 14px; }

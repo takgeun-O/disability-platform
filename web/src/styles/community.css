@@ -308,3 +308,33 @@
 
 /* 조회 상태 문구가 사라져도 입력 중인 폼의 위치를 밀지 않는다. */
 .community-comments-status { min-height: 1.6em; }
+
+/* Post reactions are siblings of title links, never nested interactive content. */
+.post-reactions { display:flex; flex-wrap:wrap; align-items:center; gap:8px 16px; }
+.post-like { min-width:0; }
+.post-like-button { display:inline-flex; align-items:center; justify-content:center; gap:6px; min-height:44px; min-width:44px; padding:6px 10px; border:1px solid var(--iyum-border, #dce8ed); border-radius:22px; background:transparent; color:var(--iyum-muted); font-size:14px; cursor:pointer; }
+.post-like-button[aria-pressed="true"] { color:#c43f50; background:#fff5f5; border-color:currentColor; }
+.post-like-button:hover { background:#edf9fa; }
+.post-like-button:focus-visible { outline:3px solid var(--iyum-primary, #00869c); outline-offset:3px; }
+.post-like-button[aria-disabled="true"] { opacity:.65; cursor:default; }
+.post-like-error { max-width:32rem; margin:6px 0; font-size:14px; color:#974141; overflow-wrap:anywhere; word-break:keep-all; }
+.community-post-body + .post-like { margin:16px 0; }
+.mypage-post-list .post-reactions { flex-shrink:0; }
+@media(max-width:600px) { .mypage-post-list .post-reactions { flex-shrink:1; } }
+
+.post-like-count { display:inline-flex; align-items:center; gap:6px; color:var(--iyum-muted); font-size:14px; }
+.post-like-count[data-liked="true"] svg { color:#c43f50; }
+.post-comment-link { display:inline-flex; align-items:center; justify-content:center; gap:6px; min-height:44px; min-width:44px; padding:6px 10px; border:1px solid var(--iyum-border); border-radius:22px; color:var(--iyum-muted); font-size:14px; text-decoration:none; }
+.post-comment-link:hover { background:#edf9fa; }
+.post-comment-link:focus-visible { outline:3px solid var(--iyum-primary); outline-offset:3px; }
+#comments-title { scroll-margin-top:24px; }
+#comments-title:focus-visible { outline:2px solid var(--iyum-primary); outline-offset:4px; }
+
+/* Comment registration feedback does not participate in document layout. */
+.comment-toast-announcer { position: absolute; width: 0; height: 0; pointer-events: none; }
+.comment-success-toast { position: fixed; z-index: 90; top: max(var(--toast-header-bottom, 100px), calc(env(safe-area-inset-top) + 12px)); left: 50%; transform: translateX(-50%); width: max-content; max-width: calc(100vw - 32px); display: flex; align-items: center; gap: 8px; padding: 12px 18px; border: 1px solid var(--iyum-primary); border-radius: 12px; background: white; color: var(--iyum-ink); box-shadow: 0 4px 16px #002b4920; font-size: 15px; font-weight: 600; word-break: keep-all; pointer-events: none; opacity: 1; transition: opacity 250ms ease; }
+.comment-success-toast svg { flex-shrink: 0; color: var(--iyum-primary); }
+.comment-success-toast.is-leaving { opacity: 0; }
+@media (prefers-reduced-motion: reduce) { .comment-success-toast { transition: none; } }
+
+.community-comments li[id^="comment-"]:focus-visible { outline:2px solid var(--iyum-primary); outline-offset:4px; border-radius:8px; }

@@ -14,12 +14,16 @@ public record PostSummaryResult(
         String title,
         PostAuthorResult author,
         Instant createdAt,
-        long commentCount   // 댓글이 없으면 0으로 표현해야 하니 null이 없는 기본형 사용
+        long commentCount,   // 댓글이 없으면 0으로 표현해야 하니 null이 없는 기본형 사용
+        long likeCount,
+        boolean liked
 ) {
 
     public static PostSummaryResult from(
             Post post,
-            long commentCount
+            long commentCount,
+            long likeCount,
+            boolean liked
     ) {
         return new PostSummaryResult(
                 post.getId(),
@@ -28,7 +32,9 @@ public record PostSummaryResult(
                 post.getTitle(),
                 PostAuthorResult.from(post.getAuthor()),
                 post.getCreatedAt(),
-                commentCount
+                commentCount,
+                likeCount,
+                liked
         );
     }
 }

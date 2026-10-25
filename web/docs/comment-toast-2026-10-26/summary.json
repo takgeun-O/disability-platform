@@ -1,0 +1,26 @@
+{
+  "unit": {
+    "passed": 351,
+    "failed": 0
+  },
+  "likes": {
+    "passed": 29,
+    "failed": 0,
+    "build": "webpack"
+  },
+  "comments": {
+    "passed": 56,
+    "failed": 0,
+    "build": "Turbopack"
+  },
+  "positionAccessibility": {
+    "passed": 3,
+    "failed": 0
+  },
+  "lint": "passed",
+  "typecheck": "passed",
+  "build": "passed in clean temporary directory; initial cached permission failure retained",
+  "diffCheck": "passed",
+  "actualSpring": "not run; mock only",
+  "deviceSafariAndScreenReader": "not run"
+}

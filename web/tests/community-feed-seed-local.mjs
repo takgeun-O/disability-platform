@@ -55,11 +55,11 @@ try{
   await p.locator('#comment-draft').fill(receipt.content);await p.getByRole('button',{name:'댓글 등록',exact:true}).click();const response=await sent;assert.equal(response.status(),201);createdComment=(await response.json()).commentId;
   await recordComment(seed,receipt,createdComment);
   await atomicWrite(output+'/created-receipt.json',JSON.stringify({createdComment,ownedComment:createdComment,recoveryJournal:receipt.file}));
-  await p.getByText('댓글을 등록했습니다.',{exact:true}).waitFor();await p.locator('.community-back').click();await until(async()=>await p.locator(`[data-feed-id="${representative}"] .feed-comment-count`).textContent()===`댓글 ${baseline+1}`);assert.equal(await rows().count(),ha.items.length)
+  await p.getByText('댓글을 등록했습니다.',{exact:true}).waitFor();await p.locator('.community-back').click();await until(async()=>await p.locator(`[data-feed-id="${representative}"] .post-comment-link`).textContent()===`댓글 ${baseline+1}`);assert.equal(await rows().count(),ha.items.length)
   await p.locator(`[data-feed-id="${representative}"] h3 a`).click();await commentRows().first().waitFor();await loadComments();const row=p.locator('#comment-'+createdComment);await row.getByRole('button',{name:'댓글 수정',exact:true}).click();await p.locator('#comment-edit-'+createdComment).fill('[개발 테스트] 수정해도 댓글 개수는 그대로입니다.');await row.getByRole('button',{name:'댓글 저장',exact:true}).click();await p.getByText('댓글을 수정했습니다.',{exact:true}).waitFor();
   assert.equal((await collect(`/api/v1/community/posts/${representative}/comments`,'comment')).items.length,baseline+1)
   await row.getByRole('button',{name:'댓글 삭제',exact:true}).click();await p.getByRole('button',{name:'댓글 삭제하기',exact:true}).click();await p.getByText('댓글을 삭제했습니다.',{exact:true}).waitFor();await recordSoftDelete(receipt);
-  await p.goBack();await until(async()=>await p.locator(`[data-feed-id="${representative}"] .feed-comment-count`).textContent()===`댓글 ${baseline}`);assert.equal(await rows().count(),ha.items.length)
+  await p.goBack();await until(async()=>await p.locator(`[data-feed-id="${representative}"] .post-comment-link`).textContent()===`댓글 ${baseline}`);assert.equal(await rows().count(),ha.items.length)
  })
  await check('1440/390/320 actual all/topic captures, header and category keyboard, other routes',async()=>{
   for(const width of [1440,390,320])for(const scope of ['all','hearing-aid']){

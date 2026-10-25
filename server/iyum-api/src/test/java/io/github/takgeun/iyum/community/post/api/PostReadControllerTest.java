@@ -81,7 +81,7 @@ class PostReadControllerTest {
     @Test
     void 비로그인으로_기본_목록을_조회할_수_있다()
             throws Exception {
-        when(postReadService.getPosts(null, null, 0, 20))
+        when(postReadService.getPosts(null, null, 0, 20, null))
                 .thenReturn(new PageImpl<>(
                         List.of(summary(123L)),
                         PageRequest.of(0, 20),
@@ -104,6 +104,8 @@ class PostReadControllerTest {
                 ))
                 .andExpect(jsonPath("$.items.length()").value(1))
                 .andExpect(jsonPath("$.items[0].id").value(123))
+                .andExpect(jsonPath("$.items[0].likeCount").value(0))
+                .andExpect(jsonPath("$.items[0].liked").value(false))
                 .andExpect(jsonPath("$.items[0].type")
                         .value("QUESTION"))
                 .andExpect(jsonPath("$.items[0].topic")
@@ -126,7 +128,7 @@ class PostReadControllerTest {
                 .andExpect(jsonPath("$.totalPages").value(1))
                 .andExpect(jsonPath("$.hasNext").value(false));
 
-        verify(postReadService).getPosts(null, null, 0, 20);
+        verify(postReadService).getPosts(null, null, 0, 20, null);
     }
 
     @Test
@@ -136,7 +138,7 @@ class PostReadControllerTest {
                 PostType.QUESTION,
                 PostTopic.HEARING_AID,
                 1,
-                2
+                2, null
         )).thenReturn(new PageImpl<>(
                 List.of(summary(123L), summary(124L)),
                 PageRequest.of(1, 2),
@@ -160,14 +162,14 @@ class PostReadControllerTest {
                 PostType.QUESTION,
                 PostTopic.HEARING_AID,
                 1,
-                2
+                2, null
         );
     }
 
     @Test
     void 게시글이_없으면_빈_배열과_페이지_정보를_반환한다()
             throws Exception {
-        when(postReadService.getPosts(null, null, 0, 20))
+        when(postReadService.getPosts(null, null, 0, 20, null))
                 .thenReturn(Page.empty(PageRequest.of(0, 20)));
 
         mockMvc.perform(get(BASE))
@@ -181,7 +183,7 @@ class PostReadControllerTest {
     @Test
     void 비로그인으로_상세를_조회할_수_있다()
             throws Exception {
-        when(postReadService.getPost(123L))
+        when(postReadService.getPost(123L, null))
                 .thenReturn(new PostDetailResult(
                         123L,
                         PostType.QUESTION,
@@ -190,7 +192,9 @@ class PostReadControllerTest {
                         "첫 번째 줄\n두 번째 줄",
                         new PostAuthorResult(7L, "질문작성자"),
                         CREATED_AT,
-                        CREATED_AT
+                        CREATED_AT,
+                        0L,
+                        false
                 ));
 
         mockMvc.perform(get(BASE + "/123")
@@ -205,6 +209,8 @@ class PostReadControllerTest {
                         "true"
                 ))
                 .andExpect(jsonPath("$.id").value(123))
+                .andExpect(jsonPath("$.likeCount").value(0))
+                .andExpect(jsonPath("$.liked").value(false))
                 .andExpect(jsonPath("$.content")
                         .value("첫 번째 줄\n두 번째 줄"))
                 .andExpect(jsonPath("$.author.memberId").value(7))
@@ -217,13 +223,13 @@ class PostReadControllerTest {
                 .andExpect(jsonPath("$.createdAt").isString())
                 .andExpect(jsonPath("$.updatedAt").isString());
 
-        verify(postReadService).getPost(123L);
+        verify(postReadService).getPost(123L, null);
     }
 
     @Test
     void 게시글_없음_예외를_404로_반환한다()
             throws Exception {
-        when(postReadService.getPost(999L))
+        when(postReadService.getPost(999L, null))
                 .thenThrow(new PostReadException(
                         PostReadException.Code.POST_NOT_FOUND
                 ));
@@ -250,7 +256,7 @@ class PostReadControllerTest {
             int page,
             int size
     ) throws Exception {
-        when(postReadService.getPosts(null, null, page, size))
+        when(postReadService.getPosts(null, null, page, size, null))
                 .thenThrow(new PostReadException(
                         PostReadException.Code.INVALID_PAGE_REQUEST
                 ));
@@ -263,7 +269,7 @@ class PostReadControllerTest {
                         .value("INVALID_PAGE_REQUEST"));
 
         verify(postReadService).getPosts(
-                null, null, page, size
+                null, null, page, size, null
         );
     }
 
@@ -387,7 +393,7 @@ class PostReadControllerTest {
     @Test
     void 목록_응답에_댓글_개수를_숫자로_포함한다()
             throws Exception {
-        when(postReadService.getPosts(null, null, 0, 20))
+        when(postReadService.getPosts(null, null, 0, 20, null))
                 .thenReturn(new PageImpl<>(
                         List.of(
                                 summary(123L, 3L),
@@ -416,7 +422,7 @@ class PostReadControllerTest {
                         .value(0))
                 .andExpect(jsonPath("$.totalElements").value(2));
 
-        verify(postReadService).getPosts(null, null, 0, 20);
+        verify(postReadService).getPosts(null, null, 0, 20, null);
     }
 
     private PostSummaryResult summary(Long postId) {
@@ -434,7 +440,9 @@ class PostReadControllerTest {
                 "보청기 적응 질문",
                 new PostAuthorResult(7L, "질문작성자"),
                 CREATED_AT,
-                commentCount
+                commentCount,
+                0L,
+                false
         );
     }
 }

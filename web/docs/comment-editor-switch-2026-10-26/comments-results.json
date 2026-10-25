@@ -1,0 +1,61 @@
+{
+  "kind": "mock",
+  "results": [
+    {
+      "name": "editor transitions: clean switch, dirty cancel/confirm, delete staging and independent draft",
+      "status": "passed"
+    },
+    {
+      "name": "edit/delete use one success toast, replace lifetime, retain focus and no inline duplicate",
+      "status": "passed"
+    },
+    {
+      "name": "field errors appear once immediately below each textarea; clear when valid",
+      "status": "passed"
+    },
+    {
+      "name": "missing edited comment retains accessible draft and releases only its dirty state: refresh",
+      "status": "passed"
+    },
+    {
+      "name": "missing edited comment retains accessible draft and releases only its dirty state: PUT404",
+      "status": "passed"
+    },
+    {
+      "name": "refresh never overwrites inline draft; combined dirty and discard",
+      "status": "passed"
+    },
+    {
+      "name": "write error preserves input AUTHENTICATION_REQUIRED",
+      "status": "passed"
+    },
+    {
+      "name": "write error preserves input CSRF_TOKEN_INVALID",
+      "status": "passed"
+    },
+    {
+      "name": "write error preserves input COMMENT_WRITE_NOT_ALLOWED",
+      "status": "passed"
+    },
+    {
+      "name": "write error preserves input ACCESS_DENIED",
+      "status": "passed"
+    },
+    {
+      "name": "write error preserves input POST_NOT_FOUND",
+      "status": "passed"
+    },
+    {
+      "name": "write error preserves input SERVER_ERROR",
+      "status": "passed"
+    },
+    {
+      "name": "late GET cannot resurrect deleted item",
+      "status": "passed"
+    },
+    {
+      "name": "long content 1440/390/320, keyboard focus and dialog loop",
+      "status": "passed"
+    }
+  ]
+}

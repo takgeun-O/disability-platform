@@ -30,10 +30,16 @@ public record PostDetailResult(
         String content,
         PostAuthorResult author,
         Instant createdAt,
-        Instant updatedAt
+        Instant updatedAt,
+        long likeCount,
+        boolean liked
 ) {
 
-    public static PostDetailResult from(Post post) {
+    public static PostDetailResult from(
+            Post post,
+            long likeCount,
+            boolean liked
+    ) {
         return new PostDetailResult(
                 post.getId(),
                 post.getType(),
@@ -42,7 +48,9 @@ public record PostDetailResult(
                 post.getContent(),
                 PostAuthorResult.from(post.getAuthor()),
                 post.getCreatedAt(),
-                post.getUpdatedAt()
+                post.getUpdatedAt(),
+                likeCount,
+                liked
         );
     }
 }

@@ -137,7 +137,8 @@ class PostReadServiceTest {
                         PostType.QUESTION,
                         PostTopic.HEARING_AID,
                         0,
-                        1
+                        1,
+                        null
                 );
 
         assertThat(result.getContent()).hasSize(1);
@@ -178,7 +179,8 @@ class PostReadServiceTest {
                         null,
                         null,
                         0,
-                        50
+                        50,
+                        null
                 );
 
         assertThat(result.getContent()).hasSize(3);
@@ -195,7 +197,7 @@ class PostReadServiceTest {
         ).isFalse();
 
         PostDetailResult result =
-                postReadService.getPost(firstQuestionId);
+                postReadService.getPost(firstQuestionId, null);
 
         assertThat(
                 TransactionSynchronizationManager
@@ -248,7 +250,8 @@ class PostReadServiceTest {
                         null,
                         null,
                         0,
-                        20
+                        20,
+                        null
                 );
 
         assertThat(result.getTotalElements()).isEqualTo(2);
@@ -294,7 +297,8 @@ class PostReadServiceTest {
                         null,
                         null,
                         page,
-                        size
+                        size,
+                        null
                 )
         ).isInstanceOfSatisfying(
                 PostReadException.class,
@@ -338,7 +342,8 @@ class PostReadServiceTest {
                         PostType.QUESTION,
                         PostTopic.HEARING_AID,
                         0,
-                        20
+                        20,
+                        null
                 );
 
         assertThat(result.getContent())
@@ -377,7 +382,8 @@ class PostReadServiceTest {
                         PostType.QUESTION,
                         PostTopic.HEARING_AID,
                         10,
-                        1
+                        1,
+                        null
                 );
 
         assertThat(result.getContent()).isEmpty();
@@ -432,7 +438,8 @@ class PostReadServiceTest {
                 PostTopic.HEARING_AID,
                 null,
                 null,
-                1
+                1,
+                null
         );
 
         assertThat(
@@ -473,7 +480,7 @@ class PostReadServiceTest {
         verifyNoMoreInteractions(commentRepository);
 
         // 미리보기 생성 과정에서 원본 본문을 변경하지 않았는지도 확인한다.
-        assertThat(postReadService.getPost(firstQuestionId).content())
+        assertThat(postReadService.getPost(firstQuestionId, null).content())
                 .isEqualTo("첫 번째 줄\n두 번째 줄");
     }
 
@@ -486,7 +493,8 @@ class PostReadServiceTest {
                 PostTopic.HEARING_AID,
                 null,
                 null,
-                1
+                1,
+                null
         );
 
         assertThat(first.hasNext()).isTrue();
@@ -501,7 +509,8 @@ class PostReadServiceTest {
                 PostTopic.HEARING_AID,
                 cursor.createdAt(),
                 cursor.postId(),
-                1
+                1,
+                null
         );
 
         assertThat(last.items())
@@ -533,7 +542,8 @@ class PostReadServiceTest {
                 PostTopic.HEARING_AID,
                 lastItem.createdAt(),
                 lastItem.postId(),
-                1
+                1,
+                null
         );
 
         assertThat(empty.items()).isEmpty();
@@ -552,7 +562,8 @@ class PostReadServiceTest {
                 null,
                 null,
                 null,
-                20
+                20,
+                null
         );
 
         assertThat(result.items()).isEmpty();
@@ -569,7 +580,8 @@ class PostReadServiceTest {
                 null,
                 null,
                 null,
-                50
+                50,
+                null
         );
 
         // 기존 @BeforeEach에서 질문 2개와 일상 글 1개를 만든다.
@@ -589,7 +601,8 @@ class PostReadServiceTest {
                         null,
                         null,
                         null,
-                        size
+                        size,
+                        null
                 )
         ).isInstanceOfSatisfying(
                 PostReadException.class,
@@ -627,7 +640,8 @@ class PostReadServiceTest {
                         null,
                         createdAt,
                         postId,
-                        20
+                        20,
+                        null
                 )
         ).isInstanceOfSatisfying(
                 PostReadException.class,
@@ -658,7 +672,7 @@ class PostReadServiceTest {
 
     private void assertPostNotFound(Long postId) {
         assertThatThrownBy(() ->
-                postReadService.getPost(postId)
+                postReadService.getPost(postId, null)
         ).isInstanceOfSatisfying(
                 PostReadException.class,
                 exception -> assertThat(exception.getCode())

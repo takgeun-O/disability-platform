@@ -11,10 +11,7 @@ import io.github.takgeun.iyum.community.comment.application.CommentCreateExcepti
 import io.github.takgeun.iyum.community.comment.application.CommentDeleteException;
 import io.github.takgeun.iyum.community.comment.application.CommentReadException;
 import io.github.takgeun.iyum.community.comment.application.CommentUpdateException;
-import io.github.takgeun.iyum.community.post.application.PostCreateException;
-import io.github.takgeun.iyum.community.post.application.PostDeleteException;
-import io.github.takgeun.iyum.community.post.application.PostReadException;
-import io.github.takgeun.iyum.community.post.application.PostUpdateException;
+import io.github.takgeun.iyum.community.post.application.*;
 import io.github.takgeun.iyum.member.application.*;
 import org.springframework.beans.TypeMismatchException;
 import org.springframework.http.*;
@@ -753,6 +750,33 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
                         "PASSWORD_RESET_RATE_LIMITED",
                         exception.getMessage()
                 ));
+    }
+
+    @ExceptionHandler(PostLikeException.class)
+    public ResponseEntity<ApiErrorResponse> handlePostLike(
+            PostLikeException exception
+    ) {
+        HttpStatus status = switch (exception.getCode()) {
+            case MEMBER_NOT_FOUND -> HttpStatus.UNAUTHORIZED;
+            case MEMBER_NOT_ACTIVE -> HttpStatus.FORBIDDEN;
+            case POST_NOT_FOUND -> HttpStatus.NOT_FOUND;
+        };
+
+        String code = switch (exception.getCode()) {
+            case MEMBER_NOT_FOUND -> "AUTHENTICATION_REQUIRED";
+            case MEMBER_NOT_ACTIVE -> "POST_LIKE_NOT_ALLOWED";
+            case POST_NOT_FOUND -> "POST_NOT_FOUND";
+        };
+
+        String message =
+                exception.getCode() == PostLikeException.Code.MEMBER_NOT_FOUND
+                        ? "로그인이 필요합니다."
+                        : exception.getMessage();
+
+        return ResponseEntity
+                .status(status)
+                .cacheControl(CacheControl.noStore())
+                .body(ApiErrorResponse.of(code, message));
     }
 
     @ExceptionHandler(Exception.class)

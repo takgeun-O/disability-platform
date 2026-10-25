@@ -412,7 +412,9 @@ class MemberPostReadControllerTest {
                         "내게시글회원"
                 ),
                 CREATED_AT,
-                3L
+                3L,
+                0L,
+                false
         );
     }
 

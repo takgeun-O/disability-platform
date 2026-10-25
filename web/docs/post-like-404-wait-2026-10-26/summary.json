@@ -1,0 +1,22 @@
+{
+  "repeat-1": {
+    "total": 2,
+    "passed": 2,
+    "failures": []
+  },
+  "repeat-2": {
+    "total": 2,
+    "passed": 2,
+    "failures": []
+  },
+  "repeat-3": {
+    "total": 2,
+    "passed": 2,
+    "failures": []
+  },
+  "full": {
+    "total": 29,
+    "passed": 29,
+    "failures": []
+  }
+}

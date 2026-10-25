@@ -190,6 +190,18 @@ public class DevCorsConfig {
                 memberPasswordCors
         );
 
+        CorsConfiguration postLikeCors =
+                new CorsConfiguration(cors);
+
+        postLikeCors.setAllowedMethods(
+                List.of("PUT", "DELETE", "OPTIONS")
+        );
+
+        source.registerCorsConfiguration(
+                "/api/v1/community/posts/*/like",
+                postLikeCors
+        );
+
 
         return source;
     }

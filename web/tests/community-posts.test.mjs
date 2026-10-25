@@ -4,7 +4,7 @@ import { loadTypeScript } from './helpers/load-typescript.mjs';
 const model = await loadTypeScript('../src/lib/community-posts.ts', import.meta.url);
 const api = await loadTypeScript('../src/lib/community-api.ts', import.meta.url);
 const values = { type: 'QUESTION', topic: 'HEARING_AID', title: '  질문  ', content: '  첫 줄\n둘째 줄  ' };
-const item = { id: 7, type: 'QUESTION', topic: 'HEARING_AID', title: '질문', author: { memberId: 2, nickname: '검토회원' }, createdAt: '2026-10-14T00:00:00Z' };
+const item = { id: 7, type: 'QUESTION', topic: 'HEARING_AID', title: '질문', likeCount: 0, liked: false, author: { memberId: 2, nickname: '검토회원' }, createdAt: '2026-10-14T00:00:00Z' };
 const query = { type: 'QUESTION', topic: 'HEARING_AID', page: 0 };
 const page = { items: [{ ...item, commentCount: 0 }], page: 0, size: 20, totalElements: 1, totalPages: 1, hasNext: false };
 const csrf = { headerName: 'X-CSRF-TOKEN', token: 'test-only' };
