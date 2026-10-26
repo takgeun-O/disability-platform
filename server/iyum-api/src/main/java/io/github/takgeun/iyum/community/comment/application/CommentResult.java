@@ -9,16 +9,23 @@ public record CommentResult(
         String content,
         CommentAuthorResult author,
         Instant createdAt,
-        Instant updatedAt
+        Instant updatedAt,
+        long likeCount,
+        boolean liked
 ) {
 
-    public static CommentResult from(Comment comment) {
+    public static CommentResult from(
+            Comment comment,
+            CommentLikeState likeState
+    ) {
         return new CommentResult(
                 comment.getId(),
                 comment.getContent(),
                 CommentAuthorResult.from(comment.getAuthor()),
                 comment.getCreatedAt(),
-                comment.getUpdatedAt()
+                comment.getUpdatedAt(),
+                likeState.likeCount(),
+                likeState.liked()
         );
     }
 }

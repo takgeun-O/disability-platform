@@ -7,10 +7,7 @@ import io.github.takgeun.iyum.auth.session.application.CurrentMemberReadExceptio
 import io.github.takgeun.iyum.auth.signup.application.SignupConflictException;
 import io.github.takgeun.iyum.auth.signup.application.SignupTermsException;
 import io.github.takgeun.iyum.auth.security.EmailVerificationRequiredException;
-import io.github.takgeun.iyum.community.comment.application.CommentCreateException;
-import io.github.takgeun.iyum.community.comment.application.CommentDeleteException;
-import io.github.takgeun.iyum.community.comment.application.CommentReadException;
-import io.github.takgeun.iyum.community.comment.application.CommentUpdateException;
+import io.github.takgeun.iyum.community.comment.application.*;
 import io.github.takgeun.iyum.community.post.application.*;
 import io.github.takgeun.iyum.member.application.*;
 import org.springframework.beans.TypeMismatchException;
@@ -770,6 +767,34 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
 
         String message =
                 exception.getCode() == PostLikeException.Code.MEMBER_NOT_FOUND
+                        ? "로그인이 필요합니다."
+                        : exception.getMessage();
+
+        return ResponseEntity
+                .status(status)
+                .cacheControl(CacheControl.noStore())
+                .body(ApiErrorResponse.of(code, message));
+    }
+
+    @ExceptionHandler(CommentLikeException.class)
+    public ResponseEntity<ApiErrorResponse> handleCommentLike(
+            CommentLikeException exception
+    ) {
+        HttpStatus status = switch (exception.getCode()) {
+            case MEMBER_NOT_FOUND -> HttpStatus.UNAUTHORIZED;
+            case MEMBER_NOT_ACTIVE -> HttpStatus.FORBIDDEN;
+            case POST_NOT_FOUND, COMMENT_NOT_FOUND -> HttpStatus.NOT_FOUND;
+        };
+
+        String code = switch (exception.getCode()) {
+            case MEMBER_NOT_FOUND -> "AUTHENTICATION_REQUIRED";
+            case MEMBER_NOT_ACTIVE -> "COMMENT_LIKE_NOT_ALLOWED";
+            case POST_NOT_FOUND -> "POST_NOT_FOUND";
+            case COMMENT_NOT_FOUND -> "COMMENT_NOT_FOUND";
+        };
+
+        String message =
+                exception.getCode() == CommentLikeException.Code.MEMBER_NOT_FOUND
                         ? "로그인이 필요합니다."
                         : exception.getMessage();
 

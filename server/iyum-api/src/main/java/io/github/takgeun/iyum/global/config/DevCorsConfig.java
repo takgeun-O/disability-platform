@@ -202,6 +202,17 @@ public class DevCorsConfig {
                 postLikeCors
         );
 
+        CorsConfiguration commentLikeCors =
+                new CorsConfiguration(cors);
+
+        commentLikeCors.setAllowedMethods(
+                List.of("PUT", "DELETE", "OPTIONS")
+        );
+
+        source.registerCorsConfiguration(
+                "/api/v1/community/posts/*/comments/*/like",
+                commentLikeCors
+        );
 
         return source;
     }
