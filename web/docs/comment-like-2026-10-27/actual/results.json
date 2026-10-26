@@ -1,0 +1,19 @@
+{
+  "results": [
+    {
+      "name": "actual Chrome 8443 → Spring 8082: session/CORS/CSRF PUT, personalized/anonymous GET, DELETE, original state restored",
+      "pass": true
+    }
+  ],
+  "requests": [
+    {
+      "method": "PUT",
+      "status": 200
+    },
+    {
+      "method": "DELETE",
+      "status": 200
+    }
+  ],
+  "notes": "Existing verified seed pair only; no accounts, posts or comments created/deleted. Private ownership receipt retained outside repo. No credentials or payloads included."
+}

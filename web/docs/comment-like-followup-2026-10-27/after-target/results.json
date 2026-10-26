@@ -1,0 +1,17 @@
+{
+  "kind": "mock production",
+  "results": [
+    {
+      "name": "reconcile failure retries accumulated range and anchor without inserting new top / 1",
+      "pass": true
+    },
+    {
+      "name": "reconcile failure retries accumulated range and anchor without inserting new top / 2",
+      "pass": true
+    },
+    {
+      "name": "reconcile failure retries accumulated range and anchor without inserting new top / 3",
+      "pass": true
+    }
+  ]
+}

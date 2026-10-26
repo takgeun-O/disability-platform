@@ -1,0 +1,42 @@
+{
+  "results": [
+    {
+      "name": "duplicate blocked, other post independent through navigation, server count 17",
+      "pass": true
+    }
+  ],
+  "serverCalls": [
+    {
+      "path": "/api/v1/community/posts/1000",
+      "query": ""
+    },
+    {
+      "path": "/api/v1/community/posts/1000",
+      "query": ""
+    },
+    {
+      "path": "/api/v1/community/posts/1000/comments",
+      "query": "?size=20"
+    },
+    {
+      "path": "/api/v1/community/posts/feed",
+      "query": "?size=20"
+    },
+    {
+      "path": "/api/v1/community/posts/999",
+      "query": ""
+    },
+    {
+      "path": "/api/v1/community/posts/999",
+      "query": ""
+    },
+    {
+      "path": "/api/v1/community/posts/999/comments",
+      "query": "?size=20"
+    },
+    {
+      "path": "/api/v1/community/posts/feed",
+      "query": "?size=20"
+    }
+  ]
+}
