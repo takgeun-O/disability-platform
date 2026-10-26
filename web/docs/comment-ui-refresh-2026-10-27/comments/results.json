@@ -1,0 +1,254 @@
+{
+  "kind": "mock",
+  "results": [
+    {
+      "name": "editor transitions: clean switch, dirty cancel/confirm, delete staging and independent draft",
+      "status": "passed"
+    },
+    {
+      "name": "edit/delete use one success toast, replace lifetime, retain focus and no inline duplicate",
+      "status": "passed"
+    },
+    {
+      "name": "registration toast 1440: single live announcement, layout and timed removal",
+      "status": "passed"
+    },
+    {
+      "name": "registration toast 390: single live announcement, layout and timed removal",
+      "status": "passed"
+    },
+    {
+      "name": "registration toast 320: single live announcement, layout and timed removal",
+      "status": "passed"
+    },
+    {
+      "name": "consecutive registration replaces timer; old exit cannot remove fresh toast",
+      "status": "passed"
+    },
+    {
+      "name": "automatic in-flight response is buffered while typing; manual append reuses it once",
+      "status": "passed"
+    },
+    {
+      "name": "login confirmation preserves both logged-out edit and compose drafts; one confirmation only",
+      "status": "passed"
+    },
+    {
+      "name": "compact comment controls + refresh toast 1440",
+      "status": "passed"
+    },
+    {
+      "name": "compact comment controls + refresh toast 390",
+      "status": "passed"
+    },
+    {
+      "name": "compact comment controls + refresh toast 320",
+      "status": "passed"
+    },
+    {
+      "name": "refresh failure remains inline; departed refresh cannot show success",
+      "status": "passed"
+    },
+    {
+      "name": "automatic boundaries 0/1/20/21 keep ASC timestamps and finite requests",
+      "status": "passed"
+    },
+    {
+      "name": "automatic 65 ASC comments: 20/40/60/65, exact cursor, no duplicates, stop",
+      "status": "passed"
+    },
+    {
+      "name": "automatic error stops; explicit more retry preserves cursor; draft pauses observer",
+      "status": "passed"
+    },
+    {
+      "name": "receipts show consecutive confirmed posts immediately, merge only at real cursor end",
+      "status": "passed"
+    },
+    {
+      "name": "confirmed receipt survives following GET failure without POST retry",
+      "status": "passed"
+    },
+    {
+      "name": "mobile noJS all topic and public navigation links visible and usable",
+      "status": "passed"
+    },
+    {
+      "name": "list count SSR/noJS: zero, positive, large; no per-post comment fetch",
+      "status": "passed"
+    },
+    {
+      "name": "count POST/PUT/DELETE uses server list; back/link preserve context and drafts",
+      "status": "failed",
+      "message": "locator.click: Timeout 8000ms exceeded.\nCall log:\n\u001b[2m  - waiting for getByRole('button', { name: '댓글 삭제하기', exact: true })\u001b[22m\n"
+    },
+    {
+      "name": "late POST success invalidates list; superseded GET cannot overwrite count",
+      "status": "passed"
+    },
+    {
+      "name": "count reconciliation after COMMENT_NOT_FOUND; no automatic mutation replay",
+      "status": "passed"
+    },
+    {
+      "name": "count reconciliation after SERVER_ERROR; no automatic mutation replay",
+      "status": "passed"
+    },
+    {
+      "name": "delayed server comments resolve before render; failure=false",
+      "status": "passed"
+    },
+    {
+      "name": "delayed server comments resolve before render; failure=true",
+      "status": "passed"
+    },
+    {
+      "name": "field errors appear once immediately below each textarea; clear when valid",
+      "status": "passed"
+    },
+    {
+      "name": "missing edited comment retains accessible draft and releases only its dirty state: refresh",
+      "status": "passed"
+    },
+    {
+      "name": "missing edited comment retains accessible draft and releases only its dirty state: PUT404",
+      "status": "passed"
+    },
+    {
+      "name": "no-JS visible comments: success",
+      "status": "passed"
+    },
+    {
+      "name": "no-JS visible comments: empty",
+      "status": "passed"
+    },
+    {
+      "name": "no-JS visible comments: failure",
+      "status": "passed"
+    },
+    {
+      "name": "refresh SVG and keyboard access at 1440/390/320",
+      "status": "passed"
+    },
+    {
+      "name": "cursor precision, more dedup/duplicate click, failed more retains list",
+      "status": "passed"
+    },
+    {
+      "name": "own controls; create >20, update, cancel/delete/focus, responsive",
+      "status": "passed"
+    },
+    {
+      "name": "anonymous login CTA: pointer, keyboard, 1440/390/320 and safe return; no writes",
+      "status": "passed"
+    },
+    {
+      "name": "anonymous login with draft: cancel preserves draft/focus; explicit leave allows login",
+      "status": "passed"
+    },
+    {
+      "name": "logout success: detail URL/body, comment drafts, focus and dirty protection remain",
+      "status": "passed"
+    },
+    {
+      "name": "logout recovered: detail URL/body, comment drafts, focus and dirty protection remain",
+      "status": "passed"
+    },
+    {
+      "name": "logout failure: detail URL/body, comment drafts, focus and dirty protection remain",
+      "status": "passed"
+    },
+    {
+      "name": "session check pending/error: honest pending label, manual retry, no comment write",
+      "status": "passed"
+    },
+    {
+      "name": "write success + refresh failure stays success and clears only submitted draft",
+      "status": "passed"
+    },
+    {
+      "name": "refresh never overwrites inline draft; combined dirty and discard",
+      "status": "passed"
+    },
+    {
+      "name": "approved departure while destination delayed: csrf",
+      "status": "passed"
+    },
+    {
+      "name": "approved departure while destination delayed: success",
+      "status": "passed"
+    },
+    {
+      "name": "approved departure while destination delayed: failure",
+      "status": "passed"
+    },
+    {
+      "name": "write error preserves input AUTHENTICATION_REQUIRED",
+      "status": "passed"
+    },
+    {
+      "name": "write error preserves input CSRF_TOKEN_INVALID",
+      "status": "passed"
+    },
+    {
+      "name": "write error preserves input COMMENT_WRITE_NOT_ALLOWED",
+      "status": "passed"
+    },
+    {
+      "name": "write error preserves input ACCESS_DENIED",
+      "status": "passed"
+    },
+    {
+      "name": "write error preserves input POST_NOT_FOUND",
+      "status": "passed"
+    },
+    {
+      "name": "write error preserves input SERVER_ERROR",
+      "status": "passed"
+    },
+    {
+      "name": "404 deleted comment removed without deleting other comments",
+      "status": "passed"
+    },
+    {
+      "name": "old successful PUT after reentry cannot overwrite new draft",
+      "status": "passed"
+    },
+    {
+      "name": "late GET cannot resurrect deleted item",
+      "status": "passed"
+    },
+    {
+      "name": "unicode validation, server field focus, cancel departure keeps request alive",
+      "status": "passed"
+    },
+    {
+      "name": "browser malformed/transport preserves draft: html",
+      "status": "passed"
+    },
+    {
+      "name": "browser malformed/transport preserves draft: broken-json",
+      "status": "passed"
+    },
+    {
+      "name": "browser malformed/transport preserves draft: network",
+      "status": "passed"
+    },
+    {
+      "name": "browser malformed/transport preserves draft: csrf-failure",
+      "status": "passed"
+    },
+    {
+      "name": "long content 1440/390/320, keyboard focus and dialog loop",
+      "status": "passed"
+    },
+    {
+      "name": "pending and late POST after logout never show a success toast",
+      "status": "passed"
+    },
+    {
+      "name": "visible toast is disposed on departure",
+      "status": "passed"
+    }
+  ]
+}

@@ -11,6 +11,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Instant;
 import java.util.List;
+import java.util.Map;
 
 @Service
 @RequiredArgsConstructor
@@ -21,6 +22,23 @@ public class CommentReadService {
 
     private final CommentRepository commentRepository;
     private final PostRepository postRepository;
+    private final CommentLikeReadService commentLikeReadService;
+
+    // 기존 네 매개변수 호출을 위한 메서드 추가
+    public CommentListResult getComments(
+            Long postId,
+            @Nullable Instant afterCreatedAt,
+            @Nullable Long afterId,
+            int size
+    ) {
+        return getComments(
+                postId,
+                afterCreatedAt,
+                afterId,
+                size,
+                null
+        );
+    }
 
     // 첫 조회에서는 아직 마지막 댓글이 없으므로
     // getComments(post, null, null, 3); 전달
@@ -28,7 +46,8 @@ public class CommentReadService {
             Long postId,    // 댓글을 조회할 게시글
             @Nullable Instant afterCreatedAt,   // 직전에 받은 마지막 댓글의 생성 시각
             @Nullable Long afterId,     // 직전에 받은 마지막 댓글의 ID
-            int size    // 이번에 받을 댓글 개수
+            int size,    // 이번에 받을 댓글 개수
+            @Nullable Long viewerId
     ) {
 
         // 이 떄 검증 중 예외 발생 시 이후 댓글 조회는 실행하지 않음
@@ -69,13 +88,28 @@ public class CommentReadService {
         boolean hasNext = comments.size() > size;
         int returnedSize = Math.min(comments.size(), size);
 
-        // 확인용 한 개를 제외하고 DTO로 변환한다.
-        // 조회 결과: 댓글 A, B, C, D
-        // 반환 결과: 댓글 A, B, C (D는 다음 댓글이 존재한다는 사실을 확인하는 용도로만 사용)
-        List<CommentResult> items = comments
-                .subList(0, returnedSize)
-                .stream()
-                .map(CommentResult::from)   // 필요한 값을 복사하므로 클라이언트에 전달할 결과에는 엔티티 대신 DTO가 들어감.
+        // 다음 페이지 확인용 한 개를 제외한다.
+        List<Comment> returnedComments =
+                comments.subList(0, returnedSize);
+
+        List<Long> commentIds = returnedComments.stream()
+                .map(Comment::getId)
+                .toList();
+
+        // 반환할 댓글들의 좋아요 정보를 한 번에 조회한다.
+        Map<Long, CommentLikeState> likeStates =
+                commentLikeReadService.getStates(commentIds, viewerId);
+
+        List<CommentResult> items = returnedComments.stream()
+                .map(comment -> {
+                    CommentLikeState likeState =
+                            likeStates.getOrDefault(
+                                    comment.getId(),
+                                    CommentLikeState.EMPTY
+                            );
+
+                    return CommentResult.from(comment, likeState);
+                })
                 .toList();
 
         // 실제 반환한 마지막 댓글로 다음 커서를 만든다.

@@ -1,0 +1,22 @@
+ M web/src/components/AuthProvider.tsx
+ M web/src/components/community/Comments.tsx
+ M web/src/features/PostList.tsx
+ M web/src/lib/community-comments.ts
+ M web/src/styles/community.css
+ M web/tests/community-comments-browser.mjs
+ M web/tests/community-comments.test.mjs
+ M web/tests/community-feed-browser.mjs
+ M web/tests/member-404-race-browser.mjs
+ M web/tests/member-comments-browser.mjs
+ M web/tests/member-comments-fix-browser.mjs
+ M web/tests/member-posts-browser.mjs
+ M web/tests/post-likes-browser.mjs
+?? web/docs/Comment-Like-Frontend-2026-10-27.md
+?? web/docs/Comment-UI-Refresh-Toast-2026-10-27.md
+?? web/docs/comment-like-2026-10-27/
+?? web/docs/comment-like-followup-2026-10-27/
+?? web/docs/comment-ui-refresh-2026-10-27/
+?? web/src/components/community/CommentLikeButton.tsx
+?? web/tests/comment-likes-browser.mjs
+?? web/tests/comment-likes-local.mjs
+?? web/tests/comment-likes.test.mjs

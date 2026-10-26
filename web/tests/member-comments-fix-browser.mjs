@@ -18,7 +18,7 @@ function publicRead(u){
  const id=Number(u.pathname.split('/')[5]),post=posts.find(p=>p.id===id)
  if(u.pathname.endsWith('/feed'))return{json:{items:posts.slice(0,10),hasNext:false,nextCursor:null}}
  if(!post)return{status:404,json:fail('POST_NOT_FOUND')}
- if(u.pathname.endsWith('/comments'))return{json:{items:owned().filter(c=>c.postId===id).map(c=>({commentId:c.commentId,content:c.content,createdAt:c.createdAt,updatedAt:c.updatedAt,author:post.author})),hasNext:false,nextCursor:null}}
+ if(u.pathname.endsWith('/comments'))return{json:{items:owned().filter(c=>c.postId===id).map(c=>({commentId:c.commentId,content:c.content,createdAt:c.createdAt,updatedAt:c.updatedAt,likeCount:0,liked:false,author:post.author})),hasNext:false,nextCursor:null}}
  const detail={...post};delete detail.commentCount;delete detail.contentPreview;return{json:detail}
 }
 const server=http.createServer((req,res)=>{assert(!req.headers.cookie);assert(!req.headers.authorization);const d=publicRead(new URL(req.url,'http://mock'));res.writeHead(d.status??200,{'Content-Type':'application/json'});res.end(JSON.stringify(d.json))})

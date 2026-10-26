@@ -1,5 +1,6 @@
 "use client"
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react"
+import CommentSuccessToast from "@/components/community/CommentSuccessToast"
 import PostListReactions from "@/components/community/PostListReactions"
 import { useAuth } from "@/components/AuthProvider"
 import { useRouter } from "next/navigation"
@@ -31,8 +32,11 @@ export default function PostList({ initial, space }: { initial: InitialFeed; spa
   const [busy, setBusy] = useState<"more" | "refresh" | null>(null)
   const [error, setError] = useState<{ kind: "more" | "refresh"; latest: boolean; message: string } | null>(initial.error ? { kind: "refresh", latest: false, message: initial.error.message } : null)
   const [auto, setAuto] = useState(true)
+  const toastSequence = useRef(0)
+  const [toast, setToast] = useState<{ id: number; valid: () => boolean; dismiss: () => void } | null>(null)
   const entry = useRef(""), pendingPosition = useRef<FeedPosition | null>(null), request = useRef<AbortController | null>(null)
   const sentinel = useRef<HTMLDivElement>(null), busyRef = useRef(false)
+  const layoutPosition = useRef<FeedPosition | null>(null)
   const save = useCallback(() => {
     if (entry.current) cacheFeed(entry.current, href, { ...currentView.current, position: position() })
   }, [href])
@@ -74,6 +78,16 @@ export default function PostList({ initial, space }: { initial: InitialFeed; spa
     })
     return () => cancelAnimationFrame(frame)
   }, [view, ready, scope, save])
+  // Inline status changes must preserve the current reading anchor in the same
+  // commit, not after the next network response (the reader may scroll meanwhile).
+  useLayoutEffect(() => {
+    const target = layoutPosition.current
+    layoutPosition.current = null
+    if (!target || !scope.isActive()) return
+    const row = document.querySelector<HTMLElement>(`[data-feed-id="${target.id}"]`)
+    if (row) window.scrollBy({ top: row.getBoundingClientRect().top - target.offset, behavior: "instant" })
+    save()
+  }, [error, busy, scope, save])
   // 복귀 직후 observer는 멈추고 사용자의 다음 스크롤부터 재개한다.
   useEffect(() => {
     const arm = () => { if (!restoring && !error) setAuto(true) }
@@ -91,6 +105,7 @@ export default function PostList({ initial, space }: { initial: InitialFeed; spa
     const likeRead = likes.read()
     const valid = () => likeRead.valid() && !controller.signal.aborted && scope.isActive() && request.current === controller
     const requestedVersion = getPostVersion("list")
+    layoutPosition.current = position()
     busyRef.current = true; setBusy(kind); setError(null)
     try {
       const data = kind === "more" ? await getFeed(initial.query, previous.nextCursor, controller.signal) : latest ?
@@ -98,13 +113,18 @@ export default function PostList({ initial, space }: { initial: InitialFeed; spa
       if (!valid() || requestedVersion !== getPostVersion("list")) return
       const refreshForAuth = loadedAuth.current !== authKey && previous.version === requestedVersion
       likeRead.accept(data.items); loadedAuth.current = authKey
+      // Preserve the current anchor, including scrolling during the request.
       if (kind === "refresh" && !latest) { pendingPosition.current = position(); setRestoring(true); if (!refreshForAuth) setAuto(false) }
       const updated = { ...data, items: kind === "more" ? mergeFeed(previous.items, data.items) : data.items,
         segments: kind === "more" ? previous.segments + 1 : latest ? 1 : previous.segments, version: requestedVersion }
       currentView.current = updated; setView(updated)
       cacheFeed(entry.current, href, { ...updated, position: position() })
+      if (kind === "refresh" && latest) {
+        const id = ++toastSequence.current
+        setToast({ id, valid: () => likeRead.valid() && scope.isActive(), dismiss: () => setToast(previous => previous?.id === id ? null : previous) })
+      }
     } catch (e) {
-      if (valid()) { loadedAuth.current = authKey; setAuto(false); setError({ kind, latest, message: e instanceof CommunityApiError ? e.message : "게시글을 불러오지 못했습니다. 다시 시도해 주세요." }) }
+      if (valid()) { layoutPosition.current = position(); loadedAuth.current = authKey; setAuto(false); setError({ kind, latest, message: e instanceof CommunityApiError ? e.message : "게시글을 불러오지 못했습니다. 다시 시도해 주세요." }) }
     } finally {
       if (request.current === controller) { busyRef.current = false; if (scope.isActive()) setBusy(null) }
     }
@@ -128,17 +148,20 @@ export default function PostList({ initial, space }: { initial: InitialFeed; spa
         <Link className="iyum-button iyum-button-primary" href={`/community/posts/create?${create}`} onNavigate={leaving}>＋ 글쓰기</Link></header>
       <FeedNavigation query={initial.query} />
       <FeedBest name={name} />
-      <section aria-label="게시글 피드"><div className="feed-list-heading"><h2>{name} 게시글</h2><div className="feed-heading-actions"><span>최신순</span>        <div className="feed-refresh"><button className="feed-refresh-button" aria-disabled={!!busy} onClick={() => {
+      <section aria-label="게시글 피드"><div className="feed-list-heading"><h2>{name} 게시글</h2><div className="feed-heading-actions"><span>최신순</span>        <div className="feed-refresh"><button className="feed-refresh-button" aria-label="최신 목록 새로고침" aria-busy={busy === "refresh"} aria-disabled={!!busy} onClick={() => {
           if (busyRef.current) return
           if (initial.cursor) router.push(listHref(initial.query, pathname))
           else { setAuto(false); void load("refresh", true) }
-        }}><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" focusable="false"><path d="M20 7v5h-5M4 17v-5h5"/><path d="M6.1 6.1a8 8 0 0 1 13.5 5.4M4.4 12.5a8 8 0 0 0 13.5 5.4"/></svg>최신 목록 새로고침</button></div>
+        }}><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" focusable="false"><path d="M20 7v5h-5M4 17v-5h5"/><path d="M6.1 6.1a8 8 0 0 1 13.5 5.4M4.4 12.5a8 8 0 0 0 13.5 5.4"/></svg><span>{busy === "refresh" ? "새로고침 중…" : "최신 목록 새로고침"}</span></button></div>
 </div></div>
         <div className="feed-tools"><nav className="feed-types" aria-label="글 유형"><Link href={listHref({ ...initial.query, type: "", page: 0 }, pathname)} aria-current={!initial.query.type ? "page" : undefined}>전체 유형</Link>
           {Object.entries(POST_TYPES).map(([type, label]) => <Link key={type} href={listHref({ ...initial.query, type: type as keyof typeof POST_TYPES, page: 0 }, pathname)} aria-current={initial.query.type === type ? "page" : undefined}>{label}</Link>)}
         </nav>
         </div>
-        <p role="status" className="community-help">{busy === "more" ? "다음 게시글을 불러오고 있습니다." : busy ? "목록을 갱신하고 있습니다. 기존 글은 유지됩니다." : ""}</p>
+        <div role="status" aria-atomic="true" className="comment-toast-announcer">
+          {toast && toast.valid() && <CommentSuccessToast key={toast.id} message="게시글 목록을 새로고침했습니다." onDismiss={toast.dismiss} />}
+        </div>
+        <p role="status" className={busy === "refresh" ? "sr-only" : "community-help"}>{busy === "more" ? "다음 게시글을 불러오고 있습니다." : busy ? "목록을 갱신하고 있습니다. 기존 글은 유지됩니다." : ""}</p>
         {error && <div className="community-error" role="alert"><p>{error.message}</p><button className="iyum-text-link" onClick={() => void load(error.kind, error.latest)} disabled={!!busy}>다시 시도</button></div>}
         {!error && !busy && !view.items.length && <div className="community-empty"><h3>아직 표시할 게시글이 없어요.</h3><p>{selected ? `${name}에 관한 첫 이야기를 나눠 주세요.` : "첫 질문이나 경험을 나눠 주세요."}</p><Link className="iyum-text-link" href={`/community/posts/create?${create}`} onNavigate={leaving}>글쓰기</Link></div>}
         <ol className="feed-posts" aria-label="게시글 목록" aria-busy={!!busy}>

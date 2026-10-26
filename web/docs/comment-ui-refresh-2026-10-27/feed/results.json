@@ -1,0 +1,109 @@
+{
+  "kind": "mock production",
+  "results": [
+    {
+      "name": "normal motion 1440: first painted detail at top; 60-row link/back restoration",
+      "pass": true
+    },
+    {
+      "name": "normal motion 390: first painted detail at top; 60-row link/back restoration",
+      "pass": true
+    },
+    {
+      "name": "SSR/noJS visible first20, plain preview, count0, raw cursor next link",
+      "pass": true
+    },
+    {
+      "name": "manual duplicate click /3 segments / no forced focus-scroll / no per-post GET",
+      "pass": true
+    },
+    {
+      "name": "observer loads next once; terminal stops",
+      "pass": true
+    },
+    {
+      "name": "append failure preserves20/cursor, no auto retry; explicit retry",
+      "pass": true
+    },
+    {
+      "name": "manual feed refresh toast 1440: no inline success, no layout shift, timer replacement",
+      "pass": true
+    },
+    {
+      "name": "manual feed refresh toast 390: no inline success, no layout shift, timer replacement",
+      "pass": true
+    },
+    {
+      "name": "manual feed refresh toast 320: no inline success, no layout shift, timer replacement",
+      "pass": true
+    },
+    {
+      "name": "failed feed refresh keeps error and never announces success",
+      "pass": true
+    },
+    {
+      "name": "latest refresh failure retries latest first segment, not reconciliation",
+      "pass": true
+    },
+    {
+      "name": "reconcile failure retries accumulated range and anchor without inserting new top",
+      "pass": true
+    },
+    {
+      "name": "slow append then topic navigation cannot overwrite current filter",
+      "pass": true
+    },
+    {
+      "name": "60 loaded detail return anchor / link",
+      "pass": true
+    },
+    {
+      "name": "60 loaded detail return anchor / back-forward",
+      "pass": true
+    },
+    {
+      "name": "same URL separate history entries retain separate lengths/positions",
+      "pass": true
+    },
+    {
+      "name": "comment POST refreshes60 counts without new top / link",
+      "pass": true
+    },
+    {
+      "name": "comment POST refreshes60 counts without new top / back",
+      "pass": true
+    },
+    {
+      "name": "late comment success after return aborts stale feed read and refreshes60",
+      "pass": true
+    },
+    {
+      "name": "post deletion restores neighbor and remaining59 / no stale deleted card",
+      "pass": true
+    },
+    {
+      "name": "legacy page and topic conflict normalize; filter links reset cursor",
+      "pass": true
+    },
+    {
+      "name": "topic create defaults / dirty cancel / valid201 detail and safe list return",
+      "pass": true
+    },
+    {
+      "name": "refresh without memory starts fresh20; keyboard final append retains control",
+      "pass": true
+    },
+    {
+      "name": "mobile category selection visible with no horizontal scrolling; hidden links not tabbable",
+      "pass": true
+    },
+    {
+      "name": "mobile header anonymous/long nickname, single-row logo SVG toggle and keyboard panel",
+      "pass": true
+    },
+    {
+      "name": "1440/390/320 long content, tabs keyboard/resize, compact best and basic avatar",
+      "pass": true
+    }
+  ]
+}

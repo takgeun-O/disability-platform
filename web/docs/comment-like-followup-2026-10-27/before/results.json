@@ -1,0 +1,20 @@
+{
+  "kind": "mock production",
+  "results": [
+    {
+      "name": "reconcile failure retries accumulated range and anchor without inserting new top / 1",
+      "pass": false,
+      "error": "AssertionError [ERR_ASSERTION]: error anchor: 260.09375\n    at file:///private/tmp/feed-target.mjs:154:42\n    at async check (file:///private/tmp/feed-target.mjs:32:84)\n    at async file:///private/tmp/feed-target.mjs:139:32"
+    },
+    {
+      "name": "reconcile failure retries accumulated range and anchor without inserting new top / 2",
+      "pass": false,
+      "error": "AssertionError [ERR_ASSERTION]: error anchor: 260.09375\n    at file:///private/tmp/feed-target.mjs:154:42\n    at async check (file:///private/tmp/feed-target.mjs:32:84)\n    at async file:///private/tmp/feed-target.mjs:139:32"
+    },
+    {
+      "name": "reconcile failure retries accumulated range and anchor without inserting new top / 3",
+      "pass": false,
+      "error": "AssertionError [ERR_ASSERTION]: error anchor: 260.09375\n    at file:///private/tmp/feed-target.mjs:154:42\n    at async check (file:///private/tmp/feed-target.mjs:32:84)\n    at async file:///private/tmp/feed-target.mjs:139:32"
+    }
+  ]
+}

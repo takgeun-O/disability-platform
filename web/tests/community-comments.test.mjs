@@ -6,6 +6,7 @@ const api = await loadTypeScript(
   import.meta.url,
 )
 const item = {
+  likeCount: 0, liked: false,
   commentId: 10,
   content: "  본문\n",
   author: { memberId: 3, nickname: "예시" },

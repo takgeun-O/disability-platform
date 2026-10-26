@@ -123,7 +123,15 @@ try {
   })
   await check('duplicate blocked, other post independent through navigation, server count 17',async()=>{
     const {p,state}=await fixture();const requested=gate(),release=gate(),completed=gate()
-    state.write=async(r,id)=>{if(id===1000){requested.resolve();await release.promise}await r.fulfill({json:{postId:id,liked:true,likeCount:17}});if(id===1000)completed.resolve()}
+    state.write=async(r,id)=>{
+      if(id===1000){requested.resolve();await release.promise}
+      // Subsequent feed GETs must observe the same confirmed server state as PUT.
+      // Leaving the mock at 2/false can overwrite 17/true between DOM and AX checks.
+      posts.find(post=>post.id===id).likeCount=17
+      state.liked.add(`${state.member.memberId}:${id}`)
+      await r.fulfill({json:{postId:id,liked:true,likeCount:17}})
+      if(id===1000)completed.resolve()
+    }
     await button(p).click();await requested.promise;await button(p).dispatchEvent('click');await back(p);await openPost(p,999);await settle(p,999)
     await button(p,999).click();await settle(p,999,true,17);assert.equal(state.calls.filter(c=>c.path==='/api/v1/community/posts/1000/like').length,1)
     release.resolve();await completed.promise;await back(p);await listState(p,1000,true,17)

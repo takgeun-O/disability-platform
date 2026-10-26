@@ -10,7 +10,9 @@ public record CommentResponse(
         String content,
         CommentAuthorResponse author,
         Instant createdAt,
-        Instant updatedAt
+        Instant updatedAt,
+        long likeCount,
+        boolean liked
 ) {
 
     public static CommentResponse from(
@@ -21,7 +23,9 @@ public record CommentResponse(
                 result.content(),
                 CommentAuthorResponse.from(result.author()),
                 result.createdAt(),
-                result.updatedAt()
+                result.updatedAt(),
+                result.likeCount(),
+                result.liked()
         );
     }
 }

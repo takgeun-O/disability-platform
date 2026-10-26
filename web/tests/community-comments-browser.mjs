@@ -26,6 +26,7 @@ const post = {
   updatedAt: "2026-10-17T00:00:00Z",
 }
 const item = (id) => ({
+  likeCount: 0, liked: false,
   commentId: id,
   content: `댓글 예시 ${id}\n공백  유지`,
   author: {
@@ -164,9 +165,12 @@ async function fixture(identity = member, count = 22, automatic = false) {
       return r.fulfill({ status: 204 })
     },
   )
+  const initialRead = p.waitForResponse(r => new URL(r.url()).origin === api && new URL(r.url()).pathname.endsWith("/comments") && r.request().method() === "GET")
   await p.goto(base + "/community/posts/7")
   if (identity) await p.getByRole("button", { name: "댓글 등록", exact: true }).waitFor()
   else await p.getByRole("button", { name: "로그인하고 댓글 등록", exact: true }).waitFor()
+  await (await initialRead).finished()
+  await p.waitForFunction(() => document.querySelector("#comments-refresh")?.disabled === false)
   return { ctx, p, state }
 }
 async function check(name, fn) {
@@ -324,13 +328,56 @@ try {
       await p.waitForURL(u=>u.pathname==="/login");assert.equal(await p.getByRole("dialog").count(),0)
     }finally{await ctx.close()}
   })
+  for (const width of [1440,390,320]) await check(`compact comment controls + refresh toast ${width}`,async()=>{
+    const {ctx,p,state}=await fixture(member,3)
+    try {
+      await p.setViewportSize({width,height:900});await p.clock.install()
+      const row=p.locator('#comment-1'),like=row.locator('[data-comment-like] button'),edit=row.getByRole('button',{name:'댓글 수정',exact:true}),del=row.getByRole('button',{name:'댓글 삭제',exact:true})
+      for(const button of [like,edit,del]){const box=await button.boundingBox();assert(box.width>=44&&box.height>=44)}
+      assert(Math.abs((await like.boundingBox()).y-(await edit.boundingBox()).y)<2)
+      assert.equal(await like.evaluate(e=>getComputedStyle(e).borderTopWidth),'0px')
+      assert.equal(await edit.innerText(),'수정');assert.equal(await del.innerText(),'삭제')
+      await p.locator('#comment-draft').fill('새로고침 후에도 남는 초안')
+      const button=p.locator('#comments-refresh');await button.focus()
+      let release,reach;const reached=new Promise(r=>reach=r)
+      state.get=async(r,u)=>{if(u.pathname.endsWith("/comments")){reach();await new Promise(r=>release=r)}await r.fulfill(read(u))}
+      await p.keyboard.press('Enter');await reached
+      assert.equal(await p.locator('.comment-success-toast').count(),0)
+      const y=await p.evaluate(()=>scrollY);release()
+      const toast=p.locator('.comment-success-toast');await toast.waitFor()
+      assert.equal(await p.getByText('댓글 목록을 새로고침했습니다.',{exact:true}).count(),1)
+      assert(!(await p.locator('.community-comments-status').textContent()).includes('새로고침했습니다'))
+      assert.equal(await p.locator('#comment-draft').inputValue(),'새로고침 후에도 남는 초안')
+      assert(Math.abs(await p.evaluate(()=>scrollY)-y)<2)
+      assert(await p.evaluate(()=>document.documentElement.scrollWidth<=innerWidth))
+      await p.screenshot({path:`${output}/refresh-toast-${width}.png`})
+      await p.clock.runFor(4000);state.get=null;const oldToast=await toast.elementHandle();await button.click();await p.waitForFunction(e=>!e.isConnected,oldToast);await toast.waitFor()
+      await p.clock.runFor(1500);assert.equal(await toast.count(),1)
+      await p.clock.runFor(3750);assert.equal(await toast.count(),0)
+      await row.scrollIntoViewIfNeeded();await p.screenshot({path:`${output}/compact-controls-${width}.png`})
+    } finally {await ctx.close()}
+  })
+  await check('refresh failure remains inline; departed refresh cannot show success',async()=>{
+    const {ctx,p,state}=await fixture(member,3)
+    try {
+      state.get=r=>r.fulfill({status:503,json:failure('SERVER_ERROR')})
+      await p.locator('#comments-refresh').click();await p.locator('.community-comments .community-error').waitFor()
+      assert.equal(await p.locator('.comment-success-toast').count(),0)
+      let release,reach;const reached=new Promise(r=>reach=r)
+      state.get=async(r,u)=>{if(u.pathname.endsWith("/comments")){reach();await new Promise(r=>release=r)}await r.fulfill(read(u))}
+      await p.getByRole('button',{name:'댓글 조회 다시 시도',exact:true}).click();await reached
+      await p.locator('.community-back').click();await p.waitForURL(u=>!u.pathname.endsWith('/posts/7'))
+      const done=p.waitForResponse(r=>new URL(r.url()).origin===api&&new URL(r.url()).pathname.endsWith('/comments'))
+      release();await(await done).finished();assert.equal(await p.locator('.comment-success-toast').count(),0)
+    } finally {await ctx.close()}
+  })
   await check("automatic boundaries 0/1/20/21 keep ASC timestamps and finite requests",async()=>{
     for(const count of [0,1,20,21]){
       const {ctx,p,state}=await fixture(member,count,true)
       try{
         if(count===21){await p.locator(".community-comment-sentinel").evaluate(el=>window.scrollTo(0,el.getBoundingClientRect().top+scrollY-innerHeight-120));await p.locator("#comment-21").waitFor()}
         assert.equal(await p.locator(".community-comment-list > li").count(),count)
-        assert.equal(state.calls.filter(c=>c.method==="GET"&&c.path.endsWith("/comments")).length,count===21?1:0)
+        assert.equal(state.calls.filter(c=>c.method==="GET"&&c.path.endsWith("/comments")).length,count===21?2:1)
       }finally{await ctx.close()}
     }
   })
@@ -343,7 +390,7 @@ try {
       }
       const ids=await p.locator(".community-comment-list > li").evaluateAll(els=>els.map(el=>el.id))
       assert.deepEqual(ids,Array.from({length:65},(_,i)=>`comment-${i+1}`))
-      assert.equal(state.calls.filter(c=>c.method==="GET"&&c.path.endsWith("/comments")).length,3)
+      assert.equal(state.calls.filter(c=>c.method==="GET"&&c.path.endsWith("/comments")).length,4)
       assert.equal(await p.getByRole("button",{name:"댓글 더 보기"}).count(),0)
     } finally {await ctx.close()}
   })
@@ -374,7 +421,7 @@ try {
       }
       assert.equal(await p.locator("[data-created-comment-id]").count(),2)
       assert.equal(await p.locator(".community-comment-list > li").count(),20)
-      assert.equal(state.calls.filter(c=>c.method==="GET"&&c.path.endsWith("/comments")).length,2)
+      assert.equal(state.calls.filter(c=>c.method==="GET"&&c.path.endsWith("/comments")).length,3)
       for(const width of [1440,390,320]){
         await p.setViewportSize({width,height:950})
         await p.locator(".community-comment-receipts").screenshot({path:`${output}/created-receipts-${width}.png`})
@@ -457,10 +504,24 @@ try {
       await p.locator("#comment-edit-button-1").click()
       await p.locator("#comment-edit-1").fill("보존할 수정 초안")
       await p.locator("#comment-2").getByRole("button",{name:"댓글 삭제",exact:true}).click()
+      const deletes=()=>state.calls.filter(c=>c.method==="DELETE").length
+      const beforeDelete=deletes()
+      await p.getByRole("button",{name:"계속 수정",exact:true}).click()
+      assert.equal(await p.locator("#comment-edit-1").inputValue(),"보존할 수정 초안")
+      assert.equal(await p.locator("#comment-draft").inputValue(),"보존할 작성 초안")
+      assert.equal(deletes(),beforeDelete)
+      assert.equal(await p.getByRole("button",{name:"댓글 삭제하기",exact:true}).count(),0)
+      await p.locator("#comment-2").getByRole("button",{name:"댓글 삭제",exact:true}).click()
+      await p.getByRole("button",{name:"수정 내용 버리기",exact:true}).click()
+      await p.getByRole("button",{name:"댓글 삭제하기",exact:true}).waitFor()
+      assert.equal(await p.locator("#comment-edit-1").count(),0)
+      assert.equal(deletes(),beforeDelete)
+      assert.equal(await p.locator("#comment-draft").inputValue(),"보존할 작성 초안")
       await p.getByRole("button",{name:"댓글 삭제하기",exact:true}).click()
       await p.getByText("댓글을 삭제했습니다.",{exact:true}).waitFor()
+      assert.equal(deletes(),beforeDelete+1)
       assert.equal(await p.locator("#comment-draft").inputValue(),"보존할 작성 초안")
-      assert.equal(await p.locator("#comment-edit-1").inputValue(),"보존할 수정 초안")
+      assert.equal(await p.locator("#comment-edit-1").count(),0)
       await p.locator(".community-back").click()
       await p.getByRole("button",{name:"나가기",exact:true}).click()
       await p.getByText("댓글 1",{exact:true}).waitFor()
@@ -521,6 +582,7 @@ try {
     ssrGate=new Promise(resolve=>release=resolve)
     const ctx=await browser.newContext(),p=await ctx.newPage()
     let commentReads=0
+    await p.route(u=>u.origin===api&&u.pathname.endsWith("/comments"),r=>r.fulfill(read(new URL(r.request().url()))))
     p.on("request",r=>{if(new URL(r.url()).origin===api&&new URL(r.url()).pathname.endsWith("/comments"))commentReads++})
     await p.route(u=>u.origin===api&&u.pathname.endsWith("/me"),r=>r.fulfill({status:401,json:failure("AUTHENTICATION_REQUIRED")}))
     try {
@@ -530,7 +592,8 @@ try {
       const response=await navigation
       assert.equal(response.status(),200)
       assert(await p.getByText(post.content,{exact:true}).isVisible())
-      assert.equal(commentReads,0)
+      await p.waitForFunction(() => document.querySelector("#comments-refresh")?.disabled === false)
+      assert.equal(commentReads,1)
       if(fail){
         assert(await p.locator(".community-comments [role=alert]").isVisible())
         await p.route(u=>u.origin===api&&u.pathname.endsWith("/comments"),r=>r.fulfill({json:{items:[item(1)],hasNext:false,nextCursor:null}}))
@@ -661,7 +724,7 @@ try {
       )
       assert.equal(
         state.calls.filter((c) => c.path.endsWith("/comments")).length,
-        1,
+        2,
       )
       release()
       await p.locator(".community-comments [role=alert]").waitFor()
@@ -678,7 +741,7 @@ try {
     "own controls; create >20, update, cancel/delete/focus, responsive",
     async () => {
       const { ctx, p } = await fixture()
-      assert.equal(await p.locator("#comment-2 button").count(), 0)
+      assert.equal(await p.locator("#comment-2").getByRole("button", { name: /^댓글 (수정|삭제)$/, exact: true }).count(), 0)
       await p.locator("#comment-draft").fill("  새 댓글\n줄바꿈 유지")
       await p.getByRole("button", { name: "댓글 등록", exact: true }).click()
       await p.getByText("댓글을 등록했습니다.", { exact: true }).waitFor()
@@ -706,7 +769,7 @@ try {
       )
       await p.keyboard.press("Escape")
       assert.equal(
-        await p.evaluate(() => document.activeElement.textContent),
+        await p.evaluate(() => document.activeElement.getAttribute("aria-label")),
         "댓글 삭제",
       )
       await p
@@ -739,7 +802,7 @@ try {
   await check("anonymous login CTA: pointer, keyboard, 1440/390/320 and safe return; no writes", async () => {
     const { ctx, p, state } = await fixture(null, 1)
     const link = p.getByRole("button", { name: "로그인하고 댓글 등록", exact: true })
-    assert.equal(await p.locator(".community-comment-list button").count(), 0)
+    assert.equal(await p.locator(".community-comment-list").getByRole("button", { name: /^댓글 (수정|삭제)$/, exact: true }).count(), 0)
     const destination = "/login?from=" + encodeURIComponent("/community/posts/7?from=" + encodeURIComponent("/community/topics/hearing-aid"))
     assert(destination.startsWith("/login?from="))
     for (const width of [1440, 390, 320]) {
@@ -1119,11 +1182,11 @@ try {
       await p.setViewportSize({width,height:950})
       assert(await p.evaluate(()=>document.documentElement.scrollWidth<=innerWidth))
       await p.locator("#comment-edit-button-1").focus();await p.keyboard.press("Tab")
-      assert.equal(await p.evaluate(()=>document.activeElement.textContent),"댓글 삭제")
+      assert.equal(await p.evaluate(()=>document.activeElement.getAttribute("aria-label")),"댓글 삭제")
       await p.screenshot({path:output+"/comments-keyboard-long-"+width+".png",fullPage:true})
       await p.keyboard.press("Enter");await p.keyboard.press("Shift+Tab")
       assert.equal(await p.evaluate(()=>document.activeElement.textContent),"댓글 삭제하기")
-      await p.keyboard.press("Escape");assert.equal(await p.evaluate(()=>document.activeElement.textContent),"댓글 삭제")
+      await p.keyboard.press("Escape");assert.equal(await p.evaluate(()=>document.activeElement.getAttribute("aria-label")),"댓글 삭제")
     }
     await ctx.close()
   })

@@ -10,6 +10,7 @@ import {
   useUnsavedChanges,
 } from "@/components/NavigationGuard"
 import CommunityDialog from "./CommunityDialog"
+import CommentLikeButton from "./CommentLikeButton"
 import CommentSuccessToast from "./CommentSuccessToast"
 import {
   changeComment,
@@ -36,6 +37,8 @@ export default function Comments({
 }) {
   const identityVersion = usePostVersion("public-identity")
   const auth = useAuth()
+  const likeContext = `${auth.memberRequests.revision}:${auth.memberRequests.paused}:${auth.status}:${auth.pending}`
+  const [loadedContext, setLoadedContext] = useState("")
   const router = useRouter(), guard = useNavigationGuard()
   const scope = useNavigationRequest()
   const reads = useRef(0),
@@ -66,7 +69,7 @@ export default function Comments({
   const loginMoving = useRef(false)
   const [readMore, setReadMore] = useState(false)
   const section = useRef<HTMLElement>(null), sentinel = useRef<HTMLDivElement>(null), composer = useRef<HTMLDivElement>(null)
-  const buffered = useRef<{ cursor: string; page: CommentPage } | null>(null)
+  const buffered = useRef<{ cursor: string; page: CommentPage; ticket: ReturnType<typeof auth.commentLikes.read> } | null>(null)
   const [inputFocused, setInputFocused] = useState(false)
   const [deleting, setDeleting] = useState<Comment | null>(null)
   const [discard, setDiscard] = useState<EditorAction | null>(null)
@@ -95,53 +98,76 @@ export default function Comments({
       !!area.querySelector('.community-comment-form:focus-within') ||
       (composer.current?.getBoundingClientRect().top ?? Infinity) < window.innerHeight
   }
-  async function load(more = false, automatic = false) {
-    if (reading.current || writing.current || !scope.isActive()) return
+  function showToast(message: string, valid: () => boolean) {
+    const id = ++toastSequence.current
+    setToast({ id, message, valid, dismiss: () => setToast(previous => previous?.id === id ? null : previous) })
+  }
+  async function load(more = false, automatic = false, targetId?: number, announce = false) {
+    if (reading.current || writing.current || !scope.isActive() || auth.status === "checking" || auth.pending || auth.memberRequests.paused) return
     if (more && (!page.hasNext || !page.nextCursor)) return
     reading.current = true
     const ticket = ++reads.current
+    let likeRead = auth.commentLikes.read()
+    const session = auth.member ? auth.captureMemberRequest(auth.member.memberId) : null
     const current = () =>
       scope.isActive() &&
-      ticket ===
+      likeRead.valid() && (!session || session.isCurrent()) && ticket ===
         reads.current
     setLoading(true)
     setReadError("")
     setReadMore(more)
     try {
       let result: CommentPage
+      let fetched: Comment[] = []
+      let segments = pageCount.current
       if (more) {
         const cursor = JSON.stringify(page.nextCursor)
-        result = buffered.current?.cursor === cursor ? buffered.current.page : await getComments(postId, page.nextCursor)
+        if (buffered.current?.cursor === cursor && buffered.current.ticket.valid()) {
+          result = buffered.current.page
+          likeRead = buffered.current.ticket
+        } else result = await getComments(postId, page.nextCursor)
+        fetched = result.items
         if (!current()) return
         if (automatic && pauseAuto()) {
-          buffered.current = { cursor, page: result }
+          buffered.current = { cursor, page: result, ticket: likeRead }
           return
         }
         buffered.current = null
         result = { ...result, items: mergeComments(page.items, result.items) }
-        pageCount.current++
+        segments++
       } else {
         buffered.current = null
         result = await getComments(postId)
-        for (let n = 1; n < pageCount.current && result.hasNext; n++) {
+        segments = 1
+        while (result.hasNext && (segments < pageCount.current || (!!targetId && !result.items.some(c => c.commentId === targetId)))) {
           if (!current()) return
           const next = await getComments(postId, result.nextCursor)
           result = { ...next, items: mergeComments(result.items, next.items) }
+          segments++
         }
+        fetched = result.items
       }
       if (current()) {
+        likeRead.accept(fetched.map(c => ({ ...c, id: c.commentId })))
+        setLoadedContext(likeContext)
+        pageCount.current = segments
         if (editor && !result.items.some(c => c.commentId === editor.id) && document.activeElement?.id === `comment-edit-${editor.id}`) requestFocus(`comment-edit-${editor.id}`)
         setCreated(receipts => receipts.filter(receipt => !result.items.some(c => c.commentId === receipt.commentId)))
         setPage({
           ...result,
           items: result.items.filter((c) => !removed.current.has(c.commentId)),
         })
+        if (announce) showToast("댓글 목록을 새로고침했습니다.", () => likeRead.valid() && scope.isActive())
+        return true
       }
     } catch (e) {
-      if (current())
+      if (current()) {
+        if (e instanceof CommentError && e.status === 401) session?.expire()
         setReadError(
           e instanceof CommentError ? e.message : "댓글을 불러오지 못했습니다.",
         )
+      }
+      return false
     } finally {
       if (ticket === reads.current) {
         reading.current = false
@@ -199,12 +225,16 @@ export default function Comments({
     return () => cancelAnimationFrame(frame)
   }, [linkedComment, page, loading, readError])
 
-  const refreshIdentity = useEffectEvent(() => { void load() })
+  const refreshIdentity = useEffectEvent(() => {
+    reads.current++; reading.current = false; buffered.current = null
+    setLoading(false)
+    void load()
+  })
   useEffect(() => {
     let active = true
-    if (identityVersion > 0) queueMicrotask(() => { if (active) refreshIdentity() })
+    queueMicrotask(() => { if (active) refreshIdentity() })
     return () => { active = false }
-  }, [identityVersion])
+  }, [identityVersion, likeContext])
 
   const autoLoad = useEffectEvent(() => {
     if (!pauseAuto()) void load(true, true)
@@ -310,9 +340,8 @@ export default function Comments({
       else memberCommentsChanged()
       if (!current()) return
       if (session?.isCurrent()) {
-        const toastId = ++toastSequence.current
         const message = method === "POST" ? "댓글을 등록했습니다." : method === "PUT" ? "댓글을 수정했습니다." : "댓글을 삭제했습니다."
-        setToast({ id: toastId, message, valid: session.isCurrent, dismiss: () => setToast(previous => previous?.id === toastId ? null : previous) })
+        showToast(message, session.isCurrent)
       }
       if (method === "DELETE") {
         removeItem(result)
@@ -399,19 +428,20 @@ export default function Comments({
           id="comments-refresh"
           className="iyum-text-link community-comments-refresh"
           disabled={loading || busy}
-          onClick={() => void load()}
+          aria-label="목록 새로고침" aria-busy={loading && !readMore}
+          onClick={() => void load(false, false, undefined, true)}
         >
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" focusable="false"><path d="M20 7v5h-5M4 17v-5h5" /><path d="M6.1 6.1A8 8 0 0 1 19.5 9M4.5 15A8 8 0 0 0 17.9 17.9" /></svg><span>목록 새로고침</span>
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" focusable="false"><path d="M20 7v5h-5M4 17v-5h5" /><path d="M6.1 6.1A8 8 0 0 1 19.5 9M4.5 15A8 8 0 0 0 17.9 17.9" /></svg><span>{loading && !readMore ? "새로고침 중…" : "목록 새로고침"}</span>
         </button>
       </div>
       <p className="community-help">
-        오래된 댓글부터 표시합니다. 좋아요 기능은 준비 중입니다.
+        오래된 댓글부터 표시합니다.
       </p>
       {linkNotice && <p role="status" className="community-help">{linkNotice}</p>}
       <div role="status" aria-atomic="true" className="comment-toast-announcer">
         {toast && toast.valid() && scope.isActive() && <CommentSuccessToast key={toast.id} message={toast.message} onDismiss={toast.dismiss} />}
       </div>
-      <p role="status" className="community-comments-status">
+      <p role="status" className={`community-comments-status${notice ? "" : " sr-only"}`}>
         {notice}
         {loading ? " 댓글을 불러오고 있습니다." : ""}
       </p>
@@ -421,7 +451,7 @@ export default function Comments({
           <button
             className="iyum-text-link"
             disabled={loading || busy}
-            onClick={() => void load(readMore)}
+            onClick={() => void load(readMore, false, undefined, !readMore)}
           >
             댓글 조회 다시 시도
           </button>
@@ -438,32 +468,18 @@ export default function Comments({
               <time dateTime={c.createdAt}>{postDate(c.createdAt)}</time>
               {c.updatedAt !== c.createdAt && <span>수정됨</span>}
             </div>
-            {editor?.id === c.commentId ? (
-              editForm(false)
-            ) : (
-              <>
-                <p className="community-comment-body">{c.content}</p>
-                {owner(c) && (
-                  <div className="community-comment-actions">
-                    <button
-                      id={`comment-edit-button-${c.commentId}`}
-                      className="community-owner-action community-owner-action-edit"
-                      disabled={busy}
-                      onClick={() => transitionEditor({ kind: "edit", comment: c })}
-                    >
-                      댓글 수정
-                    </button>
-                    <button
-                      className="community-owner-action"
-                      disabled={busy}
-                      onClick={() => transitionEditor({ kind: "delete", comment: c })}
-                    >
-                      댓글 삭제
-                    </button>
-                  </div>
-                )}
-              </>
-            )}
+            {editor?.id === c.commentId ? editForm(false) : <p className="community-comment-body">{c.content}</p>}
+            <div className="community-comment-toolbar">
+              <CommentLikeButton postId={postId} comment={c} ready={loadedContext === likeContext}
+                reread={id => load(false, false, id)} />
+              {owner(c) && editor?.id !== c.commentId && <div className="community-comment-tools">
+                <button id={`comment-edit-button-${c.commentId}`} type="button"
+                  className="community-comment-tool" aria-label="댓글 수정" disabled={busy}
+                  onClick={() => transitionEditor({ kind: "edit", comment: c })}>수정</button>
+                <button type="button" className="community-comment-tool" aria-label="댓글 삭제" disabled={busy}
+                  onClick={() => transitionEditor({ kind: "delete", comment: c })}>삭제</button>
+              </div>}
+            </div>
           </li>
         ))}
       </ul>

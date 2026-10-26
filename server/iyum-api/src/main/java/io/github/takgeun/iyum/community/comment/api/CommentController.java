@@ -80,7 +80,11 @@ public class CommentController {
                     )
             )
     })
-    public CommentListResponse getComments(
+    public ResponseEntity<CommentListResponse> getComments(
+            @Parameter(hidden = true)
+            @AuthenticationPrincipal
+            @Nullable MemberPrincipal principal,
+
             @Parameter(description = "게시글 ID", example = "123")
             @PathVariable("postId")
             Long postId,
@@ -107,14 +111,20 @@ public class CommentController {
             @RequestParam(name = "size", defaultValue = "20")
             int size
     ) {
-        return CommentListResponse.from(
-                commentReadService.getComments(
-                        postId,
-                        afterCreatedAt,
-                        afterId,
-                        size
-                )
+        Long viewerId =
+                principal == null ? null : principal.getMemberId();
+
+        CommentListResult result = commentReadService.getComments(
+                postId,
+                afterCreatedAt,
+                afterId,
+                size,
+                viewerId
         );
+
+        return ResponseEntity.ok()
+                .cacheControl(CacheControl.noStore())
+                .body(CommentListResponse.from(result));
     }
 
     @PostMapping(

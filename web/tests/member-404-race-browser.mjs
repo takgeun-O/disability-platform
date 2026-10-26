@@ -18,7 +18,7 @@ function publicRead(u){
  const id=Number(u.pathname.split('/')[5]),post=posts.find(p=>p.id===id)
  if(u.pathname.endsWith('/feed'))return{json:{items:posts.slice(0,10),hasNext:false,nextCursor:null}}
  if(!post)return{status:404,json:fail('POST_NOT_FOUND')}
- if(u.pathname.endsWith('/comments'))return{json:{items:owned().filter(c=>c.postId===id).map(c=>({commentId:c.commentId,content:c.content,createdAt:c.createdAt,updatedAt:c.updatedAt,author:post.author})),hasNext:false,nextCursor:null}}
+ if(u.pathname.endsWith('/comments'))return{json:{items:owned().filter(c=>c.postId===id).map(c=>({commentId:c.commentId,content:c.content,createdAt:c.createdAt,updatedAt:c.updatedAt,likeCount:0,liked:false,author:post.author})),hasNext:false,nextCursor:null}}
  const detail={...post};delete detail.commentCount;delete detail.contentPreview;return{json:detail}
 }
 let race=null,trace=[]

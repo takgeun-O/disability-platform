@@ -338,3 +338,18 @@
 @media (prefers-reduced-motion: reduce) { .comment-success-toast { transition: none; } }
 
 .community-comments li[id^="comment-"]:focus-visible { outline:2px solid var(--iyum-primary); outline-offset:4px; border-radius:8px; }
+
+.comment-like { margin:0; }
+.comment-like .post-like-error { max-width:100%; }
+
+/* Compact comment controls: visual weight is reduced, 44px targets remain. */
+.community-comment-toolbar { display:grid; grid-template-columns:minmax(0,1fr) auto; align-items:start; gap:4px 12px; margin-top:4px; }
+.community-comment-tools { display:flex; gap:2px; }
+.community-comment-tool { min-width:44px; min-height:44px; padding:8px; border:0; border-radius:6px; background:transparent; color:var(--iyum-muted); font:inherit; font-size:13px; font-weight:500; cursor:pointer; }
+.community-comment-tool:hover:not(:disabled) { background:var(--iyum-mist); color:var(--iyum-ink); }
+.community-comment-tool:focus-visible { outline:2px solid var(--iyum-primary); outline-offset:2px; }
+.community-comment-tool:disabled { opacity:.6; cursor:default; }
+.comment-like .post-like-button { max-width:100%; padding:6px 4px; border:0; border-radius:6px; gap:5px; font-size:13px; }
+.comment-like .post-like-button svg { width:16px; height:16px; flex-shrink:0; }
+.comment-like .post-like-button[aria-pressed="true"] { background:transparent; }
+.comment-like .post-like-button:hover:not([aria-disabled="true"]) { background:var(--iyum-mist); }

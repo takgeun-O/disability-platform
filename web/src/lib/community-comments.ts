@@ -1,6 +1,7 @@
+import { isLikeState, type LikeState } from "./community-api"
 import { getCsrfContext } from "./signup-api"
 import { characterCount, normalizeTitle } from "./community-posts"
-export type Comment = {
+export type Comment = LikeState & {
   commentId: number
   content: string
   author: { memberId: number; nickname: string }
@@ -49,7 +50,7 @@ const comment = (v: unknown): v is Comment =>
   obj(v.author) &&
   id(v.author.memberId) &&
   typeof v.author.nickname === "string" &&
-  cursor(v)
+  cursor(v) && isLikeState(v)
 export function isCommentPage(v: unknown): v is CommentPage {
   if (
     !obj(v) ||
@@ -79,6 +80,7 @@ export function commentError(status: number, body: unknown, writing: boolean) {
       "로그인이 필요하거나 만료되었습니다. 입력은 유지됩니다. 로그인 상태를 확인해 주세요.",
     CSRF_TOKEN_INVALID:
       "보안 확인에 실패했습니다. 입력은 유지됩니다. 다시 요청하면 보안 정보를 새로 확인합니다.",
+    COMMENT_LIKE_NOT_ALLOWED: "현재 회원 상태에서는 댓글 좋아요를 변경할 수 없습니다.",
     COMMENT_WRITE_NOT_ALLOWED:
       "현재 회원 상태에서는 댓글을 변경할 수 없습니다.",
     ACCESS_DENIED: "이 댓글을 변경할 권한이 없습니다.",
@@ -140,7 +142,7 @@ async function request(
         suffix,
       {
         ...options,
-        credentials: writing ? "include" : "omit",
+        credentials: writing || typeof window !== "undefined" ? "include" : "omit",
         cache: "no-store",
         redirect: "error",
         referrerPolicy: "no-referrer",
@@ -154,11 +156,11 @@ async function request(
     throw commentError(0, null, writing)
   }
   if (
-    response.status === 204 &&
+    !suffix.endsWith("/like") && response.status === 204 &&
     ["PUT", "DELETE"].includes(options.method ?? "")
   )
     return undefined
-  if (response.ok && ["PUT", "DELETE"].includes(options.method ?? ""))
+  if (!suffix.endsWith("/like") && response.ok && ["PUT", "DELETE"].includes(options.method ?? ""))
     throw commentError(response.status, null, writing)
   let body: unknown
   try {
@@ -253,4 +255,17 @@ export function mergeComments(existing: Comment[], incoming: Comment[]) {
       return true
     }),
   ]
+}
+
+// No mutation retry: an uncertain outcome is resolved by the public cursor list.
+export async function changeCommentLike(postId: string, commentId: number, liked: boolean, isCurrent: () => boolean): Promise<LikeState | null> {
+  if (!isCurrent()) return null
+  if (!id(commentId)) throw commentError(400, null, true)
+  let csrf
+  try { csrf = await getCsrfContext() }
+  catch { throw new CommentError(0, "CSRF_PREPARATION_FAILED", "보안 정보를 확인하지 못해 좋아요 요청을 보내지 않았습니다. 다시 시도해 주세요.") }
+  if (!isCurrent()) return null
+  const body = await request(postId, `/${commentId}/like`, { method: liked ? "PUT" : "DELETE", headers: { [csrf.headerName]: csrf.token } }, true)
+  if (!obj(body) || body.postId !== Number(postId) || body.commentId !== commentId || !isLikeState(body)) throw commentError(200, null, true)
+  return { liked: body.liked, likeCount: body.likeCount }
 }

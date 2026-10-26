@@ -1,0 +1,10 @@
+{
+  "kind": "mock",
+  "results": [
+    {
+      "name": "count POST/PUT/DELETE uses server list; back/link preserve context and drafts",
+      "status": "failed",
+      "message": "locator.click: Timeout 8000ms exceeded.\nCall log:\n\u001b[2m  - waiting for getByRole('button', { name: '댓글 삭제하기', exact: true })\u001b[22m\n"
+    }
+  ]
+}

@@ -71,7 +71,7 @@ class DevCorsConfigTest {
             .andExpect(status().isForbidden());
         mockMvc.perform(options(item).header(HttpHeaders.ORIGIN, ORIGIN).header(HttpHeaders.ACCESS_CONTROL_REQUEST_METHOD, "GET"))
             .andExpect(status().isForbidden());
-        when(commentReadService.getComments(7L, null, null, 20)).thenReturn(new CommentListResult(List.of(), false, null));
+        when(commentReadService.getComments(7L, null, null, 20, null)).thenReturn(new CommentListResult(List.of(), false, null));
         mockMvc.perform(get(collection).header(HttpHeaders.ORIGIN, ORIGIN))
             .andExpect(status().isOk()).andExpect(header().string(HttpHeaders.ACCESS_CONTROL_ALLOW_ORIGIN, ORIGIN));
         mockMvc.perform(post(collection).with(user("test-only")).header(HttpHeaders.ORIGIN, ORIGIN)

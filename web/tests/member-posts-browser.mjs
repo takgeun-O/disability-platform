@@ -43,7 +43,7 @@ async function fixture({width=1440,count=27,...options}={}){
   assert.equal(req.headers()['x-csrf-token'],'test-only')
   if(state.write)return state.write(r,u)
   const id=Number(u.pathname.split('/')[5]),post=posts.find(p=>p.id===id)
-  if(u.pathname.endsWith('/comments')&&method==='POST'){post.commentCount++;comments.push({commentId:1,content:req.postDataJSON().content,author:post.author,createdAt:stamp,updatedAt:stamp});return r.fulfill({status:201,json:{commentId:1}})}
+  if(u.pathname.endsWith('/comments')&&method==='POST'){post.commentCount++;comments.push({likeCount:0,liked:false,commentId:1,content:req.postDataJSON().content,author:post.author,createdAt:stamp,updatedAt:stamp});return r.fulfill({status:201,json:{commentId:1}})}
   if(u.pathname.includes('/comments/')){if(method==='DELETE'){post.commentCount--;comments=[]}else comments[0].content=req.postDataJSON().content;return r.fulfill({status:204})}
   if(method==='DELETE'){posts=posts.filter(p=>p.id!==id);return r.fulfill({status:204})}
   if(method==='PUT'){Object.assign(post,req.postDataJSON());post.contentPreview=post.content.slice(0,200);return r.fulfill({status:204})}

@@ -46,7 +46,7 @@ async function fixture({count=90,auto=false,path='/community',js=true,width=1440
   assert.equal(r.request().headers()['x-csrf-token'],'test-only')
   if(u.pathname.endsWith('/comments')&&method==='POST'){
    const post=posts.find(p=>p.id===Number(u.pathname.split('/').at(-2)));post.commentCount++
-   comments.push({commentId:1,content:r.request().postDataJSON().content,author:post.author,createdAt:stamp,updatedAt:stamp})
+   comments.push({likeCount:0,liked:false,commentId:1,content:r.request().postDataJSON().content,author:post.author,createdAt:stamp,updatedAt:stamp})
    return r.fulfill({status:201,json:{commentId:1}})
   }
   if(u.pathname.includes('/comments/')){if(method==='DELETE'){comments=[];posts.find(p=>p.id===Number(u.pathname.split('/').at(-3))).commentCount--}else comments[0].content=r.request().postDataJSON().content;return r.fulfill({status:204})}
@@ -101,6 +101,34 @@ try{
  await check('append failure preserves20/cursor, no auto retry; explicit retry',async()=>{
   const{ctx,p,state}=await fixture({auto:true});state.get=(r,u)=>u.pathname.endsWith('/feed')?r.fulfill({status:503,json:failure('SERVER_ERROR')}):r.fulfill(response(u));await p.locator('.feed-end').scrollIntoViewIfNeeded();await p.locator('.community-error').waitFor();const y=await p.evaluate(()=>scrollY);await p.mouse.wheel(0,300);await pause(350);assert.equal(state.calls.filter(c=>c.path.endsWith('/feed')).length,2);assert.equal(await rows(p).count(),20);assert(Math.abs(await p.evaluate(()=>scrollY)-y)<350);const failedCursor=new URL(state.calls.filter(c=>c.path.endsWith('/feed')).at(-1).url).search;state.get=null;await p.getByRole('button',{name:'다시 시도',exact:true}).click();await until(async()=>await rows(p).count()>=40);assert.equal(new URL(state.calls.filter(c=>c.path.endsWith('/feed')).at(-1).url).search,failedCursor);await ctx.close()
  })
+ for(const width of [1440,390,320])await check(`manual feed refresh toast ${width}: no inline success, no layout shift, timer replacement`,async()=>{
+  const{ctx,p,state}=await fixture({width});try{
+   await p.clock.install();assert.equal(await p.locator('.comment-success-toast').count(),0)
+   const button=p.getByRole('button',{name:'최신 목록 새로고침',exact:true});await button.focus()
+   const before=await rows(p).first().boundingBox();const y=await p.evaluate(()=>scrollY)
+   let release,reach;const reached=new Promise(r=>reach=r)
+   state.get=async(r,u)=>{reach();await new Promise(r=>release=r);await r.fulfill(response(u))}
+   await p.keyboard.press('Enter');await reached;assert.equal(await p.locator('.comment-success-toast').count(),0)
+   assert(Math.abs((await rows(p).first().boundingBox()).y-before.y)<2)
+   release();const toast=p.locator('.comment-success-toast');await toast.waitFor()
+   assert.equal(await p.getByText('게시글 목록을 새로고침했습니다.',{exact:true}).count(),1)
+   assert(await button.evaluate(e=>document.activeElement===e));assert(Math.abs(await p.evaluate(()=>scrollY)-y)<2)
+   assert(await p.evaluate(()=>document.documentElement.scrollWidth<=innerWidth))
+   await p.screenshot({path:`${output}/feed-refresh-toast-${width}.png`})
+   await p.clock.runFor(4000);state.get=null;const oldToast=await toast.elementHandle();await button.click();await p.waitForFunction(e=>!e.isConnected,oldToast);await toast.waitFor()
+   await p.clock.runFor(1500);assert.equal(await toast.count(),1)
+   await p.clock.runFor(3750);assert.equal(await toast.count(),0)
+  }finally{await ctx.close()}
+ })
+ await check('failed feed refresh keeps error and never announces success',async()=>{
+  const{ctx,p,state}=await fixture();try{
+   state.get=r=>r.fulfill({status:503,json:failure('SERVER_ERROR')})
+   await p.getByRole('button',{name:'최신 목록 새로고침',exact:true}).click();await p.locator('.community-error').waitFor()
+   assert.equal(await p.locator('.comment-success-toast').count(),0);assert.equal(await rows(p).count(),20)
+   state.get=null;await p.getByRole('button',{name:'다시 시도',exact:true}).click();await p.getByText('게시글 목록을 새로고침했습니다.',{exact:true}).waitFor()
+   assert.equal(await p.locator('.community-error').count(),0)
+  }finally{await ctx.close()}
+ })
  await check('latest refresh failure retries latest first segment, not reconciliation',async()=>{
   const{ctx,p,state}=await fixture();await more(p,3);posts.unshift(make(1001));
   state.get=(r,u)=>u.pathname.endsWith('/feed')?r.fulfill({status:503,json:failure('SERVER_ERROR')}):r.fulfill(response(u));
@@ -108,13 +136,38 @@ try{
   const at=state.calls.length;state.get=null;await p.getByRole('button',{name:'다시 시도',exact:true}).click();await until(async()=>await rows(p).first().getAttribute('data-feed-id')==='1001');
   assert.equal(await rows(p).count(),20);const calls=state.calls.slice(at).filter(c=>c.path.endsWith('/feed'));assert.equal(calls.length,1);assert.equal(new URL(calls[0].url).searchParams.has('afterId'),false);await ctx.close()
  })
- await check('reconcile failure retries accumulated range and anchor without inserting new top',async()=>{
+ for(const attempt of [1,2,3]) await check(`reconcile failure retries accumulated range and anchor without inserting new top / ${attempt}`,async()=>{
   const{ctx,p,state}=await fixture();await more(p,3);await enter(p,955);
   await p.locator('#comment-draft').fill('범위 갱신 실패 회귀');await p.getByRole('button',{name:'댓글 등록',exact:true}).click();await p.getByText('댓글을 등록했습니다.',{exact:true}).waitFor();posts.unshift(make(1001));
-  state.get=(r,u)=>u.pathname.endsWith('/feed')?r.fulfill({status:503,json:failure('SERVER_ERROR')}):r.fulfill(response(u));
-  await p.locator('.community-back').click();await p.locator('.community-error').waitFor();assert.equal(await rows(p).count(),60);await until(async()=>Math.abs(await p.locator('[data-feed-id="955"]').evaluate(e=>e.getBoundingClientRect().top)-120)<10);
-  state.get=null;await p.getByRole('button',{name:'다시 시도',exact:true}).evaluate(b=>b.click());await until(async()=>await p.locator('[data-feed-id="955"] .post-comment-link').textContent()==='댓글 1');
-  assert.equal(await rows(p).count(),60);assert.equal(await rows(p).first().getAttribute('data-feed-id'),'1000');await until(async()=>Math.abs(await p.locator('[data-feed-id="955"]').evaluate(e=>e.getBoundingClientRect().top)-120)<10);await ctx.close()
+  let release, reached
+  const arrived=new Promise(resolve=>reached=resolve), gate=new Promise(resolve=>release=resolve)
+  state.get=async(r,u)=>{if(u.pathname.endsWith('/feed')){reached();await gate;await r.fulfill({status:503,json:failure('SERVER_ERROR')})}else await r.fulfill(response(u))}
+  const failed=p.waitForResponse(r=>new URL(r.url()).origin===api&&new URL(r.url()).pathname==='/api/v1/community/posts/feed'&&r.request().method()==='GET'&&r.status()===503)
+  await p.locator('.community-back').click();await arrived
+  await p.waitForFunction(()=>document.querySelectorAll('[data-feed-id]').length===60&&Math.abs(document.querySelector('[data-feed-id="955"]').getBoundingClientRect().top-120)<10)
+  const before=await p.locator('[data-feed-id="955"]').evaluate(e=>e.getBoundingClientRect().top)
+  release();await (await failed).finished()
+  await p.waitForFunction(()=>document.querySelector('.community-error')&&document.querySelector('.feed-posts')?.getAttribute('aria-busy')==='false')
+  const after=await p.locator('[data-feed-id="955"]').evaluate(e=>e.getBoundingClientRect().top)
+  await fs.writeFile(output+`/anchor-${attempt}.json`,JSON.stringify({before,after,rows:await rows(p).count()},null,2))
+  await p.screenshot({path:output+`/anchor-error-${attempt}.png`})
+  assert.equal(await rows(p).count(),60);assert(Math.abs(after-120)<10,`error anchor: ${after}`);
+  let releaseRetry, reachedRetry
+  const retryArrived=new Promise(resolve=>reachedRetry=resolve), retryGate=new Promise(resolve=>releaseRetry=resolve)
+  state.get=async(r,u)=>{if(u.pathname.endsWith('/feed')){reachedRetry();await retryGate}await r.fulfill(response(u))}
+  await p.getByRole('button',{name:'다시 시도',exact:true}).evaluate(b=>b.click());await retryArrived
+  await p.waitForFunction(()=>!document.querySelector('.community-error')&&document.querySelector('.feed-posts')?.getAttribute('aria-busy')==='true')
+  assert(Math.abs(await p.locator('[data-feed-id="955"]').evaluate(e=>e.getBoundingClientRect().top)-120)<10)
+  // A new user scroll during retry must replace the old retry-click anchor.
+  if(attempt===3)await p.mouse.wheel(0,180)
+  if(attempt===3)await p.waitForFunction(()=>document.querySelector('[data-feed-id="955"]').getBoundingClientRect().top<0)
+  const retryAnchor=await p.locator('[data-feed-id="955"]').evaluate(e=>e.getBoundingClientRect().top)
+  releaseRetry()
+  await p.waitForFunction(()=>document.querySelector('[data-feed-id="955"] .post-comment-link')?.textContent==='댓글 1'&&document.querySelector('.feed-posts')?.getAttribute('aria-busy')==='false')
+  assert.equal(await rows(p).count(),60);assert.equal(await rows(p).first().getAttribute('data-feed-id'),'1000')
+  await p.waitForFunction(offset=>Math.abs(document.querySelector('[data-feed-id="955"]').getBoundingClientRect().top-offset)<10,retryAnchor)
+  await fs.writeFile(output+`/retry-anchor-${attempt}.json`,JSON.stringify({expected:retryAnchor,actual:await p.locator('[data-feed-id="955"]').evaluate(e=>e.getBoundingClientRect().top)},null,2))
+  await ctx.close()
  })
  await check('slow append then topic navigation cannot overwrite current filter',async()=>{
   const{ctx,p,state}=await fixture();let release,reached=false;state.get=async(r,u)=>{if(u.pathname.endsWith('/feed')){reached=true;await new Promise(r=>release=r);try{await r.fulfill(response(u))}catch{/* navigation cancels GET */}}else await r.fulfill(response(u))};await p.getByRole('button',{name:'게시글 더 보기'}).evaluate(b=>b.click());await until(()=>reached);await p.locator('.feed-tabs a').filter({hasText:'인공와우'}).click();await p.getByRole('heading',{name:'인공와우',exact:true}).waitFor();release();await pause(250);assert.equal(await rows(p).count(),0);assert.equal(new URL(p.url()).pathname,'/community/topics/cochlear-implant');await ctx.close()
