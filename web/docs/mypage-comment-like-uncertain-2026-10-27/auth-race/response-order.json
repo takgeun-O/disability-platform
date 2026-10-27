@@ -1,0 +1,3777 @@
+[
+  {
+    "name": "profile: old 401 after password response cannot expire retained login",
+    "counts": {
+      "profile": 2,
+      "summary": 2,
+      "posts": 2
+    },
+    "events": [
+      {
+        "order": 1,
+        "kind": "profile",
+        "event": "request",
+        "count": 1
+      },
+      {
+        "order": 2,
+        "kind": "summary",
+        "event": "request",
+        "count": 1
+      },
+      {
+        "order": 3,
+        "kind": "summary",
+        "event": "current-response",
+        "status": 200
+      },
+      {
+        "order": 4,
+        "kind": "posts",
+        "event": "request",
+        "count": 1
+      },
+      {
+        "order": 5,
+        "kind": "posts",
+        "event": "current-response",
+        "status": 200
+      },
+      {
+        "order": 6,
+        "kind": "csrf",
+        "count": 1
+      },
+      {
+        "order": 7,
+        "kind": "password",
+        "event": "request"
+      },
+      {
+        "order": 8,
+        "kind": "password",
+        "event": "response",
+        "status": 200
+      },
+      {
+        "order": 9,
+        "kind": "csrf",
+        "count": 2
+      },
+      {
+        "order": 10,
+        "kind": "posts",
+        "event": "request",
+        "count": 2
+      },
+      {
+        "order": 11,
+        "kind": "posts",
+        "event": "current-response",
+        "status": 200
+      },
+      {
+        "order": 12,
+        "kind": "profile",
+        "event": "request",
+        "count": 2
+      },
+      {
+        "order": 13,
+        "kind": "profile",
+        "event": "current-response",
+        "status": 200
+      },
+      {
+        "order": 14,
+        "kind": "summary",
+        "event": "request",
+        "count": 2
+      },
+      {
+        "order": 15,
+        "kind": "summary",
+        "event": "current-response",
+        "status": 200
+      },
+      {
+        "order": 16,
+        "kind": "profile",
+        "event": "old-response",
+        "status": 401
+      }
+    ]
+  },
+  {
+    "name": "profile: old 401 before password response cannot expire retained login",
+    "counts": {
+      "profile": 2,
+      "summary": 2,
+      "posts": 2
+    },
+    "events": [
+      {
+        "order": 1,
+        "kind": "profile",
+        "event": "request",
+        "count": 1
+      },
+      {
+        "order": 2,
+        "kind": "summary",
+        "event": "request",
+        "count": 1
+      },
+      {
+        "order": 3,
+        "kind": "summary",
+        "event": "current-response",
+        "status": 200
+      },
+      {
+        "order": 4,
+        "kind": "posts",
+        "event": "request",
+        "count": 1
+      },
+      {
+        "order": 5,
+        "kind": "posts",
+        "event": "current-response",
+        "status": 200
+      },
+      {
+        "order": 6,
+        "kind": "csrf",
+        "count": 1
+      },
+      {
+        "order": 7,
+        "kind": "password",
+        "event": "request"
+      },
+      {
+        "order": 8,
+        "kind": "profile",
+        "event": "old-response",
+        "status": 401
+      },
+      {
+        "order": 9,
+        "kind": "password",
+        "event": "response",
+        "status": 200
+      },
+      {
+        "order": 10,
+        "kind": "csrf",
+        "count": 2
+      },
+      {
+        "order": 11,
+        "kind": "posts",
+        "event": "request",
+        "count": 2
+      },
+      {
+        "order": 12,
+        "kind": "posts",
+        "event": "current-response",
+        "status": 200
+      },
+      {
+        "order": 13,
+        "kind": "profile",
+        "event": "request",
+        "count": 2
+      },
+      {
+        "order": 14,
+        "kind": "profile",
+        "event": "current-response",
+        "status": 200
+      },
+      {
+        "order": 15,
+        "kind": "summary",
+        "event": "request",
+        "count": 2
+      },
+      {
+        "order": 16,
+        "kind": "summary",
+        "event": "current-response",
+        "status": 200
+      }
+    ]
+  },
+  {
+    "name": "summary: old 401 after password response cannot expire retained login",
+    "counts": {
+      "profile": 2,
+      "summary": 2,
+      "posts": 2
+    },
+    "events": [
+      {
+        "order": 1,
+        "kind": "profile",
+        "event": "request",
+        "count": 1
+      },
+      {
+        "order": 2,
+        "kind": "profile",
+        "event": "current-response",
+        "status": 200
+      },
+      {
+        "order": 3,
+        "kind": "summary",
+        "event": "request",
+        "count": 1
+      },
+      {
+        "order": 4,
+        "kind": "posts",
+        "event": "request",
+        "count": 1
+      },
+      {
+        "order": 5,
+        "kind": "posts",
+        "event": "current-response",
+        "status": 200
+      },
+      {
+        "order": 6,
+        "kind": "csrf",
+        "count": 1
+      },
+      {
+        "order": 7,
+        "kind": "password",
+        "event": "request"
+      },
+      {
+        "order": 8,
+        "kind": "password",
+        "event": "response",
+        "status": 200
+      },
+      {
+        "order": 9,
+        "kind": "csrf",
+        "count": 2
+      },
+      {
+        "order": 10,
+        "kind": "posts",
+        "event": "request",
+        "count": 2
+      },
+      {
+        "order": 11,
+        "kind": "posts",
+        "event": "current-response",
+        "status": 200
+      },
+      {
+        "order": 12,
+        "kind": "profile",
+        "event": "request",
+        "count": 2
+      },
+      {
+        "order": 13,
+        "kind": "profile",
+        "event": "current-response",
+        "status": 200
+      },
+      {
+        "order": 14,
+        "kind": "summary",
+        "event": "request",
+        "count": 2
+      },
+      {
+        "order": 15,
+        "kind": "summary",
+        "event": "current-response",
+        "status": 200
+      },
+      {
+        "order": 16,
+        "kind": "summary",
+        "event": "old-response",
+        "status": 401
+      }
+    ]
+  },
+  {
+    "name": "summary: old 401 before password response cannot expire retained login",
+    "counts": {
+      "profile": 2,
+      "summary": 2,
+      "posts": 2
+    },
+    "events": [
+      {
+        "order": 1,
+        "kind": "profile",
+        "event": "request",
+        "count": 1
+      },
+      {
+        "order": 2,
+        "kind": "profile",
+        "event": "current-response",
+        "status": 200
+      },
+      {
+        "order": 3,
+        "kind": "summary",
+        "event": "request",
+        "count": 1
+      },
+      {
+        "order": 4,
+        "kind": "posts",
+        "event": "request",
+        "count": 1
+      },
+      {
+        "order": 5,
+        "kind": "posts",
+        "event": "current-response",
+        "status": 200
+      },
+      {
+        "order": 6,
+        "kind": "csrf",
+        "count": 1
+      },
+      {
+        "order": 7,
+        "kind": "password",
+        "event": "request"
+      },
+      {
+        "order": 8,
+        "kind": "summary",
+        "event": "old-response",
+        "status": 401
+      },
+      {
+        "order": 9,
+        "kind": "password",
+        "event": "response",
+        "status": 200
+      },
+      {
+        "order": 10,
+        "kind": "csrf",
+        "count": 2
+      },
+      {
+        "order": 11,
+        "kind": "posts",
+        "event": "request",
+        "count": 2
+      },
+      {
+        "order": 12,
+        "kind": "posts",
+        "event": "current-response",
+        "status": 200
+      },
+      {
+        "order": 13,
+        "kind": "profile",
+        "event": "request",
+        "count": 2
+      },
+      {
+        "order": 14,
+        "kind": "profile",
+        "event": "current-response",
+        "status": 200
+      },
+      {
+        "order": 15,
+        "kind": "summary",
+        "event": "request",
+        "count": 2
+      },
+      {
+        "order": 16,
+        "kind": "summary",
+        "event": "current-response",
+        "status": 200
+      }
+    ]
+  },
+  {
+    "name": "posts: old 401 after password response cannot expire retained login",
+    "counts": {
+      "profile": 2,
+      "summary": 2,
+      "posts": 2
+    },
+    "events": [
+      {
+        "order": 1,
+        "kind": "profile",
+        "event": "request",
+        "count": 1
+      },
+      {
+        "order": 2,
+        "kind": "profile",
+        "event": "current-response",
+        "status": 200
+      },
+      {
+        "order": 3,
+        "kind": "summary",
+        "event": "request",
+        "count": 1
+      },
+      {
+        "order": 4,
+        "kind": "summary",
+        "event": "current-response",
+        "status": 200
+      },
+      {
+        "order": 5,
+        "kind": "posts",
+        "event": "request",
+        "count": 1
+      },
+      {
+        "order": 6,
+        "kind": "csrf",
+        "count": 1
+      },
+      {
+        "order": 7,
+        "kind": "password",
+        "event": "request"
+      },
+      {
+        "order": 8,
+        "kind": "password",
+        "event": "response",
+        "status": 200
+      },
+      {
+        "order": 9,
+        "kind": "csrf",
+        "count": 2
+      },
+      {
+        "order": 10,
+        "kind": "posts",
+        "event": "request",
+        "count": 2
+      },
+      {
+        "order": 11,
+        "kind": "posts",
+        "event": "current-response",
+        "status": 200
+      },
+      {
+        "order": 12,
+        "kind": "profile",
+        "event": "request",
+        "count": 2
+      },
+      {
+        "order": 13,
+        "kind": "profile",
+        "event": "current-response",
+        "status": 200
+      },
+      {
+        "order": 14,
+        "kind": "summary",
+        "event": "request",
+        "count": 2
+      },
+      {
+        "order": 15,
+        "kind": "summary",
+        "event": "current-response",
+        "status": 200
+      },
+      {
+        "order": 16,
+        "kind": "posts",
+        "event": "old-response",
+        "status": 401
+      }
+    ]
+  },
+  {
+    "name": "posts: old 401 before password response cannot expire retained login",
+    "counts": {
+      "profile": 2,
+      "summary": 2,
+      "posts": 2
+    },
+    "events": [
+      {
+        "order": 1,
+        "kind": "profile",
+        "event": "request",
+        "count": 1
+      },
+      {
+        "order": 2,
+        "kind": "profile",
+        "event": "current-response",
+        "status": 200
+      },
+      {
+        "order": 3,
+        "kind": "summary",
+        "event": "request",
+        "count": 1
+      },
+      {
+        "order": 4,
+        "kind": "summary",
+        "event": "current-response",
+        "status": 200
+      },
+      {
+        "order": 5,
+        "kind": "posts",
+        "event": "request",
+        "count": 1
+      },
+      {
+        "order": 6,
+        "kind": "csrf",
+        "count": 1
+      },
+      {
+        "order": 7,
+        "kind": "password",
+        "event": "request"
+      },
+      {
+        "order": 8,
+        "kind": "posts",
+        "event": "old-response",
+        "status": 401
+      },
+      {
+        "order": 9,
+        "kind": "password",
+        "event": "response",
+        "status": 200
+      },
+      {
+        "order": 10,
+        "kind": "csrf",
+        "count": 2
+      },
+      {
+        "order": 11,
+        "kind": "posts",
+        "event": "request",
+        "count": 2
+      },
+      {
+        "order": 12,
+        "kind": "posts",
+        "event": "current-response",
+        "status": 200
+      },
+      {
+        "order": 13,
+        "kind": "profile",
+        "event": "request",
+        "count": 2
+      },
+      {
+        "order": 14,
+        "kind": "profile",
+        "event": "current-response",
+        "status": 200
+      },
+      {
+        "order": 15,
+        "kind": "summary",
+        "event": "request",
+        "count": 2
+      },
+      {
+        "order": 16,
+        "kind": "summary",
+        "event": "current-response",
+        "status": 200
+      }
+    ]
+  },
+  {
+    "name": "comments: old 401 after password response cannot expire retained login",
+    "counts": {
+      "profile": 2,
+      "summary": 2,
+      "posts": 1,
+      "comments": 2
+    },
+    "events": [
+      {
+        "order": 1,
+        "kind": "profile",
+        "event": "request",
+        "count": 1
+      },
+      {
+        "order": 2,
+        "kind": "profile",
+        "event": "current-response",
+        "status": 200
+      },
+      {
+        "order": 3,
+        "kind": "summary",
+        "event": "request",
+        "count": 1
+      },
+      {
+        "order": 4,
+        "kind": "summary",
+        "event": "current-response",
+        "status": 200
+      },
+      {
+        "order": 5,
+        "kind": "posts",
+        "event": "request",
+        "count": 1
+      },
+      {
+        "order": 6,
+        "kind": "posts",
+        "event": "current-response",
+        "status": 200
+      },
+      {
+        "order": 7,
+        "kind": "comments",
+        "event": "request",
+        "count": 1
+      },
+      {
+        "order": 8,
+        "kind": "csrf",
+        "count": 1
+      },
+      {
+        "order": 9,
+        "kind": "password",
+        "event": "request"
+      },
+      {
+        "order": 10,
+        "kind": "password",
+        "event": "response",
+        "status": 200
+      },
+      {
+        "order": 11,
+        "kind": "csrf",
+        "count": 2
+      },
+      {
+        "order": 12,
+        "kind": "comments",
+        "event": "request",
+        "count": 2
+      },
+      {
+        "order": 13,
+        "kind": "comments",
+        "event": "current-response",
+        "status": 200
+      },
+      {
+        "order": 14,
+        "kind": "profile",
+        "event": "request",
+        "count": 2
+      },
+      {
+        "order": 15,
+        "kind": "profile",
+        "event": "current-response",
+        "status": 200
+      },
+      {
+        "order": 16,
+        "kind": "summary",
+        "event": "request",
+        "count": 2
+      },
+      {
+        "order": 17,
+        "kind": "summary",
+        "event": "current-response",
+        "status": 200
+      },
+      {
+        "order": 18,
+        "kind": "comments",
+        "event": "old-response",
+        "status": 401
+      }
+    ]
+  },
+  {
+    "name": "comments: old 401 before password response cannot expire retained login",
+    "counts": {
+      "profile": 2,
+      "summary": 2,
+      "posts": 1,
+      "comments": 2
+    },
+    "events": [
+      {
+        "order": 1,
+        "kind": "profile",
+        "event": "request",
+        "count": 1
+      },
+      {
+        "order": 2,
+        "kind": "profile",
+        "event": "current-response",
+        "status": 200
+      },
+      {
+        "order": 3,
+        "kind": "summary",
+        "event": "request",
+        "count": 1
+      },
+      {
+        "order": 4,
+        "kind": "summary",
+        "event": "current-response",
+        "status": 200
+      },
+      {
+        "order": 5,
+        "kind": "posts",
+        "event": "request",
+        "count": 1
+      },
+      {
+        "order": 6,
+        "kind": "posts",
+        "event": "current-response",
+        "status": 200
+      },
+      {
+        "order": 7,
+        "kind": "comments",
+        "event": "request",
+        "count": 1
+      },
+      {
+        "order": 8,
+        "kind": "csrf",
+        "count": 1
+      },
+      {
+        "order": 9,
+        "kind": "password",
+        "event": "request"
+      },
+      {
+        "order": 10,
+        "kind": "comments",
+        "event": "old-response",
+        "status": 401
+      },
+      {
+        "order": 11,
+        "kind": "password",
+        "event": "response",
+        "status": 200
+      },
+      {
+        "order": 12,
+        "kind": "csrf",
+        "count": 2
+      },
+      {
+        "order": 13,
+        "kind": "comments",
+        "event": "request",
+        "count": 2
+      },
+      {
+        "order": 14,
+        "kind": "comments",
+        "event": "current-response",
+        "status": 200
+      },
+      {
+        "order": 15,
+        "kind": "profile",
+        "event": "request",
+        "count": 2
+      },
+      {
+        "order": 16,
+        "kind": "profile",
+        "event": "current-response",
+        "status": 200
+      },
+      {
+        "order": 17,
+        "kind": "summary",
+        "event": "request",
+        "count": 2
+      },
+      {
+        "order": 18,
+        "kind": "summary",
+        "event": "current-response",
+        "status": 200
+      }
+    ]
+  },
+  {
+    "name": "profile: old success cannot overwrite renewed personal data",
+    "counts": {
+      "profile": 2,
+      "summary": 2,
+      "posts": 2
+    },
+    "events": [
+      {
+        "order": 1,
+        "kind": "profile",
+        "event": "request",
+        "count": 1
+      },
+      {
+        "order": 2,
+        "kind": "summary",
+        "event": "request",
+        "count": 1
+      },
+      {
+        "order": 3,
+        "kind": "summary",
+        "event": "current-response",
+        "status": 200
+      },
+      {
+        "order": 4,
+        "kind": "posts",
+        "event": "request",
+        "count": 1
+      },
+      {
+        "order": 5,
+        "kind": "posts",
+        "event": "current-response",
+        "status": 200
+      },
+      {
+        "order": 6,
+        "kind": "csrf",
+        "count": 1
+      },
+      {
+        "order": 7,
+        "kind": "password",
+        "event": "request"
+      },
+      {
+        "order": 8,
+        "kind": "password",
+        "event": "response",
+        "status": 200
+      },
+      {
+        "order": 9,
+        "kind": "csrf",
+        "count": 2
+      },
+      {
+        "order": 10,
+        "kind": "posts",
+        "event": "request",
+        "count": 2
+      },
+      {
+        "order": 11,
+        "kind": "posts",
+        "event": "current-response",
+        "status": 200
+      },
+      {
+        "order": 12,
+        "kind": "profile",
+        "event": "request",
+        "count": 2
+      },
+      {
+        "order": 13,
+        "kind": "profile",
+        "event": "current-response",
+        "status": 200
+      },
+      {
+        "order": 14,
+        "kind": "summary",
+        "event": "request",
+        "count": 2
+      },
+      {
+        "order": 15,
+        "kind": "summary",
+        "event": "current-response",
+        "status": 200
+      },
+      {
+        "order": 16,
+        "kind": "profile",
+        "event": "old-response",
+        "status": 200
+      }
+    ]
+  },
+  {
+    "name": "summary: old success cannot overwrite renewed personal data",
+    "counts": {
+      "profile": 2,
+      "summary": 2,
+      "posts": 2
+    },
+    "events": [
+      {
+        "order": 1,
+        "kind": "profile",
+        "event": "request",
+        "count": 1
+      },
+      {
+        "order": 2,
+        "kind": "profile",
+        "event": "current-response",
+        "status": 200
+      },
+      {
+        "order": 3,
+        "kind": "summary",
+        "event": "request",
+        "count": 1
+      },
+      {
+        "order": 4,
+        "kind": "posts",
+        "event": "request",
+        "count": 1
+      },
+      {
+        "order": 5,
+        "kind": "posts",
+        "event": "current-response",
+        "status": 200
+      },
+      {
+        "order": 6,
+        "kind": "csrf",
+        "count": 1
+      },
+      {
+        "order": 7,
+        "kind": "password",
+        "event": "request"
+      },
+      {
+        "order": 8,
+        "kind": "password",
+        "event": "response",
+        "status": 200
+      },
+      {
+        "order": 9,
+        "kind": "csrf",
+        "count": 2
+      },
+      {
+        "order": 10,
+        "kind": "posts",
+        "event": "request",
+        "count": 2
+      },
+      {
+        "order": 11,
+        "kind": "posts",
+        "event": "current-response",
+        "status": 200
+      },
+      {
+        "order": 12,
+        "kind": "profile",
+        "event": "request",
+        "count": 2
+      },
+      {
+        "order": 13,
+        "kind": "profile",
+        "event": "current-response",
+        "status": 200
+      },
+      {
+        "order": 14,
+        "kind": "summary",
+        "event": "request",
+        "count": 2
+      },
+      {
+        "order": 15,
+        "kind": "summary",
+        "event": "current-response",
+        "status": 200
+      },
+      {
+        "order": 16,
+        "kind": "summary",
+        "event": "old-response",
+        "status": 200
+      }
+    ]
+  },
+  {
+    "name": "posts: old success cannot overwrite renewed personal data",
+    "counts": {
+      "profile": 2,
+      "summary": 2,
+      "posts": 2
+    },
+    "events": [
+      {
+        "order": 1,
+        "kind": "profile",
+        "event": "request",
+        "count": 1
+      },
+      {
+        "order": 2,
+        "kind": "profile",
+        "event": "current-response",
+        "status": 200
+      },
+      {
+        "order": 3,
+        "kind": "summary",
+        "event": "request",
+        "count": 1
+      },
+      {
+        "order": 4,
+        "kind": "summary",
+        "event": "current-response",
+        "status": 200
+      },
+      {
+        "order": 5,
+        "kind": "posts",
+        "event": "request",
+        "count": 1
+      },
+      {
+        "order": 6,
+        "kind": "csrf",
+        "count": 1
+      },
+      {
+        "order": 7,
+        "kind": "password",
+        "event": "request"
+      },
+      {
+        "order": 8,
+        "kind": "password",
+        "event": "response",
+        "status": 200
+      },
+      {
+        "order": 9,
+        "kind": "csrf",
+        "count": 2
+      },
+      {
+        "order": 10,
+        "kind": "posts",
+        "event": "request",
+        "count": 2
+      },
+      {
+        "order": 11,
+        "kind": "posts",
+        "event": "current-response",
+        "status": 200
+      },
+      {
+        "order": 12,
+        "kind": "profile",
+        "event": "request",
+        "count": 2
+      },
+      {
+        "order": 13,
+        "kind": "profile",
+        "event": "current-response",
+        "status": 200
+      },
+      {
+        "order": 14,
+        "kind": "summary",
+        "event": "request",
+        "count": 2
+      },
+      {
+        "order": 15,
+        "kind": "summary",
+        "event": "current-response",
+        "status": 200
+      },
+      {
+        "order": 16,
+        "kind": "posts",
+        "event": "old-response",
+        "status": 200
+      }
+    ]
+  },
+  {
+    "name": "comments: old success cannot overwrite renewed personal data",
+    "counts": {
+      "profile": 2,
+      "summary": 2,
+      "posts": 1,
+      "comments": 2
+    },
+    "events": [
+      {
+        "order": 1,
+        "kind": "profile",
+        "event": "request",
+        "count": 1
+      },
+      {
+        "order": 2,
+        "kind": "profile",
+        "event": "current-response",
+        "status": 200
+      },
+      {
+        "order": 3,
+        "kind": "summary",
+        "event": "request",
+        "count": 1
+      },
+      {
+        "order": 4,
+        "kind": "summary",
+        "event": "current-response",
+        "status": 200
+      },
+      {
+        "order": 5,
+        "kind": "posts",
+        "event": "request",
+        "count": 1
+      },
+      {
+        "order": 6,
+        "kind": "posts",
+        "event": "current-response",
+        "status": 200
+      },
+      {
+        "order": 7,
+        "kind": "comments",
+        "event": "request",
+        "count": 1
+      },
+      {
+        "order": 8,
+        "kind": "csrf",
+        "count": 1
+      },
+      {
+        "order": 9,
+        "kind": "password",
+        "event": "request"
+      },
+      {
+        "order": 10,
+        "kind": "password",
+        "event": "response",
+        "status": 200
+      },
+      {
+        "order": 11,
+        "kind": "csrf",
+        "count": 2
+      },
+      {
+        "order": 12,
+        "kind": "comments",
+        "event": "request",
+        "count": 2
+      },
+      {
+        "order": 13,
+        "kind": "comments",
+        "event": "current-response",
+        "status": 200
+      },
+      {
+        "order": 14,
+        "kind": "profile",
+        "event": "request",
+        "count": 2
+      },
+      {
+        "order": 15,
+        "kind": "profile",
+        "event": "current-response",
+        "status": 200
+      },
+      {
+        "order": 16,
+        "kind": "summary",
+        "event": "request",
+        "count": 2
+      },
+      {
+        "order": 17,
+        "kind": "summary",
+        "event": "current-response",
+        "status": 200
+      },
+      {
+        "order": 18,
+        "kind": "comments",
+        "event": "old-response",
+        "status": 200
+      }
+    ]
+  },
+  {
+    "name": "profile: new generation 401 still expires current session",
+    "counts": {
+      "profile": 2,
+      "summary": 2,
+      "posts": 2
+    },
+    "events": [
+      {
+        "order": 1,
+        "kind": "profile",
+        "event": "request",
+        "count": 1
+      },
+      {
+        "order": 2,
+        "kind": "summary",
+        "event": "request",
+        "count": 1
+      },
+      {
+        "order": 3,
+        "kind": "summary",
+        "event": "current-response",
+        "status": 200
+      },
+      {
+        "order": 4,
+        "kind": "posts",
+        "event": "request",
+        "count": 1
+      },
+      {
+        "order": 5,
+        "kind": "posts",
+        "event": "current-response",
+        "status": 200
+      },
+      {
+        "order": 6,
+        "kind": "csrf",
+        "count": 1
+      },
+      {
+        "order": 7,
+        "kind": "password",
+        "event": "request"
+      },
+      {
+        "order": 8,
+        "kind": "profile",
+        "event": "old-response",
+        "status": 401
+      },
+      {
+        "order": 9,
+        "kind": "password",
+        "event": "response",
+        "status": 200
+      },
+      {
+        "order": 10,
+        "kind": "csrf",
+        "count": 2
+      },
+      {
+        "order": 11,
+        "kind": "posts",
+        "event": "request",
+        "count": 2
+      },
+      {
+        "order": 12,
+        "kind": "posts",
+        "event": "current-response",
+        "status": 200
+      },
+      {
+        "order": 13,
+        "kind": "profile",
+        "event": "request",
+        "count": 2
+      },
+      {
+        "order": 14,
+        "kind": "profile",
+        "event": "current-response",
+        "status": 401
+      },
+      {
+        "order": 15,
+        "kind": "summary",
+        "event": "request",
+        "count": 2
+      },
+      {
+        "order": 16,
+        "kind": "summary",
+        "event": "current-response",
+        "status": 200
+      }
+    ]
+  },
+  {
+    "name": "summary: new generation 401 still expires current session",
+    "counts": {
+      "profile": 2,
+      "summary": 2,
+      "posts": 2
+    },
+    "events": [
+      {
+        "order": 1,
+        "kind": "profile",
+        "event": "request",
+        "count": 1
+      },
+      {
+        "order": 2,
+        "kind": "profile",
+        "event": "current-response",
+        "status": 200
+      },
+      {
+        "order": 3,
+        "kind": "summary",
+        "event": "request",
+        "count": 1
+      },
+      {
+        "order": 4,
+        "kind": "posts",
+        "event": "request",
+        "count": 1
+      },
+      {
+        "order": 5,
+        "kind": "posts",
+        "event": "current-response",
+        "status": 200
+      },
+      {
+        "order": 6,
+        "kind": "csrf",
+        "count": 1
+      },
+      {
+        "order": 7,
+        "kind": "password",
+        "event": "request"
+      },
+      {
+        "order": 8,
+        "kind": "summary",
+        "event": "old-response",
+        "status": 401
+      },
+      {
+        "order": 9,
+        "kind": "password",
+        "event": "response",
+        "status": 200
+      },
+      {
+        "order": 10,
+        "kind": "csrf",
+        "count": 2
+      },
+      {
+        "order": 11,
+        "kind": "posts",
+        "event": "request",
+        "count": 2
+      },
+      {
+        "order": 12,
+        "kind": "posts",
+        "event": "current-response",
+        "status": 200
+      },
+      {
+        "order": 13,
+        "kind": "profile",
+        "event": "request",
+        "count": 2
+      },
+      {
+        "order": 14,
+        "kind": "profile",
+        "event": "current-response",
+        "status": 200
+      },
+      {
+        "order": 15,
+        "kind": "summary",
+        "event": "request",
+        "count": 2
+      },
+      {
+        "order": 16,
+        "kind": "summary",
+        "event": "current-response",
+        "status": 401
+      }
+    ]
+  },
+  {
+    "name": "posts: new generation 401 still expires current session",
+    "counts": {
+      "profile": 2,
+      "summary": 2,
+      "posts": 2
+    },
+    "events": [
+      {
+        "order": 1,
+        "kind": "profile",
+        "event": "request",
+        "count": 1
+      },
+      {
+        "order": 2,
+        "kind": "profile",
+        "event": "current-response",
+        "status": 200
+      },
+      {
+        "order": 3,
+        "kind": "summary",
+        "event": "request",
+        "count": 1
+      },
+      {
+        "order": 4,
+        "kind": "summary",
+        "event": "current-response",
+        "status": 200
+      },
+      {
+        "order": 5,
+        "kind": "posts",
+        "event": "request",
+        "count": 1
+      },
+      {
+        "order": 6,
+        "kind": "csrf",
+        "count": 1
+      },
+      {
+        "order": 7,
+        "kind": "password",
+        "event": "request"
+      },
+      {
+        "order": 8,
+        "kind": "posts",
+        "event": "old-response",
+        "status": 401
+      },
+      {
+        "order": 9,
+        "kind": "password",
+        "event": "response",
+        "status": 200
+      },
+      {
+        "order": 10,
+        "kind": "csrf",
+        "count": 2
+      },
+      {
+        "order": 11,
+        "kind": "posts",
+        "event": "request",
+        "count": 2
+      },
+      {
+        "order": 12,
+        "kind": "posts",
+        "event": "current-response",
+        "status": 401
+      },
+      {
+        "order": 13,
+        "kind": "profile",
+        "event": "request",
+        "count": 2
+      },
+      {
+        "order": 14,
+        "kind": "profile",
+        "event": "current-response",
+        "status": 200
+      },
+      {
+        "order": 15,
+        "kind": "summary",
+        "event": "request",
+        "count": 2
+      },
+      {
+        "order": 16,
+        "kind": "summary",
+        "event": "current-response",
+        "status": 200
+      }
+    ]
+  },
+  {
+    "name": "comments: new generation 401 still expires current session",
+    "counts": {
+      "profile": 2,
+      "summary": 2,
+      "posts": 1,
+      "comments": 2
+    },
+    "events": [
+      {
+        "order": 1,
+        "kind": "profile",
+        "event": "request",
+        "count": 1
+      },
+      {
+        "order": 2,
+        "kind": "profile",
+        "event": "current-response",
+        "status": 200
+      },
+      {
+        "order": 3,
+        "kind": "summary",
+        "event": "request",
+        "count": 1
+      },
+      {
+        "order": 4,
+        "kind": "summary",
+        "event": "current-response",
+        "status": 200
+      },
+      {
+        "order": 5,
+        "kind": "posts",
+        "event": "request",
+        "count": 1
+      },
+      {
+        "order": 6,
+        "kind": "posts",
+        "event": "current-response",
+        "status": 200
+      },
+      {
+        "order": 7,
+        "kind": "comments",
+        "event": "request",
+        "count": 1
+      },
+      {
+        "order": 8,
+        "kind": "csrf",
+        "count": 1
+      },
+      {
+        "order": 9,
+        "kind": "password",
+        "event": "request"
+      },
+      {
+        "order": 10,
+        "kind": "comments",
+        "event": "old-response",
+        "status": 401
+      },
+      {
+        "order": 11,
+        "kind": "password",
+        "event": "response",
+        "status": 200
+      },
+      {
+        "order": 12,
+        "kind": "csrf",
+        "count": 2
+      },
+      {
+        "order": 13,
+        "kind": "comments",
+        "event": "request",
+        "count": 2
+      },
+      {
+        "order": 14,
+        "kind": "comments",
+        "event": "current-response",
+        "status": 401
+      },
+      {
+        "order": 15,
+        "kind": "profile",
+        "event": "request",
+        "count": 2
+      },
+      {
+        "order": 16,
+        "kind": "profile",
+        "event": "current-response",
+        "status": 200
+      },
+      {
+        "order": 17,
+        "kind": "summary",
+        "event": "request",
+        "count": 2
+      },
+      {
+        "order": 18,
+        "kind": "summary",
+        "event": "current-response",
+        "status": 200
+      }
+    ]
+  },
+  {
+    "name": "profile: 401 after same-member login is stale",
+    "counts": {
+      "profile": 2,
+      "summary": 2,
+      "posts": 2
+    },
+    "events": [
+      {
+        "order": 1,
+        "kind": "profile",
+        "event": "request",
+        "count": 1
+      },
+      {
+        "order": 2,
+        "kind": "summary",
+        "event": "request",
+        "count": 1
+      },
+      {
+        "order": 3,
+        "kind": "summary",
+        "event": "current-response",
+        "status": 200
+      },
+      {
+        "order": 4,
+        "kind": "posts",
+        "event": "request",
+        "count": 1
+      },
+      {
+        "order": 5,
+        "kind": "posts",
+        "event": "current-response",
+        "status": 200
+      },
+      {
+        "order": 6,
+        "kind": "csrf",
+        "count": 1
+      },
+      {
+        "order": 7,
+        "kind": "csrf",
+        "count": 2
+      },
+      {
+        "order": 8,
+        "kind": "csrf",
+        "count": 3
+      },
+      {
+        "order": 9,
+        "kind": "profile",
+        "event": "request",
+        "count": 2
+      },
+      {
+        "order": 10,
+        "kind": "profile",
+        "event": "current-response",
+        "status": 200
+      },
+      {
+        "order": 11,
+        "kind": "summary",
+        "event": "request",
+        "count": 2
+      },
+      {
+        "order": 12,
+        "kind": "summary",
+        "event": "current-response",
+        "status": 200
+      },
+      {
+        "order": 13,
+        "kind": "posts",
+        "event": "request",
+        "count": 2
+      },
+      {
+        "order": 14,
+        "kind": "posts",
+        "event": "current-response",
+        "status": 200
+      },
+      {
+        "order": 15,
+        "kind": "profile",
+        "event": "old-response",
+        "status": 401
+      }
+    ]
+  },
+  {
+    "name": "summary: 401 after same-member login is stale",
+    "counts": {
+      "profile": 2,
+      "summary": 2,
+      "posts": 2
+    },
+    "events": [
+      {
+        "order": 1,
+        "kind": "profile",
+        "event": "request",
+        "count": 1
+      },
+      {
+        "order": 2,
+        "kind": "profile",
+        "event": "current-response",
+        "status": 200
+      },
+      {
+        "order": 3,
+        "kind": "summary",
+        "event": "request",
+        "count": 1
+      },
+      {
+        "order": 4,
+        "kind": "posts",
+        "event": "request",
+        "count": 1
+      },
+      {
+        "order": 5,
+        "kind": "posts",
+        "event": "current-response",
+        "status": 200
+      },
+      {
+        "order": 6,
+        "kind": "csrf",
+        "count": 1
+      },
+      {
+        "order": 7,
+        "kind": "csrf",
+        "count": 2
+      },
+      {
+        "order": 8,
+        "kind": "csrf",
+        "count": 3
+      },
+      {
+        "order": 9,
+        "kind": "profile",
+        "event": "request",
+        "count": 2
+      },
+      {
+        "order": 10,
+        "kind": "profile",
+        "event": "current-response",
+        "status": 200
+      },
+      {
+        "order": 11,
+        "kind": "summary",
+        "event": "request",
+        "count": 2
+      },
+      {
+        "order": 12,
+        "kind": "summary",
+        "event": "current-response",
+        "status": 200
+      },
+      {
+        "order": 13,
+        "kind": "posts",
+        "event": "request",
+        "count": 2
+      },
+      {
+        "order": 14,
+        "kind": "posts",
+        "event": "current-response",
+        "status": 200
+      },
+      {
+        "order": 15,
+        "kind": "summary",
+        "event": "old-response",
+        "status": 401
+      }
+    ]
+  },
+  {
+    "name": "posts: 401 after same-member login is stale",
+    "counts": {
+      "profile": 2,
+      "summary": 2,
+      "posts": 2
+    },
+    "events": [
+      {
+        "order": 1,
+        "kind": "profile",
+        "event": "request",
+        "count": 1
+      },
+      {
+        "order": 2,
+        "kind": "profile",
+        "event": "current-response",
+        "status": 200
+      },
+      {
+        "order": 3,
+        "kind": "summary",
+        "event": "request",
+        "count": 1
+      },
+      {
+        "order": 4,
+        "kind": "summary",
+        "event": "current-response",
+        "status": 200
+      },
+      {
+        "order": 5,
+        "kind": "posts",
+        "event": "request",
+        "count": 1
+      },
+      {
+        "order": 6,
+        "kind": "csrf",
+        "count": 1
+      },
+      {
+        "order": 7,
+        "kind": "csrf",
+        "count": 2
+      },
+      {
+        "order": 8,
+        "kind": "csrf",
+        "count": 3
+      },
+      {
+        "order": 9,
+        "kind": "profile",
+        "event": "request",
+        "count": 2
+      },
+      {
+        "order": 10,
+        "kind": "profile",
+        "event": "current-response",
+        "status": 200
+      },
+      {
+        "order": 11,
+        "kind": "summary",
+        "event": "request",
+        "count": 2
+      },
+      {
+        "order": 12,
+        "kind": "summary",
+        "event": "current-response",
+        "status": 200
+      },
+      {
+        "order": 13,
+        "kind": "posts",
+        "event": "request",
+        "count": 2
+      },
+      {
+        "order": 14,
+        "kind": "posts",
+        "event": "current-response",
+        "status": 200
+      },
+      {
+        "order": 15,
+        "kind": "posts",
+        "event": "old-response",
+        "status": 401
+      }
+    ]
+  },
+  {
+    "name": "comments: 401 after same-member login is stale",
+    "counts": {
+      "profile": 2,
+      "summary": 2,
+      "posts": 2,
+      "comments": 2
+    },
+    "events": [
+      {
+        "order": 1,
+        "kind": "profile",
+        "event": "request",
+        "count": 1
+      },
+      {
+        "order": 2,
+        "kind": "profile",
+        "event": "current-response",
+        "status": 200
+      },
+      {
+        "order": 3,
+        "kind": "summary",
+        "event": "request",
+        "count": 1
+      },
+      {
+        "order": 4,
+        "kind": "summary",
+        "event": "current-response",
+        "status": 200
+      },
+      {
+        "order": 5,
+        "kind": "posts",
+        "event": "request",
+        "count": 1
+      },
+      {
+        "order": 6,
+        "kind": "posts",
+        "event": "current-response",
+        "status": 200
+      },
+      {
+        "order": 7,
+        "kind": "comments",
+        "event": "request",
+        "count": 1
+      },
+      {
+        "order": 8,
+        "kind": "csrf",
+        "count": 1
+      },
+      {
+        "order": 9,
+        "kind": "csrf",
+        "count": 2
+      },
+      {
+        "order": 10,
+        "kind": "csrf",
+        "count": 3
+      },
+      {
+        "order": 11,
+        "kind": "profile",
+        "event": "request",
+        "count": 2
+      },
+      {
+        "order": 12,
+        "kind": "profile",
+        "event": "current-response",
+        "status": 200
+      },
+      {
+        "order": 13,
+        "kind": "summary",
+        "event": "request",
+        "count": 2
+      },
+      {
+        "order": 14,
+        "kind": "summary",
+        "event": "current-response",
+        "status": 200
+      },
+      {
+        "order": 15,
+        "kind": "posts",
+        "event": "request",
+        "count": 2
+      },
+      {
+        "order": 16,
+        "kind": "posts",
+        "event": "current-response",
+        "status": 200
+      },
+      {
+        "order": 17,
+        "kind": "comments",
+        "event": "request",
+        "count": 2
+      },
+      {
+        "order": 18,
+        "kind": "comments",
+        "event": "current-response",
+        "status": 200
+      },
+      {
+        "order": 19,
+        "kind": "comments",
+        "event": "old-response",
+        "status": 401
+      }
+    ]
+  },
+  {
+    "name": "profile: success after same-member login is stale",
+    "counts": {
+      "profile": 2,
+      "summary": 2,
+      "posts": 2
+    },
+    "events": [
+      {
+        "order": 1,
+        "kind": "profile",
+        "event": "request",
+        "count": 1
+      },
+      {
+        "order": 2,
+        "kind": "summary",
+        "event": "request",
+        "count": 1
+      },
+      {
+        "order": 3,
+        "kind": "summary",
+        "event": "current-response",
+        "status": 200
+      },
+      {
+        "order": 4,
+        "kind": "posts",
+        "event": "request",
+        "count": 1
+      },
+      {
+        "order": 5,
+        "kind": "posts",
+        "event": "current-response",
+        "status": 200
+      },
+      {
+        "order": 6,
+        "kind": "csrf",
+        "count": 1
+      },
+      {
+        "order": 7,
+        "kind": "csrf",
+        "count": 2
+      },
+      {
+        "order": 8,
+        "kind": "csrf",
+        "count": 3
+      },
+      {
+        "order": 9,
+        "kind": "profile",
+        "event": "request",
+        "count": 2
+      },
+      {
+        "order": 10,
+        "kind": "profile",
+        "event": "current-response",
+        "status": 200
+      },
+      {
+        "order": 11,
+        "kind": "summary",
+        "event": "request",
+        "count": 2
+      },
+      {
+        "order": 12,
+        "kind": "summary",
+        "event": "current-response",
+        "status": 200
+      },
+      {
+        "order": 13,
+        "kind": "posts",
+        "event": "request",
+        "count": 2
+      },
+      {
+        "order": 14,
+        "kind": "posts",
+        "event": "current-response",
+        "status": 200
+      },
+      {
+        "order": 15,
+        "kind": "profile",
+        "event": "old-response",
+        "status": 200
+      }
+    ]
+  },
+  {
+    "name": "summary: success after same-member login is stale",
+    "counts": {
+      "profile": 2,
+      "summary": 2,
+      "posts": 2
+    },
+    "events": [
+      {
+        "order": 1,
+        "kind": "profile",
+        "event": "request",
+        "count": 1
+      },
+      {
+        "order": 2,
+        "kind": "profile",
+        "event": "current-response",
+        "status": 200
+      },
+      {
+        "order": 3,
+        "kind": "summary",
+        "event": "request",
+        "count": 1
+      },
+      {
+        "order": 4,
+        "kind": "posts",
+        "event": "request",
+        "count": 1
+      },
+      {
+        "order": 5,
+        "kind": "posts",
+        "event": "current-response",
+        "status": 200
+      },
+      {
+        "order": 6,
+        "kind": "csrf",
+        "count": 1
+      },
+      {
+        "order": 7,
+        "kind": "csrf",
+        "count": 2
+      },
+      {
+        "order": 8,
+        "kind": "csrf",
+        "count": 3
+      },
+      {
+        "order": 9,
+        "kind": "profile",
+        "event": "request",
+        "count": 2
+      },
+      {
+        "order": 10,
+        "kind": "profile",
+        "event": "current-response",
+        "status": 200
+      },
+      {
+        "order": 11,
+        "kind": "summary",
+        "event": "request",
+        "count": 2
+      },
+      {
+        "order": 12,
+        "kind": "summary",
+        "event": "current-response",
+        "status": 200
+      },
+      {
+        "order": 13,
+        "kind": "posts",
+        "event": "request",
+        "count": 2
+      },
+      {
+        "order": 14,
+        "kind": "posts",
+        "event": "current-response",
+        "status": 200
+      },
+      {
+        "order": 15,
+        "kind": "summary",
+        "event": "old-response",
+        "status": 200
+      }
+    ]
+  },
+  {
+    "name": "posts: success after same-member login is stale",
+    "counts": {
+      "profile": 2,
+      "summary": 2,
+      "posts": 2
+    },
+    "events": [
+      {
+        "order": 1,
+        "kind": "profile",
+        "event": "request",
+        "count": 1
+      },
+      {
+        "order": 2,
+        "kind": "profile",
+        "event": "current-response",
+        "status": 200
+      },
+      {
+        "order": 3,
+        "kind": "summary",
+        "event": "request",
+        "count": 1
+      },
+      {
+        "order": 4,
+        "kind": "summary",
+        "event": "current-response",
+        "status": 200
+      },
+      {
+        "order": 5,
+        "kind": "posts",
+        "event": "request",
+        "count": 1
+      },
+      {
+        "order": 6,
+        "kind": "csrf",
+        "count": 1
+      },
+      {
+        "order": 7,
+        "kind": "csrf",
+        "count": 2
+      },
+      {
+        "order": 8,
+        "kind": "csrf",
+        "count": 3
+      },
+      {
+        "order": 9,
+        "kind": "profile",
+        "event": "request",
+        "count": 2
+      },
+      {
+        "order": 10,
+        "kind": "profile",
+        "event": "current-response",
+        "status": 200
+      },
+      {
+        "order": 11,
+        "kind": "summary",
+        "event": "request",
+        "count": 2
+      },
+      {
+        "order": 12,
+        "kind": "summary",
+        "event": "current-response",
+        "status": 200
+      },
+      {
+        "order": 13,
+        "kind": "posts",
+        "event": "request",
+        "count": 2
+      },
+      {
+        "order": 14,
+        "kind": "posts",
+        "event": "current-response",
+        "status": 200
+      },
+      {
+        "order": 15,
+        "kind": "posts",
+        "event": "old-response",
+        "status": 200
+      }
+    ]
+  },
+  {
+    "name": "comments: success after same-member login is stale",
+    "counts": {
+      "profile": 2,
+      "summary": 2,
+      "posts": 2,
+      "comments": 2
+    },
+    "events": [
+      {
+        "order": 1,
+        "kind": "profile",
+        "event": "request",
+        "count": 1
+      },
+      {
+        "order": 2,
+        "kind": "profile",
+        "event": "current-response",
+        "status": 200
+      },
+      {
+        "order": 3,
+        "kind": "summary",
+        "event": "request",
+        "count": 1
+      },
+      {
+        "order": 4,
+        "kind": "summary",
+        "event": "current-response",
+        "status": 200
+      },
+      {
+        "order": 5,
+        "kind": "posts",
+        "event": "request",
+        "count": 1
+      },
+      {
+        "order": 6,
+        "kind": "posts",
+        "event": "current-response",
+        "status": 200
+      },
+      {
+        "order": 7,
+        "kind": "comments",
+        "event": "request",
+        "count": 1
+      },
+      {
+        "order": 8,
+        "kind": "csrf",
+        "count": 1
+      },
+      {
+        "order": 9,
+        "kind": "csrf",
+        "count": 2
+      },
+      {
+        "order": 10,
+        "kind": "csrf",
+        "count": 3
+      },
+      {
+        "order": 11,
+        "kind": "profile",
+        "event": "request",
+        "count": 2
+      },
+      {
+        "order": 12,
+        "kind": "profile",
+        "event": "current-response",
+        "status": 200
+      },
+      {
+        "order": 13,
+        "kind": "summary",
+        "event": "request",
+        "count": 2
+      },
+      {
+        "order": 14,
+        "kind": "summary",
+        "event": "current-response",
+        "status": 200
+      },
+      {
+        "order": 15,
+        "kind": "posts",
+        "event": "request",
+        "count": 2
+      },
+      {
+        "order": 16,
+        "kind": "posts",
+        "event": "current-response",
+        "status": 200
+      },
+      {
+        "order": 17,
+        "kind": "comments",
+        "event": "request",
+        "count": 2
+      },
+      {
+        "order": 18,
+        "kind": "comments",
+        "event": "current-response",
+        "status": 200
+      },
+      {
+        "order": 19,
+        "kind": "comments",
+        "event": "old-response",
+        "status": 200
+      }
+    ]
+  },
+  {
+    "name": "profile: 401 after other-member login is stale",
+    "counts": {
+      "profile": 2,
+      "summary": 2,
+      "posts": 2
+    },
+    "events": [
+      {
+        "order": 1,
+        "kind": "profile",
+        "event": "request",
+        "count": 1
+      },
+      {
+        "order": 2,
+        "kind": "summary",
+        "event": "request",
+        "count": 1
+      },
+      {
+        "order": 3,
+        "kind": "summary",
+        "event": "current-response",
+        "status": 200
+      },
+      {
+        "order": 4,
+        "kind": "posts",
+        "event": "request",
+        "count": 1
+      },
+      {
+        "order": 5,
+        "kind": "posts",
+        "event": "current-response",
+        "status": 200
+      },
+      {
+        "order": 6,
+        "kind": "csrf",
+        "count": 1
+      },
+      {
+        "order": 7,
+        "kind": "csrf",
+        "count": 2
+      },
+      {
+        "order": 8,
+        "kind": "csrf",
+        "count": 3
+      },
+      {
+        "order": 9,
+        "kind": "profile",
+        "event": "request",
+        "count": 2
+      },
+      {
+        "order": 10,
+        "kind": "profile",
+        "event": "current-response",
+        "status": 200
+      },
+      {
+        "order": 11,
+        "kind": "summary",
+        "event": "request",
+        "count": 2
+      },
+      {
+        "order": 12,
+        "kind": "summary",
+        "event": "current-response",
+        "status": 200
+      },
+      {
+        "order": 13,
+        "kind": "posts",
+        "event": "request",
+        "count": 2
+      },
+      {
+        "order": 14,
+        "kind": "posts",
+        "event": "current-response",
+        "status": 200
+      },
+      {
+        "order": 15,
+        "kind": "profile",
+        "event": "old-response",
+        "status": 401
+      }
+    ]
+  },
+  {
+    "name": "summary: 401 after other-member login is stale",
+    "counts": {
+      "profile": 2,
+      "summary": 2,
+      "posts": 2
+    },
+    "events": [
+      {
+        "order": 1,
+        "kind": "profile",
+        "event": "request",
+        "count": 1
+      },
+      {
+        "order": 2,
+        "kind": "profile",
+        "event": "current-response",
+        "status": 200
+      },
+      {
+        "order": 3,
+        "kind": "summary",
+        "event": "request",
+        "count": 1
+      },
+      {
+        "order": 4,
+        "kind": "posts",
+        "event": "request",
+        "count": 1
+      },
+      {
+        "order": 5,
+        "kind": "posts",
+        "event": "current-response",
+        "status": 200
+      },
+      {
+        "order": 6,
+        "kind": "csrf",
+        "count": 1
+      },
+      {
+        "order": 7,
+        "kind": "csrf",
+        "count": 2
+      },
+      {
+        "order": 8,
+        "kind": "csrf",
+        "count": 3
+      },
+      {
+        "order": 9,
+        "kind": "profile",
+        "event": "request",
+        "count": 2
+      },
+      {
+        "order": 10,
+        "kind": "profile",
+        "event": "current-response",
+        "status": 200
+      },
+      {
+        "order": 11,
+        "kind": "summary",
+        "event": "request",
+        "count": 2
+      },
+      {
+        "order": 12,
+        "kind": "summary",
+        "event": "current-response",
+        "status": 200
+      },
+      {
+        "order": 13,
+        "kind": "posts",
+        "event": "request",
+        "count": 2
+      },
+      {
+        "order": 14,
+        "kind": "posts",
+        "event": "current-response",
+        "status": 200
+      },
+      {
+        "order": 15,
+        "kind": "summary",
+        "event": "old-response",
+        "status": 401
+      }
+    ]
+  },
+  {
+    "name": "posts: 401 after other-member login is stale",
+    "counts": {
+      "profile": 2,
+      "summary": 2,
+      "posts": 2
+    },
+    "events": [
+      {
+        "order": 1,
+        "kind": "profile",
+        "event": "request",
+        "count": 1
+      },
+      {
+        "order": 2,
+        "kind": "profile",
+        "event": "current-response",
+        "status": 200
+      },
+      {
+        "order": 3,
+        "kind": "summary",
+        "event": "request",
+        "count": 1
+      },
+      {
+        "order": 4,
+        "kind": "summary",
+        "event": "current-response",
+        "status": 200
+      },
+      {
+        "order": 5,
+        "kind": "posts",
+        "event": "request",
+        "count": 1
+      },
+      {
+        "order": 6,
+        "kind": "csrf",
+        "count": 1
+      },
+      {
+        "order": 7,
+        "kind": "csrf",
+        "count": 2
+      },
+      {
+        "order": 8,
+        "kind": "csrf",
+        "count": 3
+      },
+      {
+        "order": 9,
+        "kind": "profile",
+        "event": "request",
+        "count": 2
+      },
+      {
+        "order": 10,
+        "kind": "profile",
+        "event": "current-response",
+        "status": 200
+      },
+      {
+        "order": 11,
+        "kind": "summary",
+        "event": "request",
+        "count": 2
+      },
+      {
+        "order": 12,
+        "kind": "summary",
+        "event": "current-response",
+        "status": 200
+      },
+      {
+        "order": 13,
+        "kind": "posts",
+        "event": "request",
+        "count": 2
+      },
+      {
+        "order": 14,
+        "kind": "posts",
+        "event": "current-response",
+        "status": 200
+      },
+      {
+        "order": 15,
+        "kind": "posts",
+        "event": "old-response",
+        "status": 401
+      }
+    ]
+  },
+  {
+    "name": "comments: 401 after other-member login is stale",
+    "counts": {
+      "profile": 2,
+      "summary": 2,
+      "posts": 2,
+      "comments": 2
+    },
+    "events": [
+      {
+        "order": 1,
+        "kind": "profile",
+        "event": "request",
+        "count": 1
+      },
+      {
+        "order": 2,
+        "kind": "profile",
+        "event": "current-response",
+        "status": 200
+      },
+      {
+        "order": 3,
+        "kind": "summary",
+        "event": "request",
+        "count": 1
+      },
+      {
+        "order": 4,
+        "kind": "summary",
+        "event": "current-response",
+        "status": 200
+      },
+      {
+        "order": 5,
+        "kind": "posts",
+        "event": "request",
+        "count": 1
+      },
+      {
+        "order": 6,
+        "kind": "posts",
+        "event": "current-response",
+        "status": 200
+      },
+      {
+        "order": 7,
+        "kind": "comments",
+        "event": "request",
+        "count": 1
+      },
+      {
+        "order": 8,
+        "kind": "csrf",
+        "count": 1
+      },
+      {
+        "order": 9,
+        "kind": "csrf",
+        "count": 2
+      },
+      {
+        "order": 10,
+        "kind": "csrf",
+        "count": 3
+      },
+      {
+        "order": 11,
+        "kind": "profile",
+        "event": "request",
+        "count": 2
+      },
+      {
+        "order": 12,
+        "kind": "profile",
+        "event": "current-response",
+        "status": 200
+      },
+      {
+        "order": 13,
+        "kind": "summary",
+        "event": "request",
+        "count": 2
+      },
+      {
+        "order": 14,
+        "kind": "summary",
+        "event": "current-response",
+        "status": 200
+      },
+      {
+        "order": 15,
+        "kind": "posts",
+        "event": "request",
+        "count": 2
+      },
+      {
+        "order": 16,
+        "kind": "posts",
+        "event": "current-response",
+        "status": 200
+      },
+      {
+        "order": 17,
+        "kind": "comments",
+        "event": "request",
+        "count": 2
+      },
+      {
+        "order": 18,
+        "kind": "comments",
+        "event": "current-response",
+        "status": 200
+      },
+      {
+        "order": 19,
+        "kind": "comments",
+        "event": "old-response",
+        "status": 401
+      }
+    ]
+  },
+  {
+    "name": "profile: success after other-member login is stale",
+    "counts": {
+      "profile": 2,
+      "summary": 2,
+      "posts": 2
+    },
+    "events": [
+      {
+        "order": 1,
+        "kind": "profile",
+        "event": "request",
+        "count": 1
+      },
+      {
+        "order": 2,
+        "kind": "summary",
+        "event": "request",
+        "count": 1
+      },
+      {
+        "order": 3,
+        "kind": "summary",
+        "event": "current-response",
+        "status": 200
+      },
+      {
+        "order": 4,
+        "kind": "posts",
+        "event": "request",
+        "count": 1
+      },
+      {
+        "order": 5,
+        "kind": "posts",
+        "event": "current-response",
+        "status": 200
+      },
+      {
+        "order": 6,
+        "kind": "csrf",
+        "count": 1
+      },
+      {
+        "order": 7,
+        "kind": "csrf",
+        "count": 2
+      },
+      {
+        "order": 8,
+        "kind": "csrf",
+        "count": 3
+      },
+      {
+        "order": 9,
+        "kind": "profile",
+        "event": "request",
+        "count": 2
+      },
+      {
+        "order": 10,
+        "kind": "profile",
+        "event": "current-response",
+        "status": 200
+      },
+      {
+        "order": 11,
+        "kind": "summary",
+        "event": "request",
+        "count": 2
+      },
+      {
+        "order": 12,
+        "kind": "summary",
+        "event": "current-response",
+        "status": 200
+      },
+      {
+        "order": 13,
+        "kind": "posts",
+        "event": "request",
+        "count": 2
+      },
+      {
+        "order": 14,
+        "kind": "posts",
+        "event": "current-response",
+        "status": 200
+      },
+      {
+        "order": 15,
+        "kind": "profile",
+        "event": "old-response",
+        "status": 200
+      }
+    ]
+  },
+  {
+    "name": "summary: success after other-member login is stale",
+    "counts": {
+      "profile": 2,
+      "summary": 2,
+      "posts": 2
+    },
+    "events": [
+      {
+        "order": 1,
+        "kind": "profile",
+        "event": "request",
+        "count": 1
+      },
+      {
+        "order": 2,
+        "kind": "profile",
+        "event": "current-response",
+        "status": 200
+      },
+      {
+        "order": 3,
+        "kind": "summary",
+        "event": "request",
+        "count": 1
+      },
+      {
+        "order": 4,
+        "kind": "posts",
+        "event": "request",
+        "count": 1
+      },
+      {
+        "order": 5,
+        "kind": "posts",
+        "event": "current-response",
+        "status": 200
+      },
+      {
+        "order": 6,
+        "kind": "csrf",
+        "count": 1
+      },
+      {
+        "order": 7,
+        "kind": "csrf",
+        "count": 2
+      },
+      {
+        "order": 8,
+        "kind": "csrf",
+        "count": 3
+      },
+      {
+        "order": 9,
+        "kind": "profile",
+        "event": "request",
+        "count": 2
+      },
+      {
+        "order": 10,
+        "kind": "profile",
+        "event": "current-response",
+        "status": 200
+      },
+      {
+        "order": 11,
+        "kind": "summary",
+        "event": "request",
+        "count": 2
+      },
+      {
+        "order": 12,
+        "kind": "summary",
+        "event": "current-response",
+        "status": 200
+      },
+      {
+        "order": 13,
+        "kind": "posts",
+        "event": "request",
+        "count": 2
+      },
+      {
+        "order": 14,
+        "kind": "posts",
+        "event": "current-response",
+        "status": 200
+      },
+      {
+        "order": 15,
+        "kind": "summary",
+        "event": "old-response",
+        "status": 200
+      }
+    ]
+  },
+  {
+    "name": "posts: success after other-member login is stale",
+    "counts": {
+      "profile": 2,
+      "summary": 2,
+      "posts": 2
+    },
+    "events": [
+      {
+        "order": 1,
+        "kind": "profile",
+        "event": "request",
+        "count": 1
+      },
+      {
+        "order": 2,
+        "kind": "profile",
+        "event": "current-response",
+        "status": 200
+      },
+      {
+        "order": 3,
+        "kind": "summary",
+        "event": "request",
+        "count": 1
+      },
+      {
+        "order": 4,
+        "kind": "summary",
+        "event": "current-response",
+        "status": 200
+      },
+      {
+        "order": 5,
+        "kind": "posts",
+        "event": "request",
+        "count": 1
+      },
+      {
+        "order": 6,
+        "kind": "csrf",
+        "count": 1
+      },
+      {
+        "order": 7,
+        "kind": "csrf",
+        "count": 2
+      },
+      {
+        "order": 8,
+        "kind": "csrf",
+        "count": 3
+      },
+      {
+        "order": 9,
+        "kind": "profile",
+        "event": "request",
+        "count": 2
+      },
+      {
+        "order": 10,
+        "kind": "profile",
+        "event": "current-response",
+        "status": 200
+      },
+      {
+        "order": 11,
+        "kind": "summary",
+        "event": "request",
+        "count": 2
+      },
+      {
+        "order": 12,
+        "kind": "summary",
+        "event": "current-response",
+        "status": 200
+      },
+      {
+        "order": 13,
+        "kind": "posts",
+        "event": "request",
+        "count": 2
+      },
+      {
+        "order": 14,
+        "kind": "posts",
+        "event": "current-response",
+        "status": 200
+      },
+      {
+        "order": 15,
+        "kind": "posts",
+        "event": "old-response",
+        "status": 200
+      }
+    ]
+  },
+  {
+    "name": "comments: success after other-member login is stale",
+    "counts": {
+      "profile": 2,
+      "summary": 2,
+      "posts": 2,
+      "comments": 2
+    },
+    "events": [
+      {
+        "order": 1,
+        "kind": "profile",
+        "event": "request",
+        "count": 1
+      },
+      {
+        "order": 2,
+        "kind": "profile",
+        "event": "current-response",
+        "status": 200
+      },
+      {
+        "order": 3,
+        "kind": "summary",
+        "event": "request",
+        "count": 1
+      },
+      {
+        "order": 4,
+        "kind": "summary",
+        "event": "current-response",
+        "status": 200
+      },
+      {
+        "order": 5,
+        "kind": "posts",
+        "event": "request",
+        "count": 1
+      },
+      {
+        "order": 6,
+        "kind": "posts",
+        "event": "current-response",
+        "status": 200
+      },
+      {
+        "order": 7,
+        "kind": "comments",
+        "event": "request",
+        "count": 1
+      },
+      {
+        "order": 8,
+        "kind": "csrf",
+        "count": 1
+      },
+      {
+        "order": 9,
+        "kind": "csrf",
+        "count": 2
+      },
+      {
+        "order": 10,
+        "kind": "csrf",
+        "count": 3
+      },
+      {
+        "order": 11,
+        "kind": "profile",
+        "event": "request",
+        "count": 2
+      },
+      {
+        "order": 12,
+        "kind": "profile",
+        "event": "current-response",
+        "status": 200
+      },
+      {
+        "order": 13,
+        "kind": "summary",
+        "event": "request",
+        "count": 2
+      },
+      {
+        "order": 14,
+        "kind": "summary",
+        "event": "current-response",
+        "status": 200
+      },
+      {
+        "order": 15,
+        "kind": "posts",
+        "event": "request",
+        "count": 2
+      },
+      {
+        "order": 16,
+        "kind": "posts",
+        "event": "current-response",
+        "status": 200
+      },
+      {
+        "order": 17,
+        "kind": "comments",
+        "event": "request",
+        "count": 2
+      },
+      {
+        "order": 18,
+        "kind": "comments",
+        "event": "current-response",
+        "status": 200
+      },
+      {
+        "order": 19,
+        "kind": "comments",
+        "event": "old-response",
+        "status": 200
+      }
+    ]
+  },
+  {
+    "name": "confirmed change survives follow-up CSRF failure and resumed reads finish",
+    "counts": {
+      "profile": 2,
+      "summary": 2,
+      "posts": 2
+    },
+    "events": [
+      {
+        "order": 1,
+        "kind": "profile",
+        "event": "request",
+        "count": 1
+      },
+      {
+        "order": 2,
+        "kind": "summary",
+        "event": "request",
+        "count": 1
+      },
+      {
+        "order": 3,
+        "kind": "summary",
+        "event": "current-response",
+        "status": 200
+      },
+      {
+        "order": 4,
+        "kind": "posts",
+        "event": "request",
+        "count": 1
+      },
+      {
+        "order": 5,
+        "kind": "posts",
+        "event": "current-response",
+        "status": 200
+      },
+      {
+        "order": 6,
+        "kind": "csrf",
+        "count": 1
+      },
+      {
+        "order": 7,
+        "kind": "password",
+        "event": "request"
+      },
+      {
+        "order": 8,
+        "kind": "password",
+        "event": "response",
+        "status": 200
+      },
+      {
+        "order": 9,
+        "kind": "csrf",
+        "count": 2
+      },
+      {
+        "order": 10,
+        "kind": "posts",
+        "event": "request",
+        "count": 2
+      },
+      {
+        "order": 11,
+        "kind": "posts",
+        "event": "current-response",
+        "status": 200
+      },
+      {
+        "order": 12,
+        "kind": "profile",
+        "event": "request",
+        "count": 2
+      },
+      {
+        "order": 13,
+        "kind": "profile",
+        "event": "current-response",
+        "status": 200
+      },
+      {
+        "order": 14,
+        "kind": "summary",
+        "event": "request",
+        "count": 2
+      },
+      {
+        "order": 15,
+        "kind": "summary",
+        "event": "current-response",
+        "status": 200
+      },
+      {
+        "order": 16,
+        "kind": "profile",
+        "event": "old-response",
+        "status": 401
+      }
+    ]
+  },
+  {
+    "name": "old 401 first then password relogin uses only confirmed outcome",
+    "counts": {
+      "profile": 1,
+      "summary": 1,
+      "posts": 1
+    },
+    "events": [
+      {
+        "order": 1,
+        "kind": "profile",
+        "event": "request",
+        "count": 1
+      },
+      {
+        "order": 2,
+        "kind": "profile",
+        "event": "current-response",
+        "status": 200
+      },
+      {
+        "order": 3,
+        "kind": "summary",
+        "event": "request",
+        "count": 1
+      },
+      {
+        "order": 4,
+        "kind": "posts",
+        "event": "request",
+        "count": 1
+      },
+      {
+        "order": 5,
+        "kind": "posts",
+        "event": "current-response",
+        "status": 200
+      },
+      {
+        "order": 6,
+        "kind": "csrf",
+        "count": 1
+      },
+      {
+        "order": 7,
+        "kind": "password",
+        "event": "request"
+      },
+      {
+        "order": 8,
+        "kind": "summary",
+        "event": "old-response",
+        "status": 401
+      },
+      {
+        "order": 9,
+        "kind": "password",
+        "event": "response",
+        "status": 200
+      }
+    ]
+  },
+  {
+    "name": "old 401 first then password 401 uses only confirmed outcome",
+    "counts": {
+      "profile": 1,
+      "summary": 1,
+      "posts": 1
+    },
+    "events": [
+      {
+        "order": 1,
+        "kind": "profile",
+        "event": "request",
+        "count": 1
+      },
+      {
+        "order": 2,
+        "kind": "profile",
+        "event": "current-response",
+        "status": 200
+      },
+      {
+        "order": 3,
+        "kind": "summary",
+        "event": "request",
+        "count": 1
+      },
+      {
+        "order": 4,
+        "kind": "posts",
+        "event": "request",
+        "count": 1
+      },
+      {
+        "order": 5,
+        "kind": "posts",
+        "event": "current-response",
+        "status": 200
+      },
+      {
+        "order": 6,
+        "kind": "csrf",
+        "count": 1
+      },
+      {
+        "order": 7,
+        "kind": "password",
+        "event": "request"
+      },
+      {
+        "order": 8,
+        "kind": "summary",
+        "event": "old-response",
+        "status": 401
+      },
+      {
+        "order": 9,
+        "kind": "password",
+        "event": "response",
+        "status": 401
+      }
+    ]
+  },
+  {
+    "name": "old 401 first then password 503 uses only confirmed outcome",
+    "counts": {
+      "profile": 2,
+      "summary": 2,
+      "posts": 2
+    },
+    "events": [
+      {
+        "order": 1,
+        "kind": "profile",
+        "event": "request",
+        "count": 1
+      },
+      {
+        "order": 2,
+        "kind": "profile",
+        "event": "current-response",
+        "status": 200
+      },
+      {
+        "order": 3,
+        "kind": "summary",
+        "event": "request",
+        "count": 1
+      },
+      {
+        "order": 4,
+        "kind": "posts",
+        "event": "request",
+        "count": 1
+      },
+      {
+        "order": 5,
+        "kind": "posts",
+        "event": "current-response",
+        "status": 200
+      },
+      {
+        "order": 6,
+        "kind": "csrf",
+        "count": 1
+      },
+      {
+        "order": 7,
+        "kind": "password",
+        "event": "request"
+      },
+      {
+        "order": 8,
+        "kind": "summary",
+        "event": "old-response",
+        "status": 401
+      },
+      {
+        "order": 9,
+        "kind": "password",
+        "event": "response",
+        "status": 503
+      },
+      {
+        "order": 10,
+        "kind": "posts",
+        "event": "request",
+        "count": 2
+      },
+      {
+        "order": 11,
+        "kind": "posts",
+        "event": "current-response",
+        "status": 200
+      },
+      {
+        "order": 12,
+        "kind": "profile",
+        "event": "request",
+        "count": 2
+      },
+      {
+        "order": 13,
+        "kind": "profile",
+        "event": "current-response",
+        "status": 200
+      },
+      {
+        "order": 14,
+        "kind": "summary",
+        "event": "request",
+        "count": 2
+      },
+      {
+        "order": 15,
+        "kind": "summary",
+        "event": "current-response",
+        "status": 200
+      }
+    ]
+  },
+  {
+    "name": "old 401 first then password 400 uses only confirmed outcome",
+    "counts": {
+      "profile": 2,
+      "summary": 2,
+      "posts": 2
+    },
+    "events": [
+      {
+        "order": 1,
+        "kind": "profile",
+        "event": "request",
+        "count": 1
+      },
+      {
+        "order": 2,
+        "kind": "profile",
+        "event": "current-response",
+        "status": 200
+      },
+      {
+        "order": 3,
+        "kind": "summary",
+        "event": "request",
+        "count": 1
+      },
+      {
+        "order": 4,
+        "kind": "posts",
+        "event": "request",
+        "count": 1
+      },
+      {
+        "order": 5,
+        "kind": "posts",
+        "event": "current-response",
+        "status": 200
+      },
+      {
+        "order": 6,
+        "kind": "csrf",
+        "count": 1
+      },
+      {
+        "order": 7,
+        "kind": "password",
+        "event": "request"
+      },
+      {
+        "order": 8,
+        "kind": "summary",
+        "event": "old-response",
+        "status": 401
+      },
+      {
+        "order": 9,
+        "kind": "password",
+        "event": "response",
+        "status": 400
+      },
+      {
+        "order": 10,
+        "kind": "posts",
+        "event": "request",
+        "count": 2
+      },
+      {
+        "order": 11,
+        "kind": "posts",
+        "event": "current-response",
+        "status": 200
+      },
+      {
+        "order": 12,
+        "kind": "profile",
+        "event": "request",
+        "count": 2
+      },
+      {
+        "order": 13,
+        "kind": "profile",
+        "event": "current-response",
+        "status": 200
+      },
+      {
+        "order": 14,
+        "kind": "summary",
+        "event": "request",
+        "count": 2
+      },
+      {
+        "order": 15,
+        "kind": "summary",
+        "event": "current-response",
+        "status": 200
+      }
+    ]
+  }
+]

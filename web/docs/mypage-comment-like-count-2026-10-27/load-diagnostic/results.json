@@ -1,0 +1,9 @@
+{
+  "kind": "controlled mock API on production Next; no DB writes",
+  "results": [
+    {
+      "name": "zero summary and summary error do not hide comments; actual empty remains distinct",
+      "pass": true
+    }
+  ]
+}

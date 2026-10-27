@@ -1,6 +1,8 @@
 package io.github.takgeun.iyum.member.api;
 
 import io.github.takgeun.iyum.community.comment.domain.Comment;
+import io.github.takgeun.iyum.community.comment.domain.CommentLike;
+import io.github.takgeun.iyum.community.comment.infrastructure.CommentLikeRepository;
 import io.github.takgeun.iyum.community.comment.infrastructure.CommentRepository;
 import io.github.takgeun.iyum.community.post.domain.Post;
 import io.github.takgeun.iyum.community.post.domain.PostTopic;
@@ -103,6 +105,9 @@ class MemberCommentSessionIntegrationTest {
     CommentRepository commentRepository;
 
     @Autowired
+    CommentLikeRepository commentLikeRepository;
+
+    @Autowired
     JdbcTemplate jdbcTemplate;
 
     private Member member;
@@ -122,6 +127,7 @@ class MemberCommentSessionIntegrationTest {
     @BeforeEach
     void setUp() {
         // 이 클래스의 테스트 전용 DB만 초기화한다.
+        commentLikeRepository.deleteAllInBatch();
         commentRepository.deleteAllInBatch();
         postRepository.deleteAllInBatch();
         memberRepository.deleteAllInBatch();
@@ -202,8 +208,17 @@ class MemberCommentSessionIntegrationTest {
     @Test
     void 실제_로그인_후_응답_커서로_다음_내_댓글을_조회한다()
             throws Exception {
-        MockHttpSession session = login(member.getEmail());
 
+        // 최신 댓글: 본인과 다른 회원이 눌러 총 2개
+        saveCommentLike(newestCommentId, member);
+        saveCommentLike(newestCommentId, otherMember);
+
+        // 중간 댓글: 좋아요 없음
+
+        // 가장 오래된 댓글: 다른 회원이 눌러 총 1개
+        saveCommentLike(oldestCommentId, otherMember);
+
+        MockHttpSession session = login(member.getEmail());
         // GET 조회에는 CSRF 토큰을 전달하지 않는다.
         MvcResult firstResult = mockMvc.perform(get(BASE)
                         .session(session)
@@ -238,6 +253,10 @@ class MemberCommentSessionIntegrationTest {
                         .value(SAME_TIME.toString()))
                 .andExpect(jsonPath("$.nextCursor.commentId")
                         .value(is(middleCommentId), Long.class))
+                .andExpect(jsonPath("$.items[0].likeCount").value(2))
+                .andExpect(jsonPath("$.items[1].likeCount").value(0))
+                .andExpect(jsonPath("$.items[0].liked").value(true))
+                .andExpect(jsonPath("$.items[1].liked").value(false))
                 .andReturn();
 
         JsonNode first = readJson(firstResult);
@@ -266,6 +285,8 @@ class MemberCommentSessionIntegrationTest {
                         .value(is(oldestCommentId), Long.class))
                 .andExpect(jsonPath("$.hasNext").value(false))
                 .andExpect(jsonPath("$.nextCursor").value(nullValue()))
+                .andExpect(jsonPath("$.items[0].likeCount").value(1))
+                .andExpect(jsonPath("$.items[0].liked").value(false))
                 .andReturn();
 
         JsonNode second = readJson(secondResult);
@@ -444,5 +465,17 @@ class MemberCommentSessionIntegrationTest {
             ids.add(item.path("commentId").asLong());
         }
         return ids;
+    }
+
+    private void saveCommentLike(
+            Long commentId,
+            Member liker
+    ) {
+        Comment comment = commentRepository.findById(commentId)
+                .orElseThrow();
+
+        commentLikeRepository.saveAndFlush(
+                CommentLike.create(comment, liker)
+        );
     }
 }

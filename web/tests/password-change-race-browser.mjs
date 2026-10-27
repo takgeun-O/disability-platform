@@ -16,7 +16,7 @@ function data(kind, who, fresh = true) {
   const stamp = '2026-10-24T00:00:00.123456Z';
   if (kind === 'profile') return { ...who, nickname: fresh ? who.nickname : '오래된회원', createdAt: stamp };
   if (kind === 'summary') return { postCount: fresh ? 2 : 999, commentCount: fresh ? 2 : 999 };
-  return { items: [2, 1].map(id => kind === 'posts' ? { id, type: 'QUESTION', topic: 'HEARING_AID', title: `${fresh ? who.nickname : '오래된회원'} 게시글 ${id}`, contentPreview: '검토 미리보기', likeCount: 0, liked: false, author: who, createdAt: stamp, commentCount: 0 } : { commentId: id, content: `${fresh ? who.nickname : '오래된회원'} 댓글 ${id}`, createdAt: stamp, updatedAt: stamp, post: { postId: id, title: '원문', type: 'QUESTION', topic: 'HEARING_AID' } }), hasNext: false, nextCursor: null };
+  return { items: [2, 1].map(id => kind === 'posts' ? { id, type: 'QUESTION', topic: 'HEARING_AID', title: `${fresh ? who.nickname : '오래된회원'} 게시글 ${id}`, contentPreview: '검토 미리보기', likeCount: 0, liked: false, author: who, createdAt: stamp, commentCount: 0 } : { liked: false, likeCount: 0, commentId: id, content: `${fresh ? who.nickname : '오래된회원'} 댓글 ${id}`, createdAt: stamp, updatedAt: stamp, post: { postId: id, title: '원문', type: 'QUESTION', topic: 'HEARING_AID' } }), hasNext: false, nextCursor: null };
 }
 async function fixture(kind, width = 1440) {
   const ctx = await browser.newContext({ viewport: { width, height: 900 } });

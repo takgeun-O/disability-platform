@@ -12,7 +12,16 @@ public record MemberCommentItemResponse(
         String content,
         Instant createdAt,
         Instant updatedAt,
-        MemberCommentPostResponse post
+        MemberCommentPostResponse post,
+
+        @Schema(description = "댓글이 받은 좋아요 개수", example = "3")
+        long likeCount,
+
+        @Schema(
+                description = "로그인한 회원이 해당 댓글에 좋아요를 눌렀는지 여부",
+                example = "true"
+        )
+        boolean liked
 ) {
 
     public static MemberCommentItemResponse from(
@@ -23,7 +32,9 @@ public record MemberCommentItemResponse(
                 result.content(),
                 result.createdAt(),
                 result.updatedAt(),
-                MemberCommentPostResponse.from(result.post())
+                MemberCommentPostResponse.from(result.post()),
+                result.likeCount(),
+                result.liked()
         );
     }
 }
