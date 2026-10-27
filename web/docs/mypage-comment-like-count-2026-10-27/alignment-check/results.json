@@ -1,0 +1,21 @@
+{
+  "kind": "controlled mock API on production Next; no DB writes",
+  "results": [
+    {
+      "name": "missing original 1440 back: memory, three pages, group deletion and anchor",
+      "pass": true
+    },
+    {
+      "name": "missing original 1440 link: memory, three pages, group deletion and anchor",
+      "pass": true
+    },
+    {
+      "name": "missing original 390 back: memory, three pages, group deletion and anchor",
+      "pass": true
+    },
+    {
+      "name": "missing original 390 link: memory, three pages, group deletion and anchor",
+      "pass": true
+    }
+  ]
+}

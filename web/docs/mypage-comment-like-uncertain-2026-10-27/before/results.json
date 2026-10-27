@@ -1,0 +1,39 @@
+{
+  "kind": "controlled mock API on production Next; no DB writes",
+  "results": [
+    {
+      "name": "late uncertain like / malformed / none",
+      "pass": false,
+      "error": "page.waitForFunction: Timeout 8000ms exceeded.\n    at /Users/tackeunoh/Developer/iyum/web/tests/member-comments-browser.mjs:148:12\n    at async check (/Users/tackeunoh/Developer/iyum/web/tests/member-comments-browser.mjs:71:110)\n    at async file:///Users/tackeunoh/Developer/iyum/web/tests/member-comments-browser.mjs:117:104"
+    },
+    {
+      "name": "late uncertain like / malformed / logout",
+      "pass": true
+    },
+    {
+      "name": "late uncertain like / malformed / same",
+      "pass": true
+    },
+    {
+      "name": "late uncertain like / malformed / other",
+      "pass": true
+    },
+    {
+      "name": "late uncertain like / network / none",
+      "pass": false,
+      "error": "page.waitForFunction: Timeout 8000ms exceeded.\n    at /Users/tackeunoh/Developer/iyum/web/tests/member-comments-browser.mjs:148:12\n    at async check (/Users/tackeunoh/Developer/iyum/web/tests/member-comments-browser.mjs:71:110)\n    at async file:///Users/tackeunoh/Developer/iyum/web/tests/member-comments-browser.mjs:117:104"
+    },
+    {
+      "name": "late uncertain like / network / logout",
+      "pass": true
+    },
+    {
+      "name": "late uncertain like / network / same",
+      "pass": true
+    },
+    {
+      "name": "late uncertain like / network / other",
+      "pass": true
+    }
+  ]
+}

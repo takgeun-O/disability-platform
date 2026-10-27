@@ -221,3 +221,8 @@
 }
 
 .mypage-account .mypage-email-verified { color:var(--iyum-primary); font-weight:600; }
+
+.mypage-comment-body { display:flex; align-items:center; flex-wrap:wrap; gap:8px 16px; }
+.mypage .mypage-comment-body .mypage-comment-content { flex:1 1 160px; min-width:0; }
+.mypage .mypage-comment-likes { font-size:13px; flex-wrap:wrap; overflow-wrap:anywhere; min-width:0; max-width:100%; margin-left:auto; }
+.mypage-comment-likes svg { flex-shrink:0; }

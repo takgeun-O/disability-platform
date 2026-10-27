@@ -4,7 +4,7 @@ import {loadTypeScript} from './helpers/load-typescript.mjs'
 const {getMemberComments}=await loadTypeScript('../src/lib/member-api.ts',import.meta.url)
 const {refreshMemberComments,mergeMemberComments,createMemberActivityCache}=await loadTypeScript('../src/lib/member-activity.ts',import.meta.url)
 const stamp='2026-10-20T00:00:00.123456Z'
-const item=commentId=>({commentId,content:'댓글',createdAt:stamp,updatedAt:stamp,post:{postId:42,title:'원문',type:'QUESTION',topic:'HEARING_AID'}})
+const item=commentId=>({liked:false,likeCount:0,commentId,content:'댓글',createdAt:stamp,updatedAt:stamp,post:{postId:42,title:'원문',type:'QUESTION',topic:'HEARING_AID'}})
 const page={items:[item(10),item(9)],hasNext:true,nextCursor:{createdAt:stamp,commentId:9}}
 process.env.NEXT_PUBLIC_API_BASE_URL='http://test.invalid'
 test('comments use session, no-store and raw commentId cursor without CSRF/member parameter',async t=>{
@@ -49,4 +49,27 @@ test('Java whitespace contract, length and original response strings',async t=>{
   const special=item(9);if(field==='content')special.content='가'.repeat(length);else special.post.title='가'.repeat(length)
   value={items:[special],hasNext:false,nextCursor:null};await assert.rejects(getMemberComments(),e=>e.code==='UNEXPECTED_RESPONSE')
  }
+})
+
+test('private comment likeCount is required safe nonnegative integer, preserves per-item counts and liked',async t=>{
+ let value;t.mock.method(globalThis,'fetch',async()=>Response.json(value))
+ for(const likeCount of [undefined,null,-1,0.5,'3',Number.MAX_SAFE_INTEGER+1]){
+  value={items:[{...item(10),likeCount}],hasNext:false,nextCursor:null}
+  await assert.rejects(getMemberComments(),e=>e.code==='UNEXPECTED_RESPONSE')
+ }
+ for(const likeCount of [0,3,Number.MAX_SAFE_INTEGER]){
+  value={items:[{...item(10),likeCount},item(9)],hasNext:false,nextCursor:null}
+  assert.deepEqual(await getMemberComments(),value)
+  assert.equal((await getMemberComments()).items[0].liked,false)
+ }
+})
+
+test('private comment liked must be a boolean; counts and authorship do not imply liking',async t=>{
+ let value;t.mock.method(globalThis,'fetch',async()=>Response.json(value))
+ for(const liked of [undefined,null,'true','false',0,1,{},[]]){
+  value={items:[{...item(10),liked}],hasNext:false,nextCursor:null}
+  await assert.rejects(getMemberComments(),e=>e.code==='UNEXPECTED_RESPONSE')
+ }
+ value={items:[{...item(10),likeCount:3,liked:true},{...item(9),likeCount:3,liked:false},item(8)],hasNext:false,nextCursor:null}
+ assert.deepEqual(await getMemberComments(),value)
 })

@@ -4,6 +4,7 @@ import { useRouter } from "next/navigation"
 import { useAuth } from "@/components/AuthProvider"
 import { useNavigationGuard, useNavigationRequest } from "@/components/NavigationGuard"
 import { changeCommentLike, CommentError, type Comment } from "@/lib/community-comments"
+import { memberCommentsChanged } from "@/lib/community-mutations"
 import CommunityDialog from "./CommunityDialog"
 
 export default function CommentLikeButton({ postId, comment, ready, reread }: {
@@ -38,14 +39,19 @@ export default function CommentLikeButton({ postId, comment, ready, reread }: {
     if (!operation) return
     try {
       const result = await changeCommentLike(postId, comment.commentId, !liked, current)
+      // Invalidate only this authenticated session's private list, including a
+      // confirmed response after leaving detail. The old screen stays untouched.
+      if (result && session.isCurrent() && operation.valid()) memberCommentsChanged()
       if (result && current() && operation.valid()) operation.commit(result)
       else if (operation.valid()) operation.uncertain()
     } catch (cause) {
       if (!operation.valid()) return
-      if (!current()) { operation.uncertain(); return }
       const e = cause instanceof CommentError ? cause : null
       const uncertain = !e || e.uncertain || e.code === "COMMENT_NOT_FOUND" || e.code === "POST_NOT_FOUND"
-      if (uncertain) operation.uncertain()
+      // An unknown write outcome can stale private counts even after navigation.
+      // Session/operation ownership fences data; navigation fences screen effects.
+      if (uncertain) { operation.uncertain(); if (session.isCurrent()) memberCommentsChanged() }
+      if (!current()) { operation.uncertain(); return }
       if (e?.status === 401) { session.expire(); setPrompt(true); return }
       setFeedback({ revision: auth.memberRequests.revision, message: e?.message ?? "좋아요 처리 결과를 확인하지 못했습니다. 댓글 목록에서 현재 상태를 다시 확인해 주세요.", uncertain })
     } finally { operation.finish() }

@@ -1,0 +1,9 @@
+{
+  "kind": "controlled mock API on production Next; no DB writes",
+  "results": [
+    {
+      "name": "late CSRF preparation failure sends no write and does not invalidate private list",
+      "pass": true
+    }
+  ]
+}

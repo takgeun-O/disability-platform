@@ -1,0 +1,153 @@
+{
+  "mode": "controlled mock API only; deferred GET/POST release; no real DB/account writes",
+  "results": [
+    {
+      "name": "profile: old 401 after password response cannot expire retained login",
+      "pass": true
+    },
+    {
+      "name": "profile: old 401 before password response cannot expire retained login",
+      "pass": true
+    },
+    {
+      "name": "summary: old 401 after password response cannot expire retained login",
+      "pass": true
+    },
+    {
+      "name": "summary: old 401 before password response cannot expire retained login",
+      "pass": true
+    },
+    {
+      "name": "posts: old 401 after password response cannot expire retained login",
+      "pass": true
+    },
+    {
+      "name": "posts: old 401 before password response cannot expire retained login",
+      "pass": true
+    },
+    {
+      "name": "comments: old 401 after password response cannot expire retained login",
+      "pass": true
+    },
+    {
+      "name": "comments: old 401 before password response cannot expire retained login",
+      "pass": true
+    },
+    {
+      "name": "profile: old success cannot overwrite renewed personal data",
+      "pass": true
+    },
+    {
+      "name": "summary: old success cannot overwrite renewed personal data",
+      "pass": true
+    },
+    {
+      "name": "posts: old success cannot overwrite renewed personal data",
+      "pass": true
+    },
+    {
+      "name": "comments: old success cannot overwrite renewed personal data",
+      "pass": true
+    },
+    {
+      "name": "profile: new generation 401 still expires current session",
+      "pass": true
+    },
+    {
+      "name": "summary: new generation 401 still expires current session",
+      "pass": true
+    },
+    {
+      "name": "posts: new generation 401 still expires current session",
+      "pass": true
+    },
+    {
+      "name": "comments: new generation 401 still expires current session",
+      "pass": true
+    },
+    {
+      "name": "profile: 401 after same-member login is stale",
+      "pass": true
+    },
+    {
+      "name": "summary: 401 after same-member login is stale",
+      "pass": true
+    },
+    {
+      "name": "posts: 401 after same-member login is stale",
+      "pass": true
+    },
+    {
+      "name": "comments: 401 after same-member login is stale",
+      "pass": true
+    },
+    {
+      "name": "profile: success after same-member login is stale",
+      "pass": true
+    },
+    {
+      "name": "summary: success after same-member login is stale",
+      "pass": true
+    },
+    {
+      "name": "posts: success after same-member login is stale",
+      "pass": true
+    },
+    {
+      "name": "comments: success after same-member login is stale",
+      "pass": true
+    },
+    {
+      "name": "profile: 401 after other-member login is stale",
+      "pass": true
+    },
+    {
+      "name": "summary: 401 after other-member login is stale",
+      "pass": true
+    },
+    {
+      "name": "posts: 401 after other-member login is stale",
+      "pass": true
+    },
+    {
+      "name": "comments: 401 after other-member login is stale",
+      "pass": true
+    },
+    {
+      "name": "profile: success after other-member login is stale",
+      "pass": true
+    },
+    {
+      "name": "summary: success after other-member login is stale",
+      "pass": true
+    },
+    {
+      "name": "posts: success after other-member login is stale",
+      "pass": true
+    },
+    {
+      "name": "comments: success after other-member login is stale",
+      "pass": true
+    },
+    {
+      "name": "confirmed change survives follow-up CSRF failure and resumed reads finish",
+      "pass": true
+    },
+    {
+      "name": "old 401 first then password relogin uses only confirmed outcome",
+      "pass": true
+    },
+    {
+      "name": "old 401 first then password 401 uses only confirmed outcome",
+      "pass": true
+    },
+    {
+      "name": "old 401 first then password 503 uses only confirmed outcome",
+      "pass": true
+    },
+    {
+      "name": "old 401 first then password 400 uses only confirmed outcome",
+      "pass": true
+    }
+  ]
+}

@@ -93,7 +93,10 @@ export default function MyComments({ memberId, active, restoring, initial, lease
         <p className="mypage-post-meta">{POST_TOPICS[comment.post.topic]} · {POST_TYPES[comment.post.type]} · <time dateTime={comment.createdAt}>{postDate(comment.createdAt)}</time></p>
         <div className="mypage-comment-bubble">
           <span className="mypage-comment-label">내가 쓴 댓글</span>
-          <p className="mypage-comment-content">{comment.content}</p>
+          <div className="mypage-comment-body">
+            <p className="mypage-comment-content">{comment.content}</p>
+            <span className="post-like-count mypage-comment-likes" data-liked={comment.liked}><svg width="16" height="16" viewBox="0 0 24 24" fill={comment.liked ? "currentColor" : "none"} stroke="currentColor" strokeWidth="1.75" aria-hidden="true" focusable="false"><path d="M20.8 4.6a5.5 5.5 0 0 0-7.8 0L12 5.7l-1.1-1.1a5.5 5.5 0 0 0-7.8 7.8L12 21l8.8-8.6a5.5 5.5 0 0 0 0-7.8Z"/></svg><span className="mypage-comment-like-count">좋아요 {comment.likeCount.toLocaleString('ko-KR')}</span><span className="sr-only">{comment.liked ? '개, 내가 좋아요한 댓글' : '개, 내가 좋아요하지 않은 댓글'}</span></span>
+          </div>
         </div>
         <Link className="mypage-comment-link" href={`/community/posts/${comment.post.postId}?from=%2Fmypage#comment-${comment.commentId}`} prefetch={false} scroll={false} onNavigate={onLeaving}><span className="mypage-comment-source-label">원문 게시글</span><span>{comment.post.title}</span><span aria-hidden="true">→</span></Link>
       </div>
