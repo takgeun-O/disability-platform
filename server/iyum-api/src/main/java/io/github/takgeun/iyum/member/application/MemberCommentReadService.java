@@ -1,6 +1,8 @@
 package io.github.takgeun.iyum.member.application;
 
 import io.github.takgeun.iyum.community.comment.application.CommentCursor;
+import io.github.takgeun.iyum.community.comment.application.CommentLikeReadService;
+import io.github.takgeun.iyum.community.comment.application.CommentLikeState;
 import io.github.takgeun.iyum.community.comment.domain.Comment;
 import io.github.takgeun.iyum.community.comment.infrastructure.CommentRepository;
 import io.github.takgeun.iyum.member.domain.Member;
@@ -14,6 +16,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Instant;
 import java.util.List;
+import java.util.Map;
 
 @Service
 @RequiredArgsConstructor
@@ -23,6 +26,7 @@ public class MemberCommentReadService {
 
     private final MemberRepository memberRepository;
     private final CommentRepository commentRepository;
+    private final CommentLikeReadService commentLikeReadService;
 
     @Transactional(readOnly = true)
     public MemberCommentListResult getComments(
@@ -71,10 +75,30 @@ public class MemberCommentReadService {
             );
         }
 
-        // 트랜잭션 안에서 댓글과 원본 게시글 정보를 결과 객체로 복사
+        // 실제 응답에 포함할 댓글만 좋아요 집계 대상으로 사용
+        List<Long> commentIds = returnedComments.stream()
+                .map(Comment::getId)
+                .toList();
+
+        // 댓글 좋아요 개수는 말 그대로 개수만 필요하므로 개인별 선택 상태는 요청하지 않음
+        Map<Long, CommentLikeState> likeStates =
+                commentLikeReadService.getStates(commentIds, null);
+
+        // 트랜잭션 안에서 댓글, 게시글, 좋아요 개수를 결과 객체로 복사한다.
         List<MemberCommentItemResult> items =
                 returnedComments.stream()
-                        .map(MemberCommentItemResult::from)
+                        .map(comment -> {
+                            CommentLikeState likeState =
+                                    likeStates.getOrDefault(
+                                            comment.getId(),
+                                            CommentLikeState.EMPTY
+                                    );
+
+                            return MemberCommentItemResult.from(
+                                    comment,
+                                    likeState.likeCount()
+                            );
+                        })
                         .toList();
 
         CommentCursor nextCursor = null;

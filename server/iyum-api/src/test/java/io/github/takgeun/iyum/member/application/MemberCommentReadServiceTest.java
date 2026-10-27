@@ -1,7 +1,10 @@
 package io.github.takgeun.iyum.member.application;
 
 import io.github.takgeun.iyum.community.comment.application.CommentCursor;
+import io.github.takgeun.iyum.community.comment.application.CommentLikeReadService;
 import io.github.takgeun.iyum.community.comment.domain.Comment;
+import io.github.takgeun.iyum.community.comment.domain.CommentLike;
+import io.github.takgeun.iyum.community.comment.infrastructure.CommentLikeRepository;
 import io.github.takgeun.iyum.community.comment.infrastructure.CommentRepository;
 import io.github.takgeun.iyum.community.post.domain.Post;
 import io.github.takgeun.iyum.community.post.domain.PostTopic;
@@ -20,15 +23,18 @@ import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
+import org.springframework.test.context.bean.override.mockito.MockitoSpyBean;
 import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
 import org.testcontainers.postgresql.PostgreSQLContainer;
 
 import java.sql.Timestamp;
 import java.time.Instant;
+import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.Mockito.*;
 
 @SpringBootTest(properties = {
         "spring.config.import=",
@@ -81,7 +87,13 @@ class MemberCommentReadServiceTest {
     CommentRepository commentRepository;
 
     @Autowired
+    CommentLikeRepository commentLikeRepository;
+
+    @Autowired
     JdbcTemplate jdbcTemplate;
+
+    @MockitoSpyBean
+    CommentLikeReadService commentLikeReadService;
 
     private Member me;
     private Member emptyMember;
@@ -96,6 +108,7 @@ class MemberCommentReadServiceTest {
     @BeforeEach
     void setUp() {
         // 테스트 전용 컨테이너의 데이터만 초기화한다.
+        commentLikeRepository.deleteAllInBatch();
         commentRepository.deleteAllInBatch();
         postRepository.deleteAllInBatch();
         memberRepository.deleteAllInBatch();
@@ -220,6 +233,18 @@ class MemberCommentReadServiceTest {
         assertThat(second.post().postId()).isEqualTo(myPost.getId());
         assertThat(second.post().title()).isEqualTo("내 게시글");
         assertThat(second.post().topic()).isEqualTo(PostTopic.DAILY);
+
+        // 실제 반환할 댓글만 한번에 집계하는지 검증
+        verify(commentLikeReadService).getStates(
+                List.of(
+                        firstComment.getId(),
+                        secondComment.getId()
+                ),
+                null
+        );
+
+        // 댓글마다 따로 호출하지 않고 집계 서비스를 한번만 호출하는지 검증 (이미 위에서 한 번 호출했으니 여기서는 NoMoreInteraction이어야 함)
+        verifyNoMoreInteractions(commentLikeReadService);
     }
 
     @Test
@@ -280,6 +305,8 @@ class MemberCommentReadServiceTest {
         assertThat(result.items()).isEmpty();
         assertThat(result.hasNext()).isFalse();
         assertThat(result.nextCursor()).isNull();
+
+        verifyNoInteractions(commentLikeReadService);
     }
 
     @Test
@@ -295,6 +322,8 @@ class MemberCommentReadServiceTest {
         assertThat(result.items()).isEmpty();
         assertThat(result.hasNext()).isFalse();
         assertThat(result.nextCursor()).isNull();
+
+        verifyNoInteractions(commentLikeReadService);
     }
 
     @Test
@@ -378,6 +407,111 @@ class MemberCommentReadServiceTest {
                 10,
                 MemberCommentReadException.Code.INVALID_CURSOR
         );
+    }
+
+    @Test
+    void 좋아요가_없는_내_댓글은_좋아요_개수_영을_반환한다() {
+        MemberCommentListResult result =
+                memberCommentReadService.getComments(
+                        me.getId(), null, null, 3
+                );
+
+        assertThat(result.items())
+                .extracting(MemberCommentItemResult::commentId)
+                .containsExactly(
+                        firstComment.getId(),
+                        secondComment.getId(),
+                        thirdComment.getId()
+                );
+
+        assertThat(result.items())
+                .extracting(MemberCommentItemResult::likeCount)
+                .containsExactly(0L, 0L, 0L);
+    }
+
+    @Test
+    void 댓글별_좋아요_개수를_첫_페이지와_다음_페이지에_연결한다() {
+        commentLikeRepository.saveAndFlush(
+                CommentLike.create(firstComment, me)
+        );
+        commentLikeRepository.saveAndFlush(
+                CommentLike.create(firstComment, emptyMember)
+        );
+        commentLikeRepository.saveAndFlush(
+                CommentLike.create(thirdComment, emptyMember)
+        );
+
+        MemberCommentListResult firstPage =
+                memberCommentReadService.getComments(
+                        me.getId(), null, null, 2
+                );
+
+        assertThat(firstPage.items())
+                .extracting(MemberCommentItemResult::commentId)
+                .containsExactly(
+                        firstComment.getId(),
+                        secondComment.getId()
+                );
+
+        assertThat(firstPage.items())
+                .extracting(MemberCommentItemResult::likeCount)
+                .containsExactly(2L, 0L);
+
+        assertThat(firstPage.hasNext()).isTrue();
+        assertThat(firstPage.nextCursor()).isNotNull();
+        assertThat(firstPage.nextCursor().commentId())
+                .isEqualTo(secondComment.getId());
+
+        CommentCursor cursor = firstPage.nextCursor();
+
+        MemberCommentListResult nextPage =
+                memberCommentReadService.getComments(
+                        me.getId(),
+                        cursor.createdAt(),
+                        cursor.commentId(),
+                        2
+                );
+
+        assertThat(nextPage.items())
+                .extracting(MemberCommentItemResult::commentId)
+                .containsExactly(thirdComment.getId());
+
+        assertThat(nextPage.items())
+                .extracting(MemberCommentItemResult::likeCount)
+                .containsExactly(1L);
+
+        assertThat(nextPage.hasNext()).isFalse();
+        assertThat(nextPage.nextCursor()).isNull();
+    }
+
+    @Test
+    void 좋아요가_취소되면_다시_조회한_개수에_반영된다() {
+        CommentLike like = commentLikeRepository.saveAndFlush(
+                CommentLike.create(firstComment, emptyMember)
+        );
+
+        MemberCommentListResult before =
+                memberCommentReadService.getComments(
+                        me.getId(), null, null, 1
+                );
+
+        assertThat(before.items().getFirst().commentId())
+                .isEqualTo(firstComment.getId());
+        assertThat(before.items().getFirst().likeCount())
+                .isEqualTo(1L);
+
+        commentLikeRepository.deleteById(like.getId());
+        commentLikeRepository.flush();
+
+        MemberCommentListResult after =
+                memberCommentReadService.getComments(
+                        me.getId(), null, null, 1
+                );
+
+        assertThat(after.items().getFirst().commentId())
+                .isEqualTo(firstComment.getId());
+        assertThat(after.items().getFirst().likeCount())
+                .isZero();
     }
 
     private Member saveActiveMember(

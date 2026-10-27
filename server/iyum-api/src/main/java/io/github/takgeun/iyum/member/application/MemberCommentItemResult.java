@@ -10,16 +10,21 @@ public record MemberCommentItemResult(
         String content,
         Instant createdAt,
         Instant updatedAt,
-        MemberCommentPostResult post
+        MemberCommentPostResult post,
+        long likeCount
 ) {
 
-    public static MemberCommentItemResult from(Comment comment) {
+    public static MemberCommentItemResult from(
+            Comment comment,
+            long likeCount
+    ) {
         return new MemberCommentItemResult(
                 comment.getId(),
                 comment.getContent(),
                 comment.getCreatedAt(),
                 comment.getUpdatedAt(),
-                MemberCommentPostResult.from(comment.getPost())
+                MemberCommentPostResult.from(comment.getPost()),
+                likeCount
         );
     }
 }
