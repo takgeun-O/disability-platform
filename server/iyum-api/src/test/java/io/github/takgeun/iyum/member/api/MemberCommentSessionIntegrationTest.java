@@ -255,6 +255,8 @@ class MemberCommentSessionIntegrationTest {
                         .value(is(middleCommentId), Long.class))
                 .andExpect(jsonPath("$.items[0].likeCount").value(2))
                 .andExpect(jsonPath("$.items[1].likeCount").value(0))
+                .andExpect(jsonPath("$.items[0].liked").value(true))
+                .andExpect(jsonPath("$.items[1].liked").value(false))
                 .andReturn();
 
         JsonNode first = readJson(firstResult);
@@ -284,6 +286,7 @@ class MemberCommentSessionIntegrationTest {
                 .andExpect(jsonPath("$.hasNext").value(false))
                 .andExpect(jsonPath("$.nextCursor").value(nullValue()))
                 .andExpect(jsonPath("$.items[0].likeCount").value(1))
+                .andExpect(jsonPath("$.items[0].liked").value(false))
                 .andReturn();
 
         JsonNode second = readJson(secondResult);

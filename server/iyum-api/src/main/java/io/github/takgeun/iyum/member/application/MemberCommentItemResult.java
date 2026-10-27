@@ -11,12 +11,14 @@ public record MemberCommentItemResult(
         Instant createdAt,
         Instant updatedAt,
         MemberCommentPostResult post,
-        long likeCount
+        long likeCount,
+        boolean liked
 ) {
 
     public static MemberCommentItemResult from(
             Comment comment,
-            long likeCount
+            long likeCount,
+            boolean liked
     ) {
         return new MemberCommentItemResult(
                 comment.getId(),
@@ -24,7 +26,8 @@ public record MemberCommentItemResult(
                 comment.getCreatedAt(),
                 comment.getUpdatedAt(),
                 MemberCommentPostResult.from(comment.getPost()),
-                likeCount
+                likeCount,
+                liked
         );
     }
 }

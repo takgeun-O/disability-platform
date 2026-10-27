@@ -123,6 +123,8 @@ class MemberCommentReadControllerTest {
                 .andExpect(jsonPath("$.items.length()").value(1))
                 .andExpect(jsonPath("$.items[0].commentId").value(104))
                 .andExpect(jsonPath("$.items[0].likeCount").value(3))
+                .andExpect(jsonPath("$.items[0].likeCount").value(3))
+                .andExpect(jsonPath("$.items[0].liked").value(true))
                 .andExpect(jsonPath("$.items[0].content")
                         .value("  제가 작성한 댓글입니다.\n두 번째 줄입니다.  "))
                 .andExpect(jsonPath("$.items[0].createdAt")
@@ -419,7 +421,8 @@ class MemberCommentReadControllerTest {
                         PostType.QUESTION,
                         PostTopic.HEARING_AID
                 ),
-                3L
+                3L,
+                true
         );
     }
 

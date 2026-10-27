@@ -80,9 +80,9 @@ public class MemberCommentReadService {
                 .map(Comment::getId)
                 .toList();
 
-        // 댓글 좋아요 개수는 말 그대로 개수만 필요하므로 개인별 선택 상태는 요청하지 않음
+        // 로그인한 회원을 기준으로 전체 좋아요 개수와 본인의 좋아요 여부를 조회한다.
         Map<Long, CommentLikeState> likeStates =
-                commentLikeReadService.getStates(commentIds, null);
+                commentLikeReadService.getStates(commentIds, memberId);
 
         // 트랜잭션 안에서 댓글, 게시글, 좋아요 개수를 결과 객체로 복사한다.
         List<MemberCommentItemResult> items =
@@ -96,7 +96,8 @@ public class MemberCommentReadService {
 
                             return MemberCommentItemResult.from(
                                     comment,
-                                    likeState.likeCount()
+                                    likeState.likeCount(),
+                                    likeState.liked()
                             );
                         })
                         .toList();
