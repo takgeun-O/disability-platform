@@ -8,7 +8,9 @@ export type Comment = LikeState & {
   createdAt: string
   updatedAt: string
 }
-export type CommentCursor = { createdAt: string; commentId: number }
+export type CommentSort = "OLDEST" | "LATEST" | "POPULAR"
+export type CommentCursor = { createdAt: string; commentId: number; sort: CommentSort; likeCount: number | null }
+export const commentCursorKey = (v: CommentCursor | null) => JSON.stringify(v && [v.sort, v.createdAt, v.commentId, v.likeCount])
 export type CommentPage = {
   items: Comment[]
   hasNext: boolean
@@ -42,7 +44,9 @@ const instant = (v: unknown): v is string =>
   /^\d{4}-\d\d-\d\dT.+Z$/.test(v) &&
   Number.isFinite(Date.parse(v))
 const cursor = (v: unknown): v is CommentCursor =>
-  obj(v) && id(v.commentId) && instant(v.createdAt)
+  obj(v) && id(v.commentId) && instant(v.createdAt) &&
+  (["OLDEST", "LATEST"].includes(String(v.sort)) ? v.likeCount === null :
+    v.sort === "POPULAR" && Number.isSafeInteger(v.likeCount) && Number(v.likeCount) >= 0)
 const comment = (v: unknown): v is Comment =>
   obj(v) &&
   typeof v.content === "string" &&
@@ -50,8 +54,8 @@ const comment = (v: unknown): v is Comment =>
   obj(v.author) &&
   id(v.author.memberId) &&
   typeof v.author.nickname === "string" &&
-  cursor(v) && isLikeState(v)
-export function isCommentPage(v: unknown): v is CommentPage {
+  id(v.commentId) && instant(v.createdAt) && isLikeState(v)
+export function isCommentPage(v: unknown, sort: CommentSort = "OLDEST"): v is CommentPage {
   if (
     !obj(v) ||
     !Array.isArray(v.items) ||
@@ -63,7 +67,9 @@ export function isCommentPage(v: unknown): v is CommentPage {
   const last = v.items.at(-1)
   return v.hasNext
     ? cursor(v.nextCursor) &&
+        v.nextCursor.sort === sort &&
         !!last &&
+        (sort !== "POPULAR" || v.nextCursor.likeCount === last.likeCount) &&
         v.nextCursor.commentId === last.commentId &&
         v.nextCursor.createdAt === last.createdAt
     : v.nextCursor === null
@@ -180,12 +186,16 @@ export async function getComments(
   after: CommentCursor | null = null,
   signal?: AbortSignal,
   base?: string,
+  sort: CommentSort = "OLDEST",
 ) {
-  const params = new URLSearchParams({ size: "20" })
+  if (after && (!cursor(after) || after.sort !== sort)) throw commentError(400, { code: "INVALID_CURSOR" }, false)
+  const params = new URLSearchParams({ size: "20", sort })
   // API cursor is opaque: never round its microseconds through Date/toISOString.
   if (after) {
     params.set("afterCreatedAt", after.createdAt)
     params.set("afterId", String(after.commentId))
+    params.set("afterSort", after.sort)
+    if (sort === "POPULAR") params.set("afterLikeCount", String(after.likeCount))
   }
   const body = await request(
     postId,
@@ -195,10 +205,8 @@ export async function getComments(
     base,
   )
   if (
-    !isCommentPage(body) ||
-    (after &&
-      body.nextCursor?.commentId === after.commentId &&
-      body.nextCursor.createdAt === after.createdAt)
+    !isCommentPage(body, sort) ||
+    (after && body.nextCursor && commentCursorKey(body.nextCursor) === commentCursorKey(after))
   )
     throw commentError(200, null, false)
   return body

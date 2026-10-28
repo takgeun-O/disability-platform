@@ -16,7 +16,7 @@ export default function CommentItem({ comment, anchorId, body, reactions, action
   actions?: ReactNode
 }) {
   const instanceId = useId()
-  return <li id={anchorId ?? `comment-item-${instanceId}`} tabIndex={-1}>
+  return <li data-comment-item={comment.commentId} id={anchorId ?? `comment-item-${instanceId}`} tabIndex={-1}>
     <div className="community-comment-meta">
       <strong>{comment.author.nickname}</strong>
       <WrittenTime value={comment.createdAt} />

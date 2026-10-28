@@ -63,7 +63,7 @@ function read(url) {
         items,
         hasNext,
         nextCursor: hasNext
-          ? { createdAt: last.createdAt, commentId: last.commentId }
+          ? { createdAt: last.createdAt, commentId: last.commentId, sort: "OLDEST", likeCount: null }
           : null,
       },
     }
@@ -366,9 +366,12 @@ try {
       let release,reach;const reached=new Promise(r=>reach=r)
       state.get=async(r,u)=>{if(u.pathname.endsWith("/comments")){reach();await new Promise(r=>release=r)}await r.fulfill(read(u))}
       await p.getByRole('button',{name:'댓글 조회 다시 시도',exact:true}).click();await reached
-      await p.locator('.community-back').click();await p.waitForURL(u=>!u.pathname.endsWith('/posts/7'))
-      const done=p.waitForResponse(r=>new URL(r.url()).origin===api&&new URL(r.url()).pathname.endsWith('/comments'))
-      release();await(await done).finished();assert.equal(await p.locator('.comment-success-toast').count(),0)
+      // Navigation now aborts this GET. Wait for its actual cancellation instead
+      // of an impossible response; forced late delivery is covered in inline-comments-browser.
+      const cancelled=p.waitForEvent('requestfailed',{predicate:r=>new URL(r.url()).origin===api&&new URL(r.url()).pathname==='/api/v1/community/posts/7/comments'&&r.method()==='GET'})
+      await p.locator('.community-back').click();await cancelled
+      await p.waitForURL(u=>!u.pathname.endsWith('/posts/7'))
+      release();assert.equal(await p.locator('.comment-success-toast').count(),0)
     } finally {await ctx.close()}
   })
   await check("automatic boundaries 0/1/20/21 keep ASC timestamps and finite requests",async()=>{

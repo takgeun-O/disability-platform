@@ -1,7 +1,9 @@
 "use client"
+import { useCommentTransition } from "@/lib/useCommentTransition"
+import CommentSortMenu from "./CommentSortMenu"
 import CommentItem from "./CommentItem"
 // Refresh the visible prefix, keeping editor snapshots separate from server data.
-import { useEffect, useEffectEvent, useRef, useState, type FormEvent } from "react"
+import { useCallback, useLayoutEffect, useEffect, useEffectEvent, useRef, useState, type FormEvent } from "react"
 import { memberCommentsChanged, postListChanged, postCommentsChanged, usePostVersion } from "@/lib/community-mutations"
 import { useRouter } from "next/navigation"
 import { useAuth } from "@/components/AuthProvider"
@@ -17,6 +19,9 @@ import {
   changeComment,
   CommentError,
   getComments,
+  commentCursorKey,
+  commentError,
+  type CommentSort,
   mergeComments,
   validateComment,
   type Comment,
@@ -41,11 +46,17 @@ export default function Comments({
   const likeContext = `${auth.memberRequests.revision}:${auth.memberRequests.paused}:${auth.status}:${auth.pending}`
   const [loadedContext, setLoadedContext] = useState("")
   const router = useRouter(), guard = useNavigationGuard()
+  const subscribeNavigation = guard.subscribeNavigation
   const scope = useNavigationRequest()
+  const readController = useRef<AbortController | null>(null)
   const reads = useRef(0),
     reading = useRef(false),
     writing = useRef(false),
     pageCount = useRef(1)
+  const [sort, setSort] = useState<CommentSort>("OLDEST")
+  const sortRef = useRef<CommentSort>("OLDEST"), cursors = useRef<string[]>([]), autoStalled = useRef(false)
+  const { list: commentList, capture: captureTransition } = useCommentTransition()
+  const [displayedSort, setDisplayedSort] = useState<CommentSort>("OLDEST")
   const removed = useRef(new Set<number>())
   const [page, setPage] = useState<CommentPage>(
     (identityVersion === 0 ? initial.data : null) ?? { items: [], hasNext: false, nextCursor: null },
@@ -71,6 +82,16 @@ export default function Comments({
   const [readMore, setReadMore] = useState(false)
   const section = useRef<HTMLElement>(null), sentinel = useRef<HTMLDivElement>(null), composer = useRef<HTMLDivElement>(null)
   const buffered = useRef<{ cursor: string; page: CommentPage; ticket: ReturnType<typeof auth.commentLikes.read> } | null>(null)
+  const cancelRead = useCallback(() => {
+    reads.current++
+    readController.current?.abort()
+    readController.current = null
+    reading.current = false
+    buffered.current = null
+  }, [])
+  // Only approved navigation is published. Cancelling the dirty dialog does not abort.
+  useEffect(() => subscribeNavigation(cancelRead), [subscribeNavigation, cancelRead])
+  useLayoutEffect(() => { cancelRead() }, [auth.memberRequests, cancelRead])
   const [inputFocused, setInputFocused] = useState(false)
   const [deleting, setDeleting] = useState<Comment | null>(null)
   const [discard, setDiscard] = useState<EditorAction | null>(null)
@@ -105,19 +126,30 @@ export default function Comments({
   }
   async function load(more = false, automatic = false, targetId?: number, announce = false) {
     if (reading.current || writing.current || !scope.isActive() || auth.status === "checking" || auth.pending || auth.memberRequests.paused) return
+    if (automatic && autoStalled.current) return
     if (more && (!page.hasNext || !page.nextCursor)) return
     reading.current = true
+    const requestedSort = sortRef.current
     const ticket = ++reads.current
+    const controller = new AbortController()
+    readController.current = controller
     let likeRead = auth.commentLikes.read()
     const session = auth.member ? auth.captureMemberRequest(auth.member.memberId) : null
     const current = () =>
-      scope.isActive() &&
+      scope.isActive() && readController.current === controller && !controller.signal.aborted &&
       likeRead.valid() && (!session || session.isCurrent()) && ticket ===
         reads.current
     setLoading(true)
     setReadError("")
     setReadMore(more)
     try {
+      const seen = new Set(more ? cursors.current : [])
+      const track = (data: CommentPage) => {
+        if (!data.nextCursor) return
+        const key = commentCursorKey(data.nextCursor)
+        if (seen.has(key)) throw commentError(200, null, false)
+        seen.add(key)
+      }
       let result: CommentPage
       let fetched: Comment[] = []
       let segments = pageCount.current
@@ -126,7 +158,7 @@ export default function Comments({
         if (buffered.current?.cursor === cursor && buffered.current.ticket.valid()) {
           result = buffered.current.page
           likeRead = buffered.current.ticket
-        } else result = await getComments(postId, page.nextCursor)
+        } else result = await getComments(postId, page.nextCursor, controller.signal, undefined, requestedSort)
         fetched = result.items
         if (!current()) return
         if (automatic && pauseAuto()) {
@@ -134,15 +166,18 @@ export default function Comments({
           return
         }
         buffered.current = null
+        track(result)
         result = { ...result, items: mergeComments(page.items, result.items) }
         segments++
       } else {
         buffered.current = null
-        result = await getComments(postId)
+        result = await getComments(postId, null, controller.signal, undefined, requestedSort)
+        track(result)
         segments = 1
         while (result.hasNext && (segments < pageCount.current || (!!targetId && !result.items.some(c => c.commentId === targetId)))) {
           if (!current()) return
-          const next = await getComments(postId, result.nextCursor)
+          const next = await getComments(postId, result.nextCursor, controller.signal, undefined, requestedSort)
+          track(next)
           result = { ...next, items: mergeComments(result.items, next.items) }
           segments++
         }
@@ -151,9 +186,15 @@ export default function Comments({
       if (current()) {
         likeRead.accept(fetched.map(c => ({ ...c, id: c.commentId })))
         setLoadedContext(likeContext)
+        // A moving popularity cursor may return only known IDs. Keep its cursor,
+        // but require explicit pagination instead of an automatic request loop.
+        autoStalled.current = more && fetched.every(c => page.items.some(old => old.commentId === c.commentId))
+        cursors.current = [...seen]
         pageCount.current = segments
         if (editor && !result.items.some(c => c.commentId === editor.id) && document.activeElement?.id === `comment-edit-${editor.id}`) requestFocus(`comment-edit-${editor.id}`)
         setCreated(receipts => receipts.filter(receipt => !result.items.some(c => c.commentId === receipt.commentId)))
+        if (displayedSort !== requestedSort) captureTransition()
+        setDisplayedSort(requestedSort)
         setPage({
           ...result,
           items: result.items.filter((c) => !removed.current.has(c.commentId)),
@@ -170,23 +211,27 @@ export default function Comments({
       }
       return false
     } finally {
-      if (ticket === reads.current) {
+      if (ticket === reads.current && readController.current === controller) {
         reading.current = false
-        if (current()) setLoading(false)
+        readController.current = null
+        if (scope.isActive()) setLoading(false)
       }
     }
+  }
+
+  function switchSort(next: CommentSort) {
+    if (next === sortRef.current || writing.current) return
+    sortRef.current = next; setSort(next)
+    cancelRead(); pageCount.current = 1; cursors.current = []; autoStalled.current = false
+    setPage(previous => ({ ...previous, hasNext: false, nextCursor: null })); setLoadedContext(""); setReadError(""); setLinkNotice("")
+    void load()
   }
 
   useEffect(() => {
     if (focusTarget && scope.isActive())
       document.getElementById(focusTarget.id)?.focus({ preventScroll: true })
   }, [focusTarget, scope])
-  useEffect(
-    () => () => {
-      reads.current++
-    },
-    [],
-  )
+  useEffect(() => cancelRead, [cancelRead])
 
   // An explicit comment link may point beyond the first public cursor page.
   useEffect(() => {
@@ -227,7 +272,7 @@ export default function Comments({
   }, [linkedComment, page, loading, readError])
 
   const refreshIdentity = useEffectEvent(() => {
-    reads.current++; reading.current = false; buffered.current = null
+    cancelRead()
     setLoading(false)
     void load()
   })
@@ -322,9 +367,7 @@ export default function Comments({
       return
     }
     writing.current = true
-    buffered.current = null
-    reads.current++
-    reading.current = false
+    cancelRead()
     setFields(f => ({ ...f, [id ?? "draft"]: "" }))
     setBusy(true)
     setLoading(false)
@@ -441,9 +484,7 @@ export default function Comments({
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" focusable="false"><path d="M20 7v5h-5M4 17v-5h5" /><path d="M6.1 6.1A8 8 0 0 1 19.5 9M4.5 15A8 8 0 0 0 17.9 17.9" /></svg><span>{loading && !readMore ? "새로고침 중…" : "목록 새로고침"}</span>
         </button>
       </div>
-      <p className="community-help">
-        오래된 댓글부터 표시합니다.
-      </p>
+      <CommentSortMenu value={sort} onChange={switchSort} disabled={busy || !!auth.pending || auth.memberRequests.paused} />
       {linkNotice && <p role="status" className="community-help">{linkNotice}</p>}
       <div role="status" aria-atomic="true" className="comment-toast-announcer">
         {toast && toast.valid() && scope.isActive() && <CommentSuccessToast key={toast.id} message={toast.message} onDismiss={toast.dismiss} />}
@@ -467,7 +508,8 @@ export default function Comments({
       {!readError && !loading && page.items.length === 0 && (
         <p>아직 댓글이 없습니다. 첫 이야기를 나눠 주세요.</p>
       )}
-      <ul className="community-comment-list">
+      {displayedSort !== sort && <p role="status" className="community-help">{loading ? "정렬을 변경하고 있습니다. 이전 목록을 표시합니다." : "정렬 변경 전 목록입니다. 다시 조회해 주세요."}</p>}
+      <ul ref={commentList} className="community-comment-list">
         {page.items.map((c) => (
           <CommentItem key={c.commentId} comment={c} anchorId={`comment-${c.commentId}`}
             body={editor?.id === c.commentId ? editForm(false) : undefined}

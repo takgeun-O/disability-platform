@@ -33,7 +33,7 @@ test("public first/cursor request omits credentials and preserves microseconds",
     return json({ items: [item], hasNext: false, nextCursor: null })
   })
   await api.getComments("7")
-  await api.getComments("7", { createdAt: item.createdAt, commentId: 9 })
+  await api.getComments("7", { createdAt: item.createdAt, commentId: 9, sort: "OLDEST", likeCount: null })
   const first = new URL(calls[0].url),
     next = new URL(calls[1].url)
   assert.equal(first.pathname, "/api/v1/community/posts/7/comments")
@@ -155,7 +155,7 @@ test("field error whitelist, page validation and deduplication", () => {
     api.isCommentPage({
       items: [item],
       hasNext: true,
-      nextCursor: { createdAt: item.createdAt, commentId: 10 },
+      nextCursor: { createdAt: item.createdAt, commentId: 10, sort: "OLDEST", likeCount: null },
     }),
     true,
   )
@@ -169,4 +169,30 @@ test("field error whitelist, page validation and deduplication", () => {
       .map((v) => v.commentId),
     [10, 11],
   )
+})
+
+for (const sort of ['OLDEST', 'LATEST', 'POPULAR']) {
+  test(`sorting ${sort}: raw cursor, zero popularity and strict cursor contract`, async t => {
+    const cursor = {createdAt:item.createdAt,commentId:item.commentId,sort,likeCount:sort==='POPULAR'?0:null}
+    const page={items:[item],hasNext:true,nextCursor:cursor}
+    assert.equal(api.isCommentPage(page,sort),true)
+    for(const bad of [undefined,null,'OLDESTX',0])assert.equal(api.isCommentPage({...page,nextCursor:{...cursor,sort:bad}},sort),false)
+    for(const bad of sort==='POPULAR'?[undefined,null,-1,1.5,'0',Number.MAX_SAFE_INTEGER+1]:[undefined,0,'0'])assert.equal(api.isCommentPage({...page,nextCursor:{...cursor,likeCount:bad}},sort),false)
+    const calls=[]
+    t.mock.method(globalThis,'fetch',async url=>{calls.push(new URL(url));return json({items:[item],hasNext:false,nextCursor:null})})
+    await api.getComments('7',null,undefined,undefined,sort)
+    await api.getComments('7',cursor,undefined,undefined,sort)
+    assert.deepEqual([...calls[0].searchParams],[['size','20'],['sort',sort]])
+    assert.equal(calls[1].searchParams.get('afterSort'),sort)
+    assert.equal(calls[1].searchParams.get('afterCreatedAt'),item.createdAt)
+    assert.equal(calls[1].searchParams.get('afterLikeCount'),sort==='POPULAR'?'0':null)
+    await assert.rejects(api.getComments('7',{...cursor,sort:'WRONG'},undefined,undefined,sort),e=>e.code==='INVALID_CURSOR')
+    assert.equal(calls.length,2)
+  })
+}
+test('cursor identity includes ranking value; repeated cursor rejected without replay',async t=>{
+ const cursor={createdAt:item.createdAt,commentId:10,sort:'POPULAR',likeCount:0}
+ assert.notEqual(api.commentCursorKey(cursor),api.commentCursorKey({...cursor,likeCount:1}))
+ let calls=0;t.mock.method(globalThis,'fetch',async()=>{calls++;return json({items:[item],hasNext:true,nextCursor:cursor})})
+ await assert.rejects(api.getComments('7',cursor,undefined,undefined,'POPULAR'),e=>e.code==='UNEXPECTED_RESPONSE');assert.equal(calls,1)
 })

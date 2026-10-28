@@ -20,7 +20,7 @@ function publicRead(u){
  if(u.pathname.endsWith('/comments')) {
   const all=owned().filter(c=>c.postId===id),start=u.searchParams.has('afterId')?all.findIndex(c=>String(c.commentId)===u.searchParams.get('afterId'))+1:0
   const slice=all.slice(start,start+publicPageSize),hasNext=start+slice.length<all.length
-  return{json:{items:slice.map(c=>({commentId:c.commentId,content:c.content,createdAt:c.createdAt,updatedAt:c.updatedAt,likeCount:c.likeCount,liked:!!c.liked,author:post.author})),hasNext,nextCursor:hasNext?{createdAt:slice.at(-1).createdAt,commentId:slice.at(-1).commentId}:null}}
+  return{json:{items:slice.map(c=>({commentId:c.commentId,content:c.content,createdAt:c.createdAt,updatedAt:c.updatedAt,likeCount:c.likeCount,liked:!!c.liked,author:post.author})),hasNext,nextCursor:hasNext?{createdAt:slice.at(-1).createdAt,commentId:slice.at(-1).commentId,sort:'OLDEST',likeCount:null}:null}}
  }
  const detail={...post};delete detail.commentCount;delete detail.contentPreview;return{json:detail}
 }

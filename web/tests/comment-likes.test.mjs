@@ -25,7 +25,7 @@ test('session changes while obtaining CSRF: do not send change',async()=>{
 test('SSR omits credentials; browser includes; cursor remains raw, GET never asks for CSRF',async()=>{
  for(const browser of [false,true]){
   if(browser)globalThis.window={}
-  try{await fetchWith(async(url,o)=>{assert.equal(o.credentials,browser?'include':'omit');assert.equal(o.cache,'no-store');const u=new URL(url);assert.equal(u.searchParams.get('afterCreatedAt'),item.createdAt);assert.equal(u.searchParams.get('afterId'),'4');assert.equal(u.searchParams.has('viewerId'),false);return json({items:[item],hasNext:false,nextCursor:null})},async()=>assert.equal((await api.getComments('7',{commentId:4,createdAt:item.createdAt})).items[0].content,item.content))}finally{delete globalThis.window}
+  try{await fetchWith(async(url,o)=>{assert.equal(o.credentials,browser?'include':'omit');assert.equal(o.cache,'no-store');const u=new URL(url);assert.equal(u.searchParams.get('afterCreatedAt'),item.createdAt);assert.equal(u.searchParams.get('afterId'),'4');assert.equal(u.searchParams.has('viewerId'),false);return json({items:[item],hasNext:false,nextCursor:null})},async()=>assert.equal((await api.getComments('7',{commentId:4,createdAt:item.createdAt,sort:'OLDEST',likeCount:null})).items[0].content,item.content))}finally{delete globalThis.window}
  }
 })
 test('comment locks independent; buffered/read-before-mutation cannot restore old state',()=>{

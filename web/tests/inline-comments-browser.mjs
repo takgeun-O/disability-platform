@@ -2,6 +2,8 @@
 import http from 'node:http'
 import fs from 'node:fs/promises'
 import assert from 'node:assert/strict'
+import { loadTypeScript } from './helpers/load-typescript.mjs'
+const { isCommentPage } = await loadTypeScript('../src/lib/community-comments.ts', import.meta.url)
 const {chromium}=await import(process.env.PLAYWRIGHT_MODULE??'playwright')
 const base=process.env.BASE_URL??'http://127.0.0.1:8467',out=process.env.MEMBER_ARTIFACT_DIR??'/private/tmp/iyum-inline-browser'
 await fs.mkdir(out,{recursive:true})
@@ -10,7 +12,12 @@ const failure=code=>({code,message:'mock error',fieldErrors:[]})
 const post=id=>({id,type:'QUESTION',topic:'HEARING_AID',title:`검증 게시글 ${id}`,content:'전체 본문\n'.repeat(20),contentPreview:'목록 미리보기',author:member,createdAt:stamp,updatedAt:stamp,commentCount:id===998?0:id===999?1:45,likeCount:0,liked:false})
 const comment=(pid,id)=>({commentId:pid*100+id,content:`게시글 ${pid} 댓글 ${id}\n줄바꿈과 긴 문자열 ${'가'.repeat(50)}`,author:member,createdAt:stamp,updatedAt:stamp,likeCount:id%3,liked:false})
 let posts=[],comments=new Map()
-const cp=(id,u)=>{const all=(comments.get(id)??[]).filter(c=>!u.searchParams.has('afterId')||c.commentId>Number(u.searchParams.get('afterId'))),items=all.slice(0,20),hasNext=all.length>20;return{items,hasNext,nextCursor:hasNext?{createdAt:stamp,commentId:items.at(-1).commentId}:null}}
+const cp=(id,u)=>{
+ const sort=u.searchParams.get('sort')??'OLDEST',after=Number(u.searchParams.get('afterId')),likes=Number(u.searchParams.get('afterLikeCount'))
+ const cmp=(a,b)=>sort==='LATEST'?b.commentId-a.commentId:sort==='POPULAR'?b.likeCount-a.likeCount||a.commentId-b.commentId:a.commentId-b.commentId
+ const all=[...(comments.get(id)??[])].sort(cmp).filter(c=>!u.searchParams.has('afterId')||cmp(c,{commentId:after,likeCount:likes})>0),items=all.slice(0,20),hasNext=all.length>20,last=items.at(-1)
+ return{items,hasNext,nextCursor:hasNext?{createdAt:last.createdAt,commentId:last.commentId,sort,likeCount:sort==='POPULAR'?last.likeCount:null}:null}
+}
 function read(u){
  const id=Number(u.pathname.split('/')[5])
  if(u.pathname.endsWith('/feed'))return{json:{items:posts.slice(0,20),hasNext:false,nextCursor:null}}
@@ -53,6 +60,180 @@ async function open(p,id,n){await row(p,id).getByRole('button',{name:/^댓글 \d
 function gate(s,pid){let release,held;const reached=new Promise(resolve=>{s.get=async(r,u)=>{if(u.pathname===`/api/v1/community/posts/${pid}/comments`){held=r.request();s.get=null;await new Promise(done=>{release=async(data)=>{try{await r.fulfill(data??read(u))}finally{done()}};resolve()})}else await r.fulfill(read(u))}});return{reached,get request(){return held},release:data=>release(data)}}
 async function check(name,fn,width){const f=await fixture(width);try{await fn(f);results.push({name,pass:true});console.log('PASS',name)}catch(e){results.push({name,pass:false,error:String(e)});console.error('FAIL',name,e);process.exitCode=1;await f.p.screenshot({path:`${out}/failure-${results.length}.png`,fullPage:true})}finally{await f.ctx.close()}}
 try{
+ for (const ignoreAbort of [false,true]) await check(`detail read abort vs late delivery ownership ${ignoreAbort?'transport ignores abort':'native abort'}`,async({p,state})=>{
+  await p.evaluate(ignore=>{window.readSignals=[];const fetch=window.fetch;window.fetch=async(input,options)=>{const u=new URL(String(input),location.href);if(!u.pathname.match(/\/posts\/\d+\/comments$/)||options?.method!=='GET')return fetch(input,options);const record={url:u.href,aborted:false,settled:false};window.readSignals.push(record);options.signal?.addEventListener('abort',()=>{record.aborted=true});try{const response=await fetch(input,ignore?{...options,signal:undefined}:options);const json=response.json.bind(response);response.json=async()=>{try{return await json()}finally{record.consumed=true}};return response}finally{record.settled=true}}},ignoreAbort)
+  await row(p,1000).locator('h3 a').click();await p.waitForURL(/community\/posts\/1000/)
+  const detail=p.locator('.community-comments');await detail.locator('#comment-draft').fill('취소 경합 초안');await p.waitForFunction(()=>!document.querySelector('#comments-refresh').disabled)
+  const a=gate(state,1000)
+  await detail.getByRole('button',{name:/댓글 정렬:/}).click();await detail.getByRole('menuitemradio',{name:'최신순',exact:true}).click();await a.reached
+  const b=gate(state,1000)
+  await detail.getByRole('button',{name:/댓글 정렬:/}).click();await detail.getByRole('menuitemradio',{name:'인기순',exact:true}).click();await b.reached
+  await p.waitForFunction(()=>window.readSignals.some(r=>new URL(r.url).searchParams.get('sort')==='LATEST'&&r.aborted))
+  await a.release({status:503,json:failure('INTERNAL_SERVER_ERROR')})
+  await p.waitForFunction(()=>window.readSignals.some(r=>new URL(r.url).searchParams.get('sort')==='LATEST'&&r.settled))
+  await p.evaluate(()=>new Promise(requestAnimationFrame))
+  assert.equal(await detail.locator('#comments-refresh').isDisabled(),true);assert.equal(await detail.getByRole('alert').count(),0)
+  const response=p.waitForResponse(r=>new URL(r.url()).pathname.endsWith('/1000/comments')&&new URL(r.url()).searchParams.get('sort')==='POPULAR')
+  await b.release();await(await response).finished()
+  await p.waitForFunction(()=>!document.querySelector('#comments-refresh').disabled&&document.querySelector('.community-comments .community-comment-list > li')?.id==='comment-100002')
+  assert.equal(await detail.locator('#comment-draft').inputValue(),'취소 경합 초안');assert.equal(await detail.getByRole('alert').count(),0)
+  // Actual failure remains an error, preserving the previous order and draft.
+  const bad=gate(state,1000);await detail.locator('#comments-refresh').click();await bad.reached;await bad.release({status:503,json:failure('INTERNAL_SERVER_ERROR')});await detail.getByRole('alert').waitFor()
+  assert.equal(await detail.locator('#comment-draft').inputValue(),'취소 경합 초안')
+  await detail.getByRole('button',{name:'댓글 조회 다시 시도'}).click();await p.waitForFunction(()=>!document.querySelector('.community-comments [role="alert"]')&&!document.querySelector('#comments-refresh').disabled)
+  if(ignoreAbort){
+   const stale=structuredClone(cp(1000,new URL('http://mock?sort=POPULAR')))
+   stale.items=stale.items.map(c=>({...c,likeCount:99,liked:true}))
+   const last=stale.items.at(-1)
+   stale.nextCursor={sort:'POPULAR',createdAt:last.createdAt,commentId:last.commentId,likeCount:last.likeCount}
+   assert.equal(stale.hasNext,true)
+   assert.equal(isCommentPage(stale,'POPULAR'),true)
+   const old=gate(state,1000);await detail.locator('#comments-refresh').click();await old.reached
+   const index=await p.evaluate(()=>window.readSignals.length-1)
+   await p.getByRole('button',{name:'로그아웃',exact:true}).click()
+   await p.waitForFunction(i=>window.readSignals[i].aborted,index)
+   await p.waitForFunction(()=>!document.querySelector('#comments-refresh').disabled)
+   await old.release({json:stale});await p.waitForFunction(i=>window.readSignals[i].settled&&window.readSignals[i].consumed,index)
+   await p.evaluate(()=>new Promise(requestAnimationFrame))
+   assert.equal(await detail.locator('[data-comment-like="100002"] button').getAttribute('aria-pressed'),'false')
+   assert((await detail.locator('[data-comment-like="100002"]').textContent()).includes('좋아요 2'))
+   assert.equal(await detail.locator('#comment-draft').inputValue(),'취소 경합 초안')
+  }
+ })
+ await check('detail prefix cancellation stops subsequent pages; cancelled navigation keeps read alive',async({p,state})=>{
+  await p.evaluate(()=>{window.readSignals=[];const fetch=window.fetch;window.fetch=async(input,options)=>{if(!String(input).includes('/1000/comments')||options?.method!=='GET')return fetch(input,options);const record={url:String(input),aborted:false,settled:false};window.readSignals.push(record);options.signal?.addEventListener('abort',()=>record.aborted=true);try{return await fetch(input,{...options,signal:undefined})}finally{record.settled=true}}})
+  await row(p,1000).locator('h3 a').click();await p.waitForURL(/community\/posts\/1000/)
+  const detail=p.locator('.community-comments');await detail.locator('#comment-draft').fill('페이지 재조회 초안');await p.waitForFunction(()=>!document.querySelector('#comments-refresh').disabled)
+  await detail.getByRole('button',{name:'댓글 더 보기',exact:true}).click();await p.waitForFunction(()=>document.querySelectorAll('.community-comments .community-comment-list > li').length===40)
+  await detail.getByRole('button',{name:'댓글 더 보기',exact:true}).click();await p.waitForFunction(()=>document.querySelectorAll('.community-comments .community-comment-list > li').length===45)
+  let release,arrive;const reached=new Promise(r=>arrive=r)
+  state.get=async(r,u)=>{if(u.pathname.endsWith('/1000/comments')&&u.searchParams.has('afterId')){state.get=null;await new Promise(done=>{release=async()=>{await r.fulfill(read(u));done()};arrive()})}else await r.fulfill(read(u))}
+  await detail.locator('#comments-refresh').click();await reached
+  const oldCount=reads(state,1000).filter(c=>new URLSearchParams(c.search).has('afterId')).length
+  const b=gate(state,1000);await detail.getByRole('button',{name:/댓글 정렬:/}).click();await detail.getByRole('menuitemradio',{name:'인기순',exact:true}).click();await b.reached
+  await release();await p.waitForFunction(()=>window.readSignals.some(r=>r.url.includes('afterId')&&r.aborted&&r.settled));await p.evaluate(()=>new Promise(requestAnimationFrame))
+  assert.equal(reads(state,1000).filter(c=>new URLSearchParams(c.search).has('afterId')).length,oldCount)
+  assert.equal(await detail.locator('#comments-refresh').isDisabled(),true)
+  await b.release();await p.waitForFunction(()=>!document.querySelector('#comments-refresh').disabled&&document.querySelector('.community-comment-list > li')?.id==='comment-100002')
+  const pending=gate(state,1000);await detail.locator('#comments-refresh').click();await pending.reached
+  await p.locator('.community-back').click();await p.getByRole('button',{name:'계속 작성',exact:true}).click()
+  assert.equal(await p.evaluate(()=>window.readSignals.at(-1).aborted),false)
+  await p.locator('.community-back').click();await p.getByRole('button',{name:'나가기',exact:true}).click();await p.waitForURL(/mypage/)
+  assert.equal(await p.evaluate(()=>window.readSignals.at(-1).aborted),true)
+  await pending.release()
+ })
+ for (const reduced of [false,true]) await check(`sort animation retains pending list and honors reduced motion ${reduced}`,async({p,state})=>{
+  await p.emulateMedia({reducedMotion:reduced?'reduce':'no-preference'})
+  await open(p,1000,20)
+  await p.evaluate(()=>{window.commentAnimations=[];const animate=Element.prototype.animate;Element.prototype.animate=function(frames,options){if(this.hasAttribute('data-comment-item'))window.commentAnimations.push({id:this.getAttribute('data-comment-item'),frames,options});return animate.call(this,frames,options)}})
+  const g=gate(state,1000),before=await area(p,1000).locator('[data-inline-comment]').evaluateAll(es=>es.map(e=>e.dataset.inlineComment))
+  await area(p,1000).getByRole('button',{name:/댓글 정렬:/}).click();await area(p,1000).getByRole('menuitemradio',{name:'인기순',exact:true}).click();await g.reached
+  assert.deepEqual(await area(p,1000).locator('[data-inline-comment]').evaluateAll(es=>es.map(e=>e.dataset.inlineComment)),before)
+  await g.release();await p.waitForFunction(()=>document.querySelector('[data-inline-comment]')?.getAttribute('data-inline-comment')==='100002')
+  await p.evaluate(async()=>{await Promise.all(document.getAnimations().map(a=>a.finished.catch(()=>{})))})
+  const effects=await p.evaluate(()=>window.commentAnimations)
+  if(reduced)assert.equal(effects.length,0);else {assert(effects.some(a=>a.frames[0].transform));assert(effects.some(a=>a.frames[0].opacity===0));assert(effects.every(a=>a.options.duration===240))}
+  assert.equal(await p.evaluate(()=>document.activeElement?.getAttribute('aria-label')),'댓글 정렬: 인기순')
+  assert.equal(reads(state,1000).length,2)
+  await p.screenshot({path:`${out}/animation-settled-${reduced}.png`})
+ })
+ await check('popular failure retries identical cursor; duplicates preserve advancing server cursor',async({p,state})=>{
+  await open(p,1000,20)
+  await area(p,1000).getByRole('button',{name:/댓글 정렬:/}).click();await area(p,1000).getByRole('menuitemradio',{name:'인기순',exact:true}).click();await p.waitForFunction(()=>document.querySelector('[data-inline-comment]')?.getAttribute('data-inline-comment')==='100002')
+  const before=await area(p,1000).locator('[data-inline-comment]').evaluateAll(es=>es.map(e=>e.dataset.inlineComment))
+  let failedUrl,duplicateUrl,finalUrl
+  state.get=async(r,u)=>{if(u.pathname.endsWith('/1000/comments')){failedUrl=u.href;state.get=null;return r.fulfill({status:503,json:failure('INTERNAL_SERVER_ERROR')})}return r.fulfill(read(u))}
+  await area(p,1000).getByRole('button',{name:'댓글 더 보기',exact:true}).click();await area(p,1000).getByRole('alert').waitFor()
+  assert.deepEqual(await area(p,1000).locator('[data-inline-comment]').evaluateAll(es=>es.map(e=>e.dataset.inlineComment)),before)
+  state.get=async(r,u)=>{if(u.pathname.endsWith('/1000/comments')){duplicateUrl=u.href;const c={...comments.get(1000)[1],likeCount:0};state.get=null;return r.fulfill({json:{items:[c],hasNext:true,nextCursor:{createdAt:stamp,commentId:c.commentId,sort:'POPULAR',likeCount:0}}})}return r.fulfill(read(u))}
+  await area(p,1000).getByRole('button',{name:'댓글 다시 시도',exact:true}).click();await area(p,1000).getByRole('button',{name:'댓글 더 보기',exact:true}).waitFor()
+  assert.equal(duplicateUrl,failedUrl);assert.equal(await items(p,1000).count(),20)
+  state.get=async(r,u)=>{if(u.pathname.endsWith('/1000/comments')){finalUrl=u.href;state.get=null;return r.fulfill({json:{items:[],hasNext:false,nextCursor:null}})}return r.fulfill(read(u))}
+  await area(p,1000).getByRole('button',{name:'댓글 더 보기',exact:true}).click();await p.waitForFunction(()=>document.querySelector('[data-member-post-id="1000"] .mypage-inline-comments').getAttribute('aria-busy')==='false' && ![...document.querySelectorAll('[data-member-post-id="1000"] .mypage-inline-comments button')].some(b=>b.textContent==='댓글 더 보기'||b.textContent==='댓글 다시 시도'))
+  assert.equal(new URL(finalUrl).searchParams.get('afterId'),'100002');assert.equal(new URL(finalUrl).searchParams.get('afterLikeCount'),'0');assert.equal(await items(p,1000).count(),20)
+ })
+ await check('popular uncertain like refresh remains post-local and uses selected sort',async({p,state})=>{
+  await open(p,1000,20);await open(p,999,1)
+  await area(p,1000).getByRole('button',{name:/댓글 정렬:/}).click();await area(p,1000).getByRole('menuitemradio',{name:'인기순',exact:true}).click();await p.waitForFunction(()=>document.querySelector('[data-inline-comment]')?.getAttribute('data-inline-comment')==='100002')
+  const b=reads(state,999).length,n=reads(state,1000).length
+  state.write=async(r,u)=>{const id=Number(u.pathname.split('/').at(-2)),c=comments.get(1000).find(c=>c.commentId===id);c.likeCount=99;c.liked=true;return r.fulfill({json:{malformed:true}})}
+  await area(p,1000).locator('[data-inline-comment="100002"] button').click()
+  await p.waitForFunction(()=>document.querySelector('[data-inline-comment="100002"]')?.textContent.includes('99'))
+  assert.equal(reads(state,999).length,b);assert(reads(state,1000).length>n)
+  assert(reads(state,1000).slice(n).every(c=>new URLSearchParams(c.search).get('sort')==='POPULAR'))
+  assert.equal(state.calls.filter(c=>c.method==='PUT').length,1)
+ })
+ for (const width of [1440,390,320]) await check(`sorting independent popular pages and menu accessibility ${width}`,async({p,state})=>{
+  await open(p,1000,20);await open(p,999,1)
+  const select=async(id,label)=>{
+   const trigger=area(p,id).getByRole('button',{name:/댓글 정렬:/}),same=(await trigger.getAttribute('aria-label'))===`댓글 정렬: ${label}`
+   const sort={등록순:'OLDEST',최신순:'LATEST',인기순:'POPULAR'}[label]
+   const response=same?null:p.waitForResponse(r=>{const u=new URL(r.url());return u.origin==='http://127.0.0.1:8082'&&u.pathname===`/api/v1/community/posts/${id}/comments`&&u.searchParams.get('sort')===sort&&r.request().method()==='GET'})
+   await trigger.click();await area(p,id).getByRole('menuitemradio',{name:label,exact:true}).click()
+   if(response){const r=await response;await r.finished();const body=await r.json();await p.waitForFunction(({id,first})=>{const region=document.querySelector(`[data-member-post-id="${id}"] .mypage-inline-comments`);return region.getAttribute('aria-busy')==='false'&&region.querySelector('[data-inline-comment]')?.getAttribute('data-inline-comment')===String(first)},{id,first:body.items[0].commentId})}
+  }
+  const b=reads(state,999).length
+  await select(1000,'최신순');await count(p,1000,20)
+  assert.equal(await area(p,1000).locator('[data-inline-comment]').first().getAttribute('data-inline-comment'),'100045')
+  await select(1000,'인기순');await count(p,1000,20)
+  assert.equal(await area(p,1000).locator('[data-inline-comment]').first().getAttribute('data-inline-comment'),'100002')
+  await area(p,1000).getByRole('button',{name:'댓글 더 보기',exact:true}).click();await count(p,1000,40)
+  await area(p,1000).getByRole('button',{name:'댓글 더 보기',exact:true}).click();await count(p,1000,45)
+  const next=reads(state,1000).at(-1),params=new URLSearchParams(next.search);assert.equal(params.get('afterSort'),'POPULAR');assert.equal(params.get('afterLikeCount'),'0');assert.equal(params.get('afterCreatedAt'),stamp)
+  const ids=await area(p,1000).locator('[data-inline-comment]').evaluateAll(es=>es.map(e=>Number(e.dataset.inlineComment)))
+  assert.deepEqual(ids,[...comments.get(1000)].sort((a,b)=>b.likeCount-a.likeCount||a.commentId-b.commentId).map(c=>c.commentId))
+  const n=reads(state,1000).length;await select(1000,'인기순');assert.equal(reads(state,1000).length,n)
+  const heart=area(p,1000).locator('[data-inline-comment="100003"] button');await heart.click();await p.waitForFunction(()=>document.querySelector('[data-inline-comment="100003"] button')?.getAttribute('aria-pressed')==='true')
+  assert.equal(reads(state,1000).length,n);assert.equal(reads(state,999).length,b)
+  assert.deepEqual(await area(p,1000).locator('[data-inline-comment]').evaluateAll(es=>es.map(e=>Number(e.dataset.inlineComment))),ids)
+  await row(p,1000).getByRole('button',{name:/^댓글 \d/}).click();await row(p,1000).getByRole('button',{name:/^댓글 \d/}).click()
+  await area(p,1000).getByRole('button',{name:'댓글 정렬: 인기순',exact:true}).focus();await p.keyboard.press('ArrowDown');await area(p,1000).getByRole('menuitemradio',{name:'인기순',exact:true}).waitFor()
+  assert.equal(await area(p,1000).getByRole('menuitemradio',{name:'인기순',exact:true}).getAttribute('aria-checked'),'true')
+  await p.screenshot({path:`${out}/sorting-menu-${width}.png`});await p.keyboard.press('Escape')
+  assert.equal(await p.evaluate(()=>document.activeElement?.getAttribute('aria-label')),'댓글 정렬: 인기순')
+  assert.equal(await p.evaluate(()=>document.documentElement.scrollWidth>innerWidth),false)
+  await p.getByRole('tab',{name:/내 댓글/}).click();await p.getByRole('tab',{name:/내 게시글/}).click();await count(p,1000,45)
+  await row(p,1000).locator('h3 a').click();await p.waitForURL(/community\/posts\/1000/);await p.goBack();await count(p,1000,45)
+  await area(p,1000).getByRole('button',{name:'댓글 정렬: 인기순',exact:true}).waitFor()
+ },width)
+ await check('sort request ownership: old response and finally cannot replace latest request',async({p,state})=>{
+  await open(p,1000,20)
+  const a=gate(state,1000)
+  await area(p,1000).getByRole('button',{name:/댓글 정렬:/}).click();await area(p,1000).getByRole('menuitemradio',{name:'최신순',exact:true}).click();await a.reached
+  const b=gate(state,1000)
+  await area(p,1000).getByRole('button',{name:/댓글 정렬:/}).click();await area(p,1000).getByRole('menuitemradio',{name:'인기순',exact:true}).click();await b.reached
+  await p.waitForFunction(()=>document.querySelector('[data-member-post-id="1000"] .mypage-inline-comments').getAttribute('aria-busy')==='true')
+  await a.release();assert.equal(await area(p,1000).getAttribute('aria-busy'),'true');assert.equal(await items(p,1000).count(),20);assert.equal(await area(p,1000).locator('[data-inline-comment]').first().getAttribute('data-inline-comment'),'100001')
+  await b.release()
+  await p.waitForFunction(()=>{const region=document.querySelector('[data-member-post-id="1000"] .mypage-inline-comments');return region?.getAttribute('aria-busy')==='false'&&region.querySelector('[data-inline-comment]')?.getAttribute('data-inline-comment')==='100002'})
+  assert.deepEqual(await area(p,1000).locator('[data-inline-comment]').evaluateAll(es=>es.map(e=>Number(e.dataset.inlineComment))),[...comments.get(1000)].sort((a,b)=>b.likeCount-a.likeCount||a.commentId-b.commentId).slice(0,20).map(c=>c.commentId))
+ })
+ await check('detail old sort response cannot clear newer loading or replace order',async({p,state})=>{
+  await row(p,1000).locator('h3 a').click();await p.waitForURL(/community\/posts\/1000/)
+  const detail=p.locator('.community-comments');await detail.locator('#comment-draft').fill('초안 유지')
+  await p.waitForFunction(()=>!document.querySelector('#comments-refresh').disabled)
+  const a=gate(state,1000)
+  await detail.getByRole('button',{name:/댓글 정렬:/}).click();await detail.getByRole('menuitemradio',{name:'최신순',exact:true}).click();await a.reached
+  const b=gate(state,1000)
+  await detail.getByRole('button',{name:/댓글 정렬:/}).click();await detail.getByRole('menuitemradio',{name:'인기순',exact:true}).click();await b.reached
+  await p.waitForFunction(()=>document.querySelector('#comments-refresh').disabled)
+  await a.release();assert.equal(await detail.locator('#comments-refresh').isDisabled(),true)
+  assert(await detail.locator('.community-comment-list > li').count()>0);assert.equal(await detail.locator('.community-comment-list > li').first().getAttribute('id'),'comment-100001')
+  await b.release();await p.waitForFunction(()=>!document.querySelector('#comments-refresh').disabled && document.querySelector('.community-comments .community-comment-list > li')?.id==='comment-100002')
+  assert.equal(await detail.locator('.community-comment-list > li').first().getAttribute('id'),'comment-100002')
+  assert.equal(await detail.locator('#comment-draft').inputValue(),'초안 유지')
+ })
+ await check('detail sorting preserves creation and edit drafts while server order changes',async({p,state})=>{
+  await row(p,1000).locator('h3 a').click();await p.waitForURL(/community\/posts\/1000/)
+  const detail=p.locator('.community-comments');await detail.locator('#comment-draft').fill('새 댓글 초안')
+  await detail.getByRole('button',{name:'댓글 수정',exact:true}).first().click();await detail.locator('textarea[id^="comment-edit-"]').fill('수정 초안')
+  await detail.getByRole('button',{name:/댓글 정렬:/}).click();await detail.getByRole('menuitemradio',{name:'최신순',exact:true}).click()
+  await detail.locator('#comment-100045').waitFor()
+  assert.equal(await detail.locator('#comment-draft').inputValue(),'새 댓글 초안')
+  assert.equal(await detail.locator('textarea[id^="comment-edit-"]').inputValue(),'수정 초안')
+  assert.equal(state.calls.filter(c=>['POST','PUT','DELETE'].includes(c.method)).length,0)
+ })
+
  for(const width of [1440,390,320])await check(`lazy independent regions, zero/one, IDs and layout ${width}`,async({p,state})=>{
   assert.equal(state.calls.filter(c=>c.path.endsWith('/comments')&&c.path.includes('/community/')).length,0)
   await open(p,998,0);await area(p,998).getByText('아직 댓글이 없어요.',{exact:true}).waitFor()
