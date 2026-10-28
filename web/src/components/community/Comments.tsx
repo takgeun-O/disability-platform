@@ -1,7 +1,8 @@
 "use client"
+import CommentItem from "./CommentItem"
 // Refresh the visible prefix, keeping editor snapshots separate from server data.
 import { useEffect, useEffectEvent, useRef, useState, type FormEvent } from "react"
-import { memberCommentsChanged, postListChanged, usePostVersion } from "@/lib/community-mutations"
+import { memberCommentsChanged, postListChanged, postCommentsChanged, usePostVersion } from "@/lib/community-mutations"
 import { useRouter } from "next/navigation"
 import { useAuth } from "@/components/AuthProvider"
 import {
@@ -22,7 +23,7 @@ import {
   type CommentPage,
 } from "@/lib/community-comments"
 import type { PublicResult } from "@/lib/community-load"
-import { characterCount, postDate } from "@/lib/community-posts"
+import { characterCount } from "@/lib/community-posts"
 
 type EditorAction = { kind: "edit" | "delete"; comment: Comment } | { kind: "cancel" }
 type Editor = { id: number; original: string; value: string; notFound?: boolean }
@@ -336,8 +337,11 @@ export default function Comments({
       const result = await changeComment(postId, method, id, content, current)
       if (result === null) return
       // 이미 보낸 요청의 성공은 이탈 후에도 목록에 반영하되 이전 폼은 건드리지 않는다.
-      if (method === "POST" || method === "DELETE") postListChanged()
-      else memberCommentsChanged()
+      if (session?.isCurrent()) {
+        postCommentsChanged(postId)
+        if (method === "POST" || method === "DELETE") postListChanged()
+        else memberCommentsChanged()
+      }
       if (!current()) return
       if (session?.isCurrent()) {
         const message = method === "POST" ? "댓글을 등록했습니다." : method === "PUT" ? "댓글을 수정했습니다." : "댓글을 삭제했습니다."
@@ -368,7 +372,10 @@ export default function Comments({
               true,
             )
       // 불확실한 결과/없어진 댓글은 서버 목록으로 확인한다. 변경 요청 재전송은 하지 않는다.
-      if (failure.uncertain || failure.code === "COMMENT_NOT_FOUND") postListChanged()
+      if (session?.isCurrent() && (failure.uncertain || failure.code === "COMMENT_NOT_FOUND" || failure.code === "POST_NOT_FOUND")) {
+        postCommentsChanged(postId)
+        postListChanged()
+      }
       if (!current()) return
       if (failure.code === "COMMENT_NOT_FOUND" && id) {
         removeItem(id, method === "PUT")
@@ -462,25 +469,18 @@ export default function Comments({
       )}
       <ul className="community-comment-list">
         {page.items.map((c) => (
-          <li key={c.commentId} id={`comment-${c.commentId}`} tabIndex={-1}>
-            <div className="community-comment-meta">
-              <strong>{c.author.nickname}</strong>
-              <time dateTime={c.createdAt}>{postDate(c.createdAt)}</time>
-              {c.updatedAt !== c.createdAt && <span>수정됨</span>}
-            </div>
-            {editor?.id === c.commentId ? editForm(false) : <p className="community-comment-body">{c.content}</p>}
-            <div className="community-comment-toolbar">
-              <CommentLikeButton postId={postId} comment={c} ready={loadedContext === likeContext}
-                reread={id => load(false, false, id)} />
-              {owner(c) && editor?.id !== c.commentId && <div className="community-comment-tools">
-                <button id={`comment-edit-button-${c.commentId}`} type="button"
-                  className="community-comment-tool" aria-label="댓글 수정" disabled={busy}
-                  onClick={() => transitionEditor({ kind: "edit", comment: c })}>수정</button>
-                <button type="button" className="community-comment-tool" aria-label="댓글 삭제" disabled={busy}
-                  onClick={() => transitionEditor({ kind: "delete", comment: c })}>삭제</button>
-              </div>}
-            </div>
-          </li>
+          <CommentItem key={c.commentId} comment={c} anchorId={`comment-${c.commentId}`}
+            body={editor?.id === c.commentId ? editForm(false) : undefined}
+            reactions={<CommentLikeButton postId={postId} comment={c} ready={loadedContext === likeContext}
+              reread={id => load(false, false, id)} />}
+            actions={owner(c) && editor?.id !== c.commentId ? <div className="community-comment-tools">
+              <button id={`comment-edit-button-${c.commentId}`} type="button"
+                className="community-comment-tool" aria-label="댓글 수정" disabled={busy}
+                onClick={() => transitionEditor({ kind: "edit", comment: c })}>수정</button>
+              <button type="button" className="community-comment-tool" aria-label="댓글 삭제" disabled={busy}
+                onClick={() => transitionEditor({ kind: "delete", comment: c })}>삭제</button>
+            </div> : undefined}
+          />
         ))}
       </ul>
       {page.hasNext && <div ref={sentinel} className="community-comment-sentinel" aria-hidden="true" />}

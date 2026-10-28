@@ -29,7 +29,7 @@ async function fixture(width = 1440, reducedMotion = 'no-preference') {
     }
     throw Error('Unexpected API path: ' + path);
   });
-  await p.goto(base + '/mypage'); await p.locator('.mypage-name h2').waitFor(); await p.locator('.mypage-counts strong').first().waitFor();
+  await p.goto(base + '/mypage/settings'); await p.locator('.mypage-name h2').waitFor();
   await p.clock.install();
   return { p, ctx, state };
 }
@@ -64,13 +64,13 @@ async function check(name, fn) {
 try {
   for (const width of [1440, 390, 320]) await check(`nickname toast visible without layout/focus jump and auto-dismisses ${width}`, async () => {
     const f = await fixture(width), { p } = f;
-    const before = await p.locator('.mypage-activity').boundingBox();
+    const before = await p.locator('.mypage-account').boundingBox();
     await nickname(f); await toast(p).waitFor();
     assert.equal(await p.locator('.mypage-name h2').innerText(), '새로운회원');
     assert.equal(await p.locator('.mypage-notice.has-notice').count(), 0);
     assert.equal(await toast(p).getByRole('status').innerText(), '닉네임을 변경했습니다.');
     assert.equal(await p.locator('.mypage-identity > button').evaluate(e => e === document.activeElement), true);
-    const after = await p.locator('.mypage-activity').boundingBox(); assert(Math.abs(before.y - after.y) < 2);
+    const after = await p.locator('.mypage-account').boundingBox(); assert(Math.abs(before.y - after.y) < 2);
     await p.clock.runFor(250); assert(await toast(p).evaluate(e => e.scrollWidth <= e.clientWidth));
     assert(await p.evaluate(() => document.documentElement.scrollWidth <= innerWidth));
     await capture(p, `${out}/nickname-${width}.png`);
@@ -114,7 +114,7 @@ try {
     const f = await fixture(), { p } = f; await nickname(f); await toast(p).waitFor();
     await p.getByRole('link', { name: 'IYUM 홈으로 이동', exact: true }).click(); await p.waitForURL(u => u.pathname === '/');
     await gone(p); await p.locator('.iyum-desktop-auth').getByRole('link', { name: '마이페이지', exact: true }).click(); await p.locator('.mypage-name h2').waitFor();
-    await nickname(f, '다시변경'); await toast(p).waitFor(); await p.getByRole('button', { name: '로그아웃', exact: true }).click();
+    await p.getByRole('link',{name:'프로필·계정 설정',exact:true}).click();await p.getByRole('button',{name:'프로필 수정',exact:true}).waitFor();await nickname(f, '다시변경'); await toast(p).waitFor(); await p.getByRole('button', { name: '로그아웃', exact: true }).click();
     await p.getByRole('heading', { name: '로그인이 필요해요' }).waitFor(); await gone(p);
   });
   await check('nickname failure remains inline and never produces success toast', async () => {

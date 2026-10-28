@@ -1,4 +1,5 @@
 'use client'
+import WrittenTime from "@/components/WrittenTime"
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
 import Link from '@/components/AppLink'
 import { useAuth } from '@/components/AuthProvider'
@@ -6,7 +7,7 @@ import { useNavigationRequest } from '@/components/NavigationGuard'
 import { getMemberComments, MemberApiError } from '@/lib/member-api'
 import { mergeMemberComments, refreshMemberComments, type MemberCommentSnapshot, type createMemberActivityCache } from '@/lib/member-activity'
 import { getPostVersion, usePostVersion } from '@/lib/community-mutations'
-import { POST_TOPICS, POST_TYPES, postDate } from '@/lib/community-posts'
+import { POST_TOPICS, POST_TYPES } from '@/lib/community-posts'
 import type { FeedPosition } from '@/lib/community-feed'
 import { activityPosition, restoreActivityPosition } from './activity-position'
 
@@ -90,7 +91,7 @@ export default function MyComments({ memberId, active, restoring, initial, lease
     {!!view.segments && !view.items.length && <p id="my-comments-empty" tabIndex={-1} className="mypage-list-message">아직 작성한 댓글이 없어요.</p>}
     <ul className="mypage-post-list mypage-comment-list">{view.items.map(comment => <li key={comment.commentId} data-member-comment-id={comment.commentId}>
       <div className="mypage-post-copy">
-        <p className="mypage-post-meta">{POST_TOPICS[comment.post.topic]} · {POST_TYPES[comment.post.type]} · <time dateTime={comment.createdAt}>{postDate(comment.createdAt)}</time></p>
+        <p className="mypage-post-meta">{POST_TOPICS[comment.post.topic]} · {POST_TYPES[comment.post.type]} · <WrittenTime value={comment.createdAt} /></p>
         <div className="mypage-comment-bubble">
           <span className="mypage-comment-label">내가 쓴 댓글</span>
           <div className="mypage-comment-body">

@@ -51,9 +51,11 @@ async function fixture(kind, width = 1440) {
     }
     throw Error('Unexpected endpoint: ' + path);
   });
-  await p.goto(base + '/mypage'); await p.locator('#password-change-entry').waitFor();
+  await p.goto(base + (kind === 'profile' ? '/mypage/settings' : '/mypage'));
   if (kind === 'comments') await p.getByRole('tab', { name: /내 댓글/ }).click();
   await oldArrived.promise;
+  if (kind !== 'profile') await p.getByRole('link', { name: '프로필·계정 설정', exact: true }).click();
+  await p.locator('#password-change-entry').waitFor();
   return { ctx, p, state, kind, old, oldDone, post, postArrived };
 }
 async function begin(f) {
@@ -72,6 +74,7 @@ async function releaseOld(f, outcome = '401') {
   await f.oldDone.promise; await tick(f.p);
 }
 async function usable(f) {
+  if (new URL(f.p.url()).pathname === '/mypage/settings') await f.p.getByRole('link', { name: '← 마이페이지로 돌아가기', exact: true }).click();
   await f.p.locator('.mypage-name h2').waitFor();
   assert.equal(await f.p.getByRole('heading', { name: '로그인이 필요해요' }).count(), 0);
   assert.equal(await f.p.locator('.mypage-name h2').innerText(), f.state.who.nickname);
@@ -108,6 +111,7 @@ try {
   });
   for (const kind of Object.keys(paths)) await check(`${kind}: new generation 401 still expires current session`, async setup => {
     const f = await setup(kind); await begin(f); f.state.fresh401 = kind; await releaseOld(f); f.post.resolve({ json: { reloginRequired: false } });
+    if (kind !== 'profile') { const d=f.p.getByRole('dialog', {name:'비밀번호 변경',exact:true});await f.p.waitForFunction(()=>document.querySelector('.password-change-actions button')?.disabled===false && !!document.querySelector('.password-change-success'));await d.getByRole('button',{name:'닫기',exact:true}).click();await f.p.getByRole('link',{name:'← 마이페이지로 돌아가기',exact:true}).click();/* Saved comments tab restores and starts its current-generation GET. */ }
     await f.p.getByRole('heading', { name: '로그인이 필요해요' }).waitFor(); assert.equal(await f.p.locator('.mypage-profile').count(), 0); assert.equal(await f.p.locator('[data-member-post-id],[data-member-comment-id]').count(), 0); assert.equal(f.state.posts, 1); assert(f.state.counts[kind] >= 2);
   });
   for (const same of [true, false]) for (const outcome of ['401', 'success']) for (const kind of Object.keys(paths)) await check(`${kind}: ${outcome} after ${same ? 'same-member' : 'other-member'} login is stale`, async setup => {
@@ -115,7 +119,7 @@ try {
     f.state.loginWho = { ...member, memberId: same ? 7 : 8, nickname: '새로그인', email: 'new@example.test' };
     await f.p.getByRole('link', { name: '로그인하기', exact: true }).click();
     await f.p.locator('input[name=email]').fill(f.state.loginWho.email); await f.p.locator('input[name=password]').fill('Synthetic123!');
-    await f.p.locator('main').getByRole('button', { name: '로그인', exact: true }).click(); await f.p.waitForURL(u => u.pathname === '/mypage');
+    await f.p.locator('main').getByRole('button', { name: '로그인', exact: true }).click(); await f.p.waitForURL(u => u.pathname === '/mypage/settings');
     await usable(f); await releaseOld(f, outcome); await usable(f);
   });
   await check('confirmed change survives follow-up CSRF failure and resumed reads finish', async setup => {

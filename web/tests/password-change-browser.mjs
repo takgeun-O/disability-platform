@@ -33,7 +33,7 @@ async function fixture(width = 1440) {
   });
   await p.goto(base + '/login');
   if (width < 901) { await p.getByRole('button',{name:'메뉴 열기',exact:true}).click(); await p.getByRole('dialog',{name:'전체 메뉴',exact:true}).getByRole('link',{name:'마이페이지',exact:true}).click(); }
-  else await p.locator('a[href="/mypage"]').first().click(); await p.locator('#password-change-entry').click();
+  else await p.locator('a[href="/mypage"]').first().click(); await p.getByRole('link',{name:'프로필·계정 설정',exact:true}).click(); await p.locator('#password-change-entry').click();
   return { p, ctx, state, d: p.getByRole('dialog', { name: '비밀번호 변경', exact: true }) };
 }
 const submit = f => f.d.getByRole('button', { name: '비밀번호 변경', exact: true });
@@ -196,11 +196,12 @@ try {
     f.state.change = async r => { arrived.release(); await response.promise; await r.fulfill(late === '401' ? fail(401,'AUTHENTICATION_REQUIRED') : { json:{reloginRequired:late==='relogin'} }); finished.release(); };
     await fill(f); await submit(f).click(); await Promise.race([arrived.promise, new Promise((_, reject) => setTimeout(() => reject(Error('POST did not arrive')), 10000))]); await f.p.goBack();
     const leave = f.p.getByRole('dialog', {name:'비밀번호 변경 화면을 나갈까요?',exact:true}); await leave.waitFor(); await leave.getByRole('button',{name:'계속 입력'}).click(); assert.equal(await f.p.locator('#change-newPassword').inputValue(),values.newPassword);
-    await f.p.goBack(); await leave.getByRole('button',{name:'나가기',exact:true}).click(); await f.p.waitForURL(u=>u.pathname==='/login');
+    await f.p.goBack(); await leave.getByRole('button',{name:'나가기',exact:true}).click(); await f.p.waitForURL(u=>u.pathname==='/mypage');
     await f.p.getByRole('button',{name:'로그아웃',exact:true}).click();
+    await f.p.getByRole('link',{name:'로그인하기',exact:true}).click();await f.p.waitForURL(u=>u.pathname==='/login');
     await f.p.locator('input[name=email]').fill('review@example.test'); await f.p.locator('input[name=password]').fill('synthetic-login'); await f.p.locator('main').getByRole('button',{name:'로그인',exact:true}).click(); await f.p.waitForURL(u=>u.pathname!=='/login');
     // A new document is not needed: use an actual same-origin AppLink back to mypage.
-    await f.p.locator('a[href="/mypage"]').first().click(); await f.p.locator('#password-change-entry').waitFor(); response.release(); await finished.promise;
+    await f.p.locator('a[href="/mypage"]').first().click(); await f.p.getByRole('link',{name:'프로필·계정 설정',exact:true}).click(); await f.p.locator('#password-change-entry').waitFor(); response.release(); await finished.promise;
     assert(await f.p.locator('#password-change-entry').isVisible()); assert.equal(await f.p.getByRole('heading',{name:'로그인이 필요해요'}).count(),0); assert.equal(await f.p.locator('.mypage-notice.has-notice').count(),0); assert.equal(f.state.logout,1);
   });
 } finally { await fs.writeFile(`${out}/results.json`, JSON.stringify({ mode:'mock API only', results }, null, 2)); await browser.close(); }

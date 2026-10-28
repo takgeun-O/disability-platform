@@ -1,0 +1,105 @@
+{
+  "kind": "controlled mock API; no real DB changes",
+  "results": [
+    {
+      "name": "noJS anonymous comment content/count remain visible without personalized SSR",
+      "status": "passed"
+    },
+    {
+      "name": "PUT/DELETE server count, independent locks, no optimistic state; drafts and focus survive",
+      "status": "passed"
+    },
+    {
+      "name": "anonymous prompt cancel/login; no automatic write after login",
+      "status": "passed"
+    },
+    {
+      "name": "current AUTHENTICATION_REQUIRED distinguished",
+      "status": "passed"
+    },
+    {
+      "name": "current CSRF_TOKEN_INVALID distinguished",
+      "status": "passed"
+    },
+    {
+      "name": "current COMMENT_LIKE_NOT_ALLOWED distinguished",
+      "status": "passed"
+    },
+    {
+      "name": "current COMMENT_NOT_FOUND distinguished",
+      "status": "passed"
+    },
+    {
+      "name": "current POST_NOT_FOUND distinguished",
+      "status": "passed"
+    },
+    {
+      "name": "uncertain network: next click reads prefix, never retries mutation",
+      "status": "passed"
+    },
+    {
+      "name": "uncertain 500: next click reads prefix, never retries mutation",
+      "status": "passed"
+    },
+    {
+      "name": "uncertain bad-id: next click reads prefix, never retries mutation",
+      "status": "passed"
+    },
+    {
+      "name": "uncertain bad-json: next click reads prefix, never retries mutation",
+      "status": "passed"
+    },
+    {
+      "name": "older refresh response cannot undo a successful like",
+      "status": "passed"
+    },
+    {
+      "name": "later-page COMMENT_NOT_FOUND rereads loaded prefix, removes only missing comment, preserves editor",
+      "status": "passed"
+    },
+    {
+      "name": "old success ignored after logout and same-member login",
+      "status": "passed"
+    },
+    {
+      "name": "old 401 ignored after logout and same-member login",
+      "status": "passed"
+    },
+    {
+      "name": "old 403 ignored after logout and same-member login",
+      "status": "passed"
+    },
+    {
+      "name": "old 404 ignored after logout and same-member login",
+      "status": "passed"
+    },
+    {
+      "name": "previous personalized GET rejected after other-account login",
+      "status": "passed"
+    },
+    {
+      "name": "unknown personalized state cannot send a PUT; later confirmed state determines DELETE",
+      "status": "passed"
+    },
+    {
+      "name": "append overlaps mutation: existing state retained and no duplicate rows",
+      "status": "passed"
+    },
+    {
+      "name": "late mutation after leaving cannot alter new screen; return fetches confirmed server state",
+      "status": "passed"
+    },
+    {
+      "name": "layout and keyboard 1440",
+      "status": "passed"
+    },
+    {
+      "name": "layout and keyboard 390",
+      "status": "passed"
+    },
+    {
+      "name": "layout and keyboard 320",
+      "status": "passed"
+    }
+  ]
+}

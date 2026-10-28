@@ -1,30 +1,54 @@
 package io.github.takgeun.iyum.community.comment.application;
 
 import io.github.takgeun.iyum.community.comment.domain.Comment;
+import io.github.takgeun.iyum.community.comment.infrastructure.CommentPopularityRow;
 import io.github.takgeun.iyum.community.comment.infrastructure.CommentRepository;
 import io.github.takgeun.iyum.community.post.infrastructure.PostRepository;
 import jakarta.annotation.Nullable;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Isolation;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Instant;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
+import java.util.function.Function;
+import java.util.stream.Collectors;
 
+/**
+ * 한 게시글의 댓글을 등록순·최신순·인기순으로 조회하고
+ * 좋아요 정보와 다음 페이지 커서까지 묶어서 반환하는 서비스
+ *
+ * REPEATABLE_READ
+ * 여러 조회의 기준을 맞추기 위한 설정.
+ *  인기순 응답 하나를 만드는 동안에 여러 조회가 실행된다.
+ *  - 인기순 집계 조회
+ *  - 댓글 본문 조회
+ *  - 현재 회원의 좋아요 상태 조회
+ *  PostgreSQL에서 이 작업들이 하나의 REPEATABLE_READ 트랜잭션으로 실행되면
+ *  같은 DB 스냅샷을 기준으로 조회할 수 있게 된다.
+ *  예를 들어 인기순 집계 직후 다른 사용자가 댓글을 삭제하더라도
+ *  이 삭제요청의 뒤이은 본문 조회는 같은 스냅샷을 기준으로 읽을 수 있다.
+ *  즉, "순위에는 있는데 본문은 사라지는" 불일치를 줄이기 위한 목적
+ */
 @Service
 @RequiredArgsConstructor
-@Transactional(readOnly = true)
+@Transactional(
+        readOnly = true,
+        isolation = Isolation.REPEATABLE_READ
+)
 public class CommentReadService {
-
-    private static final int MAX_PAGE_SIZE = 50;
 
     private final CommentRepository commentRepository;
     private final PostRepository postRepository;
     private final CommentLikeReadService commentLikeReadService;
 
-    // 기존 네 매개변수 호출을 위한 메서드 추가
+    /**
+     * 기존 비로그인 등록순 호출 유지
+     */
     public CommentListResult getComments(
             Long postId,
             @Nullable Instant afterCreatedAt,
@@ -40,8 +64,9 @@ public class CommentReadService {
         );
     }
 
-    // 첫 조회에서는 아직 마지막 댓글이 없으므로
-    // getComments(post, null, null, 3); 전달
+    /**
+     * 기존 등록순 호출을 새 조회 조건으로 변환
+     */
     public CommentListResult getComments(
             Long postId,    // 댓글을 조회할 게시글
             @Nullable Instant afterCreatedAt,   // 직전에 받은 마지막 댓글의 생성 시각
@@ -49,88 +74,145 @@ public class CommentReadService {
             int size,    // 이번에 받을 댓글 개수
             @Nullable Long viewerId
     ) {
+        CommentCursor cursor = null;
 
-        // 이 떄 검증 중 예외 발생 시 이후 댓글 조회는 실행하지 않음
-        validateSize(size); // 1 ~ MAX_PAGE_SIZE인지 확인
-        validateCursor(afterCreatedAt, afterId);    // 둘 다 없거나, 생성 시각과 양수 ID가 모두 있는지 확인
-        validatePost(postId);   // ID가 유효하고, 실제로 존재하며 삭제되지 않았는지 확인
-
-        // 다음 댓글의 존재 여부를 판단하기 위해 1개 더 조회한다.
-        // 조회 시작 위치는 커서 조건으로 정하고 PageRequest.of(...)은 그 결과의 앞부분만 제한해서 가져오는 용도
-        PageRequest limit = PageRequest.of(0, size + 1);
-
-        List<Comment> comments;
-
-        // 첫 조회인지, 후속 조회인지 구분
-        if(afterCreatedAt == null && afterId == null) {
-            // 첫 조회는 처음부터 가져오고
-            comments = commentRepository.findFirstVisibleComments(
-                    postId,
-                    limit
-            );
-        } else {
-            // 후속 조회는 커서보다 뒤에 있는 댓글 가져오기
-            comments = commentRepository.findVisibleCommentsAfter(
-                    postId,
+        // 두 값 중 하나만 전달된 잘못된 요청도 커서로 만들어 검증하도록 하기 위함
+        // &&로 바꾸면 하나만 전달된 요청을 첫 페이지 요청처럼 취급할 수 있음
+        if (afterCreatedAt != null || afterId != null) {
+            cursor = new CommentCursor(
                     afterCreatedAt,
-                    afterId,
+                    afterId
+            );
+        }
+
+        CommentReadQuery query = new CommentReadQuery(
+                CommentSort.OLDEST,
+                cursor,
+                size
+        );
+
+        return getComments(postId, query, viewerId);
+    }
+
+    /**
+     * 정렬 조건을 사용하는 새로운 조회 진입점.
+     * 공통 진입점에서 게시글을 확인하고 조회 개수를 정한다.
+     *
+     * 예시 요청
+     * getComments(
+     *         50L,
+     *         new CommentReadQuery(CommentSort.LATEST, null, 2),
+     *         7L
+     * );
+     */
+    public CommentListResult getComments(
+            Long postId,
+            CommentReadQuery query,
+            @Nullable Long viewerId
+    ) {
+        // 조회 조건이 있는지 확인한다.
+        Objects.requireNonNull(query, "댓글 조회 조건은 필수입니다.");
+
+        // postId가 유효하고, 공개 조회 가능한 게시글인지 확인
+        validatePost(postId);
+
+        // query.size() + 1 만큼 페이지 요청 (추가 1개는 다음 페이지가 있는지 여부 판단용)
+        PageRequest limit = PageRequest.of(
+                0,
+                query.size() + 1
+        );
+
+        // 정렬 조건이 인기순이면 해당 분기로 이동
+        /**
+         * 왜 인기순은 별도 처리할까?
+         * 인기순은 좋아요 개수를 집계해서 순위를 정하는 작업과
+         * 댓글 본문·작성자 정보를 가져오는 작업을 나누어 처리한다.
+         */
+        if (query.sort() == CommentSort.POPULAR) {
+            return getPopularComments(
+                    postId,
+                    query,
+                    viewerId,
                     limit
             );
         }
 
-        // 다음 댓글 존재 여부를 판단하고 반환할 개수 정하기
-        // 3개를 요청했는데 4개를 조회했다면
-        // hasNext = true;
-        // returnedSize = 3;
-        // 3개 요청했는데 2개만 조회했다면
-        // hasNext = false;
-        // returnedSize = 2;
-        boolean hasNext = comments.size() > size;
-        int returnedSize = Math.min(comments.size(), size);
+        // 정렬 조건이 인기순이 아닌 경우 해당 분기로 이동
+        // 최신순, 등록순
+        return getTimeOrderedComments(
+                postId,
+                query,
+                viewerId,
+                limit
+        );
+    }
 
-        // 다음 페이지 확인용 한 개를 제외한다.
+    /**
+     * 등록순·최신순 응답을 만든다.
+     */
+    private CommentListResult getTimeOrderedComments(
+            Long postId,
+            CommentReadQuery query,
+            @Nullable Long viewerId,
+            PageRequest limit
+    ) {
+        // findTimeOrderedComments()가 정렬과 커서를 보고
+        // Repository 메서드를 선택한다.
+        List<Comment> comments = findTimeOrderedComments(
+                postId,
+                query,
+                limit
+        );
+
+        // 다음 페이지 여부 계산
+        boolean hasNext = comments.size() > query.size();
+        int returnedSize = Math.min(
+                comments.size(),
+                query.size()
+        );
+
+        // 실제 응답할 댓글은 요청한 query.size() 개수로 자른다.
         List<Comment> returnedComments =
                 comments.subList(0, returnedSize);
 
+        // 응답할 댓글에 좋아요 정보를 붙인다.
+        // 먼저 응답 대상의 ID를 추출
         List<Long> commentIds = returnedComments.stream()
                 .map(Comment::getId)
                 .toList();
 
-        // 반환할 댓글들의 좋아요 정보를 한 번에 조회한다.
+        // 직전에서 추출한 ID를 조회 서비스에 한번에 넘긴다.
         Map<Long, CommentLikeState> likeStates =
-                commentLikeReadService.getStates(commentIds, viewerId);
+                commentLikeReadService.getStates(
+                        commentIds,
+                        viewerId
+                );
 
+        // 댓글 본문·작성자 등의 정보와 좋아요 상태를 합쳐서 CommentResult를 만든다.
         List<CommentResult> items = returnedComments.stream()
-                .map(comment -> {
-                    CommentLikeState likeState =
-                            likeStates.getOrDefault(
-                                    comment.getId(),
-                                    CommentLikeState.EMPTY
-                            );
-
-                    return CommentResult.from(comment, likeState);
-                })
+                .map(comment -> CommentResult.from(
+                        comment,
+                        likeStates.getOrDefault(    // 해당 댓글의 집계가 없으면 기본값인 좋아요 0개, 즉, 내가 누르지 않았음을 의미
+                                comment.getId(),
+                                CommentLikeState.EMPTY
+                        )
+                ))
                 .toList();
 
-        // 실제 반환한 마지막 댓글로 다음 커서를 만든다.
-        // 앞의 예에서 C의 생성 시각과 ID가 다음 커서가 된다. (D를 커서로 사용하면 안됨. D가 누락된다.)
-        // C를 커서로 사용하면 다음 요청은 D부터 정상적으로 가져온다.
         CommentCursor nextCursor = null;
 
-        if(hasNext) {
-            // 추가 확인용 댓글이 아니라 실제 반환한 마지막 댓글 기준
+        if (hasNext) {
+            // 다음 페이지 커서는 실제 반환한 마지막 댓글로 만들어야 한다.
             CommentResult last = items.getLast();
 
             nextCursor = new CommentCursor(
                     last.createdAt(),
-                    last.commentId()
+                    last.commentId(),
+                    query.sort(),
+                    null
             );
         }
 
-        // 결과를 반환하고 프론트엔드가 다음 조회에 활용
-        // 프론트엔드는 스크롤이 아래에 도달하면 nextCursor를 다음 요청에 넣고
-        // 받은 댓글을 기존 목록 뒤에 붙인다.
-        // hasNext가 false가 되면 추가 조회를 멈춘다.
         return new CommentListResult(
                 items,
                 hasNext,
@@ -138,33 +220,171 @@ public class CommentReadService {
         );
     }
 
-    private void validateSize(int size) {
-        if(size < 1 || size > MAX_PAGE_SIZE) {
-            throw new CommentReadException(
-                    CommentReadException.Code.INVALID_PAGE_REQUEST
+    /**
+     * 정렬 종류와 커서 유무에 따라 시간순 쿼리를 선택한다.
+     */
+    private List<Comment> findTimeOrderedComments(
+            Long postId,
+            CommentReadQuery query,
+            PageRequest limit
+    ) {
+        CommentCursor cursor = query.cursor();
+
+        return switch (query.sort()) {
+            case OLDEST -> cursor == null
+                    ? commentRepository.findFirstVisibleComments(
+                    postId,
+                    limit
+            )
+                    : commentRepository.findVisibleCommentsAfter(
+                    postId,
+                    cursor.createdAt(),
+                    cursor.commentId(),
+                    limit
             );
-        }
+
+            case LATEST -> cursor == null
+                    ? commentRepository.findFirstVisibleCommentsLatest(
+                    postId,
+                    limit
+            )
+                    : commentRepository.findVisibleCommentsLatestAfter(
+                    postId,
+                    cursor.createdAt(),
+                    cursor.commentId(),
+                    limit
+            );
+
+            case POPULAR -> throw new IllegalStateException(
+                    "인기순은 별도 조회 경로를 사용해야 합니다."
+            );
+        };
     }
 
-    private void validateCursor(
-            @Nullable Instant afterCreatedAt,
-            @Nullable Long afterId
+    /**
+     * 인기순 결과에 본문·작성자·현재 회원의 liked를 연결한다.
+     */
+    private CommentListResult getPopularComments(
+            Long postId,
+            CommentReadQuery query,
+            @Nullable Long viewerId,
+            PageRequest limit   // 여기에 전달된 limit은 query.size() + 1개의 댓글 정보가 있음
     ) {
-        // 둘 다 없으면 첫 조회이므로 허용
-        if(afterCreatedAt == null && afterId == null) {
-            return;
-        }
+        CommentCursor cursor = query.cursor();
 
-        // 후속 조회에서는 시각과 양수 ID가 모두 필요하다.
-        if(afterCreatedAt == null || afterId == null || afterId <= 0) {
-            throw new CommentReadException(
-                    CommentReadException.Code.INVALID_CURSOR
+        // 1. 첫 요청에서 만약 2개를 원하면, 인기순 집계 쿼리로 최대 3개를 가져온다.
+        // rows: [103번·8개, 101번·5개, 102번·3개]
+        // CommentPopularityRow: 댓글ID·작성 시각·좋아요 수를 제공하는 집계 결과
+        List<CommentPopularityRow> rows = cursor == null    // 첫 조회냐 아니냐
+                ? commentRepository.findFirstVisibleCommentsPopular(
+                postId,
+                limit
+        )
+                : commentRepository.findVisibleCommentsPopularAfter(
+                postId,
+                cursor.likeCount(),
+                cursor.createdAt(),
+                cursor.commentId(),
+                limit
+        );
+
+        boolean hasNext = rows.size() > query.size();
+        int returnedSize = Math.min(
+                rows.size(),
+                query.size()
+        );
+
+        List<CommentPopularityRow> returnedRows =
+                rows.subList(0, returnedSize);
+
+        // 빈 IN 조회와 불필요한 좋아요 조회를 피한다.
+        if (returnedRows.isEmpty()) {
+            return new CommentListResult(
+                    List.of(),
+                    false,
+                    null
             );
         }
+
+        List<Long> commentIds = returnedRows.stream()
+                .map(CommentPopularityRow::getCommentId)
+                .toList();
+
+        Map<Long, Comment> commentsById =
+                commentRepository.findVisibleCommentsByIds(
+                                postId,
+                                commentIds
+                        )
+                        .stream()
+                        .collect(Collectors.toMap(  // ID로 찾기 쉽도록 Map으로 바꾼다.
+                                Comment::getId,
+                                Function.identity()
+                        ));
+
+        Map<Long, CommentLikeState> likeStates =
+                commentLikeReadService.getStates(
+                        commentIds,
+                        viewerId
+                );
+
+        // 본문 조회 결과의 순서가 아니라
+        // 처음 받은 인기순 결과(returnedRows)의 순서대로 응답을 만든다.
+        // 각 행의 ID로 본문을 찾아서 붙이므로 본문 조회 결과의 순서가 바뀌어도 응답의 순서는 유지된다.
+        List<CommentResult> items = returnedRows.stream()
+                .map(row -> {
+                    Comment comment =
+                            commentsById.get(row.getCommentId());
+
+                    // 같은 스냅샷과 동일한 공개 조건을 사용했다면 있어야 하는 본문이 없을 때
+                    // 조용히 댓글을 빼지 않고 조회 로직의 불일치를 드러내는 장치
+                    // 다만 첫 페이지 요청과 다음 페이지 요청까지 같은 스냅샷으로 유지되는 것은 아님
+                    // 요청 사이에 좋아요 수가 바뀌면 인기순 위치도 바뀔 수 있기 때문에
+                    // 이 코드만으로는 페이지 간 중복·누락까지 완전히 막지는 못함.
+                    if(comment == null) {
+                        throw new IllegalStateException(
+                                "인기순 댓글의 본문 조회 결과가 일치하지 않습니다."
+                        );
+                    }
+
+                    CommentLikeState viewerState =
+                            likeStates.getOrDefault(
+                                    row.getCommentId(),
+                                    CommentLikeState.EMPTY
+                            );
+
+                    // 응답 개수와 커서는 정렬에 사용한 집계값을 사용한다.
+                    // 이렇게 하면 정렬에 사용한 좋아요 수와 화면에 표시하는 좋아요 수의 기준이 일치한다.
+                    CommentLikeState state = new CommentLikeState(
+                            row.getLikeCount(),
+                            viewerState.liked()
+                    );
+
+                    return CommentResult.from(comment, state);
+                })
+                .toList();
+
+        CommentCursor nextCursor = null;
+
+        if(hasNext) {
+            CommentPopularityRow last = returnedRows.getLast();
+
+            nextCursor = new CommentCursor(
+                    last.getCreatedAt(),
+                    last.getCommentId(),
+                    CommentSort.POPULAR,
+                    last.getLikeCount()
+            );
+        }
+
+        return new CommentListResult(
+                items,
+                hasNext,
+                nextCursor
+        );
     }
 
     private void validatePost(Long postId) {
-        if(postId == null || postId <= 0) {
+        if (postId == null || postId <= 0) {
             throw new CommentReadException(
                     CommentReadException.Code.POST_NOT_FOUND
             );

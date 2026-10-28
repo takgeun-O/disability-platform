@@ -22,6 +22,7 @@ import { isMissingPost, type InitialPostDetail } from "@/lib/community-load"
 import { postChanged, usePostVersion } from "@/lib/community-mutations"
 import {
   safeListReturn,
+  requestListScrollRestore,
   validatePostForm,
   type PostForm,
   type PostField,
@@ -76,8 +77,9 @@ export default function PostEdit({
     params.get("from"),
     space ? topicPath(space) : "/community/posts",
   )
-  const detail = `/community/posts/${id}?from=${encodeURIComponent(back)}`
-  const editPath = `/community/posts/${id}/edit?from=${encodeURIComponent(back)}`
+  const activity = back === "/mypage" && params.get("activity") === "1"
+  const detail = activity ? "/mypage" : `/community/posts/${id}?from=${encodeURIComponent(back)}`
+  const editPath = `/community/posts/${id}/edit?from=${encodeURIComponent(back)}${activity ? "&activity=1" : ""}`
   return (
     <main id="main-content" className="community-screen">
       <CommunityBanner
@@ -85,8 +87,8 @@ export default function PostEdit({
         description="나눠 주신 이야기를 수정해 주세요."
       />
       <div className="iyum-container community-writing">
-        <Link className="iyum-text-link community-back" href={detail}>
-          ← 게시글로
+        <Link className="iyum-text-link community-back" href={detail} scroll={!activity} onNavigate={() => { if (activity) requestListScrollRestore(detail) }}>
+          {activity ? "← 마이페이지로 돌아가기" : "← 게시글로"}
         </Link>
         {loading || loadedVersion !== version ? (
           <p role="status">게시글을 불러오고 있습니다.</p>
@@ -163,7 +165,7 @@ function EditForm({
   const [errors, setErrors] = useState<PostFieldErrors>({}),
     [error, setError] = useState<CommunityApiError | null>(null)
   const [busy, setBusy] = useState(false),
-    inFlight = useRef(false)
+    inFlight = useRef<symbol | null>(null)
   const form = useRef<HTMLFormElement>(null),
     alert = useRef<HTMLDivElement>(null)
   const owner =
@@ -187,13 +189,17 @@ function EditForm({
     setErrors(fields)
     setError(null)
     if (Object.keys(fields).length) return
-    const current = scope.begin(),
-      submitted = { ...values }
-    inFlight.current = true
+    const navigation = scope.begin(), session = auth.captureMemberRequest(post.author.memberId)
+    const request = Symbol("post-edit")
+    const ownsRequest = () => inFlight.current === request
+    const current = () => ownsRequest() && navigation() && session.isCurrent()
+    const submitted = { ...values }
+    inFlight.current = request
     setBusy(true)
     try {
       if (!(await changePost(String(post.id), "PUT", submitted, current)))
         return
+      if (!session.isCurrent()) return
       if (!current()) {
         postChanged(String(post.id))
         return
@@ -202,10 +208,11 @@ function EditForm({
         setSaved(true)
         setBusy(false)
       })
-      router.replace(detail)
+      if (detail === "/mypage") requestListScrollRestore(detail)
+      router.replace(detail, { scroll: detail !== "/mypage" })
       postChanged(String(post.id))
     } catch (e) {
-      if (!current()) return
+      if (!session.isCurrent()) return
       const failure =
         e instanceof CommunityApiError
           ? e
@@ -216,12 +223,18 @@ function EditForm({
               {},
               true,
             )
+      if (failure.uncertain) postChanged(String(post.id))
+      if (!current()) return
       setErrors(failure.fieldErrors)
       setError(failure)
-      if (failure.status === 401) void auth.refresh()
+      if (failure.status === 401) session.expire()
     } finally {
-      inFlight.current = false
-      if (current()) setBusy(false)
+      // 인증 만료는 응답 반영을 막지만 이 폼이 소유한 요청의 진행 상태는 정리한다.
+      // 새 요청이나 화면 이탈·재진입 후의 폼 상태는 변경하지 않는다.
+      if (ownsRequest()) {
+        inFlight.current = null
+        if (navigation()) setBusy(false)
+      }
     }
   }
   return (
@@ -278,7 +291,7 @@ function EditForm({
               {error.uncertain && (
                 <Link
                   className="iyum-text-link"
-                  href={detail}
+                  href={detail === "/mypage" ? `/community/posts/${post.id}?from=%2Fmypage` : detail}
                   target="_blank"
                   rel="noopener noreferrer"
                 >
@@ -297,7 +310,7 @@ function EditForm({
             <button
               type="button"
               className="iyum-button iyum-button-outline"
-              onClick={() => blocker.request(() => router.push(detail))}
+              onClick={() => blocker.request(() => { if (detail === "/mypage") requestListScrollRestore(detail); router.push(detail, { scroll: detail !== "/mypage" }) })}
             >
               취소
             </button>

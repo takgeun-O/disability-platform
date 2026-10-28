@@ -6,7 +6,7 @@ export function publicIdentityChanged() { identityVersion++; listeners.forEach(l
 const versions = new Map<string, number>()
 const listeners = new Set<() => void>()
 export function postChanged(id: string) {
-  for (const key of [id, "list", "member-comments"])
+  for (const key of [id, `comments:${id}`, "list", "member-comments"])
     versions.set(key, (versions.get(key) ?? 0) + 1)
   listeners.forEach((listener) => listener())
 }
@@ -35,3 +35,11 @@ export function usePostVersion(key: string) {
 }
 
 export const getPostVersion = (key: string) => (versions.get(key) ?? 0) + identityVersion
+
+// Comment content/membership or an uncertain write needs a post-local reread.
+// This is deliberately separate from the detail version and private activity list.
+export function postCommentsChanged(postId: string) {
+  const key = `comments:${postId}`
+  versions.set(key, (versions.get(key) ?? 0) + 1)
+  listeners.forEach(listener => listener())
+}

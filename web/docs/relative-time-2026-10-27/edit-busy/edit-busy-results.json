@@ -1,0 +1,38 @@
+{
+  "mocked": true,
+  "checks": [
+    {
+      "name": "detail: PUT 401 ends busy, retains draft, blocks anonymous resubmit",
+      "pass": true
+    },
+    {
+      "name": "detail: failed logout invalidates old PUT but releases busy for explicit retry",
+      "pass": true
+    },
+    {
+      "name": "mypage: PUT 401 ends busy, retains draft, blocks anonymous resubmit",
+      "pass": true
+    },
+    {
+      "name": "mypage: failed logout invalidates old PUT but releases busy for explicit retry",
+      "pass": true
+    },
+    {
+      "name": "old form finally cannot release new form PUT; draft/focus/dirty retained",
+      "pass": true
+    },
+    {
+      "name": "logout success ignores late PUT 204 and settles original form",
+      "pass": true
+    },
+    {
+      "name": "logout success ignores late PUT 401 and settles original form",
+      "pass": true
+    },
+    {
+      "name": "CSRF gate invalidated by failed logout sends no PUT and permits explicit retry",
+      "pass": true
+    }
+  ],
+  "pageErrors": []
+}

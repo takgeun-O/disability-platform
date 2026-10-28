@@ -1,4 +1,5 @@
 "use client"
+import WrittenTime from "@/components/WrittenTime"
 import PostLikeButton from "@/components/community/PostLikeButton"
 import { useAuth } from "@/components/AuthProvider"
 import Comments from "@/components/community/Comments"
@@ -19,7 +20,7 @@ import {
   type PostDetail as Detail,
 } from "@/lib/community-api"
 import { isMissingPost, type InitialPostDetail, type ReadError } from "@/lib/community-load"
-import { postDate, safeListReturn, listReturnLabel, requestListScrollRestore, listenForListReturn } from "@/lib/community-posts"
+import { safeListReturn, listReturnLabel, requestListScrollRestore, listenForListReturn } from "@/lib/community-posts"
 
 import { topicByValue, topicPath } from "@/lib/community-topics"
 
@@ -132,9 +133,7 @@ export default function PostDetail({ initial, initialComments }: { initial: Init
               <div className="community-post-meta">
                 <span>{post.author.nickname}</span>
                 <span aria-hidden="true">·</span>
-                <time dateTime={post.createdAt}>
-                  {postDate(post.createdAt)}
-                </time>
+                <WrittenTime value={post.createdAt} />
               </div>
               <PostActions post={post} back={back} />
               </div>

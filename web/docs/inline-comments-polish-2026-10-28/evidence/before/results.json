@@ -1,0 +1,20 @@
+{
+  "kind": "mock",
+  "results": [
+    {
+      "name": "post-local reads: two 40-row regions, confirmed",
+      "pass": false,
+      "error": "AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:\n\n4 !== 2\n"
+    },
+    {
+      "name": "post-local reads: two 40-row regions, malformed",
+      "pass": false,
+      "error": "AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:\n\n4 !== 2\n"
+    },
+    {
+      "name": "post-local reads: two 40-row regions, network",
+      "pass": false,
+      "error": "AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:\n\n4 !== 2\n"
+    }
+  ]
+}

@@ -1,6 +1,7 @@
 package io.github.takgeun.iyum.community.comment.infrastructure;
 
 import io.github.takgeun.iyum.community.comment.domain.Comment;
+import io.github.takgeun.iyum.community.comment.domain.CommentLike;
 import io.github.takgeun.iyum.community.post.domain.Post;
 import io.github.takgeun.iyum.community.post.domain.PostTopic;
 import io.github.takgeun.iyum.community.post.domain.PostType;
@@ -77,6 +78,9 @@ class CommentRepositoryTest {
 
     @Autowired
     MemberRepository memberRepository;
+
+    @Autowired
+    CommentLikeRepository commentLikeRepository;
 
     @Autowired
     EntityManager entityManager;
@@ -682,6 +686,562 @@ class CommentRepositoryTest {
         assertThat(result).isEmpty();
     }
 
+    @Test
+    void 최신순은_등록순의_역순이며_같은_시각에서도_페이지가_이어진다() {
+        Member author = saveActiveMember(
+                "latest-order@example.com",
+                "최신순회원"
+        );
+        Post post = savePost(author, "최신순 검증 게시글");
+
+        // 저장 순서와 작성 시각 순서를 일부러 다르게 만든다.
+        Comment newest = saveCommentAt(
+                post, author, "가장 최신 댓글",
+                CREATED_TIME.plusSeconds(60)
+        );
+        Comment sameTimeFirst = saveCommentAt(
+                post, author, "같은 시각 작은 ID",
+                CREATED_TIME
+        );
+        Comment oldest = saveCommentAt(
+                post, author, "가장 오래된 댓글",
+                CREATED_TIME.minusSeconds(60)
+        );
+        Comment sameTimeSecond = saveCommentAt(
+                post, author, "같은 시각 큰 ID",
+                CREATED_TIME
+        );
+
+        Long postId = post.getId();
+        Long newestId = newest.getId();
+        Long firstId = sameTimeFirst.getId();
+        Long oldestId = oldest.getId();
+        Long secondId = sameTimeSecond.getId();
+
+        entityManager.clear();
+
+        List<Comment> ascending =
+                commentRepository.findFirstVisibleComments(
+                        postId,
+                        PageRequest.of(0, 20)
+                );
+
+        List<Comment> descending =
+                commentRepository.findFirstVisibleCommentsLatest(
+                        postId,
+                        PageRequest.of(0, 20)
+                );
+
+        assertThat(ascending)
+                .extracting(Comment::getId)
+                .containsExactly(
+                        oldestId, firstId, secondId, newestId
+                );
+
+        assertThat(descending)
+                .extracting(Comment::getId)
+                .containsExactly(
+                        newestId, secondId, firstId, oldestId
+                );
+
+        // 같은 시각의 댓글 두 개 사이에서 페이지를 나눈다.
+        List<Comment> firstPage =
+                commentRepository.findFirstVisibleCommentsLatest(
+                        postId,
+                        PageRequest.of(0, 2)
+                );
+
+        assertThat(firstPage)
+                .extracting(Comment::getId)
+                .containsExactly(newestId, secondId);
+
+        Comment cursor = firstPage.getLast();
+
+        List<Comment> secondPage =
+                commentRepository.findVisibleCommentsLatestAfter(
+                        postId,
+                        cursor.getCreatedAt(),
+                        cursor.getId(),
+                        PageRequest.of(0, 2)
+                );
+
+        assertThat(secondPage)
+                .extracting(Comment::getId)
+                .containsExactly(firstId, oldestId);
+
+        Comment last = secondPage.getLast();
+
+        assertThat(
+                commentRepository.findVisibleCommentsLatestAfter(
+                        postId,
+                        last.getCreatedAt(),
+                        last.getId(),
+                        PageRequest.of(0, 2)
+                )
+        ).isEmpty();
+    }
+
+    @Test
+    void 최신순은_조회대상이_아닌_댓글을_제외하고_삭제된_커서로도_이어진다() {
+        Member author = saveActiveMember(
+                "latest-filter@example.com",
+                "최신필터회원"
+        );
+        Post post = savePost(author, "대상 게시글");
+        Post otherPost = savePost(author, "다른 게시글");
+
+        Comment cursor = saveCommentAt(
+                post, author, "첫 페이지 마지막 댓글",
+                CREATED_TIME.plusSeconds(60)
+        );
+        Comment next = saveCommentAt(
+                post, author, "다음 페이지 댓글",
+                CREATED_TIME
+        );
+        Comment deleted = saveCommentAt(
+                post, author, "삭제할 댓글",
+                CREATED_TIME.plusSeconds(30)
+        );
+        saveCommentAt(
+                otherPost, author, "다른 글의 댓글",
+                CREATED_TIME.plusSeconds(30)
+        );
+
+        deleted.delete(UPDATED_TIME);
+        entityManager.flush();
+
+        Long postId = post.getId();
+        Long cursorId = cursor.getId();
+        Instant cursorTime = cursor.getCreatedAt();
+        Long nextId = next.getId();
+
+        entityManager.clear();
+
+        assertThat(
+                commentRepository.findFirstVisibleCommentsLatest(
+                        postId,
+                        PageRequest.of(0, 20)
+                )
+        )
+                .extracting(Comment::getId)
+                .containsExactly(cursorId, nextId);
+
+        // 첫 페이지 조회 이후 커서 댓글이 삭제된 상황.
+        commentRepository.findById(cursorId)
+                .orElseThrow()
+                .delete(UPDATED_TIME);
+
+        entityManager.flush();
+        entityManager.clear();
+
+        assertThat(
+                commentRepository.findVisibleCommentsLatestAfter(
+                        postId,
+                        cursorTime,
+                        cursorId,
+                        PageRequest.of(0, 20)
+                )
+        )
+                .extracting(Comment::getId)
+                .containsExactly(nextId);
+    }
+
+    @Test
+    void 최신순에서도_삭제된_게시글의_댓글은_조회하지_않는다() {
+        Member author = saveActiveMember(
+                "latest-deleted-post@example.com",
+                "최신삭제회원"
+        );
+        Post post = savePost(author, "삭제할 게시글");
+
+        Comment cursor = saveCommentAt(
+                post, author, "최신 댓글",
+                CREATED_TIME.plusSeconds(60)
+        );
+        saveCommentAt(
+                post, author, "오래된 댓글",
+                CREATED_TIME
+        );
+
+        Long postId = post.getId();
+        Long cursorId = cursor.getId();
+        Instant cursorTime = cursor.getCreatedAt();
+
+        post.delete(UPDATED_TIME);
+        entityManager.flush();
+        entityManager.clear();
+
+        assertThat(
+                commentRepository.findFirstVisibleCommentsLatest(
+                        postId,
+                        PageRequest.of(0, 20)
+                )
+        ).isEmpty();
+
+        assertThat(
+                commentRepository.findVisibleCommentsLatestAfter(
+                        postId,
+                        cursorTime,
+                        cursorId,
+                        PageRequest.of(0, 20)
+                )
+        ).isEmpty();
+
+        // 댓글 자체는 삭제되지 않았어도 조회 대상에서 제외된다.
+        assertThat(
+                commentRepository.findById(cursorId)
+                        .orElseThrow()
+                        .getDeletedAt()
+        ).isNull();
+    }
+
+    @Test
+    void 최신순으로_댓글이_없는_게시글을_조회하면_빈_목록을_반환한다() {
+        Member author = saveActiveMember(
+                "latest-empty@example.com",
+                "최신빈목록회원"
+        );
+        Post post = savePost(author, "댓글 없는 게시글");
+        Long postId = post.getId();
+
+        entityManager.clear();
+
+        assertThat(
+                commentRepository.findFirstVisibleCommentsLatest(
+                        postId,
+                        PageRequest.of(0, 20)
+                )
+        ).isEmpty();
+    }
+
+    @Test
+    void 인기순은_좋아요가_없는_댓글도_등록순으로_이어_조회한다() {
+        Member author = saveActiveMember(
+                "popular-zero@example.com",
+                "인기순기본회원"
+        );
+        Post post = savePost(author, "인기순 기본 검증");
+
+        Comment first = saveCommentAt(
+                post, author, "먼저 작성한 댓글",
+                CREATED_TIME
+        );
+        Comment second = saveCommentAt(
+                post, author, "같은 시각 다음 댓글",
+                CREATED_TIME
+        );
+
+        Long postId = post.getId();
+        Long firstId = first.getId();
+        Long secondId = second.getId();
+
+        entityManager.clear();
+
+        List<CommentPopularityRow> firstPage =
+                commentRepository.findFirstVisibleCommentsPopular(
+                        postId,
+                        PageRequest.of(0, 1)
+                );
+
+        assertThat(firstPage)
+                .extracting(CommentPopularityRow::getCommentId)
+                .containsExactly(firstId);
+
+        CommentPopularityRow cursor = firstPage.getFirst();
+
+        assertThat(cursor.getCreatedAt()).isEqualTo(CREATED_TIME);
+        assertThat(cursor.getLikeCount()).isEqualTo(0L);
+
+        List<CommentPopularityRow> secondPage =
+                commentRepository.findVisibleCommentsPopularAfter(
+                        postId,
+                        cursor.getLikeCount(),
+                        cursor.getCreatedAt(),
+                        cursor.getCommentId(),
+                        PageRequest.of(0, 1)
+                );
+
+        assertThat(secondPage)
+                .extracting(CommentPopularityRow::getCommentId)
+                .containsExactly(secondId);
+
+        assertThat(secondPage.getFirst().getLikeCount())
+                .isEqualTo(0L);
+
+        CommentPopularityRow last = secondPage.getFirst();
+
+        assertThat(
+                commentRepository.findVisibleCommentsPopularAfter(
+                        postId,
+                        last.getLikeCount(),
+                        last.getCreatedAt(),
+                        last.getCommentId(),
+                        PageRequest.of(0, 1)
+                )
+        ).isEmpty();
+    }
+
+    @Test
+    void 인기순은_좋아요수_작성시각_ID로_정렬하고_페이지를_이어간다() {
+        Member author = saveActiveMember(
+                "popular-order-author@example.com",
+                "인기정렬작성자"
+        );
+        Member likerA = saveActiveMember(
+                "popular-order-a@example.com",
+                "인기회원가"
+        );
+        Member likerB = saveActiveMember(
+                "popular-order-b@example.com",
+                "인기회원나"
+        );
+        Member likerC = saveActiveMember(
+                "popular-order-c@example.com",
+                "인기회원다"
+        );
+
+        Post post = savePost(author, "인기순 정렬 검증");
+
+        // 저장 순서와 기대 정렬 순서를 일부러 다르게 만든다.
+        Comment later = saveCommentAt(
+                post, author, "동점이지만 늦게 작성한 댓글",
+                CREATED_TIME.plusSeconds(60)
+        );
+        Comment sameTimeFirst = saveCommentAt(
+                post, author, "같은 시각 작은 ID",
+                CREATED_TIME
+        );
+        Comment zero = saveCommentAt(
+                post, author, "좋아요 없는 댓글",
+                CREATED_TIME.minusSeconds(60)
+        );
+        Comment sameTimeSecond = saveCommentAt(
+                post, author, "같은 시각 큰 ID",
+                CREATED_TIME
+        );
+        Comment top = saveCommentAt(
+                post, author, "좋아요가 가장 많은 댓글",
+                CREATED_TIME.plusSeconds(120)
+        );
+
+        saveLikes(later, likerA, likerB);
+        saveLikes(sameTimeFirst, likerA, likerB);
+        saveLikes(sameTimeSecond, likerA, likerB);
+        saveLikes(top, likerA, likerB, likerC);
+
+        Long postId = post.getId();
+        Long topId = top.getId();
+        Long firstId = sameTimeFirst.getId();
+        Long secondId = sameTimeSecond.getId();
+        Long laterId = later.getId();
+        Long zeroId = zero.getId();
+
+        entityManager.clear();
+
+        List<CommentPopularityRow> firstPage =
+                commentRepository.findFirstVisibleCommentsPopular(
+                        postId,
+                        PageRequest.of(0, 2)
+                );
+
+        assertThat(firstPage)
+                .extracting(
+                        CommentPopularityRow::getCommentId,
+                        CommentPopularityRow::getLikeCount
+                )
+                .containsExactly(
+                        tuple(topId, 3L),
+                        tuple(firstId, 2L)
+                );
+
+        CommentPopularityRow firstCursor = firstPage.getLast();
+
+        List<CommentPopularityRow> secondPage =
+                commentRepository.findVisibleCommentsPopularAfter(
+                        postId,
+                        firstCursor.getLikeCount(),
+                        firstCursor.getCreatedAt(),
+                        firstCursor.getCommentId(),
+                        PageRequest.of(0, 2)
+                );
+
+        assertThat(secondPage)
+                .extracting(
+                        CommentPopularityRow::getCommentId,
+                        CommentPopularityRow::getLikeCount
+                )
+                .containsExactly(
+                        tuple(secondId, 2L),
+                        tuple(laterId, 2L)
+                );
+
+        CommentPopularityRow secondCursor = secondPage.getLast();
+
+        List<CommentPopularityRow> thirdPage =
+                commentRepository.findVisibleCommentsPopularAfter(
+                        postId,
+                        secondCursor.getLikeCount(),
+                        secondCursor.getCreatedAt(),
+                        secondCursor.getCommentId(),
+                        PageRequest.of(0, 2)
+                );
+
+        assertThat(thirdPage)
+                .extracting(
+                        CommentPopularityRow::getCommentId,
+                        CommentPopularityRow::getLikeCount
+                )
+                .containsExactly(tuple(zeroId, 0L));
+
+        CommentPopularityRow last = thirdPage.getLast();
+
+        assertThat(
+                commentRepository.findVisibleCommentsPopularAfter(
+                        postId,
+                        last.getLikeCount(),
+                        last.getCreatedAt(),
+                        last.getCommentId(),
+                        PageRequest.of(0, 2)
+                )
+        ).isEmpty();
+    }
+
+    @Test
+    void 인기순은_좋아요가_있어도_삭제된_댓글과_다른_게시글을_제외한다() {
+        Member author = saveActiveMember(
+                "popular-filter-author@example.com",
+                "인기필터작성자"
+        );
+        Member likerA = saveActiveMember(
+                "popular-filter-a@example.com",
+                "필터회원가"
+        );
+        Member likerB = saveActiveMember(
+                "popular-filter-b@example.com",
+                "필터회원나"
+        );
+
+        Post post = savePost(author, "대상 게시글");
+        Post otherPost = savePost(author, "다른 게시글");
+
+        Comment first = saveCommentAt(
+                post, author, "좋아요 두 개",
+                CREATED_TIME
+        );
+        Comment next = saveCommentAt(
+                post, author, "좋아요 한 개",
+                CREATED_TIME.plusSeconds(60)
+        );
+        Comment deleted = saveCommentAt(
+                post, author, "삭제할 댓글",
+                CREATED_TIME
+        );
+        Comment other = saveCommentAt(
+                otherPost, author, "다른 글의 댓글",
+                CREATED_TIME
+        );
+
+        saveLikes(first, likerA, likerB);
+        saveLikes(next, likerA);
+        saveLikes(deleted, likerA);
+        saveLikes(other, likerA);
+
+        deleted.delete(UPDATED_TIME);
+        entityManager.flush();
+
+        Long postId = post.getId();
+        Long firstId = first.getId();
+        Long nextId = next.getId();
+        Long deletedId = deleted.getId();
+
+        entityManager.clear();
+
+        List<CommentPopularityRow> result =
+                commentRepository.findFirstVisibleCommentsPopular(
+                        postId,
+                        PageRequest.of(0, 20)
+                );
+
+        assertThat(result)
+                .extracting(CommentPopularityRow::getCommentId)
+                .containsExactly(firstId, nextId);
+
+        CommentPopularityRow cursor = result.getFirst();
+
+        assertThat(
+                commentRepository.findVisibleCommentsPopularAfter(
+                        postId,
+                        cursor.getLikeCount(),
+                        cursor.getCreatedAt(),
+                        cursor.getCommentId(),
+                        PageRequest.of(0, 20)
+                )
+        )
+                .extracting(CommentPopularityRow::getCommentId)
+                .containsExactly(nextId);
+
+        // 좋아요가 사라져서 제외된 것이 아니라,
+        // 댓글의 삭제 조건으로 제외됐음을 확인한다.
+        assertThat(commentLikeRepository.countByComment_Id(deletedId))
+                .isEqualTo(1L);
+    }
+
+    @Test
+    void 인기순은_삭제된_게시글의_댓글을_조회하지_않는다() {
+        Member author = saveActiveMember(
+                "popular-post-author@example.com",
+                "인기게시글작성자"
+        );
+        Member liker = saveActiveMember(
+                "popular-post-liker@example.com",
+                "인기게시글회원"
+        );
+
+        Post post = savePost(author, "삭제할 게시글");
+
+        Comment first = saveCommentAt(
+                post, author, "좋아요 있는 댓글",
+                CREATED_TIME
+        );
+        saveCommentAt(
+                post, author, "좋아요 없는 댓글",
+                CREATED_TIME.plusSeconds(60)
+        );
+
+        saveLikes(first, liker);
+
+        Long postId = post.getId();
+        Long firstId = first.getId();
+        Instant firstTime = first.getCreatedAt();
+
+        post.delete(UPDATED_TIME);
+        entityManager.flush();
+        entityManager.clear();
+
+        assertThat(
+                commentRepository.findFirstVisibleCommentsPopular(
+                        postId,
+                        PageRequest.of(0, 20)
+                )
+        ).isEmpty();
+
+        assertThat(
+                commentRepository.findVisibleCommentsPopularAfter(
+                        postId,
+                        1L,
+                        firstTime,
+                        firstId,
+                        PageRequest.of(0, 20)
+                )
+        ).isEmpty();
+
+        assertThat(
+                commentRepository.findById(firstId)
+                        .orElseThrow()
+                        .getDeletedAt()
+        ).isNull();
+    }
+
     private Comment saveComment(String content) {
         Member postAuthor = saveActiveMember(
                 "post-writer@example.com",
@@ -748,5 +1308,13 @@ class CommentRepositoryTest {
         return commentRepository.saveAndFlush(
                 Comment.create(post, author, content)
         );
+    }
+
+    private void saveLikes(Comment comment, Member... members) {
+        for (Member member : members) {
+            commentLikeRepository.saveAndFlush(
+                    CommentLike.create(comment, member)
+            );
+        }
     }
 }

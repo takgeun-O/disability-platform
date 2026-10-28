@@ -1,0 +1,44 @@
+{
+  "results": [
+    {
+      "name": "read-only likes and comments navigation /community 1440",
+      "pass": true
+    },
+    {
+      "name": "read-only likes and comments navigation /mypage 1440",
+      "pass": true
+    },
+    {
+      "name": "read-only likes and comments navigation /community/topics/hearing-aid 1440",
+      "pass": true
+    },
+    {
+      "name": "read-only likes and comments navigation /community 390",
+      "pass": true
+    },
+    {
+      "name": "read-only likes and comments navigation /mypage 390",
+      "pass": true
+    },
+    {
+      "name": "read-only likes and comments navigation /community/topics/hearing-aid 390",
+      "pass": true
+    },
+    {
+      "name": "read-only likes and comments navigation /community 320",
+      "pass": true
+    },
+    {
+      "name": "read-only likes and comments navigation /mypage 320",
+      "pass": true
+    },
+    {
+      "name": "read-only likes and comments navigation /community/topics/hearing-aid 320",
+      "pass": true
+    },
+    {
+      "name": "noJS comments remains a native anchor and likes text",
+      "pass": true
+    }
+  ]
+}
