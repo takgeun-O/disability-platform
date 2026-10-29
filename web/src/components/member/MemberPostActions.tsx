@@ -41,11 +41,13 @@ export default function MemberPostActions({ post, open, onOpen, onLeaving, onRem
     try {
       const done = await changePost(String(post.id), 'DELETE', undefined, current)
       if (!done || !session.isCurrent()) return
+      auth.commentDrafts.discardDeleted(post.author.memberId, post.id); auth.commentCreated.discardDeleted(post.author.memberId, post.id)
       if (current()) { setDialog(false); if (trigger.current) onRemoved(post.id, trigger.current) }
       postChanged(String(post.id))
     } catch (cause) {
       if (!session.isCurrent()) return
       const failure = cause instanceof CommunityApiError ? cause : new CommunityApiError(0, 'UNEXPECTED_RESPONSE', '삭제 결과를 확인하지 못했습니다.', {}, true)
+      if (failure.status === 404 && failure.code === 'POST_NOT_FOUND') { auth.commentDrafts.discardDeleted(post.author.memberId, post.id); auth.commentCreated.discardDeleted(post.author.memberId, post.id) }
       if (failure.uncertain || failure.code === 'POST_NOT_FOUND') postChanged(String(post.id))
       if (!current()) return
       if (failure.status === 401) { session.expire(); return }

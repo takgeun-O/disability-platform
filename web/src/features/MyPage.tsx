@@ -1,14 +1,15 @@
 "use client"
-import { useCallback, useEffect, useRef, useState, type FormEvent } from 'react'
+import { useCallback, useEffect, useRef, useState, useSyncExternalStore, type FormEvent } from 'react'
 import Link from '@/components/AppLink'
 import PasswordChangeDialog from '@/components/member/PasswordChangeDialog'
 import WithdrawalDialog from '@/components/member/WithdrawalDialog'
+import CommunityDialog from '@/components/community/CommunityDialog'
 import MyActivity from '@/components/member/MyActivity'
 import SuccessToast from '@/components/member/SuccessToast'
 import { usePostVersion, getPostVersion } from '@/lib/community-mutations'
 import OverlayDialog from '@/components/OverlayDialog'
 import { useAuth } from '@/components/AuthProvider'
-import { useNavigationRequest } from '@/components/NavigationGuard'
+import { useNavigationGuard, useUnsavedChanges, useNavigationRequest } from '@/components/NavigationGuard'
 import { FieldError } from '@/components/auth/AuthFields'
 import { FeedAvatar } from '@/components/community/FeedNavigation'
 import { requestListScrollRestore } from '@/lib/community-posts'
@@ -17,10 +18,23 @@ import { getProfile, getActivitySummary, getMemberCsrf, updateNickname, nickname
 const message = (error: unknown) => error instanceof Error ? error.message : '정보를 확인하지 못했습니다. 다시 시도해 주세요.'
 type Resource<T> = { data?: T; error?: string }
 function LoginRequired({ settings }: { settings: boolean }) { const loginHref = `/login?from=${encodeURIComponent(safeReturnPath(settings ? '/mypage/settings' : '/mypage'))}`; return <div className="mypage-message"><h2>로그인이 필요해요</h2><p>로그인하고 내 프로필과 활동을 확인해 보세요.</p><Link className="iyum-button iyum-button-primary" href={loginHref}>로그인하기</Link></div> }
+function DraftProtection() {
+  const { commentDrafts, commentCreated } = useAuth()
+  const drafts = useSyncExternalStore(commentDrafts.subscribe, commentDrafts.snapshot, commentDrafts.snapshot)
+  const blocker = useUnsavedChanges(Object.values(drafts).some(Boolean))
+  const { subscribeNavigation } = useNavigationGuard()
+  useEffect(() => subscribeNavigation(() => { commentDrafts.clear(); commentCreated.clear() }), [subscribeNavigation, commentDrafts, commentCreated])
+  return blocker.state === 'blocked' ? <CommunityDialog titleId="inline-comment-leave-title" onCancel={blocker.reset}>
+    <h2 id="inline-comment-leave-title">작성 중인 댓글을 두고 나갈까요?</h2>
+    <p>화면의 입력은 보관되지 않습니다. 이미 전송한 요청은 서버에서 처리될 수 있습니다.</p>
+    <div className="community-dialog-actions"><button data-initial-focus className="iyum-button iyum-button-outline" onClick={blocker.reset}>계속 작성</button><button className="iyum-button iyum-button-primary" onClick={blocker.proceed}>나가기</button></div>
+  </CommunityDialog> : null
+}
 export default function MyPage({ settings = false }: { settings?: boolean }) {
   const auth = useAuth()
   const [passwordNotice, setPasswordNotice] = useState('')
   return <main id="main-content" className={`mypage${settings ? ' mypage-settings' : ''}`}><header className="mypage-heading">{settings && <Link className="mypage-back" href="/mypage" scroll={false} prefetch={false} onNavigate={() => requestListScrollRestore('/mypage')}>← 마이페이지로 돌아가기</Link>}<h1>{settings ? '프로필·계정 설정' : '마이페이지'}</h1><p>{settings ? '프로필과 계정 보안을 관리하세요.' : '내가 나눈 이야기와 활동을 한곳에서 확인해요.'}</p></header>
+    {!settings && <DraftProtection />}
     {passwordNotice && <p role="status" className="mypage-notice has-notice">{passwordNotice}</p>}
     {auth.status === 'checking' || auth.pending ? <p role="status">회원 상태를 확인하고 있습니다.</p>
       : auth.status === 'error' ? <div className="mypage-message" role="alert"><p>로그인 상태를 확인하지 못했어요.</p><button className="iyum-button iyum-button-outline" onClick={() => void auth.refresh()}>로그인 상태 다시 확인</button></div>

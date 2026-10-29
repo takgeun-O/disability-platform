@@ -1,4 +1,5 @@
 'use client'
+import InlineCommentForm from './InlineCommentForm'
 import { useCallback, useEffect, useId, useLayoutEffect, useRef, useState } from 'react'
 import { useAuth } from '@/components/AuthProvider'
 import { useNavigationRequest } from '@/components/NavigationGuard'
@@ -14,19 +15,21 @@ import { emptyInlineComments, refreshInlineComments, type InlineCommentsSnapshot
 import type { PostSummary } from '@/lib/community-api'
 import '@/styles/community.css'
 
-export default function InlineComments({ post, memberId, initial, active, restoring, onSnapshot, onLeaving }: {
+export default function InlineComments({ post, memberId, initial, active, restoring, onSnapshot, onLeaving, draft, onDraft, onCreated }: {
+  draft: string; onDraft: (text: string) => void; onCreated: (text: string) => void
   post: PostSummary; memberId: number; initial?: InlineCommentsSnapshot; active: boolean; restoring: boolean
   onSnapshot: (postId: number, value: InlineCommentsSnapshot) => void; onLeaving: () => void
 }) {
   const { list: commentList, capture: captureTransition } = useCommentTransition()
   const uid = useId(), region = useRef<HTMLElement>(null), toggle = useRef<HTMLButtonElement>(null)
-  const { captureMemberRequest, commentLikes, memberRequests } = useAuth(), scope = useNavigationRequest(), version = usePostVersion(`comments:${post.id}`)
+  const { captureMemberRequest, commentLikes, memberRequests, commentDrafts, commentCreated } = useAuth(), scope = useNavigationRequest(), version = usePostVersion(`comments:${post.id}`)
   const [view, setView] = useState(initial ?? emptyInlineComments), current = useRef(view)
   const [progress, setProgress] = useState<{ revision: number; kind: 'more' | 'refresh' } | null>(null)
   const busy = progress?.revision === memberRequests.revision ? progress.kind : null
   const request = useRef<AbortController | null>(null), mounted = useRef(false)
   const failed = useRef<string | null>(initial?.error?.attempt ?? null)
   const visible = useRef(active), pendingFocus = useRef<{ trigger: HTMLElement; id?: number } | null>(null)
+  const collapseFocus = useRef(false)
   const href = `/community/posts/${post.id}?from=%2Fmypage`
   const publish = useCallback((next: InlineCommentsSnapshot) => {
     current.current = next; setView(next); onSnapshot(post.id, next)
@@ -49,6 +52,7 @@ export default function InlineComments({ post, memberId, initial, active, restor
     if (!session.isCurrent()) return false
     request.current?.abort()
     const controller = new AbortController(); request.current = controller
+    const receipt = commentCreated.capture(memberId, post.id)
     const ticket = commentLikes.read(), requestedVersion = getPostVersion(`comments:${post.id}`)
     const valid = () => mounted.current && request.current === controller && !controller.signal.aborted && scope.isActive() && session.isCurrent() && ticket.valid() && current.current.sort === before.sort
     setProgress({ revision: memberRequests.revision, kind }); pendingFocus.current = null
@@ -63,6 +67,7 @@ export default function InlineComments({ post, memberId, initial, active, restor
         if (cursors.includes(key)) throw commentError(200, null, false)
         cursors.push(key)
       }
+      receipt.confirm(data.items.map(c => c.commentId))
       ticket.accept(data.items.map(c => ({ ...c, id: c.commentId })))
       const items = kind === 'more' ? mergeComments(before.items, data.items) : data.items
       if (trigger && document.activeElement === trigger && visible.current && current.current.open) {
@@ -78,12 +83,12 @@ export default function InlineComments({ post, memberId, initial, active, restor
       const missing = cause instanceof CommentError && cause.status === 404 && cause.code === 'POST_NOT_FOUND'
       failed.current = `${memberRequests.revision}:${requestedVersion}`
       publish({ ...current.current, ...(missing ? { items: [], segments: 0, hasNext: false, nextCursor: null } : {}), error: { kind, missing, attempt: `${memberRequests.revision}:${requestedVersion}`, message: cause instanceof Error ? cause.message : '댓글을 불러오지 못했습니다. 다시 시도해 주세요.' } })
-      if (missing) postChanged(String(post.id))
+      if (missing) { commentDrafts.discardDeleted(memberId, post.id); commentCreated.discardDeleted(memberId, post.id); postChanged(String(post.id)) }
       return false
     } finally {
       if (request.current === controller) { request.current = null; if (mounted.current && scope.isActive()) setProgress(null) }
     }
-  }, [captureMemberRequest, commentLikes, memberRequests, memberId, post.id, publish, scope, captureTransition])
+  }, [captureMemberRequest, commentLikes, commentDrafts, commentCreated, memberRequests, memberId, post.id, publish, scope, captureTransition])
   useEffect(() => {
     if (!request.current && active && view.open && !restoring && !view.error?.missing && !memberRequests.paused &&
       (view.commentsVersion !== version || view.revision !== memberRequests.revision) &&
@@ -96,6 +101,18 @@ export default function InlineComments({ post, memberId, initial, active, restor
     const target = pending.id ? region.current?.querySelector<HTMLElement>(`[data-inline-comment="${pending.id}"] button`) : null
     ;(target ?? toggle.current)?.focus({ preventScroll: true })
   }, [view, active, scope])
+  useLayoutEffect(() => {
+    if (view.open || !collapseFocus.current) return
+    collapseFocus.current = false
+    if (!active || !scope.isActive() || !toggle.current) return
+    const button = toggle.current
+    button.focus({ preventScroll: true })
+    const rect = button.getBoundingClientRect()
+    const headerBottom = Math.max(0, document.querySelector('.iyum-header')?.getBoundingClientRect().bottom ?? 0)
+    const top = headerBottom + 8, bottom = window.innerHeight - 8
+    if (rect.top < top) window.scrollBy({ top: rect.top - top, behavior: 'instant' })
+    else if (rect.bottom > bottom) window.scrollBy({ top: rect.bottom - bottom, behavior: 'instant' })
+  }, [view.open, active, scope])
   function switchSort(sort: CommentSort) {
     if (sort === current.current.sort) return
     request.current?.abort(); request.current = null; pendingFocus.current = null; failed.current = null
@@ -105,7 +122,10 @@ export default function InlineComments({ post, memberId, initial, active, restor
   function switchOpen() {
     if (view.open && region.current?.contains(document.activeElement)) toggle.current?.focus({ preventScroll: true })
     pendingFocus.current = null
-    publish({ ...current.current, open: !current.current.open })
+    // Explicit collapse ends this read cycle; tab/history restoration is unchanged.
+    request.current?.abort(); request.current = null; failed.current = null
+    setProgress(null)
+    publish({ ...emptyInlineComments, sort: current.current.sort, open: !current.current.open })
   }
   return <>
     <PostListReactions post={post} href={href} onLeaving={onLeaving} likeControl={<div className="mypage-post-like"><PostLikeButton post={post} /></div>} commentControl={
@@ -114,14 +134,7 @@ export default function InlineComments({ post, memberId, initial, active, restor
         댓글 {post.commentCount.toLocaleString('ko-KR')}
       </button>} />
     <section ref={region} id={`${uid}-comments`} hidden={!view.open} className="mypage-inline-comments" aria-labelledby={`${uid}-title`} aria-busy={!!busy}>
-      <div className="mypage-comment-preview" aria-describedby={`${uid}-preview-note`}>
-        <label className="sr-only" htmlFor={`${uid}-preview`}>댓글 작성 미리보기</label>
-        <div className="mypage-comment-preview-field">
-          <textarea id={`${uid}-preview`} disabled rows={1} placeholder="댓글로 이야기를 나눠보세요" aria-describedby={`${uid}-preview-note`} />
-          <button type="button" disabled>등록</button>
-        </div>
-        <p id={`${uid}-preview-note`}>댓글 작성 기능은 준비 중이에요.</p>
-      </div>
+      <InlineCommentForm postId={post.id} memberId={memberId} draft={draft} onDraft={onDraft} onSuccess={onCreated} />
       <div className="mypage-inline-heading"><h4 id={`${uid}-title`} className="sr-only">{post.title} 게시글의 댓글</h4>
         <CommentSortMenu value={view.sort} onChange={switchSort} disabled={memberRequests.paused} />
         <button type="button" className="iyum-text-link" disabled={!!busy || memberRequests.paused} onClick={() => void load('refresh')}>댓글 새로고침</button></div>
@@ -136,6 +149,10 @@ export default function InlineComments({ post, memberId, initial, active, restor
       {(view.hasNext || view.error) && <button type="button" className="iyum-button iyum-button-outline" aria-disabled={!!busy || memberRequests.paused}
         onClick={e => { if (!busy) void load(view.error?.kind ?? 'more', undefined, e.detail === 0 ? e.currentTarget : undefined) }}>
         {busy ? '불러오는 중…' : view.error ? '댓글 다시 시도' : '댓글 더 보기'}</button>}
+      <div className="mypage-inline-footer">
+        <button type="button" className="iyum-text-link" aria-controls={`${uid}-comments`} aria-expanded={view.open}
+          onClick={() => { collapseFocus.current = true; switchOpen() }}>댓글 접기 <span aria-hidden="true">⌃</span></button>
+      </div>
     </section>
   </>
 }

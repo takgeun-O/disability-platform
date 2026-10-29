@@ -36,7 +36,9 @@ async function fixture(width=1440){
  await p.route('http://127.0.0.1:8082/**',async r=>{
   const q=r.request(),u=new URL(q.url()),method=q.method();state.calls.push({path:u.pathname,search:u.search,method})
   if(u.pathname.endsWith('/auth/me'))return r.fulfill(state.member?{json:state.member}:{status:401,json:failure('AUTHENTICATION_REQUIRED')})
+  if(u.pathname.endsWith('/csrf')&&state.csrf)return state.csrf(r,u)
   if(u.pathname.endsWith('/csrf'))return r.fulfill({json:{headerName:'X-CSRF-TOKEN',token:'mock-only'}})
+  if(u.pathname.endsWith('/logout')&&state.logout)return state.logout(r,u)
   if(u.pathname.endsWith('/logout')){state.member=null;return r.fulfill({status:204})}
   if(u.pathname.endsWith('/login')){state.member={...state.loginMember};return r.fulfill({json:state.member})}
   if(u.pathname.endsWith('/members/me'))return r.fulfill({json:{...state.member,createdAt:stamp}})
@@ -46,6 +48,7 @@ async function fixture(width=1440){
   if(method==='GET')return state.get?state.get(r,u):r.fulfill(read(u))
   if(state.write)return state.write(r,u)
   const id=Number(u.pathname.split('/')[5]),cid=Number(u.pathname.split('/').at(-2)),c=comments.get(id)?.find(c=>c.commentId===cid)
+  if(method==='POST'&&u.pathname.endsWith('/comments')){const list=comments.get(id),created={...comment(id,list.length+1),content:q.postDataJSON().content};list.push(created);posts.find(p=>p.id===id).commentCount=list.length;return r.fulfill({status:201,json:{commentId:created.commentId}})}
   if(u.pathname.match(/\/posts\/\d+\/like$/)){const p=posts.find(p=>p.id===id);p.liked=method==='PUT';p.likeCount=p.liked?7:6;return r.fulfill({json:{postId:id,liked:p.liked,likeCount:p.likeCount}})}
   if(u.pathname.endsWith('/like')){c.liked=method==='PUT';c.likeCount=c.liked?9:8;return r.fulfill({json:{postId:id,commentId:cid,liked:c.liked,likeCount:c.likeCount}})}
   return r.fulfill({status:500,json:failure('UNEXPECTED')})
@@ -60,6 +63,228 @@ async function open(p,id,n){await row(p,id).getByRole('button',{name:/^댓글 \d
 function gate(s,pid){let release,held;const reached=new Promise(resolve=>{s.get=async(r,u)=>{if(u.pathname===`/api/v1/community/posts/${pid}/comments`){held=r.request();s.get=null;await new Promise(done=>{release=async(data)=>{try{await r.fulfill(data??read(u))}finally{done()}};resolve()})}else await r.fulfill(read(u))}});return{reached,get request(){return held},release:data=>release(data)}}
 async function check(name,fn,width){const f=await fixture(width);try{await fn(f);results.push({name,pass:true});console.log('PASS',name)}catch(e){results.push({name,pass:false,error:String(e)});console.error('FAIL',name,e);process.exitCode=1;await f.p.screenshot({path:`${out}/failure-${results.length}.png`,fullPage:true})}finally{await f.ctx.close()}}
 try{
+ for(const width of [1440,390,320])await check(`panel hierarchy bottom collapse draft focus and errors ${width}`,async({p,state})=>{
+  comments.get(1000)[0].author={...member,nickname:'긴닉네임'.repeat(20)}
+  await open(p,998,0);await open(p,999,1);await open(p,1000,20)
+  const panel=area(p,1000),toggle=row(p,1000).getByRole('button',{name:/^댓글 \d/})
+  await panel.getByRole('textbox',{name:'댓글 작성'}).fill('접어도 유지할 초안\n두 번째 줄')
+  assert.equal(await p.evaluate(()=>document.documentElement.scrollWidth>innerWidth),false)
+  const bounds=await panel.boundingBox(),postBounds=await row(p,1000).boundingBox();assert(bounds.x>postBounds.x)
+  await toggle.scrollIntoViewIfNeeded();await p.screenshot({path:`${out}/panel-${width}.png`})
+  await p.screenshot({path:`${out}/panels-full-${width}.png`,fullPage:true})
+  state.write=r=>r.fulfill({status:403,json:failure('ACCESS_DENIED')})
+  await panel.getByRole('button',{name:'등록',exact:true}).click();await panel.getByRole('alert').waitFor()
+  assert.equal(await panel.getByRole('textbox',{name:'댓글 작성'}).inputValue(),'접어도 유지할 초안\n두 번째 줄')
+  await p.screenshot({path:`${out}/panel-error-${width}.png`})
+  const before=reads(state,1000).length
+  const close=panel.getByRole('button',{name:'댓글 접기',exact:true});await close.focus();await p.keyboard.press('Enter')
+  await p.waitForFunction(()=>document.querySelector('[data-member-post-id="1000"] .mypage-inline-comments')?.hidden)
+  assert.equal(await toggle.evaluate(e=>e===document.activeElement),true)
+  const rect=await toggle.boundingBox(),header=await p.locator('.iyum-header').boundingBox();assert(rect.y>=Math.max(0,header.y+header.height));assert(rect.y+rect.height<=900)
+  assert.equal(reads(state,1000).length,before)
+  await open(p,1000,20);assert.equal(await panel.getByRole('textbox',{name:'댓글 작성'}).inputValue(),'접어도 유지할 초안\n두 번째 줄')
+  assert.equal(reads(state,1000).length,before+1)
+  state.get=(r,u)=>r.fulfill(u.pathname.endsWith('/1000/comments')?{status:503,json:failure('SERVER_ERROR')}:read(u))
+  await panel.getByRole('button',{name:'댓글 새로고침',exact:true}).click();await panel.getByRole('alert').filter({hasText:'기존 목록'}).waitFor()
+  assert.equal(await items(p,1000).count(),20);assert.equal(await p.evaluate(()=>document.documentElement.scrollWidth>innerWidth),false)
+  await panel.getByRole('textbox',{name:'댓글 작성'}).fill('');await row(p,999).locator('h3 a').click();await p.locator('.community-comments').waitFor()
+  assert.equal(await p.locator('.community-comments.mypage-inline-comments').count(),0)
+ },width)
+
+ const receipts=(p,id)=>area(p,id).locator('[data-inline-created-id]')
+ async function submitCreated(p,id,text){await area(p,id).getByRole('textbox',{name:'댓글 작성'}).fill(text);await area(p,id).getByRole('button',{name:'등록',exact:true}).click();await p.waitForFunction(id=>document.querySelector(`[data-member-post-id="${id}"] textarea`)?.value==='',id)}
+ async function chooseReceiptSort(p,id,label,sort){
+  const completed=p.waitForResponse(r=>new URL(r.url()).pathname===`/api/v1/community/posts/${id}/comments`&&new URL(r.url()).searchParams.get('sort')===sort)
+  await area(p,id).getByRole('button',{name:/댓글 정렬:/}).click();await area(p,id).getByRole('menuitemradio',{name:label,exact:true}).click();await(await completed).finished()
+  const expected=cp(id,new URL(`http://mock?sort=${sort}`)).items[0]?.commentId
+  await p.waitForFunction(({id,expected})=>{const a=document.querySelector(`[data-member-post-id="${id}"] .mypage-inline-comments`);return a?.getAttribute('aria-busy')==='false'&&Number(a.querySelector('[data-inline-comment]')?.getAttribute('data-inline-comment'))===expected},{id,expected})
+ }
+ await check('created toast replaces inline receipts, latest success resets lifetime and preserves other draft',async({p,state})=>{
+  await p.clock.install();await open(p,1000,20);await open(p,999,1)
+  await area(p,999).getByRole('textbox',{name:'댓글 작성'}).fill('다른 초안');const b=reads(state,999).length
+  await submitCreated(p,1000,' 첫 원문\n ');await p.locator('.comment-toast-preview').waitFor()
+  assert.equal(await p.locator('.comment-toast-preview').textContent(),' 첫 원문\n ');assert.equal(await receipts(p,1000).count(),0)
+  await p.clock.runFor(4000);await submitCreated(p,1000,' 두번째 원문\n ')
+  assert.equal(await p.locator('.comment-success-toast').count(),1);assert.equal(await p.locator('.comment-toast-preview').textContent(),' 두번째 원문\n ')
+  await p.clock.runFor(1500);assert.equal(await p.locator('.comment-success-toast').count(),1)
+  assert.equal(await p.locator('.comment-toast-preview').getAttribute('aria-hidden'),'true')
+  assert.equal(await area(p,999).getByRole('textbox',{name:'댓글 작성'}).inputValue(),'다른 초안');assert.equal(reads(state,999).length,b)
+  await p.clock.runFor(3500);await p.waitForFunction(()=>!!document.querySelector('.comment-success-toast.is-leaving'))
+  await p.clock.runFor(250);await p.waitForFunction(()=>!document.querySelector('.comment-success-toast'))
+  assert.equal(state.calls.filter(c=>c.method==='POST').length,2)
+ })
+ for(const width of [1440,390,320])await check(`created toast layout and selected sort preserved ${width}`,async({p})=>{
+  await p.clock.install();await open(p,1000,20);await chooseReceiptSort(p,1000,'인기순','POPULAR')
+  const text=' 공백과 줄바꿈\n'+'긴댓글'.repeat(100)+' '
+  await submitCreated(p,1000,text);await p.locator('.comment-toast-preview').waitFor()
+  assert.equal(await p.locator('.comment-toast-preview').textContent(),text);assert.equal(await receipts(p,1000).count(),0)
+  assert.equal(await p.evaluate(()=>document.documentElement.scrollWidth>innerWidth),false)
+  const box=await p.locator('.comment-success-toast').boundingBox();assert(box.x>=0&&box.x+box.width<=width&&box.height<180)
+  await p.screenshot({path:`${out}/toast-${width}.png`})
+  await p.clock.runFor(5250);await p.waitForFunction(()=>!document.querySelector('.comment-success-toast'))
+  await p.screenshot({path:`${out}/toast-dismissed-${width}.png`})
+  await chooseReceiptSort(p,1000,'최신순','LATEST');assert.equal(await area(p,1000).locator('[data-inline-comment="100046"]').count(),1)
+ },width)
+ for(const [label,sort] of [['등록순','OLDEST'],['최신순','LATEST'],['인기순','POPULAR']])await check(`explicit collapse resets to first server cursor: ${sort}`,async({p,state})=>{
+  await open(p,1000,20);if(sort!=='OLDEST')await chooseReceiptSort(p,1000,label,sort)
+  await area(p,1000).getByRole('textbox',{name:'댓글 작성'}).fill('접어도 남는 초안')
+  for(const n of [40,45]){await area(p,1000).getByRole('button',{name:'댓글 더 보기',exact:true}).click();await count(p,1000,n)}
+  const before=reads(state,1000).length;const t=row(p,1000).getByRole('button',{name:/^댓글 \d/});await t.click()
+  const g=gate(state,1000);await t.click();await g.reached
+  assert.equal(await items(p,1000).count(),0);assert.equal(new URL(g.request.url()).searchParams.has('afterId'),false)
+  assert.equal(new URL(g.request.url()).searchParams.get('sort'),sort)
+  await g.release();await count(p,1000,20);await p.waitForFunction(()=>document.querySelector('[data-member-post-id="1000"] .mypage-inline-comments').getAttribute('aria-busy')==='false')
+  assert.equal(reads(state,1000).length,before+1);assert.equal(await area(p,1000).getByRole('textbox',{name:'댓글 작성'}).inputValue(),'접어도 남는 초안')
+  const expected=cp(1000,new URL(`http://mock?sort=${sort}`)).nextCursor
+  await area(p,1000).getByRole('button',{name:'댓글 더 보기',exact:true}).click();await count(p,1000,40)
+  const q=new URLSearchParams(reads(state,1000).at(-1).search);assert.equal(q.get('afterId'),String(expected.commentId));assert.equal(q.get('afterCreatedAt'),expected.createdAt)
+  if(sort==='POPULAR')assert.equal(q.get('afterLikeCount'),String(expected.likeCount))
+ })
+ await check('late more response cannot refill reopened first page or clear its busy state',async({p,state})=>{
+  await open(p,1000,20)
+  await p.evaluate(()=>{const original=fetch;window.oldReadConsumed=false;window.fetch=async(input,options)=>{if(!String(input).includes('/1000/comments')||options?.method!=='GET')return original(input,options);const response=await original(input,{...options,signal:undefined});const json=response.json.bind(response);response.json=async()=>{const value=await json();if(String(input).includes('afterId'))window.oldReadConsumed=true;return value};return response}})
+  const old=gate(state,1000);await area(p,1000).getByRole('button',{name:'댓글 더 보기',exact:true}).click();await old.reached
+  await row(p,1000).getByRole('button',{name:/^댓글 \d/}).click()
+  const fresh=gate(state,1000);await row(p,1000).getByRole('button',{name:/^댓글 \d/}).click();await fresh.reached
+  await old.release();await p.waitForFunction(()=>window.oldReadConsumed);await p.evaluate(()=>new Promise(requestAnimationFrame))
+  assert.equal(await area(p,1000).getAttribute('aria-busy'),'true');assert.equal(await items(p,1000).count(),0)
+  await fresh.release();await count(p,1000,20);await p.waitForFunction(()=>document.querySelector('[data-member-post-id="1000"] .mypage-inline-comments').getAttribute('aria-busy')==='false')
+  assert.equal(await area(p,1000).locator('[data-inline-comment]').first().getAttribute('data-inline-comment'),'100001');assert.equal(reads(state,1000).length,3)
+ })
+ await check('accepted GET before delayed POST completion cannot create a duplicate record',async({p,state})=>{
+  await open(p,1000,20);await chooseReceiptSort(p,1000,'최신순','LATEST')
+  let release,reach;const reached=new Promise(r=>reach=r)
+  state.write=async r=>{const created={...comment(1000,46),content:r.request().postDataJSON().content};comments.get(1000).push(created);reach();await new Promise(r=>release=r);await r.fulfill({status:201,json:{commentId:created.commentId}})}
+  await area(p,1000).getByRole('textbox',{name:'댓글 작성'}).fill('조회가 먼저 확인한 원문');await area(p,1000).getByRole('button',{name:'등록',exact:true}).click();await reached
+  await area(p,1000).getByRole('button',{name:'댓글 새로고침',exact:true}).click();await p.waitForFunction(()=>!!document.querySelector('[data-inline-comment="100046"]'))
+  const finished=p.waitForResponse(r=>r.request().method()==='POST'&&new URL(r.url()).pathname.endsWith('/comments'));release();await(await finished).finished()
+  await p.waitForFunction(()=>document.querySelector('[data-member-post-id="1000"] textarea')?.value==='')
+  assert.equal(await receipts(p,1000).count(),0);assert.equal(await area(p,1000).locator('[data-inline-comment="100046"]').count(),1);assert.equal(state.calls.filter(c=>c.method==='POST').length,1)
+ })
+ await check('rejected old-sort GET cannot replace current sort when transport ignores abort',async({p,state})=>{
+  await open(p,1000,20);await submitCreated(p,1000,'아직 서버 목록에서 확인하지 못한 기록');await p.locator('.comment-toast-preview').waitFor()
+  await p.evaluate(()=>{window.receiptReads=[];const fetch=window.fetch;window.fetch=async(input,options)=>{if(!String(input).includes('/1000/comments')||options?.method!=='GET')return fetch(input,options);const record={url:String(input),consumed:false};window.receiptReads.push(record);const response=await fetch(input,{...options,signal:undefined});const json=response.json.bind(response);response.json=async()=>{try{return await json()}finally{record.consumed=true}};return response}})
+  const stale=structuredClone(cp(1000,new URL('http://mock?sort=LATEST')));assert.equal(isCommentPage(stale,'LATEST'),true)
+  const old=gate(state,1000);await area(p,1000).getByRole('button',{name:/댓글 정렬:/}).click();await area(p,1000).getByRole('menuitemradio',{name:'최신순',exact:true}).click();await old.reached
+  await chooseReceiptSort(p,1000,'인기순','POPULAR');assert.equal(await receipts(p,1000).count(),0)
+  await old.release({json:stale});await p.waitForFunction(()=>window.receiptReads.some(r=>new URL(r.url).searchParams.get('sort')==='LATEST'&&r.consumed));await p.evaluate(()=>new Promise(requestAnimationFrame))
+  assert.equal(await receipts(p,1000).count(),0);assert.equal(await area(p,1000).getByRole('button',{name:'댓글 정렬: 인기순',exact:true}).count(),1)
+ })
+ await check('creation success remains distinct from GET failure and retry',async({p,state})=>{
+  await open(p,1000,20);await chooseReceiptSort(p,1000,'최신순','LATEST')
+  const g=gate(state,1000);await submitCreated(p,1000,'확정 성공 원문');await g.reached;await p.locator('.comment-toast-preview').waitFor();await g.release({status:503,json:failure('SERVER_ERROR')})
+  await area(p,1000).getByRole('alert').waitFor();assert.equal(await receipts(p,1000).count(),0);assert.equal(await area(p,1000).getByRole('textbox',{name:'댓글 작성'}).inputValue(),'')
+  await area(p,1000).getByRole('button',{name:'댓글 다시 시도',exact:true}).click();await p.waitForFunction(()=>!!document.querySelector('[data-inline-comment="100046"]'))
+  assert.equal(await receipts(p,1000).count(),0);assert.equal(state.calls.filter(c=>c.method==='POST').length,1)
+ })
+ await check('saved comment does not guard departure or restore inline receipt across boundary',async({p,state})=>{
+  await open(p,991,20);await submitCreated(p,991,'경계 밖 성공');await p.locator('.comment-toast-preview').waitFor()
+  await open(p,1000,20);state.write=r=>{posts.unshift(post(1001));comments.set(1001,[]);return r.fulfill({status:201,json:{commentId:100046}})}
+  await submitCreated(p,1000,'다른 성공');await row(p,1001).waitFor();await p.waitForFunction(()=>!document.querySelector('[data-member-post-id="991"]'))
+  await p.getByRole('button',{name:'더 보기',exact:true}).click();await row(p,991).waitFor();await open(p,991,20);assert.equal(await receipts(p,991).count(),0)
+  await row(p,999).locator('h3 a').click();await p.waitForURL(/community\/posts\/999/);assert.equal(await p.getByRole('button',{name:'나가기',exact:true}).count(),0)
+  await p.goBack();await row(p,991).waitFor();assert.equal(await p.locator('[data-inline-created-id]').count(),0)
+ })
+ await check('creation followed by failed and confirmed logout does not restore inline receipt',async({p,state})=>{
+  await open(p,1000,20);await submitCreated(p,1000,'성공 기록');await p.locator('.comment-toast-preview').waitFor()
+  state.logout=r=>r.fulfill({status:403,json:failure('CSRF_TOKEN_INVALID')});await p.getByRole('button',{name:'로그아웃',exact:true}).click()
+  await row(p,1000).waitFor();if(await row(p,1000).getByRole('button',{name:/^댓글 \d/}).getAttribute('aria-expanded')!=='true')await open(p,1000,20)
+  assert.equal(await receipts(p,1000).count(),0);assert.equal(state.member.memberId,321);assert.equal(await area(p,1000).getByRole('textbox',{name:'댓글 작성'}).inputValue(),'');state.logout=null;await p.getByRole('button',{name:'로그아웃',exact:true}).click();await p.getByRole('heading',{name:'로그인이 필요해요'}).waitFor();assert.equal(await p.locator('[data-inline-created-id]').count(),0)
+ })
+ await check('draft boundary shift: hidden draft guards departure and returns on next page',async({p,state})=>{
+  await open(p,991,20);await area(p,991).getByRole('textbox',{name:'댓글 작성'}).fill('경계 밖 초안\n보존')
+  await open(p,1000,20);await area(p,1000).getByRole('textbox',{name:'댓글 작성'}).fill('다른 게시글 등록')
+  let release,reach;const reached=new Promise(r=>reach=r)
+  state.write=async r=>{reach();await new Promise(r=>release=r);posts.unshift(post(1001));comments.set(1001,[]);await r.fulfill({status:201,json:{commentId:100046}})}
+  await area(p,1000).getByRole('button',{name:'등록',exact:true}).click();await reached
+  const refreshed=p.waitForResponse(r=>new URL(r.url()).pathname==='/api/v1/members/me/posts'&&r.request().method()==='GET')
+  release();await (await refreshed).finished();await row(p,1001).waitFor();await p.waitForFunction(()=>!document.querySelector('[data-member-post-id="991"]'))
+  await row(p,1000).locator('h3 a').click();await p.getByRole('button',{name:'계속 작성',exact:true}).click();assert(new URL(p.url()).pathname==='/mypage')
+  await p.getByRole('button',{name:'더 보기',exact:true}).click();await row(p,991).waitFor();await open(p,991,20)
+  assert.equal(await area(p,991).getByRole('textbox',{name:'댓글 작성'}).inputValue(),'경계 밖 초안\n보존')
+  assert.equal(await area(p,1000).getByRole('textbox',{name:'댓글 작성'}).inputValue(),'');assert.equal(state.calls.filter(c=>c.method==='POST').length,1)
+ })
+ for(const result of ['success','POST_NOT_FOUND','NOT_FOUND','network'])await check(`draft cleanup requires confirmed parent deletion: ${result}`,async({p,state})=>{
+  await open(p,1000,20);await submitCreated(p,1000,'삭제 전 성공 기록');await p.locator('.comment-toast-preview').waitFor();await area(p,1000).getByRole('textbox',{name:'댓글 작성'}).fill('삭제 대상 초안')
+  state.write=r=>{if(result==='success'){posts=posts.filter(p=>p.id!==1000);return r.fulfill({status:204})}if(result==='network')return r.abort('failed');return r.fulfill({status:404,json:failure(result)})}
+  await row(p,1000).getByRole('button',{name:'게시글 관리',exact:true}).click();await p.getByRole('menuitem',{name:'삭제',exact:true}).click()
+  await p.getByRole('button',{name:'삭제하기',exact:true}).click()
+  if(result==='success')await p.waitForFunction(()=>!document.querySelector('[data-member-post-id="1000"]'))
+  else {await p.getByRole('dialog').getByRole('alert').waitFor();await p.getByRole('button',{name:'취소',exact:true}).click();assert.equal(await area(p,1000).getByRole('textbox',{name:'댓글 작성'}).inputValue(),result==='POST_NOT_FOUND'?'':'삭제 대상 초안');assert.equal(await receipts(p,1000).count(),0)}
+  await row(p,999).locator('h3 a').click()
+  if(['success','POST_NOT_FOUND'].includes(result))await p.waitForURL(/community\/posts\/999/)
+  else {await p.getByRole('button',{name:'계속 작성',exact:true}).click();assert(new URL(p.url()).pathname==='/mypage')}
+ })
+ for(const phase of ['csrf','write'])await check(`inline ${phase} delayed across account change cannot write or clear new draft`,async({p,state})=>{
+  await open(p,1000,20);await area(p,1000).getByRole('textbox',{name:'댓글 작성'}).fill('이전 회원 초안')
+  let release,reach;const reached=new Promise(r=>reach=r)
+  const handler=async r=>{state.csrf=null;reach();await new Promise(r=>release=r);await r.fulfill(phase==='csrf'?{json:{headerName:'X-CSRF-TOKEN',token:'mock-only'}}:{status:201,json:{commentId:100046}})}
+  if(phase==='csrf')state.csrf=handler;else state.write=handler
+  await area(p,1000).getByRole('button',{name:'등록',exact:true}).click();await reached
+  await p.getByRole('button',{name:'로그아웃',exact:true}).click();await p.getByText('로그인이 필요해요',{exact:true}).waitFor()
+  state.loginMember={...member,memberId:456,nickname:'새 회원'};posts=posts.map(x=>({...x,author:state.loginMember}))
+  await p.getByRole('link',{name:'로그인하기',exact:true}).click();await p.locator('input[name=email]').fill('fixture@example.test');await p.locator('input[name=password]').fill('mock-only');await p.locator('main').getByRole('button',{name:'로그인',exact:true}).click();await row(p,1000).waitFor();await open(p,1000,20)
+  const input=area(p,1000).getByRole('textbox',{name:'댓글 작성'});assert.equal(await input.inputValue(),'');await input.fill('새 회원 초안')
+  const before=reads(state,1000).length,done=p.waitForResponse(r=>r.url().includes(phase==='csrf'?'/csrf':'/1000/comments')&&r.request().method()===(phase==='csrf'?'GET':'POST'))
+  release();await(await done).finished();await p.evaluate(()=>new Promise(requestAnimationFrame))
+  assert.equal(await input.inputValue(),'새 회원 초안');assert.equal(await p.locator('.comment-success-toast').count(),0);assert.equal(await p.locator('[data-inline-created-id]').count(),0);assert.equal(reads(state,1000).length,before)
+  assert.equal(state.calls.filter(c=>c.method==='POST'&&c.path.endsWith('/comments')).length,phase==='csrf'?0:1)
+ })
+ for(const width of [1440,390,320])await check(`inline create independent drafts, tabs, guard and layout ${width}`,async({p,state})=>{
+  await open(p,1000,20);await open(p,999,1)
+  const a=area(p,1000).getByRole('textbox',{name:'댓글 작성'}),b=area(p,999).getByRole('textbox',{name:'댓글 작성'})
+  await a.fill(' 첫 초안\n한글 입력 ');await b.fill('다른 글 초안')
+  await row(p,999).getByRole('button',{name:/^댓글 \d/}).click();await row(p,999).getByRole('button',{name:/^댓글 \d/}).click();assert.equal(await b.inputValue(),'다른 글 초안')
+  await p.getByRole('tab',{name:/내 댓글/}).click();await p.getByRole('tab',{name:/내 게시글/}).click();assert.equal(await a.inputValue(),' 첫 초안\n한글 입력 ')
+  let release,reach;const reached=new Promise(r=>reach=r)
+  state.write=async(r,u)=>{reach();await new Promise(r=>release=r);const id=Number(u.pathname.split('/')[5]);comments.get(id).push({...comment(id,46),content:r.request().postDataJSON().content});posts.find(x=>x.id===id).commentCount++;state.write=null;await r.fulfill({status:201,json:{commentId:100046}})}
+  await area(p,1000).getByRole('button',{name:'등록',exact:true}).click();await reached
+  assert.equal(await a.isDisabled(),true);assert.equal(await b.isDisabled(),false)
+  assert.equal(state.calls.filter(c=>c.method==='POST').length,1)
+  release();await p.locator('.comment-success-toast').waitFor();await p.waitForFunction(()=>document.querySelector('[data-member-post-id="1000"] textarea').value==='')
+  assert.equal(await b.inputValue(),'다른 글 초안')
+  await row(p,1000).locator('h3 a').click();await p.getByRole('button',{name:'계속 작성',exact:true}).click();assert.equal(await b.inputValue(),'다른 글 초안')
+  assert.equal(await p.evaluate(()=>document.documentElement.scrollWidth>innerWidth),false)
+  await b.scrollIntoViewIfNeeded();await p.screenshot({path:`${out}/create-${width}.png`})
+  await row(p,1000).locator('h3 a').click();await p.getByRole('button',{name:'나가기',exact:true}).click();await p.waitForURL(/community\/posts\/1000/);await p.goBack();await row(p,999).waitFor()
+  await area(p,999).waitFor();assert.equal(await row(p,999).getByRole('button',{name:/^댓글 \d/}).getAttribute('aria-expanded'),'true');assert.equal(await area(p,999).getByRole('textbox',{name:'댓글 작성'}).inputValue(),'')
+ },width)
+ await check('inline input validation keeps original text and Enter newline',async({p,state})=>{
+  await open(p,1000,20);const a=area(p,1000),input=a.getByRole('textbox',{name:'댓글 작성'})
+  await a.getByRole('button',{name:'등록',exact:true}).click();await a.getByRole('status').getByText('내용을 입력해 주세요.',{exact:true}).waitFor()
+  assert.equal(state.calls.filter(c=>c.method==='POST').length,0)
+  await input.fill('   \n');await a.getByRole('button',{name:'등록',exact:true}).click();await a.getByRole('status').getByText('내용을 입력해 주세요.',{exact:true}).waitFor()
+  await input.fill('가'.repeat(2001));await a.getByRole('button',{name:'등록',exact:true}).click();assert.equal(state.calls.filter(c=>c.method==='POST').length,0)
+  await input.fill('한글');await input.press('Enter');await p.keyboard.insertText('가');assert((await input.inputValue()).includes('\n'));assert.equal(state.calls.filter(c=>c.method==='POST').length,0)
+ })
+ for(const mode of ['denied','uncertain','csrf','refresh'])await check(`inline create ${mode} preserves distinct mutation outcome`,async({p,state})=>{
+  await open(p,1000,20);const a=area(p,1000),input=a.getByRole('textbox',{name:'댓글 작성'});await input.fill('보존할 초안')
+  if(mode==='csrf')state.csrf=r=>r.abort('failed')
+  else state.write=async r=>{if(mode==='refresh'){state.get=(r,u)=>r.fulfill(u.pathname.endsWith('/comments')?{status:503,json:failure('SERVER_ERROR')}:read(u));await r.fulfill({status:201,json:{commentId:100046}})}else await r.fulfill(mode==='denied'?{status:403,json:failure('ACCESS_DENIED')}:{status:201,json:{malformed:true}})}
+  await a.getByRole('button',{name:'등록',exact:true}).click();await a.getByRole('alert').first().waitFor()
+  if(mode==='refresh'){await p.locator('.comment-success-toast').waitFor();assert.equal(await input.inputValue(),'')}
+  else {assert.equal(await input.inputValue(),'보존할 초안');assert.equal(await p.locator('.comment-success-toast').count(),0);assert.equal(await p.locator('[data-inline-created-id]').count(),0)}
+  assert.equal(state.calls.filter(c=>c.method==='POST').length,mode==='csrf'?0:1)
+ })
+ for(const phase of ['csrf','write'])await check(`inline approved departure during ${phase} never changes destination`,async({p,state})=>{
+  await open(p,1000,20);await area(p,1000).getByRole('textbox',{name:'댓글 작성'}).fill('이탈 초안')
+  let release,reach;const reached=new Promise(r=>reach=r)
+  const handler=async r=>{reach();await new Promise(r=>release=r);await r.fulfill(phase==='csrf'?{json:{headerName:'X-CSRF-TOKEN',token:'mock-only'}}:{status:201,json:{commentId:100046}})}
+  if(phase==='csrf')state.csrf=handler;else state.write=handler
+  await area(p,1000).getByRole('button',{name:'등록',exact:true}).click();await reached
+  await row(p,1000).locator('h3 a').click();await p.getByRole('button',{name:'나가기',exact:true}).click();await p.waitForURL(/community\/posts\/1000/)
+  const done=p.waitForResponse(r=>r.url().includes(phase==='csrf'?'/csrf':'/1000/comments')&&r.request().method()===(phase==='csrf'?'GET':'POST'));release();await(await done).finished();await p.evaluate(()=>new Promise(requestAnimationFrame))
+  assert.equal(await p.locator('.comment-success-toast').count(),0);assert.equal(await p.locator('[data-inline-created-id]').count(),0);assert.equal(state.calls.filter(c=>c.method==='POST').length,phase==='csrf'?0:1)
+ })
+ await check('inline logout failure preserves drafts; success clears owner',async({p,state})=>{
+  await open(p,1000,20);await area(p,1000).getByRole('textbox',{name:'댓글 작성'}).fill('로그아웃 초안')
+  state.logout=r=>r.fulfill({status:403,json:failure('CSRF_TOKEN_INVALID')})
+  await p.getByRole('button',{name:'로그아웃',exact:true}).click();await p.getByRole('banner').getByRole('alert').waitFor();await row(p,1000).waitFor();await open(p,1000,20)
+  assert.equal(await area(p,1000).getByRole('textbox',{name:'댓글 작성'}).inputValue(),'로그아웃 초안')
+  state.logout=null;await p.getByRole('button',{name:'로그아웃',exact:true}).click();await p.getByText('로그인이 필요해요',{exact:true}).waitFor()
+  await p.getByRole('link',{name:'로그인하기',exact:true}).click();await p.locator('input[name=email]').fill('fixture@example.test');await p.locator('input[name=password]').fill('mock-only');await p.locator('main').getByRole('button',{name:'로그인',exact:true}).click();await row(p,1000).waitFor();await open(p,1000,20)
+  assert.equal(await area(p,1000).getByRole('textbox',{name:'댓글 작성'}).inputValue(),'')
+ })
  for (const ignoreAbort of [false,true]) await check(`detail read abort vs late delivery ownership ${ignoreAbort?'transport ignores abort':'native abort'}`,async({p,state})=>{
   await p.evaluate(ignore=>{window.readSignals=[];const fetch=window.fetch;window.fetch=async(input,options)=>{const u=new URL(String(input),location.href);if(!u.pathname.match(/\/posts\/\d+\/comments$/)||options?.method!=='GET')return fetch(input,options);const record={url:u.href,aborted:false,settled:false};window.readSignals.push(record);options.signal?.addEventListener('abort',()=>{record.aborted=true});try{const response=await fetch(input,ignore?{...options,signal:undefined}:options);const json=response.json.bind(response);response.json=async()=>{try{return await json()}finally{record.consumed=true}};return response}finally{record.settled=true}}},ignoreAbort)
   await row(p,1000).locator('h3 a').click();await p.waitForURL(/community\/posts\/1000/)
@@ -192,8 +417,8 @@ try{
   await p.screenshot({path:`${out}/sorting-menu-${width}.png`});await p.keyboard.press('Escape')
   assert.equal(await p.evaluate(()=>document.activeElement?.getAttribute('aria-label')),'댓글 정렬: 인기순')
   assert.equal(await p.evaluate(()=>document.documentElement.scrollWidth>innerWidth),false)
-  await p.getByRole('tab',{name:/내 댓글/}).click();await p.getByRole('tab',{name:/내 게시글/}).click();await count(p,1000,45)
-  await row(p,1000).locator('h3 a').click();await p.waitForURL(/community\/posts\/1000/);await p.goBack();await count(p,1000,45)
+  await count(p,1000,20);await p.getByRole('tab',{name:/내 댓글/}).click();await p.getByRole('tab',{name:/내 게시글/}).click();await count(p,1000,20)
+  await row(p,1000).locator('h3 a').click();await p.waitForURL(/community\/posts\/1000/);await p.goBack();await count(p,1000,20)
   await area(p,1000).getByRole('button',{name:'댓글 정렬: 인기순',exact:true}).waitFor()
  },width)
  await check('sort request ownership: old response and finally cannot replace latest request',async({p,state})=>{
@@ -241,18 +466,19 @@ try{
   assert.equal(reads(state,1000).length,1)
   const ids=await p.locator('[id]').evaluateAll(es=>es.map(e=>e.id));assert.equal(ids.length,new Set(ids).size)
   assert.equal(await p.locator('[id^="comment-100"]').count(),0)
-  assert.equal(await area(p,1000).locator('textarea:not(:disabled),form').count(),0)
+  assert.equal(await area(p,1000).locator('textarea:not(:disabled),form').count(),2)
   await row(p,1000).getByRole('button',{name:/^댓글 \d/}).click();assert.equal(await area(p,1000).isVisible(),false)
   await row(p,1000).getByRole('button',{name:/^댓글 \d/}).focus();await p.keyboard.press('Enter');await count(p,1000,20)
-  assert.equal(reads(state,1000).length,1)
+  assert.equal(reads(state,1000).length,2)
+  assert.equal(new URLSearchParams(reads(state,1000).at(-1).search).has('afterId'),false)
   assert.equal(await p.evaluate(()=>document.documentElement.scrollWidth>innerWidth),false)
   assert((await row(p,1000).locator('h3 a').getAttribute('href')).includes('from=%2Fmypage'))
   assert.equal(await row(p,1000).getByRole('link',{name:/상세에서 댓글 보기|게시글 상세 보기/}).count(),0)
   assert.equal(await area(p,1000).getByText('오래된 댓글부터 표시합니다.',{exact:true}).count(),0)
   assert.equal(await area(p,998).getByText('마지막 댓글까지 확인했어요.',{exact:true}).count(),0)
   assert.equal(await area(p,999).getByText('마지막 댓글까지 확인했어요.',{exact:true}).count(),0)
-  assert.equal(await area(p,1000).getByRole('textbox',{name:'댓글 작성 미리보기'}).isDisabled(),true)
-  assert.equal(await area(p,1000).getByRole('button',{name:'등록',exact:true}).isDisabled(),true)
+  assert.equal(await area(p,1000).getByRole('textbox',{name:'댓글 작성'}).isDisabled(),false)
+  assert.equal(await area(p,1000).getByRole('button',{name:'등록',exact:true}).isDisabled(),false)
   assert.equal(await area(p,1000).evaluate(e=>document.getElementById(e.getAttribute('aria-labelledby'))?.textContent),'검증 게시글 1000 게시글의 댓글')
   await p.screenshot({path:`${out}/expanded-${width}.png`,fullPage:true});await p.screenshot({path:`${out}/viewport-${width}.png`})
  },width)
@@ -308,11 +534,11 @@ try{
   await p.getByRole('link',{name:'← 마이페이지로 돌아가기',exact:true}).click();await row(p,1000).waitFor()
   const before=reads(state,1000).length
   assert.equal(await area(p,1000).isVisible(),false);assert.equal(reads(state,999).length,b)
-  const refreshed=p.waitForResponse(r=>new URL(r.url()).pathname==='/api/v1/community/posts/1000/comments' && new URL(r.url()).searchParams.has('afterId') && r.request().method()==='GET')
+  const refreshed=p.waitForResponse(r=>new URL(r.url()).pathname==='/api/v1/community/posts/1000/comments' && !new URL(r.url()).searchParams.has('afterId') && r.request().method()==='GET')
   await row(p,1000).getByRole('button',{name:/^댓글 \d/}).click()
   await (await refreshed).finished()
-  await p.waitForFunction(({method})=>{const e=document.querySelector('[data-member-post-id="1000"] .mypage-inline-comments');return e.getAttribute('aria-busy')==='false' && (method==='DELETE'?!e.querySelector('[data-inline-comment="100001"]'):method==='POST'?e.querySelectorAll('[data-inline-comment]').length===40:e.textContent.includes('수정된 댓글'))},{method})
-  assert.equal(reads(state,1000).length,before+2);assert.equal(reads(state,999).length,b);assert.equal(await items(p,1000).count(),40)
+  await p.waitForFunction(({method})=>{const e=document.querySelector('[data-member-post-id="1000"] .mypage-inline-comments');return e.getAttribute('aria-busy')==='false' && (method==='DELETE'?!e.querySelector('[data-inline-comment="100001"]'):method==='POST'?e.querySelectorAll('[data-inline-comment]').length===20:e.textContent.includes('수정된 댓글'))},{method})
+  assert.equal(reads(state,1000).length,before+1);assert.equal(reads(state,999).length,b);assert.equal(await items(p,1000).count(),20)
   assert.match(await row(p,1000).getByRole('button',{name:/^댓글 \d/}).innerText(),new RegExp(String(method==='POST'?46:method==='DELETE'?44:45)))
  })
  await check('late confirmed like after departure updates shared state without list reread',async({p,state})=>{
@@ -326,13 +552,12 @@ try{
   await p.waitForFunction(()=>document.querySelector('[data-comment-like="100001"]')?.textContent.includes('좋아요 13'))
   assert.equal(reads(state,1000).length,before.a);assert.equal(reads(state,999).length,before.b)
  })
- await check('gated read, close/reopen does not duplicate or reopen on response',async({p,state})=>{
+ await check('collapse invalidates held read and reopening starts one first-page request',async({p,state})=>{
   const g=gate(state,1000);await row(p,1000).getByRole('button',{name:/^댓글 \d/}).click();await g.reached
-  const toggle=row(p,1000).getByRole('button',{name:/^댓글 \d/});await toggle.click();await toggle.click();await toggle.click()
-  assert.equal(reads(state,1000).length,1);await open(p,999,1)
-  await g.release();await count(p,1000,20);assert.equal(await area(p,1000).isVisible(),false)
-  assert.equal(await toggle.getAttribute('aria-expanded'),'false')
-  await toggle.click();assert.equal(reads(state,1000).length,1)
+  const toggle=row(p,1000).getByRole('button',{name:/^댓글 \d/});await toggle.click()
+  await g.release();assert.equal(await area(p,1000).isVisible(),false);assert.equal(await items(p,1000).count(),0)
+  await open(p,999,1);await open(p,1000,20);assert.equal(reads(state,1000).length,2)
+  assert(reads(state,1000).every(r=>!new URLSearchParams(r.search).has('afterId')))
  })
  await check('more failure retains prefix and retries exact microsecond cursor; refresh atomic failure',async({p,state})=>{
   await open(p,1000,20)

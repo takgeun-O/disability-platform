@@ -298,9 +298,10 @@
 
 /* 댓글 자동 조회의 감시점은 목록 끝에, 확인된 등록 내용은 작성 폼 가까이에 둔다. */
 .community-comment-sentinel { height:1px; }
-.community-comment-composer { margin-top:20px; }
+.community-comment-composer { margin: 16px 0 24px; }
+.community-comment-composer > .community-comment-form { margin-top: 0; }
 .community-comment-receipts { border:1px solid var(--iyum-border); border-radius:8px; padding:16px; background:var(--iyum-mist); margin-bottom:16px; overflow-wrap:anywhere; }
-.community-comment-receipts h3 { margin:0; font-size:17px; color:var(--iyum-ink); }
+.community-comment-receipts h3, .community-comment-receipts h4 { margin:0; font-size:17px; color:var(--iyum-ink); }
 .community-comment-receipts ul { list-style:none; margin:0; padding:0; }
 .community-comment-receipts li { padding-top:12px; }
 .community-comment-receipts li + li { margin-top:12px; border-top:1px solid var(--iyum-border); }
@@ -334,6 +335,7 @@
 .comment-toast-announcer { position: absolute; width: 0; height: 0; pointer-events: none; }
 .comment-success-toast { position: fixed; z-index: 90; top: max(var(--toast-header-bottom, 100px), calc(env(safe-area-inset-top) + 12px)); left: 50%; transform: translateX(-50%); width: max-content; max-width: calc(100vw - 32px); display: flex; align-items: center; gap: 8px; padding: 12px 18px; border: 1px solid var(--iyum-primary); border-radius: 12px; background: white; color: var(--iyum-ink); box-shadow: 0 4px 16px #002b4920; font-size: 15px; font-weight: 600; word-break: keep-all; pointer-events: none; opacity: 1; transition: opacity 250ms ease; }
 .comment-success-toast svg { flex-shrink: 0; color: var(--iyum-primary); }
+.comment-success-toast.is-notice svg { color: #946200; }
 .comment-success-toast.is-leaving { opacity: 0; }
 @media (prefers-reduced-motion: reduce) { .comment-success-toast { transition: none; } }
 
@@ -361,3 +363,6 @@
 .comment-sort-menu button[aria-checked="true"], .comment-sort-menu button:hover { background: #f0f8fb; color: #007e95; }
 .comment-sort button:focus-visible { outline: 2px solid #008198; outline-offset: 2px; border-radius: 4px; }
 .mypage-inline-heading .comment-sort { margin-right: auto; }
+
+/* The saved-text preview is visual; the polite region announces success once. */
+.comment-toast-preview { display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; max-width: min(360px, calc(100vw - 108px)); margin-top: 4px; font-weight: 400; white-space: pre-wrap; overflow-wrap: anywhere; word-break: normal; }

@@ -221,14 +221,14 @@
 .mypage-comment-bubble { background:transparent; border:0; border-radius:0; padding:4px 0; margin:8px 0; }
 .mypage-comment-link { border-top:0; font-size:14px; }
 
-.mypage-inline-comments { min-width:0; padding:0 0 0 20px; border-left:2px solid var(--iyum-border); margin:0 0 4px 8px; overflow-wrap:anywhere; }
+.mypage-inline-comments { min-width:0; padding:20px 24px 12px; border:1px solid var(--iyum-border); border-radius:14px; background:var(--mypage-comment-panel, #f7f8f9); margin:4px 0 8px 28px; overflow-wrap:anywhere; }
 .mypage-inline-comments[hidden] { display:none; }
 .mypage-inline-heading { display:flex; align-items:center; justify-content:flex-end; flex-wrap:wrap; gap:8px; }
 .mypage-inline-comments button { min-height:44px; }
 .mypage-inline-comments .community-comment-list { margin:0; }
 .mypage-inline-comments .community-comment-list > li { padding:12px 0; }
 .mypage-inline-comments .community-comment-list > li:last-child { border-bottom:0; }
-@media(max-width:600px) { .mypage-inline-comments { padding:0 0 0 12px; margin-left:4px; } }
+@media(max-width:600px) { .mypage-inline-comments { padding:12px 14px 8px; margin-left:8px; border-radius:12px; } }
 
 .mypage-comment-preview { margin:0 0 4px; }
 .mypage-comment-preview-field { display:flex; align-items:center; gap:8px; padding:10px 12px; border:1px solid var(--iyum-border); border-radius:12px; background:var(--iyum-mist); }
@@ -242,3 +242,17 @@
 .mypage-post-like .post-like-button:hover,
 .mypage-post-like .post-like-button[aria-pressed="true"] { background:transparent; color:var(--iyum-muted); }
 .mypage-post-like .post-like-button[aria-pressed="true"] svg { color:#c43f50; }
+
+.mypage-comment-preview button:not(:disabled) { background:var(--iyum-primary); color:white; cursor:pointer; min-height:44px; }
+.mypage-comment-preview textarea:not(:disabled) { color:var(--iyum-ink); -webkit-text-fill-color:currentColor; resize:vertical; }
+.mypage-comment-preview .community-error { color:var(--iyum-danger, #b42336); }
+
+/* MyPage-only panel; the detail comment surface keeps its existing layout. */
+.mypage-inline-comments .mypage-comment-preview-field { background:white; }
+.mypage-inline-comments .community-comment-meta { flex-wrap:wrap; }
+.mypage-inline-comments .community-comment-meta > strong { min-width:0; overflow-wrap:anywhere; }
+.mypage-inline-heading { justify-content:space-between; margin:8px 0 4px; }
+.mypage-inline-footer { display:flex; justify-content:center; border-top:1px solid var(--iyum-border); margin-top:12px; padding-top:4px; }
+.mypage-inline-footer button { display:inline-flex; align-items:center; gap:8px; padding:8px 16px; }
+.mypage .post-comment-link[aria-expanded=true] { border-color:var(--iyum-primary); background:var(--iyum-mist); color:var(--iyum-primary); }
+@media(max-width:360px) { .mypage-inline-comments { margin-left:4px; padding-inline:12px; } }

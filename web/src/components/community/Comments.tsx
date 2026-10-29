@@ -24,6 +24,7 @@ import {
   type CommentSort,
   mergeComments,
   validateComment,
+  requiredContent,
   type Comment,
   type CommentPage,
 } from "@/lib/community-comments"
@@ -67,12 +68,13 @@ export default function Comments({
   )
   const [fields, setFields] = useState<Record<string, string>>({})
   const [error, setError] = useState<CommentError | null>(null)
+  const [createError, setCreateError] = useState<CommentError | null>(null)
   const [draft, setDraft] = useState("")
   const [editor, setEditor] = useState<Editor | null>(null)
   const [busy, setBusy] = useState(false),
     [loading, setLoading] = useState(false)
   const toastSequence = useRef(0)
-  const [toast, setToast] = useState<{ id: number; message: string; valid: () => boolean; dismiss: () => void } | null>(null)
+  const [toast, setToast] = useState<{ id: number; message: string; variant: "success" | "notice"; valid: () => boolean; dismiss: () => void } | null>(null)
   const [notice, setNotice] = useState("")
   const [linkedComment, setLinkedComment] = useState<number | null>(null)
   const [linkNotice, setLinkNotice] = useState("")
@@ -115,14 +117,15 @@ export default function Comments({
   function pauseAuto() {
     // 입력 중 도착한 자동 GET도 폼을 밀어내지 않는다. 수동 추가는 명시적 조작이다.
     const area = section.current
+    const composerBounds = composer.current?.getBoundingClientRect()
     return !area || !!area.querySelector('dialog[open], textarea[id^="comment-edit-"]') ||
       !!area.querySelector<HTMLTextAreaElement>('#comment-draft')?.value ||
       !!area.querySelector('.community-comment-form:focus-within') ||
-      (composer.current?.getBoundingClientRect().top ?? Infinity) < window.innerHeight
+      !!composerBounds && composerBounds.top < window.innerHeight && composerBounds.bottom > 0
   }
-  function showToast(message: string, valid: () => boolean) {
+  function showToast(message: string, valid: () => boolean, variant: "success" | "notice" = "success") {
     const id = ++toastSequence.current
-    setToast({ id, message, valid, dismiss: () => setToast(previous => previous?.id === id ? null : previous) })
+    setToast({ id, message, variant, valid, dismiss: () => setToast(previous => previous?.id === id ? null : previous) })
   }
   async function load(more = false, automatic = false, targetId?: number, announce = false) {
     if (reading.current || writing.current || !scope.isActive() || auth.status === "checking" || auth.pending || auth.memberRequests.paused) return
@@ -357,9 +360,18 @@ export default function Comments({
     event?.preventDefault()
     if (writing.current || !permitted || !scope.isActive()) return
     const field = method === "DELETE" ? "" : validateComment(content)
+    if (method === "POST" && field === requiredContent) {
+      setFields(f => ({ ...f, draft: "" }))
+      if (method === "POST") setCreateError(null)
+      else setError(null)
+      const session = auth.member ? auth.captureMemberRequest(auth.member.memberId) : null
+      showToast("내용을 입력해 주세요.", () => !!session?.isCurrent(), "notice")
+      return
+    }
     if (field) {
       setFields(f => ({ ...f, [id ?? "draft"]: field }))
-      setError(null)
+      if (method === "POST") setCreateError(null)
+      else setError(null)
       requestFocus(id ? `comment-edit-${id}` : "comment-draft")
       document
         .getElementById(id ? `comment-edit-${id}` : "comment-draft")
@@ -371,7 +383,8 @@ export default function Comments({
     setFields(f => ({ ...f, [id ?? "draft"]: "" }))
     setBusy(true)
     setLoading(false)
-    setError(null)
+    if (method === "POST") setCreateError(null)
+      else setError(null)
     setNotice("")
     const current = scope.begin()
     const session = auth.member ? auth.captureMemberRequest(auth.member.memberId) : null
@@ -424,7 +437,8 @@ export default function Comments({
         removeItem(id, method === "PUT")
         setNotice(method === "PUT" ? "서버에서 수정할 댓글을 찾지 못했습니다. 수정 초안은 유지했습니다." : "댓글이 없거나 이미 삭제되었습니다.")
       } else {
-        setError(failure.field ? null : failure)
+        if (method === "POST") setCreateError(failure.field ? null : failure)
+        else setError(failure.field ? null : failure)
         if (failure.field) {
           setFields(f => ({ ...f, [id ?? "draft"]: failure.field }))
           const target = id ? `comment-edit-${id}` : "comment-draft"
@@ -484,10 +498,77 @@ export default function Comments({
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" focusable="false"><path d="M20 7v5h-5M4 17v-5h5" /><path d="M6.1 6.1A8 8 0 0 1 19.5 9M4.5 15A8 8 0 0 0 17.9 17.9" /></svg><span>{loading && !readMore ? "새로고침 중…" : "목록 새로고침"}</span>
         </button>
       </div>
+      <div ref={composer} className="community-comment-composer">
+      {created.some(receipt => !page.items.some(c => c.commentId === receipt.commentId)) && (
+        <section className="community-comment-receipts" aria-labelledby="comment-receipts-title">
+          <h3 id="comment-receipts-title">댓글을 등록했어요</h3>
+          <p className="community-help">방금 등록한 댓글입니다. 목록에서 불러오면 해당 위치에 함께 표시됩니다.</p>
+          <ul>{created.filter(receipt => !page.items.some(c => c.commentId === receipt.commentId)).map(receipt => (
+            <li key={receipt.commentId} data-created-comment-id={receipt.commentId}>
+              <span>방금 등록한 댓글</span><p className="community-comment-body">{receipt.content}</p>
+            </li>
+          ))}</ul>
+        </section>
+      )}
+      <form
+        className="community-comment-form"
+        onSubmit={(e) => void mutate("POST", null, draft, e)}
+      >
+        <label htmlFor="comment-draft">댓글 남기기</label>
+        <textarea
+          id="comment-draft"
+          placeholder="댓글로 이야기를 나눠보세요"
+          value={draft}
+          disabled={busy}
+          aria-invalid={!!fieldFor(null)}
+          aria-describedby={
+            ["comment-count", createError && "comment-create-error", fieldFor(null) && "comment-draft-error", !permitted && "comment-auth-help"].filter(Boolean).join(" ")
+          }
+          onChange={(e) => {
+            blocker.markDirty()
+            setToast(previous => previous?.variant === "notice" ? null : previous)
+            clearField(null, e.target.value)
+            setDraft(e.target.value)
+          }}
+        />
+        {fieldFor(null) && <p id="comment-draft-error" className="community-comment-field-error" role="alert">{fieldFor(null)}</p>}
+        {createError && <div id="comment-create-error" className="community-error" role="alert">
+          <p>{createError.message}</p>
+          {createError.uncertain && <p>자동 재등록하지 않습니다. 댓글 목록 새로고침과 더 보기로 등록 결과를 확인해 주세요.</p>}
+        </div>}
+        <span id="comment-count">{characterCount(draft)} / 2,000자</span>
+        {!permitted && (
+          <p id="comment-auth-help" role="status">
+            {auth.status === "checking" || auth.pending ? (
+              auth.pending === "logout" ? "로그아웃하고 있습니다. 입력한 내용은 유지됩니다." : "로그인 상태를 확인하고 있습니다."
+            ) : auth.status === "error" ? (
+              "로그인 상태를 확인하지 못했습니다. 다시 확인해 주세요. 입력한 내용은 유지됩니다."
+            ) : (
+              "댓글을 등록하려면 로그인해 주세요. 로그인 화면으로 이동하면 입력은 보관되지 않습니다."
+            )}
+          </p>
+        )}
+        {auth.status === "anonymous" && !auth.pending ? (
+          <button type="button" className="iyum-button iyum-button-primary" aria-describedby="comment-auth-help"
+            onClick={() => { if (scope.isActive() && !loginMoving.current) setLoginPrompt(true) }}>
+            로그인하고 댓글 등록
+          </button>
+        ) : auth.status === "error" && !auth.pending ? (
+          <button type="button" className="iyum-button iyum-button-outline"
+            disabled={busy} onClick={() => void auth.refresh()} aria-describedby="comment-auth-help">
+            로그인 상태 다시 확인
+          </button>
+        ) : (
+          <button className="iyum-button iyum-button-primary" disabled={!permitted || busy}>
+            {busy ? "처리 중…" : auth.pending === "logout" ? "로그아웃 중…" : !permitted ? "로그인 확인 중…" : "댓글 등록"}
+          </button>
+        )}
+      </form>
+      </div>
       <CommentSortMenu value={sort} onChange={switchSort} disabled={busy || !!auth.pending || auth.memberRequests.paused} />
       {linkNotice && <p role="status" className="community-help">{linkNotice}</p>}
       <div role="status" aria-atomic="true" className="comment-toast-announcer">
-        {toast && toast.valid() && scope.isActive() && <CommentSuccessToast key={toast.id} message={toast.message} onDismiss={toast.dismiss} />}
+        {toast && toast.valid() && scope.isActive() && <CommentSuccessToast key={toast.id} message={toast.message} variant={toast.variant} onDismiss={toast.dismiss} />}
       </div>
       <p role="status" className={`community-comments-status${notice ? "" : " sr-only"}`}>
         {notice}
@@ -545,73 +626,12 @@ export default function Comments({
           <p>{error.message}</p>
           {error.uncertain && (
             <p>
-              자동 재시도하지 않습니다. 위의 목록 새로고침과 더 보기로 확인해
+              자동 재시도하지 않습니다. 댓글 목록 새로고침과 더 보기로 확인해
               주세요.
             </p>
           )}
         </div>
       )}
-      <div ref={composer} className="community-comment-composer">
-      {created.some(receipt => !page.items.some(c => c.commentId === receipt.commentId)) && (
-        <section className="community-comment-receipts" aria-labelledby="comment-receipts-title">
-          <h3 id="comment-receipts-title">댓글을 등록했어요</h3>
-          <p className="community-help">방금 등록한 댓글입니다. 목록에서 불러오면 해당 위치에 함께 표시됩니다.</p>
-          <ul>{created.filter(receipt => !page.items.some(c => c.commentId === receipt.commentId)).map(receipt => (
-            <li key={receipt.commentId} data-created-comment-id={receipt.commentId}>
-              <span>방금 등록한 댓글</span><p className="community-comment-body">{receipt.content}</p>
-            </li>
-          ))}</ul>
-        </section>
-      )}
-      <form
-        className="community-comment-form"
-        onSubmit={(e) => void mutate("POST", null, draft, e)}
-      >
-        <label htmlFor="comment-draft">댓글 남기기</label>
-        <textarea
-          id="comment-draft"
-          value={draft}
-          disabled={busy}
-          aria-invalid={!!fieldFor(null)}
-          aria-describedby={
-            ["comment-count", fieldFor(null) && "comment-draft-error", !permitted && "comment-auth-help"].filter(Boolean).join(" ")
-          }
-          onChange={(e) => {
-            blocker.markDirty()
-            clearField(null, e.target.value)
-            setDraft(e.target.value)
-          }}
-        />
-        {fieldFor(null) && <p id="comment-draft-error" className="community-comment-field-error" role="alert">{fieldFor(null)}</p>}
-        <span id="comment-count">{characterCount(draft)} / 2,000자</span>
-        {!permitted && (
-          <p id="comment-auth-help" role="status">
-            {auth.status === "checking" || auth.pending ? (
-              auth.pending === "logout" ? "로그아웃하고 있습니다. 입력한 내용은 유지됩니다." : "로그인 상태를 확인하고 있습니다."
-            ) : auth.status === "error" ? (
-              "로그인 상태를 확인하지 못했습니다. 다시 확인해 주세요. 입력한 내용은 유지됩니다."
-            ) : (
-              "댓글을 등록하려면 로그인해 주세요. 로그인 화면으로 이동하면 입력은 보관되지 않습니다."
-            )}
-          </p>
-        )}
-        {auth.status === "anonymous" && !auth.pending ? (
-          <button type="button" className="iyum-button iyum-button-primary" aria-describedby="comment-auth-help"
-            onClick={() => { if (scope.isActive() && !loginMoving.current) setLoginPrompt(true) }}>
-            로그인하고 댓글 등록
-          </button>
-        ) : auth.status === "error" && !auth.pending ? (
-          <button type="button" className="iyum-button iyum-button-outline"
-            disabled={busy} onClick={() => void auth.refresh()} aria-describedby="comment-auth-help">
-            로그인 상태 다시 확인
-          </button>
-        ) : (
-          <button className="iyum-button iyum-button-primary" disabled={!permitted || busy}>
-            {busy ? "처리 중…" : auth.pending === "logout" ? "로그아웃 중…" : !permitted ? "로그인 확인 중…" : "댓글 등록"}
-          </button>
-        )}
-      </form>
-      </div>
       {loginPrompt && <CommunityDialog titleId="comment-login-title" descriptionId="comment-login-description" onCancel={() => setLoginPrompt(false)}>
         <h2 id="comment-login-title">로그인이 필요해요</h2>
         <div id="comment-login-description">

@@ -1,8 +1,9 @@
 'use client'
 import WrittenTime from "@/components/WrittenTime"
-import { useCallback, useEffect, useLayoutEffect, useRef, useState, type RefObject } from 'react'
+import { useCallback, useEffect, useLayoutEffect, useRef, useState, useSyncExternalStore, type RefObject } from 'react'
 import Link from '@/components/AppLink'
 import { useAuth } from '@/components/AuthProvider'
+import CommentSuccessToast from '@/components/community/CommentSuccessToast'
 import { useNavigationRequest } from '@/components/NavigationGuard'
 import { getMemberPosts, MemberApiError, type ActivitySummary } from '@/lib/member-api'
 import { refreshMemberPosts, type ActivityTab, type MemberPostSnapshot } from '@/lib/member-activity'
@@ -18,7 +19,11 @@ import type { MemberCommentSnapshot } from '@/lib/member-activity'
 
 const empty: MemberPostSnapshot = { items: [], hasNext: false, nextCursor: null, segments: 0, version: -1, tab: 'posts' }
 export default function MyActivity({ memberId, summary, layoutReady, leavingRef }: { memberId: number; summary?: ActivitySummary; layoutReady: boolean; leavingRef?: RefObject<(() => void) | null> }) {
-  const { activityCache, captureMemberRequest, memberRequests, likes } = useAuth(), scope = useNavigationRequest(), version = usePostVersion('list')
+  const { activityCache, captureMemberRequest, memberRequests, likes, commentDrafts } = useAuth(), scope = useNavigationRequest(), version = usePostVersion('list')
+  const drafts = useSyncExternalStore(commentDrafts.subscribe, commentDrafts.snapshot, commentDrafts.snapshot)
+  const [toast, setToast] = useState<{ id: number; text: string; dismiss: () => void } | null>(null)
+  const sequence = useRef(0)
+  const showCreated = (text: string) => { const id = ++sequence.current; setToast({ id, text, dismiss: () => setToast(old => old?.id === id ? null : old) }) }
   const [lease] = useState(() => activityCache.lease(memberId))
   const [view, setView] = useState<MemberPostSnapshot>(empty), current = useRef(view)
   const [ready, setReady] = useState(false), [restoring, setRestoring] = useState(false)
@@ -157,6 +162,7 @@ export default function MyActivity({ memberId, summary, layoutReady, leavingRef 
     return () => { leavingRef.current = null }
   }, [leaving, leavingRef])
   return <section className="mypage-activity" aria-labelledby="my-activity-title">
+    <div role="status" aria-atomic="true">{toast && scope.isActive() && <CommentSuccessToast key={toast.id} message="댓글을 등록했습니다." detail={toast.text} onDismiss={toast.dismiss} />}</div>
     <h2 id="my-activity-title">내 활동</h2>
     <div className="mypage-tabs"><div role="tablist" aria-label="내 활동">
       {(['posts', 'comments'] as const).map((kind, index) => <button key={kind} id={`my-tab-${kind}`} role="tab" aria-selected={view.tab === kind} aria-controls={`my-panel-${kind}`} tabIndex={view.tab === kind ? 0 : -1}
@@ -173,7 +179,7 @@ export default function MyActivity({ memberId, summary, layoutReady, leavingRef 
         <div className="mypage-post-copy"><div className="mypage-post-heading"><p className="mypage-post-meta">{POST_TOPICS[post.topic]} · {POST_TYPES[post.type]} · <WrittenTime value={post.createdAt} /></p><MemberPostActions post={post} open={managedId === post.id} onOpen={setManagedId} onLeaving={leaving} onRemoved={afterRemoval} active={view.tab === 'posts'} /></div>
           <h3><Link href={`/community/posts/${post.id}?from=%2Fmypage`} prefetch={false} onNavigate={leaving}>{post.title}</Link></h3>
           <p className="mypage-post-preview">{post.contentPreview}</p></div>
-        <InlineComments post={post} memberId={memberId} initial={view.inlineComments?.[post.id]}
+        <InlineComments post={post} memberId={memberId} initial={view.inlineComments?.[post.id]} draft={drafts[post.id] ?? ''} onDraft={text => { commentDrafts.set(memberId, post.id, text) }} onCreated={showCreated}
           active={view.tab === 'posts'} restoring={restoring || !layoutReady} onSnapshot={saveInline} onLeaving={leaving} />
       </li>)}</ul>
       {busy === 'refresh' && !!view.segments && <p role="status">내 게시글을 갱신하고 있습니다.</p>}
