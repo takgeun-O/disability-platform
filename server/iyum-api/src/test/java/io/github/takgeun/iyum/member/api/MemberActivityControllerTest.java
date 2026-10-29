@@ -174,10 +174,11 @@ class MemberActivityControllerTest {
 
         // 세션에 저장된 상태는 ACTIVE지만,
         // DB 조회 결과는 활성 회원이 아닌 상황이다.
-        when(memberRepository.existsByIdAndStatusAndCredentialVersion(
+        when(memberRepository.existsByIdAndStatusAndCredentialVersionAndRole(
                 MEMBER_ID,
                 MemberStatus.ACTIVE,
-                0L
+                0L,
+                MemberRole.USER
         )).thenReturn(false);
 
         mockMvc.perform(
@@ -198,10 +199,11 @@ class MemberActivityControllerTest {
                         containsString("no-store")
                 ));
 
-        verify(memberRepository).existsByIdAndStatusAndCredentialVersion(
+        verify(memberRepository).existsByIdAndStatusAndCredentialVersionAndRole(
                 MEMBER_ID,
                 MemberStatus.ACTIVE,
-                0L
+                0L,
+                MemberRole.USER
         );
 
         verifyNoInteractions(
@@ -290,10 +292,11 @@ class MemberActivityControllerTest {
                 .andExpect(jsonPath("$.commentCount").value(3));
 
         // 요청 파라미터의 999가 아니라 인증 정보의 7을 사용해야 한다.
-        verify(memberRepository).existsByIdAndStatusAndCredentialVersion(
+        verify(memberRepository).existsByIdAndStatusAndCredentialVersionAndRole(
                 MEMBER_ID,
                 MemberStatus.ACTIVE,
-                0L
+                0L,
+                MemberRole.USER
         );
         verifyNoMoreInteractions(memberRepository);
 
@@ -392,10 +395,11 @@ class MemberActivityControllerTest {
     }
 
     private void givenActiveMember() {
-        when(memberRepository.existsByIdAndStatusAndCredentialVersion(
+        when(memberRepository.existsByIdAndStatusAndCredentialVersionAndRole(
                 MEMBER_ID,
                 MemberStatus.ACTIVE,
-                0L
+                0L,
+                MemberRole.USER
         )).thenReturn(true);
     }
 

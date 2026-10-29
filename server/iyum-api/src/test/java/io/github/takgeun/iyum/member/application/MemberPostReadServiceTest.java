@@ -3,14 +3,16 @@ package io.github.takgeun.iyum.member.application;
 import io.github.takgeun.iyum.community.comment.domain.Comment;
 import io.github.takgeun.iyum.community.comment.infrastructure.CommentRepository;
 import io.github.takgeun.iyum.community.post.application.PostCursor;
-import io.github.takgeun.iyum.community.post.application.PostFeedItemResult;
-import io.github.takgeun.iyum.community.post.application.PostFeedResult;
+import io.github.takgeun.iyum.community.post.application.PostLikeReadService;
 import io.github.takgeun.iyum.community.post.domain.Post;
+import io.github.takgeun.iyum.community.post.domain.PostLike;
 import io.github.takgeun.iyum.community.post.domain.PostTopic;
 import io.github.takgeun.iyum.community.post.domain.PostType;
+import io.github.takgeun.iyum.community.post.infrastructure.PostLikeRepository;
 import io.github.takgeun.iyum.community.post.infrastructure.PostRepository;
 import io.github.takgeun.iyum.member.domain.Member;
 import io.github.takgeun.iyum.member.infrastructure.MemberRepository;
+
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
@@ -22,15 +24,21 @@ import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
+import org.springframework.test.context.bean.override.mockito.MockitoSpyBean;
 import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
 import org.testcontainers.postgresql.PostgreSQLContainer;
 
 import java.sql.Timestamp;
 import java.time.Instant;
+import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.Mockito.clearInvocations;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
+import static org.mockito.Mockito.verifyNoMoreInteractions;
 
 @SpringBootTest(properties = {
         "spring.config.import=",
@@ -79,8 +87,14 @@ class MemberPostReadServiceTest {
     @Autowired
     PostRepository postRepository;
 
-    @Autowired
+    @MockitoSpyBean
     CommentRepository commentRepository;
+
+    @MockitoSpyBean
+    PostLikeReadService postLikeReadService;
+
+    @Autowired
+    PostLikeRepository postLikeRepository;
 
     @Autowired
     JdbcTemplate jdbcTemplate;
@@ -95,6 +109,7 @@ class MemberPostReadServiceTest {
     @BeforeEach
     void setUp() {
         // 테스트 전용 컨테이너의 데이터만 초기화한다.
+        postLikeRepository.deleteAllInBatch();
         commentRepository.deleteAllInBatch();
         postRepository.deleteAllInBatch();
         memberRepository.deleteAllInBatch();
@@ -168,8 +183,73 @@ class MemberPostReadServiceTest {
     }
 
     @Test
+    void 숨김_마지막_항목도_페이지와_커서에_포함하고_공개_반환항목만_집계한다() {
+        postLikeRepository.saveAndFlush(PostLike.create(firstPost, me));
+        postLikeRepository.saveAndFlush(PostLike.create(secondPost, me));
+        secondPost.hide(Instant.now());
+        postRepository.saveAndFlush(secondPost);
+        clearInvocations(commentRepository, postLikeReadService);
+        var result = memberPostReadService.getPosts(me.getId(), null, null, 2);
+        assertThat(result.items()).extracting(MemberPostItemResult::postId)
+                .containsExactly(firstPost.getId(), secondPost.getId());
+        var visible = result.items().getFirst();
+        assertThat(visible.visibility()).isEqualTo(MemberContentVisibility.VISIBLE);
+        assertThat(visible.title()).isEqualTo(firstPost.getTitle());
+        assertThat(visible.contentPreview()).isEqualTo(CONTENT);
+        assertThat(visible.author().memberId()).isEqualTo(me.getId());
+        assertThat(visible.commentCount()).isEqualTo(2L);
+        assertThat(visible.likeCount()).isEqualTo(1L);
+        assertThat(visible.liked()).isTrue();
+        assertHidden(result.items().getLast(), secondPost);
+        assertThat(result.hasNext()).isTrue();
+        assertThat(result.nextCursor()).isEqualTo(new PostCursor(CREATED_AT, secondPost.getId()));
+        verify(commentRepository).countVisibleCommentsByPostIds(List.of(firstPost.getId()));
+        verify(postLikeReadService).getStates(List.of(firstPost.getId()), me.getId());
+        verifyNoMoreInteractions(commentRepository, postLikeReadService);
+        var next = memberPostReadService.getPosts(me.getId(),
+                result.nextCursor().createdAt(), result.nextCursor().postId(), 2);
+        assertThat(next.items()).extracting(MemberPostItemResult::postId)
+                .containsExactly(thirdPost.getId());
+        assertThat(next.hasNext()).isFalse();
+        assertThat(next.nextCursor()).isNull();
+        var stored = postRepository.findById(secondPost.getId()).orElseThrow();
+        assertThat(stored.getTitle()).isEqualTo(secondPost.getTitle());
+        assertThat(stored.getContent()).isEqualTo(CONTENT);
+        assertThat(postLikeRepository.count()).isEqualTo(2);
+    }
+
+    @Test
+    void 반환항목이_모두_숨김이면_추가_공개항목이_있어도_집계를_호출하지_않는다() {
+        firstPost.hide(Instant.now());
+        secondPost.hide(Instant.now());
+        postRepository.saveAllAndFlush(List.of(firstPost, secondPost));
+        clearInvocations(commentRepository, postLikeReadService);
+        var result = memberPostReadService.getPosts(me.getId(), null, null, 2);
+        assertThat(result.items()).hasSize(2);
+        assertHidden(result.items().getFirst(), firstPost);
+        assertHidden(result.items().getLast(), secondPost);
+        assertThat(result.hasNext()).isTrue();
+        assertThat(result.nextCursor()).isEqualTo(new PostCursor(CREATED_AT, secondPost.getId()));
+        verifyNoInteractions(commentRepository, postLikeReadService);
+    }
+
+    private void assertHidden(MemberPostItemResult item, Post post) {
+        assertThat(item.postId()).isEqualTo(post.getId());
+        assertThat(item.createdAt()).isEqualTo(CREATED_AT);
+        assertThat(item.visibility()).isEqualTo(MemberContentVisibility.HIDDEN);
+        assertThat(item.type()).isNull();
+        assertThat(item.topic()).isNull();
+        assertThat(item.title()).isNull();
+        assertThat(item.contentPreview()).isNull();
+        assertThat(item.author()).isNull();
+        assertThat(item.commentCount()).isNull();
+        assertThat(item.likeCount()).isNull();
+        assertThat(item.liked()).isNull();
+    }
+
+    @Test
     void 첫_조회는_요청한_개수와_댓글_수_및_다음_커서를_반환한다() {
-        PostFeedResult result = memberPostReadService.getPosts(
+        MemberPostListResult result = memberPostReadService.getPosts(
                 me.getId(),
                 null,
                 null,
@@ -177,7 +257,7 @@ class MemberPostReadServiceTest {
         );
 
         assertThat(result.items())
-                .extracting(PostFeedItemResult::postId)
+                .extracting(MemberPostItemResult::postId)
                 .containsExactly(
                         firstPost.getId(),
                         secondPost.getId()
@@ -193,7 +273,7 @@ class MemberPostReadServiceTest {
         assertThat(result.nextCursor().createdAt())
                 .isEqualTo(CREATED_AT);
 
-        PostFeedItemResult first = result.items().getFirst();
+        MemberPostItemResult first = result.items().getFirst();
 
         assertThat(first.title()).isEqualTo("첫 번째 게시글");
         assertThat(first.contentPreview()).isEqualTo(CONTENT);
@@ -213,7 +293,7 @@ class MemberPostReadServiceTest {
 
     @Test
     void 반환받은_커서로_조회하면_남은_게시글부터_이어진다() {
-        PostFeedResult first = memberPostReadService.getPosts(
+        MemberPostListResult first = memberPostReadService.getPosts(
                 me.getId(),
                 null,
                 null,
@@ -223,7 +303,7 @@ class MemberPostReadServiceTest {
         assertThat(first.nextCursor()).isNotNull();
         PostCursor cursor = first.nextCursor();
 
-        PostFeedResult next = memberPostReadService.getPosts(
+        MemberPostListResult next = memberPostReadService.getPosts(
                 me.getId(),
                 cursor.createdAt(),
                 cursor.postId(),
@@ -231,7 +311,7 @@ class MemberPostReadServiceTest {
         );
 
         assertThat(next.items())
-                .extracting(PostFeedItemResult::postId)
+                .extracting(MemberPostItemResult::postId)
                 .containsExactly(thirdPost.getId());
 
         assertThat(next.items().getFirst().commentCount())
@@ -243,7 +323,7 @@ class MemberPostReadServiceTest {
 
     @Test
     void 게시글_수가_요청_개수와_같으면_다음_커서가_없다() {
-        PostFeedResult result = memberPostReadService.getPosts(
+        MemberPostListResult result = memberPostReadService.getPosts(
                 me.getId(),
                 null,
                 null,
@@ -251,7 +331,7 @@ class MemberPostReadServiceTest {
         );
 
         assertThat(result.items())
-                .extracting(PostFeedItemResult::postId)
+                .extracting(MemberPostItemResult::postId)
                 .containsExactly(
                         firstPost.getId(),
                         secondPost.getId(),
@@ -264,7 +344,7 @@ class MemberPostReadServiceTest {
 
     @Test
     void 게시글이_없는_회원은_빈_결과를_반환한다() {
-        PostFeedResult result = memberPostReadService.getPosts(
+        MemberPostListResult result = memberPostReadService.getPosts(
                 emptyMember.getId(),
                 null,
                 null,
@@ -278,7 +358,7 @@ class MemberPostReadServiceTest {
 
     @Test
     void 마지막_게시글_이후에는_빈_결과를_반환한다() {
-        PostFeedResult result = memberPostReadService.getPosts(
+        MemberPostListResult result = memberPostReadService.getPosts(
                 me.getId(),
                 CREATED_AT,
                 thirdPost.getId(),
@@ -292,7 +372,7 @@ class MemberPostReadServiceTest {
 
     @Test
     void 최대_조회_개수인_오십_개를_허용한다() {
-        PostFeedResult result = memberPostReadService.getPosts(
+        MemberPostListResult result = memberPostReadService.getPosts(
                 me.getId(),
                 null,
                 null,

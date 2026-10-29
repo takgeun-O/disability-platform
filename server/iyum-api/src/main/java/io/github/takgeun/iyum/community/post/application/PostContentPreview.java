@@ -3,7 +3,7 @@ package io.github.takgeun.iyum.community.post.application;
 import java.util.regex.Pattern;
 
 // 본문 미리보기
-final class PostContentPreview {
+public final class PostContentPreview {
 
     private static final int MAX_CODE_POINTS = 200;
 
@@ -15,7 +15,7 @@ final class PostContentPreview {
 
     private PostContentPreview() {}
 
-    static String from(String content) {
+    public static String from(String content) {
         String normalized = WHITESPACE
                 .matcher(content)
                 .replaceAll(" ")

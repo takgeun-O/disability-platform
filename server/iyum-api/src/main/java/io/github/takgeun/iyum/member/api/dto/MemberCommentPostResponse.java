@@ -4,13 +4,14 @@ import io.github.takgeun.iyum.community.post.domain.PostTopic;
 import io.github.takgeun.iyum.community.post.domain.PostType;
 import io.github.takgeun.iyum.member.application.MemberCommentPostResult;
 import io.swagger.v3.oas.annotations.media.Schema;
+import jakarta.annotation.Nullable;
 
-@Schema(description = "내 댓글이 달린 원본 게시글 정보")
+@Schema(description = "내 댓글의 원본 게시글 정보. 숨김 항목은 postId만 제공")
 public record MemberCommentPostResponse(
         Long postId,
-        String title,
-        PostType type,
-        PostTopic topic
+        @Nullable String title,
+        @Nullable PostType type,
+        @Nullable PostTopic topic
 ) {
     public static MemberCommentPostResponse from(
             MemberCommentPostResult result

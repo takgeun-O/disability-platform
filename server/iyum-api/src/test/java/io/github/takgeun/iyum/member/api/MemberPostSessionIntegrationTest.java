@@ -30,14 +30,14 @@ import tools.jackson.databind.ObjectMapper;
 
 import java.sql.Timestamp;
 import java.time.Instant;
+import java.util.List;
 import java.util.Map;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.nullValue;
-import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
-import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
 
 @SpringBootTest(properties = {
@@ -261,6 +261,156 @@ class MemberPostSessionIntegrationTest {
                 .andExpect(jsonPath("$.nextCursor").value(nullValue()));
     }
 
+    @Test
+    void 실제_세션으로_숨김_게시글을_조회하고_작성자만_삭제한다()
+            throws Exception {
+        String originalTitle = firstPost.getTitle();
+        String originalContent = firstPost.getContent();
+
+        firstPost.hide(Instant.now());
+        postRepository.saveAndFlush(firstPost);
+
+        Instant savedHiddenAt = postRepository
+                .findById(firstPost.getId())
+                .orElseThrow()
+                .getHiddenAt();
+
+        assertThat(savedHiddenAt).isNotNull();
+
+        MockHttpSession authorSession = login(me.getEmail());
+
+        MvcResult beforeResult = mockMvc.perform(
+                        get(URL)
+                                .session(authorSession)
+                                .param("size", "10")
+                )
+                .andExpect(status().isOk())
+                .andExpect(content().contentTypeCompatibleWith(
+                        MediaType.APPLICATION_JSON
+                ))
+                .andExpect(header().string(
+                        HttpHeaders.CACHE_CONTROL,
+                        containsString("no-store")
+                ))
+                .andExpect(jsonPath("$.items.length()").value(3))
+                .andExpect(jsonPath("$.items[0].id")
+                        .value(is(firstPost.getId()), Long.class))
+                .andExpect(jsonPath("$.items[0].visibility")
+                        .value("HIDDEN"))
+                .andExpect(jsonPath("$.items[0].createdAt")
+                        .value(CREATED_AT.toString()))
+                .andExpect(jsonPath("$.items[1].visibility")
+                        .value("VISIBLE"))
+                .andExpect(jsonPath("$.items[2].visibility")
+                        .value("VISIBLE"))
+                .andReturn();
+
+        JsonNode hiddenItem = objectMapper.readTree(
+                        beforeResult.getResponse().getContentAsByteArray()
+                )
+                .path("items")
+                .path(0);
+
+        // 필드가 생략되지 않고 명시적인 null로 반환되어야 한다.
+        for (String field : List.of(
+                "type",
+                "topic",
+                "title",
+                "contentPreview",
+                "author",
+                "commentCount",
+                "likeCount",
+                "liked"
+        )) {
+            assertThat(hiddenItem.has(field)).isTrue();
+            assertThat(hiddenItem.path(field).isNull()).isTrue();
+        }
+
+        // 실제 내 게시글 응답에서 얻은 ID를 사용한다.
+        long responsePostId = hiddenItem.path("id").asLong();
+
+        String deletePath = "/api/v1/community/posts/{postId}";
+
+        // 다른 회원은 숨김 게시글을 삭제할 수 없다.
+        MockHttpSession otherSession = login(other.getEmail());
+        JsonNode otherCsrf = getCsrf(otherSession);
+
+        mockMvc.perform(
+                        delete(deletePath, responsePostId)
+                                .session(otherSession)
+                                .header(
+                                        otherCsrf.path("headerName").asString(),
+                                        otherCsrf.path("token").asString()
+                                )
+                )
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.code").value("ACCESS_DENIED"));
+
+        Post afterDenied = postRepository
+                .findById(firstPost.getId())
+                .orElseThrow();
+
+        assertThat(afterDenied.getDeletedAt()).isNull();
+        assertThat(afterDenied.getHiddenAt()).isEqualTo(savedHiddenAt);
+        assertThat(afterDenied.getTitle()).isEqualTo(originalTitle);
+        assertThat(afterDenied.getContent()).isEqualTo(originalContent);
+
+        // 작성자는 숨김 게시글을 삭제할 수 있다.
+        JsonNode authorCsrf = getCsrf(authorSession);
+
+        mockMvc.perform(
+                        delete(deletePath, responsePostId)
+                                .session(authorSession)
+                                .header(
+                                        authorCsrf.path("headerName").asString(),
+                                        authorCsrf.path("token").asString()
+                                )
+                )
+                .andExpect(status().isNoContent())
+                .andExpect(content().string(""))
+                .andExpect(header().string(
+                        HttpHeaders.CACHE_CONTROL,
+                        containsString("no-store")
+                ));
+
+        // 원본과 숨김 시각은 유지하고 삭제 시각만 기록한다.
+        Post deleted = postRepository
+                .findById(firstPost.getId())
+                .orElseThrow();
+
+        assertThat(deleted.getDeletedAt()).isNotNull();
+        assertThat(deleted.getHiddenAt()).isEqualTo(savedHiddenAt);
+        assertThat(deleted.getTitle()).isEqualTo(originalTitle);
+        assertThat(deleted.getContent()).isEqualTo(originalContent);
+
+        // 재조회하면 삭제한 게시글이 제외된다.
+        mockMvc.perform(
+                        get(URL)
+                                .session(authorSession)
+                                .param("size", "10")
+                )
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.items.length()").value(2))
+                .andExpect(jsonPath("$.items[0].id")
+                        .value(is(secondPost.getId()), Long.class))
+                .andExpect(jsonPath("$.items[1].id")
+                        .value(is(thirdPost.getId()), Long.class))
+                .andExpect(jsonPath("$.hasNext").value(false))
+                .andExpect(jsonPath("$.nextCursor").value(nullValue()));
+
+        // 이미 삭제한 게시글에 다시 요청하면 404다.
+        mockMvc.perform(
+                        delete(deletePath, responsePostId)
+                                .session(authorSession)
+                                .header(
+                                        authorCsrf.path("headerName").asString(),
+                                        authorCsrf.path("token").asString()
+                                )
+                )
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.code").value("POST_NOT_FOUND"));
+    }
+
     private MockHttpSession login(String email) throws Exception {
         MvcResult csrfResult = mockMvc.perform(
                         get("/api/v1/auth/csrf")
@@ -366,5 +516,25 @@ class MemberPostSessionIntegrationTest {
         return commentRepository.saveAndFlush(
                 Comment.create(post, author, content)
         );
+    }
+
+    // 로그인 후 CSRF 조회 메서드 추가
+    private JsonNode getCsrf(MockHttpSession session)
+            throws Exception {
+        MvcResult result = mockMvc.perform(
+                        get("/api/v1/auth/csrf")
+                                .session(session)
+                )
+                .andExpect(status().isOk())
+                .andReturn();
+
+        JsonNode csrf = objectMapper.readTree(
+                result.getResponse().getContentAsByteArray()
+        );
+
+        assertThat(csrf.path("headerName").asString()).isNotBlank();
+        assertThat(csrf.path("token").asString()).isNotBlank();
+
+        return csrf;
     }
 }

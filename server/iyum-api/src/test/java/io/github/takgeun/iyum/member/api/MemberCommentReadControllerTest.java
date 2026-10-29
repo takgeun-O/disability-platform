@@ -20,6 +20,7 @@ import io.github.takgeun.iyum.member.domain.MemberStatus;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.CsvSource;
+import org.junit.jupiter.params.provider.EnumSource;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
 import org.springframework.context.annotation.Import;
@@ -29,14 +30,13 @@ import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 
+import io.github.takgeun.iyum.member.application.MemberContentVisibility;
 import java.time.Instant;
 import java.util.List;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.nullValue;
-import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.verifyNoInteractions;
-import static org.mockito.Mockito.when;
+import static org.mockito.Mockito.*;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.user;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.options;
@@ -123,7 +123,6 @@ class MemberCommentReadControllerTest {
                 .andExpect(jsonPath("$.items.length()").value(1))
                 .andExpect(jsonPath("$.items[0].commentId").value(104))
                 .andExpect(jsonPath("$.items[0].likeCount").value(3))
-                .andExpect(jsonPath("$.items[0].likeCount").value(3))
                 .andExpect(jsonPath("$.items[0].liked").value(true))
                 .andExpect(jsonPath("$.items[0].content")
                         .value("  제가 작성한 댓글입니다.\n두 번째 줄입니다.  "))
@@ -138,6 +137,8 @@ class MemberCommentReadControllerTest {
                         .value("QUESTION"))
                 .andExpect(jsonPath("$.items[0].post.topic")
                         .value("HEARING_AID"))
+                .andExpect(jsonPath("$.items[0].visibility")
+                        .value("VISIBLE"))
                 .andExpect(jsonPath("$.hasNext").value(false))
                 .andExpect(jsonPath("$.nextCursor").value(nullValue()));
 
@@ -397,6 +398,110 @@ class MemberCommentReadControllerTest {
         verifyNoInteractions(memberCommentReadService);
     }
 
+    @ParameterizedTest
+    @EnumSource(
+            value = MemberContentVisibility.class,
+            names = {"HIDDEN", "PARENT_HIDDEN"}
+    )
+    void 숨김_댓글은_식별정보와_상태를_반환하고_내용은_null로_반환한다(
+            MemberContentVisibility visibility
+    ) throws Exception {
+        givenActiveMember();
+
+        MemberCommentItemResult hiddenItem =
+                new MemberCommentItemResult(
+                        103L,
+                        null,
+                        CREATED_AT,
+                        null,
+                        MemberCommentPostResult.idOnly(31L),
+                        null,
+                        null,
+                        visibility
+                );
+
+        when(memberCommentReadService.getComments(
+                MEMBER_ID, null, null, 2
+        )).thenReturn(new MemberCommentListResult(
+                List.of(item(104L), hiddenItem),
+                true,
+                new CommentCursor(CREATED_AT, 103L)
+        ));
+
+        var response = mockMvc.perform(get(BASE)
+                        .with(user(principal()))
+                        .header(HttpHeaders.ORIGIN, ORIGIN)
+                        .param("size", "2")
+                        // 요청 파라미터보다 인증된 회원의 ID를 사용한다.
+                        .param("memberId", "999"))
+                .andExpect(status().isOk())
+                .andExpect(content().contentTypeCompatibleWith(
+                        MediaType.APPLICATION_JSON
+                ))
+                .andExpect(header().string(
+                        HttpHeaders.CACHE_CONTROL,
+                        containsString("no-store")
+                ))
+                .andExpect(header().string(
+                        HttpHeaders.ACCESS_CONTROL_ALLOW_ORIGIN,
+                        ORIGIN
+                ))
+                .andExpect(header().string(
+                        HttpHeaders.ACCESS_CONTROL_ALLOW_CREDENTIALS,
+                        "true"
+                ))
+                .andExpect(jsonPath("$.items.length()").value(2))
+
+                // 같은 응답의 공개 댓글은 정상적으로 표시한다.
+                .andExpect(jsonPath("$.items[0].commentId").value(104))
+                .andExpect(jsonPath("$.items[0].visibility")
+                        .value("VISIBLE"))
+                .andExpect(jsonPath("$.items[0].content")
+                        .value("  제가 작성한 댓글입니다.\n두 번째 줄입니다.  "))
+                .andExpect(jsonPath("$.items[0].likeCount").value(3))
+                .andExpect(jsonPath("$.items[0].liked").value(true))
+
+                // 숨김 댓글도 삭제 등에 필요한 식별정보는 유지한다.
+                .andExpect(jsonPath("$.items[1].commentId").value(103))
+                .andExpect(jsonPath("$.items[1].createdAt")
+                        .value(CREATED_AT.toString()))
+                .andExpect(jsonPath("$.items[1].visibility")
+                        .value(visibility.name()))
+                .andExpect(jsonPath("$.items[1].post").isMap())
+                .andExpect(jsonPath("$.items[1].post.postId").value(31))
+
+                // 마지막 항목이 숨김 상태여도 커서를 반환한다.
+                .andExpect(jsonPath("$.hasNext").value(true))
+                .andExpect(jsonPath("$.nextCursor.createdAt")
+                        .value(CREATED_AT.toString()))
+                .andExpect(jsonPath("$.nextCursor.commentId").value(103));
+
+        // 필드가 누락되지 않고 명시적인 null로 반환되는지 확인한다.
+        for (String path : List.of(
+                "$.items[1].content",
+                "$.items[1].updatedAt",
+                "$.items[1].likeCount",
+                "$.items[1].liked",
+                "$.items[1].post.title",
+                "$.items[1].post.type",
+                "$.items[1].post.topic"
+        )) {
+            response
+                    .andExpect(jsonPath(path).hasJsonPath())
+                    .andExpect(jsonPath(path).value(nullValue()));
+        }
+
+        verify(memberCommentReadService).getComments(
+                MEMBER_ID, null, null, 2
+        );
+        verifyNoMoreInteractions(memberCommentReadService);
+
+        verifyNoInteractions(
+                memberActivitySummaryService,
+                memberPostReadService
+        );
+    }
+
     private static MemberPrincipal principal() {
         return new MemberPrincipal(
                 MEMBER_ID,
@@ -422,7 +527,8 @@ class MemberCommentReadControllerTest {
                         PostTopic.HEARING_AID
                 ),
                 3L,
-                true
+                true,
+                MemberContentVisibility.VISIBLE
         );
     }
 
@@ -435,7 +541,7 @@ class MemberCommentReadControllerTest {
     }
 
     private void givenActiveMember() {
-        when(memberRepository.existsByIdAndStatusAndCredentialVersion(
-                MEMBER_ID, MemberStatus.ACTIVE, 0L)).thenReturn(true);
+        when(memberRepository.existsByIdAndStatusAndCredentialVersionAndRole(
+                MEMBER_ID, MemberStatus.ACTIVE, 0L, MemberRole.USER)).thenReturn(true);
     }
 }

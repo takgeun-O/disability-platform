@@ -90,6 +90,30 @@ class MemberActivitySummaryServiceTest {
     }
 
     @Test
+    void 본인_숨김_게시글과_숨김_댓글을_활동_개수에_포함한다() {
+        Post visible = savePost(me, PostTopic.DAILY, "공개 글");
+        Post hidden = savePost(me, PostTopic.DAILY, "숨김 글");
+        hidden.hide(Instant.now());
+        postRepository.saveAndFlush(hidden);
+        Post deleted = savePost(me, PostTopic.DAILY, "숨김 후 삭제 글");
+        deleted.hide(Instant.now());
+        deleted.delete(Instant.now());
+        postRepository.saveAndFlush(deleted);
+        Post otherHidden = savePost(other, PostTopic.DAILY, "다른 회원 숨김 글");
+        otherHidden.hide(Instant.now());
+        postRepository.saveAndFlush(otherHidden);
+        savePost(other, PostTopic.DAILY, "다른 회원 공개 글");
+        saveComment(visible, me, "집계되는 댓글");
+        saveComment(hidden, me, "부모 숨김 댓글");
+        Comment hiddenComment = saveComment(visible, me, "개별 숨김 댓글");
+        hiddenComment.hide(Instant.now());
+        commentRepository.saveAndFlush(hiddenComment);
+        var result = memberActivitySummaryService.getSummary(me.getId());
+        assertThat(result.postCount()).isEqualTo(2L);
+        assertThat(result.commentCount()).isEqualTo(3L);
+    }
+
+    @Test
     void 카테고리와_관계없이_내가_작성한_게시글과_댓글만_집계한다() {
         Post myDailyPost = savePost(
                 me,

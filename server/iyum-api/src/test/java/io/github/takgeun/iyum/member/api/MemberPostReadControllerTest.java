@@ -4,8 +4,8 @@ import io.github.takgeun.iyum.member.infrastructure.MemberRepository;
 import io.github.takgeun.iyum.auth.security.MemberPrincipal;
 import io.github.takgeun.iyum.community.post.application.PostAuthorResult;
 import io.github.takgeun.iyum.community.post.application.PostCursor;
-import io.github.takgeun.iyum.community.post.application.PostFeedItemResult;
-import io.github.takgeun.iyum.community.post.application.PostFeedResult;
+import io.github.takgeun.iyum.member.application.MemberPostItemResult;
+import io.github.takgeun.iyum.member.application.MemberPostListResult;
 import io.github.takgeun.iyum.community.post.domain.PostTopic;
 import io.github.takgeun.iyum.community.post.domain.PostType;
 import io.github.takgeun.iyum.global.config.DevCorsConfig;
@@ -29,6 +29,7 @@ import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 
+import io.github.takgeun.iyum.member.application.MemberContentVisibility;
 import java.time.Instant;
 import java.util.List;
 
@@ -94,7 +95,7 @@ class MemberPostReadControllerTest {
         givenActiveMember();
         when(memberPostReadService.getPosts(
                 MEMBER_ID, null, null, 10
-        )).thenReturn(new PostFeedResult(
+        )).thenReturn(new MemberPostListResult(
                 List.of(item(104L)),
                 false,
                 null
@@ -121,6 +122,10 @@ class MemberPostReadControllerTest {
                 ))
                 .andExpect(jsonPath("$.items.length()").value(1))
                 .andExpect(jsonPath("$.items[0].id").value(104))
+                .andExpect(jsonPath("$.items[0].postId").doesNotExist())
+                .andExpect(jsonPath("$.items[0].visibility").value("VISIBLE"))
+                .andExpect(jsonPath("$.items[0].likeCount").value(0))
+                .andExpect(jsonPath("$.items[0].liked").value(false))
                 .andExpect(jsonPath("$.items[0].title")
                         .value("내 게시글"))
                 .andExpect(jsonPath("$.items[0].contentPreview")
@@ -156,7 +161,7 @@ class MemberPostReadControllerTest {
         givenActiveMember();
         when(memberPostReadService.getPosts(
                 MEMBER_ID, CREATED_AT, 104L, 2
-        )).thenReturn(new PostFeedResult(
+        )).thenReturn(new MemberPostListResult(
                 List.of(item(103L), item(102L)),
                 true,
                 new PostCursor(CREATED_AT, 102L)
@@ -187,7 +192,7 @@ class MemberPostReadControllerTest {
         givenActiveMember();
         when(memberPostReadService.getPosts(
                 MEMBER_ID, null, null, 10
-        )).thenReturn(new PostFeedResult(
+        )).thenReturn(new MemberPostListResult(
                 List.of(),
                 false,
                 null
@@ -226,7 +231,7 @@ class MemberPostReadControllerTest {
         givenActiveMember();
         when(memberPostReadService.getPosts(
                 MEMBER_ID, null, null, 10
-        )).thenReturn(new PostFeedResult(
+        )).thenReturn(new MemberPostListResult(
                 List.of(),
                 false,
                 null
@@ -388,6 +393,29 @@ class MemberPostReadControllerTest {
         verifyNoInteractions(memberPostReadService);
     }
 
+    @Test
+    void 숨김_항목은_ID와_작성시각을_유지하고_내용은_null로_직렬화한다() throws Exception {
+        givenActiveMember();
+        var hidden = new MemberPostItemResult(104L, null, null, null, null,
+                null, CREATED_AT, null, null, null, MemberContentVisibility.HIDDEN);
+        when(memberPostReadService.getPosts(MEMBER_ID, null, null, 10))
+                .thenReturn(new MemberPostListResult(List.of(hidden), false, null));
+        var response = mockMvc.perform(get(URL).with(user(principal())).param("memberId", "999"))
+                .andExpect(status().isOk())
+                .andExpect(header().string(HttpHeaders.CACHE_CONTROL, containsString("no-store")))
+                .andExpect(jsonPath("$.items[0].id").value(104))
+                .andExpect(jsonPath("$.items[0].postId").doesNotExist())
+                .andExpect(jsonPath("$.items[0].createdAt").value(CREATED_AT.toString()))
+                .andExpect(jsonPath("$.items[0].visibility").value("HIDDEN"));
+        for (String field : List.of("type", "topic", "title", "contentPreview", "author",
+                "commentCount", "likeCount", "liked")) {
+            response.andExpect(jsonPath("$.items[0]." + field).hasJsonPath())
+                    .andExpect(jsonPath("$.items[0]." + field).value(nullValue()));
+        }
+        verify(memberPostReadService).getPosts(MEMBER_ID, null, null, 10);
+        verifyNoMoreInteractions(memberPostReadService);
+    }
+
     private MemberPrincipal principal() {
         return new MemberPrincipal(
                 MEMBER_ID,
@@ -400,8 +428,8 @@ class MemberPostReadControllerTest {
         );
     }
 
-    private PostFeedItemResult item(Long postId) {
-        return new PostFeedItemResult(
+    private MemberPostItemResult item(Long postId) {
+        return new MemberPostItemResult(
                 postId,
                 PostType.QUESTION,
                 PostTopic.DAILY,
@@ -414,12 +442,13 @@ class MemberPostReadControllerTest {
                 CREATED_AT,
                 3L,
                 0L,
-                false
+                false,
+                MemberContentVisibility.VISIBLE
         );
     }
 
     private void givenActiveMember() {
-        when(memberRepository.existsByIdAndStatusAndCredentialVersion(
-                MEMBER_ID, MemberStatus.ACTIVE, 0L)).thenReturn(true);
+        when(memberRepository.existsByIdAndStatusAndCredentialVersionAndRole(
+                MEMBER_ID, MemberStatus.ACTIVE, 0L, MemberRole.USER)).thenReturn(true);
     }
 }

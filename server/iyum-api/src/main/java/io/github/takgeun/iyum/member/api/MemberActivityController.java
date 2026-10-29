@@ -1,11 +1,10 @@
 package io.github.takgeun.iyum.member.api;
 
 import io.github.takgeun.iyum.auth.security.MemberPrincipal;
-import io.github.takgeun.iyum.community.post.api.dto.PostFeedResponse;
-import io.github.takgeun.iyum.community.post.application.PostFeedResult;
 import io.github.takgeun.iyum.global.error.ApiErrorResponse;
 import io.github.takgeun.iyum.member.api.dto.MemberActivitySummaryResponse;
 import io.github.takgeun.iyum.member.api.dto.MemberCommentListResponse;
+import io.github.takgeun.iyum.member.api.dto.MemberPostListResponse;
 import io.github.takgeun.iyum.member.application.*;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
@@ -44,6 +43,8 @@ public class MemberActivityController {
                     현재 로그인한 회원이 작성한 게시글 수와 댓글 수를 조회합니다.
                     삭제된 게시글과 댓글은 집계에서 제외합니다.
                     삭제된 게시글에 달린 댓글도 제외합니다.
+                    관리자에 의해 숨겨진 본인 게시글과 댓글도 집계에 포함합니다.
+                    부모 게시글이 숨겨진 본인 댓글도 포함합니다.
                     """
     )
     @ApiResponses({
@@ -104,12 +105,15 @@ public class MemberActivityController {
     @Operation(
             summary = "내 게시글 커서 조회",
             description = """
-                현재 로그인한 회원이 작성한 게시글을 최신순으로 조회합니다.
-                삭제된 게시글은 제외하며 모든 카테고리와 글 유형을 포함합니다.
-                첫 조회에서는 커서를 생략합니다.
-                다음 조회에서는 응답의 nextCursor.createdAt과
-                nextCursor.postId를 각각 afterCreatedAt과 afterId로 전달합니다.
-                """
+                    현재 로그인한 회원이 작성한 게시글을 최신순으로 조회합니다.
+                    삭제된 게시글은 제외합니다.
+                    관리자에 의해 숨겨진 게시글도 포함하되,
+                    제목·본문 미리보기·작성자·집계값은 제공하지 않습니다.
+                    숨김 상태는 visibility로 구분합니다.
+                    첫 조회에서는 커서를 생략합니다.
+                    다음 조회에서는 응답의 nextCursor.createdAt과
+                    nextCursor.postId를 각각 afterCreatedAt과 afterId로 전달합니다.
+                    """
     )
     @ApiResponses({
             @ApiResponse(
@@ -118,7 +122,7 @@ public class MemberActivityController {
                     content = @Content(
                             mediaType = MediaType.APPLICATION_JSON_VALUE,
                             schema = @Schema(
-                                    implementation = PostFeedResponse.class
+                                    implementation = MemberPostListResponse.class
                             )
                     )
             ),
@@ -157,7 +161,7 @@ public class MemberActivityController {
             value = "/api/v1/members/me/posts",
             produces = MediaType.APPLICATION_JSON_VALUE
     )
-    public ResponseEntity<PostFeedResponse> getPosts(
+    public ResponseEntity<MemberPostListResponse> getPosts(
             @Parameter(hidden = true)
             @AuthenticationPrincipal MemberPrincipal principal,
 
@@ -197,7 +201,7 @@ public class MemberActivityController {
                 ? null
                 : principal.getMemberId();
 
-        PostFeedResult result = memberPostReadService.getPosts(
+        MemberPostListResult result = memberPostReadService.getPosts(
                 memberId,
                 afterCreatedAt,
                 afterId,
@@ -206,19 +210,21 @@ public class MemberActivityController {
 
         return ResponseEntity.ok()
                 .cacheControl(CacheControl.noStore())
-                .body(PostFeedResponse.from(result));
+                .body(MemberPostListResponse.from(result));
     }
 
     @Operation(
             summary = "내 댓글 커서 조회",
             description = """
-                현재 로그인한 회원이 작성한 댓글을 최신순으로 조회합니다.
-                삭제된 댓글과 삭제된 게시글에 달린 댓글은 제외합니다.
-                댓글마다 원본 게시글 정보를 함께 반환합니다.
-                첫 조회에서는 커서를 생략합니다.
-                다음 조회에서는 응답의 nextCursor.createdAt과
-                nextCursor.commentId를 각각 afterCreatedAt과 afterId로 전달합니다.
-                """
+                    현재 로그인한 회원이 작성한 댓글을 최신순으로 조회합니다.
+                    삭제된 댓글과 삭제된 게시글에 달린 댓글은 제외합니다.
+                    댓글 자체 또는 부모 게시글이 숨겨진 경우에도 목록에 포함합니다.
+                    숨김 항목은 댓글 ID, 작성 시각, 원본 게시글 ID와 표시 상태를 제공하며,
+                    댓글 내용과 원본 게시글의 상세 정보 및 좋아요 정보는 제공하지 않습니다.
+                    첫 조회에서는 커서를 생략합니다.
+                    다음 조회에서는 응답의 nextCursor.createdAt과
+                    nextCursor.commentId를 각각 afterCreatedAt과 afterId로 전달합니다.
+                    """
     )
     @ApiResponses({
             @ApiResponse(

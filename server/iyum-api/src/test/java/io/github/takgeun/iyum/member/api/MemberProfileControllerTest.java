@@ -157,10 +157,11 @@ class MemberProfileControllerTest {
     @Test
     void 세션의_회원이_ACTIVE가_아니면_401이고_서비스를_호출하지_않는다()
             throws Exception {
-        when(memberRepository.existsByIdAndStatusAndCredentialVersion(
+        when(memberRepository.existsByIdAndStatusAndCredentialVersionAndRole(
                 MEMBER_ID,
                 MemberStatus.ACTIVE,
-                0L
+                0L,
+                MemberRole.USER
         )).thenReturn(false);
 
         mockMvc.perform(
@@ -176,10 +177,11 @@ class MemberProfileControllerTest {
                         containsString("no-store")
                 ));
 
-        verify(memberRepository).existsByIdAndStatusAndCredentialVersion(
+        verify(memberRepository).existsByIdAndStatusAndCredentialVersionAndRole(
                 MEMBER_ID,
                 MemberStatus.ACTIVE,
-                0L
+                0L,
+                MemberRole.USER
         );
         verifyNoInteractions(memberProfileService);
     }
@@ -309,10 +311,11 @@ class MemberProfileControllerTest {
 
     // 필터 검사를 통과시켜 서비스 예외 처리 경로에 도달하도록 하는 설정
     private void givenActiveMember() {
-        when(memberRepository.existsByIdAndStatusAndCredentialVersion(
+        when(memberRepository.existsByIdAndStatusAndCredentialVersionAndRole(
                 MEMBER_ID,
                 MemberStatus.ACTIVE,
-                0L
+                0L,
+                MemberRole.USER
         )).thenReturn(true);
     }
 }

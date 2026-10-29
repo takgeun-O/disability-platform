@@ -53,7 +53,7 @@ public class CommentDeleteService {
         }
 
         // 게시글 삭제와 댓글 삭제가 겹칠 때 처리 순서 조정
-        postRepository.findVisiblePostByIdForUpdate(postId)
+        postRepository.findNotDeletedPostByIdForUpdate(postId)
                 .orElseThrow(() ->
                         new CommentDeleteException(
                                 CommentDeleteException.Code.POST_NOT_FOUND
@@ -68,13 +68,14 @@ public class CommentDeleteService {
 
         // 해당 게시글에 속하고 삭제되지 않은 댓글만 조회한다.
         Comment comment = commentRepository
-                .findVisibleCommentByIdForUpdate(postId, commentId)
+                .findNotDeletedCommentByIdForUpdate(postId, commentId)
                 .orElseThrow(() ->
                         new CommentDeleteException(
                                 CommentDeleteException.Code.COMMENT_NOT_FOUND
                         )
                 );
 
+        // 댓글 작성자 검증은 반드시 유지. (댓글 삭제는 반드시 댓글 작성자 본인이어야 함)
         if(!comment.getAuthor().getId().equals(member.getId())) {
             throw new CommentDeleteException(
                     CommentDeleteException.Code.NOT_COMMENT_AUTHOR

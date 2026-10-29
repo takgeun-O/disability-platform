@@ -65,6 +65,10 @@ public class Post {
     @Column(name = "deleted_at")
     private Instant deletedAt;
 
+    // 관리자가 숨긴 시각. null이면 개별 숨김 상태가 아님
+    @Column(name = "hidden_at")
+    private Instant hiddenAt;
+
     private Post(
             Member author,
             PostType type,
@@ -162,5 +166,54 @@ public class Post {
         }
 
         this.deletedAt = deletedAt;
+    }
+
+    /**
+     * 관리자가 컨텐츠를 숨긴다.
+     *
+     * @return 실제로 숨김 상태로 변경되었으면 true
+     */
+    public boolean hide(Instant hiddenAt) {
+        if(hiddenAt == null) {
+            throw new IllegalArgumentException(
+                    "숨김 시각은 필수입니다."
+            );
+        }
+
+        validateNotDeletedForModeration();
+
+        // 이미 숨겨져 있다면 최초 숨김 시각을 유지한다.
+        if(this.hiddenAt != null) {
+            return false;
+        }
+
+        this.hiddenAt = hiddenAt;
+        return true;
+    }
+
+    /**
+     * 관리자가 콘텐츠의 개별 숨김 상태를 해제한다.
+     *
+     * @return 실제로 숨김 상태가 해제되었다면 true
+     */
+    public boolean restore() {
+        validateNotDeletedForModeration();
+
+        if(this.hiddenAt == null) {
+            return false;
+        }
+
+        this.hiddenAt = null;
+        return true;
+    }
+
+
+
+    private void validateNotDeletedForModeration() {
+        if(this.deletedAt != null) {
+            throw new IllegalStateException(
+                    "삭제된 콘텐츠는 숨김 또는 복원할 수 없습니다."
+            );
+        }
     }
 }

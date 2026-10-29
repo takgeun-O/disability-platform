@@ -484,10 +484,11 @@ class CommentReadControllerTest {
     }
 
     private void givenActiveMember() {
-        when(memberRepository.existsByIdAndStatusAndCredentialVersion(
+        when(memberRepository.existsByIdAndStatusAndCredentialVersionAndRole(
                 7L,
                 MemberStatus.ACTIVE,
-                0L
+                0L,
+                MemberRole.USER
         )).thenReturn(true);
     }
 }

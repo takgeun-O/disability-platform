@@ -1,27 +1,36 @@
 package io.github.takgeun.iyum.member.api.dto;
 
 import io.github.takgeun.iyum.member.application.MemberCommentItemResult;
+import io.github.takgeun.iyum.member.application.MemberContentVisibility;
 import io.swagger.v3.oas.annotations.media.Schema;
+import jakarta.annotation.Nullable;
 
 import java.time.Instant;
 
 // 댓글 하나를 담는 객체
-@Schema(description = "내가 작성한 댓글과 원본 게시글 정보")
+@Schema(description = "내 댓글 항목과 표시 상태")
 public record MemberCommentItemResponse(
         Long commentId,
-        String content,
+        @Nullable String content,
         Instant createdAt,
-        Instant updatedAt,
+        @Nullable Instant updatedAt,
         MemberCommentPostResponse post,
 
-        @Schema(description = "댓글이 받은 좋아요 개수", example = "3")
-        long likeCount,
+        @Schema(description = "댓글이 받은 좋아요 개수. 숨김 항목은 null")
+        @Nullable Long likeCount,
+
+        @Schema(description = "로그인 회원의 좋아요 여부. 숨김 항목은 null")
+        @Nullable Boolean liked,
 
         @Schema(
-                description = "로그인한 회원이 해당 댓글에 좋아요를 눌렀는지 여부",
-                example = "true"
+                description = "댓글 표시 상태",
+                allowableValues = {
+                        "VISIBLE",
+                        "HIDDEN",
+                        "PARENT_HIDDEN"
+                }
         )
-        boolean liked
+        MemberContentVisibility visibility
 ) {
 
     public static MemberCommentItemResponse from(
@@ -34,7 +43,8 @@ public record MemberCommentItemResponse(
                 result.updatedAt(),
                 MemberCommentPostResponse.from(result.post()),
                 result.likeCount(),
-                result.liked()
+                result.liked(),
+                result.visibility()
         );
     }
 }

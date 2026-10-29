@@ -45,6 +45,7 @@ public interface PostLikeRepository
             from PostLike pl
             join pl.post p
             where p.deletedAt is null
+                and p.hiddenAt is null
                 and p.id in :postIds
             group by p.id
             """)

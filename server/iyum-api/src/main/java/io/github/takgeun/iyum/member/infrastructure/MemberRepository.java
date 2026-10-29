@@ -1,6 +1,7 @@
 package io.github.takgeun.iyum.member.infrastructure;
 
 import io.github.takgeun.iyum.member.domain.Member;
+import io.github.takgeun.iyum.member.domain.MemberRole;
 import io.github.takgeun.iyum.member.domain.MemberStatus;
 import jakarta.persistence.LockModeType;
 import org.springframework.data.jpa.repository.JpaRepository;
@@ -76,5 +77,18 @@ public interface MemberRepository extends JpaRepository<Member, Long> {
             Long memberId,
             MemberStatus status,
             long credentialVersion
+    );
+
+    /**
+     * 현재 DB의 회원 상태·인증 버전·권한이
+     * 세션 검증에 필요한 조건과 모두 일치하는지 확인한다.
+     *
+     * role에는 로그인 당시 principal에 저장된 권한을 전달한다.
+     */
+    boolean existsByIdAndStatusAndCredentialVersionAndRole(
+            Long memberId,
+            MemberStatus status,
+            long credentialVersion,
+            MemberRole role
     );
 }

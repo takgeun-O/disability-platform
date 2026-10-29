@@ -46,12 +46,14 @@ public class PostDeleteService {
         }
 
         // 회원 -> 게시글 순서로 잠금을 획득하는 흐름을 수정 서비스와 같게 유지
-        Post post = postRepository.findVisiblePostByIdForUpdate(postId)
+        Post post = postRepository.findNotDeletedPostByIdForUpdate(postId)
                 .orElseThrow(() ->
                         new PostDeleteException(
                                 PostDeleteException.Code.POST_NOT_FOUND
                         ));
 
+        // 숨긴 글도 가져올 수 있지만 삭제할 수 있는 사람은 기존처럼 작성자 뿐이므로
+        // 작성자 검증은 반드시 유지한다.
         if(!post.getAuthor().getId().equals(member.getId())) {
             throw new PostDeleteException(
                     PostDeleteException.Code.NOT_POST_AUTHOR

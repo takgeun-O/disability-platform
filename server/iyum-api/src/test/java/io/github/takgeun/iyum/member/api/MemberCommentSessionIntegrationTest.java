@@ -12,6 +12,8 @@ import io.github.takgeun.iyum.member.domain.Member;
 import io.github.takgeun.iyum.member.infrastructure.MemberRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.CsvSource;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
@@ -40,8 +42,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.nullValue;
-import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
-import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
 
 @SpringBootTest(properties = {
@@ -358,6 +359,166 @@ class MemberCommentSessionIntegrationTest {
                         .value("AUTHENTICATION_REQUIRED"));
     }
 
+    @ParameterizedTest
+    @CsvSource({
+            "false, true, HIDDEN",
+            "true, false, PARENT_HIDDEN",
+            "true, true, PARENT_HIDDEN"
+    })
+    void 실제_세션으로_숨김_댓글을_조회하고_작성자만_삭제한다(
+            boolean postHidden,
+            boolean commentHidden,
+            String expectedVisibility
+    ) throws Exception {
+        Comment target = commentRepository
+                .findById(newestCommentId)
+                .orElseThrow();
+
+        String originalContent = target.getContent();
+
+        if (commentHidden) {
+            target.hide(Instant.now());
+            commentRepository.saveAndFlush(target);
+        }
+
+        if (postHidden) {
+            otherPost.hide(Instant.now());
+            postRepository.saveAndFlush(otherPost);
+        }
+
+        MockHttpSession authorSession = login(member.getEmail());
+
+        // 실제 로그인 세션으로 내 댓글을 조회한다.
+        MvcResult beforeResult = mockMvc.perform(
+                        get(BASE)
+                                .session(authorSession)
+                                .param("size", "10")
+                )
+                .andExpect(status().isOk())
+                .andExpect(header().string(
+                        HttpHeaders.CACHE_CONTROL,
+                        containsString("no-store")
+                ))
+                .andExpect(jsonPath("$.items.length()").value(3))
+                .andExpect(jsonPath("$.items[0].commentId")
+                        .value(is(newestCommentId), Long.class))
+                .andExpect(jsonPath("$.items[0].createdAt")
+                        .value(SAME_TIME.toString()))
+                .andExpect(jsonPath("$.items[0].visibility")
+                        .value(expectedVisibility))
+                .andExpect(jsonPath("$.items[0].post.postId")
+                        .value(is(otherPost.getId()), Long.class))
+                .andReturn();
+
+        JsonNode hiddenItem = readJson(beforeResult)
+                .path("items")
+                .path(0);
+
+        // 누락된 필드가 아니라 명시적인 null인지 확인한다.
+        for (String field : List.of(
+                "content", "updatedAt", "likeCount", "liked"
+        )) {
+            assertThat(hiddenItem.has(field)).isTrue();
+            assertThat(hiddenItem.path(field).isNull()).isTrue();
+        }
+
+        JsonNode parent = hiddenItem.path("post");
+
+        for (String field : List.of("title", "type", "topic")) {
+            assertThat(parent.has(field)).isTrue();
+            assertThat(parent.path(field).isNull()).isTrue();
+        }
+
+        // 미리 지정한 ID 대신 실제 응답에서 받은 ID로 삭제한다.
+        long responsePostId = parent.path("postId").asLong();
+        long responseCommentId = hiddenItem.path("commentId").asLong();
+
+        String deletePath =
+                "/api/v1/community/posts/{postId}/comments/{commentId}";
+
+        // 게시글 작성자라도 다른 회원의 댓글을 삭제할 수 없다.
+        MockHttpSession postAuthorSession =
+                login(otherMember.getEmail());
+        JsonNode postAuthorCsrf = getCsrf(postAuthorSession);
+
+        mockMvc.perform(
+                        delete(deletePath, responsePostId, responseCommentId)
+                                .session(postAuthorSession)
+                                .header(
+                                        postAuthorCsrf.path("headerName").asString(),
+                                        postAuthorCsrf.path("token").asString()
+                                )
+                )
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.code").value("ACCESS_DENIED"));
+
+        Comment afterDenied = commentRepository
+                .findById(newestCommentId)
+                .orElseThrow();
+
+        assertThat(afterDenied.getDeletedAt()).isNull();
+        assertThat(afterDenied.getContent()).isEqualTo(originalContent);
+
+        // 댓글 작성자는 숨김 상태에서도 삭제할 수 있다.
+        JsonNode authorCsrf = getCsrf(authorSession);
+
+        mockMvc.perform(
+                        delete(deletePath, responsePostId, responseCommentId)
+                                .session(authorSession)
+                                .header(
+                                        authorCsrf.path("headerName").asString(),
+                                        authorCsrf.path("token").asString()
+                                )
+                )
+                .andExpect(status().isNoContent())
+                .andExpect(content().string(""))
+                .andExpect(header().string(
+                        HttpHeaders.CACHE_CONTROL,
+                        containsString("no-store")
+                ));
+
+        // 물리 삭제가 아닌 소프트 삭제인지 확인한다.
+        Comment deleted = commentRepository
+                .findById(newestCommentId)
+                .orElseThrow();
+
+        assertThat(deleted.getDeletedAt()).isNotNull();
+        assertThat(deleted.getContent()).isEqualTo(originalContent);
+
+        if (commentHidden) {
+            assertThat(deleted.getHiddenAt()).isNotNull();
+        } else {
+            assertThat(deleted.getHiddenAt()).isNull();
+        }
+
+        // 같은 세션으로 재조회하면 삭제한 댓글만 빠진다.
+        MvcResult afterResult = mockMvc.perform(
+                        get(BASE)
+                                .session(authorSession)
+                                .param("size", "10")
+                )
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.items.length()").value(2))
+                .andExpect(jsonPath("$.hasNext").value(false))
+                .andExpect(jsonPath("$.nextCursor").value(nullValue()))
+                .andReturn();
+
+        assertThat(commentIds(readJson(afterResult)))
+                .containsExactly(middleCommentId, oldestCommentId);
+
+        // 이미 삭제한 댓글에 다시 요청하면 404다.
+        mockMvc.perform(
+                        delete(deletePath, responsePostId, responseCommentId)
+                                .session(authorSession)
+                                .header(
+                                        authorCsrf.path("headerName").asString(),
+                                        authorCsrf.path("token").asString()
+                                )
+                )
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.code").value("COMMENT_NOT_FOUND"));
+    }
+
     private MockHttpSession login(String email)
             throws Exception {
         MvcResult csrfResult = mockMvc.perform(
@@ -477,5 +638,22 @@ class MemberCommentSessionIntegrationTest {
         commentLikeRepository.saveAndFlush(
                 CommentLike.create(comment, liker)
         );
+    }
+
+    private JsonNode getCsrf(MockHttpSession session)
+            throws Exception {
+        MvcResult result = mockMvc.perform(
+                        get("/api/v1/auth/csrf")
+                                .session(session)
+                )
+                .andExpect(status().isOk())
+                .andReturn();
+
+        JsonNode csrf = readJson(result);
+
+        assertThat(csrf.path("headerName").asString()).isNotBlank();
+        assertThat(csrf.path("token").asString()).isNotBlank();
+
+        return csrf;
     }
 }
