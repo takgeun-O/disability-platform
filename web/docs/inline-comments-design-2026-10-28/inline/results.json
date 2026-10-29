@@ -1,0 +1,149 @@
+{
+  "kind": "mock",
+  "results": [
+    {
+      "name": "lazy independent regions, zero/one, IDs and layout 1440",
+      "pass": true
+    },
+    {
+      "name": "lazy independent regions, zero/one, IDs and layout 390",
+      "pass": true
+    },
+    {
+      "name": "lazy independent regions, zero/one, IDs and layout 320",
+      "pass": true
+    },
+    {
+      "name": "mypage post like PUT DELETE uses shared red heart and never writes comments",
+      "pass": true
+    },
+    {
+      "name": "GET counts confirmed",
+      "pass": true,
+      "before": {
+        "a": 2,
+        "b": 2
+      },
+      "after": {
+        "a": 2,
+        "b": 2
+      }
+    },
+    {
+      "name": "post-local reads: two 40-row regions, confirmed",
+      "pass": true
+    },
+    {
+      "name": "GET counts malformed",
+      "pass": true,
+      "before": {
+        "a": 2,
+        "b": 2
+      },
+      "after": {
+        "a": 4,
+        "b": 2
+      }
+    },
+    {
+      "name": "post-local reads: two 40-row regions, malformed",
+      "pass": true
+    },
+    {
+      "name": "GET counts network",
+      "pass": true,
+      "before": {
+        "a": 2,
+        "b": 2
+      },
+      "after": {
+        "a": 4,
+        "b": 2
+      }
+    },
+    {
+      "name": "post-local reads: two 40-row regions, network",
+      "pass": true
+    },
+    {
+      "name": "collapsed A detail POST invalidates A only and preserves B",
+      "pass": true
+    },
+    {
+      "name": "collapsed A detail PUT invalidates A only and preserves B",
+      "pass": true
+    },
+    {
+      "name": "collapsed A detail DELETE invalidates A only and preserves B",
+      "pass": true
+    },
+    {
+      "name": "late confirmed like after departure updates shared state without list reread",
+      "pass": true
+    },
+    {
+      "name": "gated read, close/reopen does not duplicate or reopen on response",
+      "pass": true
+    },
+    {
+      "name": "more failure retains prefix and retries exact microsecond cursor; refresh atomic failure",
+      "pass": true
+    },
+    {
+      "name": "tab/detail back restores expanded prefix and position 1440",
+      "pass": true
+    },
+    {
+      "name": "tab/detail back restores expanded prefix and position 390",
+      "pass": true
+    },
+    {
+      "name": "like server result, latest shared state and refresh; no write retry",
+      "pass": true
+    },
+    {
+      "name": "404 distinction NOT_FOUND",
+      "pass": true
+    },
+    {
+      "name": "404 distinction POST_NOT_FOUND",
+      "pass": true
+    },
+    {
+      "name": "independent initial failure retry does not clear another open post",
+      "pass": true
+    },
+    {
+      "name": "stale refresh cannot overwrite a subsequent successful like",
+      "pass": true
+    },
+    {
+      "name": "late uncertain malformed after departure revalidates cached range",
+      "pass": true
+    },
+    {
+      "name": "late uncertain network after departure revalidates cached range",
+      "pass": true
+    },
+    {
+      "name": "old read ignored after same member login",
+      "pass": true
+    },
+    {
+      "name": "old read ignored after other member login",
+      "pass": true
+    },
+    {
+      "name": "current inline 401 follows session expiry",
+      "pass": true
+    },
+    {
+      "name": "confirmed parent deletion removes expanded state without touching another region",
+      "pass": true
+    },
+    {
+      "name": "late read after logout does not repopulate private view",
+      "pass": true
+    }
+  ]
+}

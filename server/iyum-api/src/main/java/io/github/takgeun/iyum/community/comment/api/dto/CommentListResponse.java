@@ -9,7 +9,7 @@ import java.util.List;
 public record CommentListResponse(
         List<CommentResponse> items,
         boolean hasNext,
-        @Nullable CommentCursorResponse nextCursor
+        @Nullable SortedCommentCursorResponse nextCursor
 ) {
 
     public CommentListResponse {
@@ -28,7 +28,7 @@ public record CommentListResponse(
                 result.hasNext(),
                 cursor == null
                         ? null
-                        : CommentCursorResponse.from(cursor)
+                        : SortedCommentCursorResponse.from(cursor)
         );
     }
 }

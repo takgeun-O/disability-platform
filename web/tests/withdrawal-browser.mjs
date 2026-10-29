@@ -19,7 +19,7 @@ async function fixture(width=1440) {
   if(p.endsWith('/posts')||p.endsWith('/comments'))return route.fulfill({json:{items:[],hasNext:false,nextCursor:null}})
   return route.fulfill({status:401,json:{code:'AUTHENTICATION_REQUIRED',message:'로그인이 필요합니다.',fieldErrors:[]}})
  })
- await page.goto(base+'/mypage');await page.locator('#withdrawal-entry').click()
+ await page.goto(base+'/mypage/settings');await page.locator('#withdrawal-entry').click()
  return {context,page,state,dialog:page.getByRole('dialog')}
 }
 async function ready(f){await f.page.locator('#withdrawal-password').fill(' raw password ');await f.dialog.getByRole('checkbox').check()}

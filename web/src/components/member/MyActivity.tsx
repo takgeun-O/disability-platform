@@ -1,26 +1,36 @@
 'use client'
-import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
+import WrittenTime from "@/components/WrittenTime"
+import { useCallback, useEffect, useLayoutEffect, useRef, useState, useSyncExternalStore, type RefObject } from 'react'
 import Link from '@/components/AppLink'
 import { useAuth } from '@/components/AuthProvider'
+import CommentSuccessToast from '@/components/community/CommentSuccessToast'
 import { useNavigationRequest } from '@/components/NavigationGuard'
 import { getMemberPosts, MemberApiError, type ActivitySummary } from '@/lib/member-api'
 import { refreshMemberPosts, type ActivityTab, type MemberPostSnapshot } from '@/lib/member-activity'
 import { mergeFeed, type FeedPosition } from '@/lib/community-feed'
-import { consumeListReturn, POST_TOPICS, POST_TYPES, postDate } from '@/lib/community-posts'
+import { consumeListReturn, POST_TOPICS, POST_TYPES } from '@/lib/community-posts'
 import { getPostVersion, usePostVersion } from '@/lib/community-mutations'
-import PostListReactions from '@/components/community/PostListReactions'
+import InlineComments from './InlineComments'
+import type { InlineCommentsSnapshot } from '@/lib/inline-comments'
 import MyComments from './MyComments'
+import MemberPostActions from './MemberPostActions'
 import { activityPosition, restoreActivityPosition } from './activity-position'
 import type { MemberCommentSnapshot } from '@/lib/member-activity'
 
 const empty: MemberPostSnapshot = { items: [], hasNext: false, nextCursor: null, segments: 0, version: -1, tab: 'posts' }
-export default function MyActivity({ memberId, summary, layoutReady }: { memberId: number; summary?: ActivitySummary; layoutReady: boolean }) {
-  const { activityCache, captureMemberRequest, memberRequests, likes } = useAuth(), scope = useNavigationRequest(), version = usePostVersion('list')
+export default function MyActivity({ memberId, summary, layoutReady, leavingRef }: { memberId: number; summary?: ActivitySummary; layoutReady: boolean; leavingRef?: RefObject<(() => void) | null> }) {
+  const { activityCache, captureMemberRequest, memberRequests, likes, commentDrafts } = useAuth(), scope = useNavigationRequest(), version = usePostVersion('list')
+  const drafts = useSyncExternalStore(commentDrafts.subscribe, commentDrafts.snapshot, commentDrafts.snapshot)
+  const [toast, setToast] = useState<{ id: number; text: string; dismiss: () => void } | null>(null)
+  const sequence = useRef(0)
+  const showCreated = (text: string) => { const id = ++sequence.current; setToast({ id, text, dismiss: () => setToast(old => old?.id === id ? null : old) }) }
   const [lease] = useState(() => activityCache.lease(memberId))
   const [view, setView] = useState<MemberPostSnapshot>(empty), current = useRef(view)
   const [ready, setReady] = useState(false), [restoring, setRestoring] = useState(false)
   const [busy, setBusy] = useState<'more' | 'refresh' | null>(null)
   const [error, setError] = useState<{ kind: 'more' | 'refresh'; message: string } | null>(null)
+  const [managedId, setManagedId] = useState<number | null>(null)
+  const removed = useRef<{ id: number; candidates: number[]; trigger: HTMLElement; revision: number } | null>(null)
   const [notice, setNotice] = useState('')
   const entry = useRef(''), request = useRef<AbortController | null>(null), failedVersion = useRef<number | null>(null)
   const pendingPosition = useRef<FeedPosition | null>(null), pendingFocus = useRef<number | null>(null)
@@ -93,7 +103,8 @@ export default function MyActivity({ memberId, summary, layoutReady }: { memberI
       const items = kind === 'more' ? mergeFeed(previous.items, data.items) : data.items
       // Tab selection made while a request was pending wins over the old request's snapshot.
       const updated: MemberPostSnapshot = { ...data, items, segments: data.segments,
-        version: requestedVersion, requestRevision: memberRequests.revision, tab: current.current.tab, comments: current.current.comments }
+        version: requestedVersion, requestRevision: memberRequests.revision, tab: current.current.tab, comments: current.current.comments,
+        inlineComments: Object.fromEntries(Object.entries(current.current.inlineComments ?? {}).filter(([id]) => items.some(item => item.id === Number(id)))) }
       if (kind === 'refresh' && previous.segments && current.current.tab === 'posts') { pendingPosition.current = activityPosition(current.current.tab); setRestoring(true) }
       if (keyboardMore.current && document.activeElement === moreTrigger.current && current.current.tab === 'posts') {
         pendingFocus.current = items[kind === 'more' ? previous.items.length : 0]?.id ?? 0
@@ -113,7 +124,23 @@ export default function MyActivity({ memberId, summary, layoutReady }: { memberI
   useEffect(() => {
     if (ready && view.tab === 'posts' && !restoring && (view.version !== version || view.requestRevision !== memberRequests.revision) && failedVersion.current !== version) void load('refresh')
   }, [ready, restoring, version, view.version, view.requestRevision, memberRequests, view.tab, load])
+  useLayoutEffect(() => {
+    const pending = removed.current
+    if (!pending) return
+    if (!scope.isActive() || !lease.valid() || view.tab !== 'posts' || pending.revision !== memberRequests.revision) { removed.current = null; return }
+    if (view.items.some(item => item.id === pending.id)) return
+    removed.current = null
+    if (document.activeElement !== document.body && document.activeElement !== pending.trigger) return
+    const target = pending.candidates.map(id => document.querySelector<HTMLElement>(`[data-member-post-id="${id}"] h3 a`)).find(Boolean) ?? document.getElementById('my-posts-empty')
+    target?.focus({ preventScroll: true })
+  }, [view, memberRequests, scope, lease])
+  function afterRemoval(id: number, trigger: HTMLElement) {
+    const index = current.current.items.findIndex(item => item.id === id)
+    removed.current = { id, trigger, revision: memberRequests.revision, candidates: [...current.current.items.slice(index+1), ...current.current.items.slice(0,index).reverse()].map(item => item.id) }
+    setNotice('게시글을 삭제했습니다.')
+  }
   function chooseTab(tab: ActivityTab) {
+    setManagedId(null); removed.current = null
     keyboardMore.current = false; pendingFocus.current = null; pendingPosition.current = null; setRestoring(false)
     const next = { ...current.current, tab }; current.current = next; setView(next)
     if (entry.current) lease.write(entry.current, { ...next, position: activityPosition(current.current.tab) })
@@ -123,8 +150,19 @@ export default function MyActivity({ memberId, summary, layoutReady }: { memberI
     current.current = { ...current.current, comments }
     if (entry.current) lease.write(entry.current, { ...current.current, position: activityPosition(current.current.tab) })
   }, [lease, scope])
-  function leaving() { save(); lease.markReturn(entry.current) }
+  const saveInline = useCallback((postId: number, snapshot: InlineCommentsSnapshot) => {
+    if (!scope.isActive() || !lease.valid() || !current.current.items.some(item => item.id === postId)) return
+    current.current = { ...current.current, inlineComments: { ...current.current.inlineComments, [postId]: snapshot } }
+    if (entry.current) lease.write(entry.current, { ...current.current, position: activityPosition(current.current.tab) })
+  }, [lease, scope])
+  const leaving = useCallback(() => { save(); lease.markReturn(entry.current) }, [save, lease])
+  useLayoutEffect(() => {
+    if (!leavingRef) return
+    leavingRef.current = leaving
+    return () => { leavingRef.current = null }
+  }, [leaving, leavingRef])
   return <section className="mypage-activity" aria-labelledby="my-activity-title">
+    <div role="status" aria-atomic="true">{toast && scope.isActive() && <CommentSuccessToast key={toast.id} message="댓글을 등록했습니다." detail={toast.text} onDismiss={toast.dismiss} />}</div>
     <h2 id="my-activity-title">내 활동</h2>
     <div className="mypage-tabs"><div role="tablist" aria-label="내 활동">
       {(['posts', 'comments'] as const).map((kind, index) => <button key={kind} id={`my-tab-${kind}`} role="tab" aria-selected={view.tab === kind} aria-controls={`my-panel-${kind}`} tabIndex={view.tab === kind ? 0 : -1}
@@ -138,10 +176,11 @@ export default function MyActivity({ memberId, summary, layoutReady }: { memberI
       {(!ready || (!view.segments && (!error || !!busy))) && <p role="status" className="mypage-list-message">내 게시글을 불러오고 있습니다.</p>}
       {!!view.segments && !view.items.length && <p id="my-posts-empty" tabIndex={-1} className="mypage-list-message">아직 작성한 게시글이 없어요.</p>}
       <ul className="mypage-post-list">{view.items.map(post => <li key={post.id} data-member-post-id={post.id}>
-        <div className="mypage-post-copy"><p className="mypage-post-meta">{POST_TOPICS[post.topic]} · {POST_TYPES[post.type]} · <time dateTime={post.createdAt}>{postDate(post.createdAt)}</time></p>
+        <div className="mypage-post-copy"><div className="mypage-post-heading"><p className="mypage-post-meta">{POST_TOPICS[post.topic]} · {POST_TYPES[post.type]} · <WrittenTime value={post.createdAt} /></p><MemberPostActions post={post} open={managedId === post.id} onOpen={setManagedId} onLeaving={leaving} onRemoved={afterRemoval} active={view.tab === 'posts'} /></div>
           <h3><Link href={`/community/posts/${post.id}?from=%2Fmypage`} prefetch={false} onNavigate={leaving}>{post.title}</Link></h3>
           <p className="mypage-post-preview">{post.contentPreview}</p></div>
-        <PostListReactions post={post} href={`/community/posts/${post.id}?from=%2Fmypage`} onLeaving={leaving}/>
+        <InlineComments post={post} memberId={memberId} initial={view.inlineComments?.[post.id]} draft={drafts[post.id] ?? ''} onDraft={text => { commentDrafts.set(memberId, post.id, text) }} onCreated={showCreated}
+          active={view.tab === 'posts'} restoring={restoring || !layoutReady} onSnapshot={saveInline} onLeaving={leaving} />
       </li>)}</ul>
       {busy === 'refresh' && !!view.segments && <p role="status">내 게시글을 갱신하고 있습니다.</p>}
       <div className={error ? 'mypage-list-message' : undefined}>

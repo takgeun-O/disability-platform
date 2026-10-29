@@ -1,0 +1,13 @@
+{
+  "kind": "mock API / production Next",
+  "results": [
+    {
+      "name": "settings round trip retains three post pages and position / back",
+      "pass": true
+    },
+    {
+      "name": "settings round trip retains three post pages and position / link",
+      "pass": true
+    }
+  ]
+}

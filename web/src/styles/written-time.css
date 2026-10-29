@@ -1,0 +1,7 @@
+/* Inline metadata control; native top-layer popover does not reflow the feed. */
+.written-time { display: inline; min-width: 0; }
+.written-time-trigger { font: inherit; color: inherit; background: transparent; border: 0; padding: 2px 0; border-radius: 3px; text-align: start; cursor: pointer; text-decoration: underline dotted; text-underline-offset: 4px; overflow-wrap: anywhere; }
+.written-time-trigger:hover { color: var(--iyum-primary, #007f95); }
+.written-time-trigger:focus-visible { outline: 2px solid var(--iyum-primary, #007f95); outline-offset: 3px; }
+.written-time-exact { position: fixed; inset: 0; margin: auto; width: fit-content; max-width: calc(100vw - 32px); height: fit-content; box-sizing: border-box; padding: 14px 18px; border: 1px solid var(--iyum-border, #d4e6ed); border-radius: 10px; color: var(--iyum-ink); background: var(--iyum-surface); font-size: 14px; font-weight: 400; line-height: 1.6; word-break: keep-all; overflow-wrap: anywhere; box-shadow: var(--iyum-shadow); }
+.written-time-exact::backdrop { background: transparent; pointer-events: none; }

@@ -1,0 +1,31 @@
+"use client"
+
+import { useId, type ReactNode } from "react"
+import WrittenTime from "@/components/WrittenTime"
+import type { Comment } from "@/lib/community-comments"
+
+/** Presentation only: the owner supplies mutations/forms and their request scope.
+ * Only the detail owner opts into the public comment-{id} hash namespace.
+ * Repeated copies of the same comment otherwise receive independent DOM IDs.
+ */
+export default function CommentItem({ comment, anchorId, body, reactions, actions }: {
+  comment: Comment
+  anchorId?: string
+  body?: ReactNode
+  reactions?: ReactNode
+  actions?: ReactNode
+}) {
+  const instanceId = useId()
+  return <li data-comment-item={comment.commentId} id={anchorId ?? `comment-item-${instanceId}`} tabIndex={-1}>
+    <div className="community-comment-meta">
+      <strong>{comment.author.nickname}</strong>
+      <WrittenTime value={comment.createdAt} />
+      {comment.updatedAt !== comment.createdAt && <span>수정됨</span>}
+    </div>
+    {body ?? <p className="community-comment-body">{comment.content}</p>}
+    {(reactions || actions) && <div className="community-comment-toolbar">
+      {reactions}
+      {actions}
+    </div>}
+  </li>
+}

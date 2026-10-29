@@ -1,7 +1,10 @@
 "use client"
+import { useCommentTransition } from "@/lib/useCommentTransition"
+import CommentSortMenu from "./CommentSortMenu"
+import CommentItem from "./CommentItem"
 // Refresh the visible prefix, keeping editor snapshots separate from server data.
-import { useEffect, useEffectEvent, useRef, useState, type FormEvent } from "react"
-import { memberCommentsChanged, postListChanged, usePostVersion } from "@/lib/community-mutations"
+import { useCallback, useLayoutEffect, useEffect, useEffectEvent, useRef, useState, type FormEvent } from "react"
+import { memberCommentsChanged, postListChanged, postCommentsChanged, usePostVersion } from "@/lib/community-mutations"
 import { useRouter } from "next/navigation"
 import { useAuth } from "@/components/AuthProvider"
 import {
@@ -16,13 +19,17 @@ import {
   changeComment,
   CommentError,
   getComments,
+  commentCursorKey,
+  commentError,
+  type CommentSort,
   mergeComments,
   validateComment,
+  requiredContent,
   type Comment,
   type CommentPage,
 } from "@/lib/community-comments"
 import type { PublicResult } from "@/lib/community-load"
-import { characterCount, postDate } from "@/lib/community-posts"
+import { characterCount } from "@/lib/community-posts"
 
 type EditorAction = { kind: "edit" | "delete"; comment: Comment } | { kind: "cancel" }
 type Editor = { id: number; original: string; value: string; notFound?: boolean }
@@ -40,11 +47,17 @@ export default function Comments({
   const likeContext = `${auth.memberRequests.revision}:${auth.memberRequests.paused}:${auth.status}:${auth.pending}`
   const [loadedContext, setLoadedContext] = useState("")
   const router = useRouter(), guard = useNavigationGuard()
+  const subscribeNavigation = guard.subscribeNavigation
   const scope = useNavigationRequest()
+  const readController = useRef<AbortController | null>(null)
   const reads = useRef(0),
     reading = useRef(false),
     writing = useRef(false),
     pageCount = useRef(1)
+  const [sort, setSort] = useState<CommentSort>("OLDEST")
+  const sortRef = useRef<CommentSort>("OLDEST"), cursors = useRef<string[]>([]), autoStalled = useRef(false)
+  const { list: commentList, capture: captureTransition } = useCommentTransition()
+  const [displayedSort, setDisplayedSort] = useState<CommentSort>("OLDEST")
   const removed = useRef(new Set<number>())
   const [page, setPage] = useState<CommentPage>(
     (identityVersion === 0 ? initial.data : null) ?? { items: [], hasNext: false, nextCursor: null },
@@ -55,12 +68,13 @@ export default function Comments({
   )
   const [fields, setFields] = useState<Record<string, string>>({})
   const [error, setError] = useState<CommentError | null>(null)
+  const [createError, setCreateError] = useState<CommentError | null>(null)
   const [draft, setDraft] = useState("")
   const [editor, setEditor] = useState<Editor | null>(null)
   const [busy, setBusy] = useState(false),
     [loading, setLoading] = useState(false)
   const toastSequence = useRef(0)
-  const [toast, setToast] = useState<{ id: number; message: string; valid: () => boolean; dismiss: () => void } | null>(null)
+  const [toast, setToast] = useState<{ id: number; message: string; variant: "success" | "notice"; valid: () => boolean; dismiss: () => void } | null>(null)
   const [notice, setNotice] = useState("")
   const [linkedComment, setLinkedComment] = useState<number | null>(null)
   const [linkNotice, setLinkNotice] = useState("")
@@ -70,6 +84,16 @@ export default function Comments({
   const [readMore, setReadMore] = useState(false)
   const section = useRef<HTMLElement>(null), sentinel = useRef<HTMLDivElement>(null), composer = useRef<HTMLDivElement>(null)
   const buffered = useRef<{ cursor: string; page: CommentPage; ticket: ReturnType<typeof auth.commentLikes.read> } | null>(null)
+  const cancelRead = useCallback(() => {
+    reads.current++
+    readController.current?.abort()
+    readController.current = null
+    reading.current = false
+    buffered.current = null
+  }, [])
+  // Only approved navigation is published. Cancelling the dirty dialog does not abort.
+  useEffect(() => subscribeNavigation(cancelRead), [subscribeNavigation, cancelRead])
+  useLayoutEffect(() => { cancelRead() }, [auth.memberRequests, cancelRead])
   const [inputFocused, setInputFocused] = useState(false)
   const [deleting, setDeleting] = useState<Comment | null>(null)
   const [discard, setDiscard] = useState<EditorAction | null>(null)
@@ -93,30 +117,42 @@ export default function Comments({
   function pauseAuto() {
     // 입력 중 도착한 자동 GET도 폼을 밀어내지 않는다. 수동 추가는 명시적 조작이다.
     const area = section.current
+    const composerBounds = composer.current?.getBoundingClientRect()
     return !area || !!area.querySelector('dialog[open], textarea[id^="comment-edit-"]') ||
       !!area.querySelector<HTMLTextAreaElement>('#comment-draft')?.value ||
       !!area.querySelector('.community-comment-form:focus-within') ||
-      (composer.current?.getBoundingClientRect().top ?? Infinity) < window.innerHeight
+      !!composerBounds && composerBounds.top < window.innerHeight && composerBounds.bottom > 0
   }
-  function showToast(message: string, valid: () => boolean) {
+  function showToast(message: string, valid: () => boolean, variant: "success" | "notice" = "success") {
     const id = ++toastSequence.current
-    setToast({ id, message, valid, dismiss: () => setToast(previous => previous?.id === id ? null : previous) })
+    setToast({ id, message, variant, valid, dismiss: () => setToast(previous => previous?.id === id ? null : previous) })
   }
   async function load(more = false, automatic = false, targetId?: number, announce = false) {
     if (reading.current || writing.current || !scope.isActive() || auth.status === "checking" || auth.pending || auth.memberRequests.paused) return
+    if (automatic && autoStalled.current) return
     if (more && (!page.hasNext || !page.nextCursor)) return
     reading.current = true
+    const requestedSort = sortRef.current
     const ticket = ++reads.current
+    const controller = new AbortController()
+    readController.current = controller
     let likeRead = auth.commentLikes.read()
     const session = auth.member ? auth.captureMemberRequest(auth.member.memberId) : null
     const current = () =>
-      scope.isActive() &&
+      scope.isActive() && readController.current === controller && !controller.signal.aborted &&
       likeRead.valid() && (!session || session.isCurrent()) && ticket ===
         reads.current
     setLoading(true)
     setReadError("")
     setReadMore(more)
     try {
+      const seen = new Set(more ? cursors.current : [])
+      const track = (data: CommentPage) => {
+        if (!data.nextCursor) return
+        const key = commentCursorKey(data.nextCursor)
+        if (seen.has(key)) throw commentError(200, null, false)
+        seen.add(key)
+      }
       let result: CommentPage
       let fetched: Comment[] = []
       let segments = pageCount.current
@@ -125,7 +161,7 @@ export default function Comments({
         if (buffered.current?.cursor === cursor && buffered.current.ticket.valid()) {
           result = buffered.current.page
           likeRead = buffered.current.ticket
-        } else result = await getComments(postId, page.nextCursor)
+        } else result = await getComments(postId, page.nextCursor, controller.signal, undefined, requestedSort)
         fetched = result.items
         if (!current()) return
         if (automatic && pauseAuto()) {
@@ -133,15 +169,18 @@ export default function Comments({
           return
         }
         buffered.current = null
+        track(result)
         result = { ...result, items: mergeComments(page.items, result.items) }
         segments++
       } else {
         buffered.current = null
-        result = await getComments(postId)
+        result = await getComments(postId, null, controller.signal, undefined, requestedSort)
+        track(result)
         segments = 1
         while (result.hasNext && (segments < pageCount.current || (!!targetId && !result.items.some(c => c.commentId === targetId)))) {
           if (!current()) return
-          const next = await getComments(postId, result.nextCursor)
+          const next = await getComments(postId, result.nextCursor, controller.signal, undefined, requestedSort)
+          track(next)
           result = { ...next, items: mergeComments(result.items, next.items) }
           segments++
         }
@@ -150,9 +189,15 @@ export default function Comments({
       if (current()) {
         likeRead.accept(fetched.map(c => ({ ...c, id: c.commentId })))
         setLoadedContext(likeContext)
+        // A moving popularity cursor may return only known IDs. Keep its cursor,
+        // but require explicit pagination instead of an automatic request loop.
+        autoStalled.current = more && fetched.every(c => page.items.some(old => old.commentId === c.commentId))
+        cursors.current = [...seen]
         pageCount.current = segments
         if (editor && !result.items.some(c => c.commentId === editor.id) && document.activeElement?.id === `comment-edit-${editor.id}`) requestFocus(`comment-edit-${editor.id}`)
         setCreated(receipts => receipts.filter(receipt => !result.items.some(c => c.commentId === receipt.commentId)))
+        if (displayedSort !== requestedSort) captureTransition()
+        setDisplayedSort(requestedSort)
         setPage({
           ...result,
           items: result.items.filter((c) => !removed.current.has(c.commentId)),
@@ -169,23 +214,27 @@ export default function Comments({
       }
       return false
     } finally {
-      if (ticket === reads.current) {
+      if (ticket === reads.current && readController.current === controller) {
         reading.current = false
-        if (current()) setLoading(false)
+        readController.current = null
+        if (scope.isActive()) setLoading(false)
       }
     }
+  }
+
+  function switchSort(next: CommentSort) {
+    if (next === sortRef.current || writing.current) return
+    sortRef.current = next; setSort(next)
+    cancelRead(); pageCount.current = 1; cursors.current = []; autoStalled.current = false
+    setPage(previous => ({ ...previous, hasNext: false, nextCursor: null })); setLoadedContext(""); setReadError(""); setLinkNotice("")
+    void load()
   }
 
   useEffect(() => {
     if (focusTarget && scope.isActive())
       document.getElementById(focusTarget.id)?.focus({ preventScroll: true })
   }, [focusTarget, scope])
-  useEffect(
-    () => () => {
-      reads.current++
-    },
-    [],
-  )
+  useEffect(() => cancelRead, [cancelRead])
 
   // An explicit comment link may point beyond the first public cursor page.
   useEffect(() => {
@@ -226,7 +275,7 @@ export default function Comments({
   }, [linkedComment, page, loading, readError])
 
   const refreshIdentity = useEffectEvent(() => {
-    reads.current++; reading.current = false; buffered.current = null
+    cancelRead()
     setLoading(false)
     void load()
   })
@@ -311,9 +360,18 @@ export default function Comments({
     event?.preventDefault()
     if (writing.current || !permitted || !scope.isActive()) return
     const field = method === "DELETE" ? "" : validateComment(content)
+    if (method === "POST" && field === requiredContent) {
+      setFields(f => ({ ...f, draft: "" }))
+      if (method === "POST") setCreateError(null)
+      else setError(null)
+      const session = auth.member ? auth.captureMemberRequest(auth.member.memberId) : null
+      showToast("내용을 입력해 주세요.", () => !!session?.isCurrent(), "notice")
+      return
+    }
     if (field) {
       setFields(f => ({ ...f, [id ?? "draft"]: field }))
-      setError(null)
+      if (method === "POST") setCreateError(null)
+      else setError(null)
       requestFocus(id ? `comment-edit-${id}` : "comment-draft")
       document
         .getElementById(id ? `comment-edit-${id}` : "comment-draft")
@@ -321,13 +379,12 @@ export default function Comments({
       return
     }
     writing.current = true
-    buffered.current = null
-    reads.current++
-    reading.current = false
+    cancelRead()
     setFields(f => ({ ...f, [id ?? "draft"]: "" }))
     setBusy(true)
     setLoading(false)
-    setError(null)
+    if (method === "POST") setCreateError(null)
+      else setError(null)
     setNotice("")
     const current = scope.begin()
     const session = auth.member ? auth.captureMemberRequest(auth.member.memberId) : null
@@ -336,8 +393,11 @@ export default function Comments({
       const result = await changeComment(postId, method, id, content, current)
       if (result === null) return
       // 이미 보낸 요청의 성공은 이탈 후에도 목록에 반영하되 이전 폼은 건드리지 않는다.
-      if (method === "POST" || method === "DELETE") postListChanged()
-      else memberCommentsChanged()
+      if (session?.isCurrent()) {
+        postCommentsChanged(postId)
+        if (method === "POST" || method === "DELETE") postListChanged()
+        else memberCommentsChanged()
+      }
       if (!current()) return
       if (session?.isCurrent()) {
         const message = method === "POST" ? "댓글을 등록했습니다." : method === "PUT" ? "댓글을 수정했습니다." : "댓글을 삭제했습니다."
@@ -368,13 +428,17 @@ export default function Comments({
               true,
             )
       // 불확실한 결과/없어진 댓글은 서버 목록으로 확인한다. 변경 요청 재전송은 하지 않는다.
-      if (failure.uncertain || failure.code === "COMMENT_NOT_FOUND") postListChanged()
+      if (session?.isCurrent() && (failure.uncertain || failure.code === "COMMENT_NOT_FOUND" || failure.code === "POST_NOT_FOUND")) {
+        postCommentsChanged(postId)
+        postListChanged()
+      }
       if (!current()) return
       if (failure.code === "COMMENT_NOT_FOUND" && id) {
         removeItem(id, method === "PUT")
         setNotice(method === "PUT" ? "서버에서 수정할 댓글을 찾지 못했습니다. 수정 초안은 유지했습니다." : "댓글이 없거나 이미 삭제되었습니다.")
       } else {
-        setError(failure.field ? null : failure)
+        if (method === "POST") setCreateError(failure.field ? null : failure)
+        else setError(failure.field ? null : failure)
         if (failure.field) {
           setFields(f => ({ ...f, [id ?? "draft"]: failure.field }))
           const target = id ? `comment-edit-${id}` : "comment-draft"
@@ -434,81 +498,6 @@ export default function Comments({
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" focusable="false"><path d="M20 7v5h-5M4 17v-5h5" /><path d="M6.1 6.1A8 8 0 0 1 19.5 9M4.5 15A8 8 0 0 0 17.9 17.9" /></svg><span>{loading && !readMore ? "새로고침 중…" : "목록 새로고침"}</span>
         </button>
       </div>
-      <p className="community-help">
-        오래된 댓글부터 표시합니다.
-      </p>
-      {linkNotice && <p role="status" className="community-help">{linkNotice}</p>}
-      <div role="status" aria-atomic="true" className="comment-toast-announcer">
-        {toast && toast.valid() && scope.isActive() && <CommentSuccessToast key={toast.id} message={toast.message} onDismiss={toast.dismiss} />}
-      </div>
-      <p role="status" className={`community-comments-status${notice ? "" : " sr-only"}`}>
-        {notice}
-        {loading ? " 댓글을 불러오고 있습니다." : ""}
-      </p>
-      {readError && (
-        <div className="community-error" role="alert">
-          <p>{readError} 기존 목록과 입력은 유지됩니다.</p>
-          <button
-            className="iyum-text-link"
-            disabled={loading || busy}
-            onClick={() => void load(readMore, false, undefined, !readMore)}
-          >
-            댓글 조회 다시 시도
-          </button>
-        </div>
-      )}
-      {!readError && !loading && page.items.length === 0 && (
-        <p>아직 댓글이 없습니다. 첫 이야기를 나눠 주세요.</p>
-      )}
-      <ul className="community-comment-list">
-        {page.items.map((c) => (
-          <li key={c.commentId} id={`comment-${c.commentId}`} tabIndex={-1}>
-            <div className="community-comment-meta">
-              <strong>{c.author.nickname}</strong>
-              <time dateTime={c.createdAt}>{postDate(c.createdAt)}</time>
-              {c.updatedAt !== c.createdAt && <span>수정됨</span>}
-            </div>
-            {editor?.id === c.commentId ? editForm(false) : <p className="community-comment-body">{c.content}</p>}
-            <div className="community-comment-toolbar">
-              <CommentLikeButton postId={postId} comment={c} ready={loadedContext === likeContext}
-                reread={id => load(false, false, id)} />
-              {owner(c) && editor?.id !== c.commentId && <div className="community-comment-tools">
-                <button id={`comment-edit-button-${c.commentId}`} type="button"
-                  className="community-comment-tool" aria-label="댓글 수정" disabled={busy}
-                  onClick={() => transitionEditor({ kind: "edit", comment: c })}>수정</button>
-                <button type="button" className="community-comment-tool" aria-label="댓글 삭제" disabled={busy}
-                  onClick={() => transitionEditor({ kind: "delete", comment: c })}>삭제</button>
-              </div>}
-            </div>
-          </li>
-        ))}
-      </ul>
-      {page.hasNext && <div ref={sentinel} className="community-comment-sentinel" aria-hidden="true" />}
-      {detached && <aside className="community-comment-detached" aria-labelledby="comment-detached-title">
-        <h3 id="comment-detached-title">수정 초안을 보관하고 있어요</h3>
-        <p role="status">{editor?.notFound ? "서버에서 수정할 댓글을 찾지 못했습니다." : "현재 조회한 목록에서 수정 중인 댓글을 찾지 못했습니다. 이 결과만으로 삭제 여부를 확정할 수는 없습니다."} 입력한 내용은 아래에서 확인·복사하거나 편집을 종료할 수 있습니다.</p>
-        {editForm(true)}
-      </aside>}
-      {page.hasNext && (
-        <button
-          className="iyum-button iyum-button-outline"
-          disabled={loading || busy}
-          onClick={() => void load(true)}
-        >
-          댓글 더 보기
-        </button>
-      )}
-      {error && !deleting && (
-        <div className="community-error" role="alert">
-          <p>{error.message}</p>
-          {error.uncertain && (
-            <p>
-              자동 재시도하지 않습니다. 위의 목록 새로고침과 더 보기로 확인해
-              주세요.
-            </p>
-          )}
-        </div>
-      )}
       <div ref={composer} className="community-comment-composer">
       {created.some(receipt => !page.items.some(c => c.commentId === receipt.commentId)) && (
         <section className="community-comment-receipts" aria-labelledby="comment-receipts-title">
@@ -528,19 +517,25 @@ export default function Comments({
         <label htmlFor="comment-draft">댓글 남기기</label>
         <textarea
           id="comment-draft"
+          placeholder="댓글로 이야기를 나눠보세요"
           value={draft}
           disabled={busy}
           aria-invalid={!!fieldFor(null)}
           aria-describedby={
-            ["comment-count", fieldFor(null) && "comment-draft-error", !permitted && "comment-auth-help"].filter(Boolean).join(" ")
+            ["comment-count", createError && "comment-create-error", fieldFor(null) && "comment-draft-error", !permitted && "comment-auth-help"].filter(Boolean).join(" ")
           }
           onChange={(e) => {
             blocker.markDirty()
+            setToast(previous => previous?.variant === "notice" ? null : previous)
             clearField(null, e.target.value)
             setDraft(e.target.value)
           }}
         />
         {fieldFor(null) && <p id="comment-draft-error" className="community-comment-field-error" role="alert">{fieldFor(null)}</p>}
+        {createError && <div id="comment-create-error" className="community-error" role="alert">
+          <p>{createError.message}</p>
+          {createError.uncertain && <p>자동 재등록하지 않습니다. 댓글 목록 새로고침과 더 보기로 등록 결과를 확인해 주세요.</p>}
+        </div>}
         <span id="comment-count">{characterCount(draft)} / 2,000자</span>
         {!permitted && (
           <p id="comment-auth-help" role="status">
@@ -570,6 +565,73 @@ export default function Comments({
         )}
       </form>
       </div>
+      <CommentSortMenu value={sort} onChange={switchSort} disabled={busy || !!auth.pending || auth.memberRequests.paused} />
+      {linkNotice && <p role="status" className="community-help">{linkNotice}</p>}
+      <div role="status" aria-atomic="true" className="comment-toast-announcer">
+        {toast && toast.valid() && scope.isActive() && <CommentSuccessToast key={toast.id} message={toast.message} variant={toast.variant} onDismiss={toast.dismiss} />}
+      </div>
+      <p role="status" className={`community-comments-status${notice ? "" : " sr-only"}`}>
+        {notice}
+        {loading ? " 댓글을 불러오고 있습니다." : ""}
+      </p>
+      {readError && (
+        <div className="community-error" role="alert">
+          <p>{readError} 기존 목록과 입력은 유지됩니다.</p>
+          <button
+            className="iyum-text-link"
+            disabled={loading || busy}
+            onClick={() => void load(readMore, false, undefined, !readMore)}
+          >
+            댓글 조회 다시 시도
+          </button>
+        </div>
+      )}
+      {!readError && !loading && page.items.length === 0 && (
+        <p>아직 댓글이 없습니다. 첫 이야기를 나눠 주세요.</p>
+      )}
+      {displayedSort !== sort && <p role="status" className="community-help">{loading ? "정렬을 변경하고 있습니다. 이전 목록을 표시합니다." : "정렬 변경 전 목록입니다. 다시 조회해 주세요."}</p>}
+      <ul ref={commentList} className="community-comment-list">
+        {page.items.map((c) => (
+          <CommentItem key={c.commentId} comment={c} anchorId={`comment-${c.commentId}`}
+            body={editor?.id === c.commentId ? editForm(false) : undefined}
+            reactions={<CommentLikeButton postId={postId} comment={c} ready={loadedContext === likeContext}
+              reread={id => load(false, false, id)} />}
+            actions={owner(c) && editor?.id !== c.commentId ? <div className="community-comment-tools">
+              <button id={`comment-edit-button-${c.commentId}`} type="button"
+                className="community-comment-tool" aria-label="댓글 수정" disabled={busy}
+                onClick={() => transitionEditor({ kind: "edit", comment: c })}>수정</button>
+              <button type="button" className="community-comment-tool" aria-label="댓글 삭제" disabled={busy}
+                onClick={() => transitionEditor({ kind: "delete", comment: c })}>삭제</button>
+            </div> : undefined}
+          />
+        ))}
+      </ul>
+      {page.hasNext && <div ref={sentinel} className="community-comment-sentinel" aria-hidden="true" />}
+      {detached && <aside className="community-comment-detached" aria-labelledby="comment-detached-title">
+        <h3 id="comment-detached-title">수정 초안을 보관하고 있어요</h3>
+        <p role="status">{editor?.notFound ? "서버에서 수정할 댓글을 찾지 못했습니다." : "현재 조회한 목록에서 수정 중인 댓글을 찾지 못했습니다. 이 결과만으로 삭제 여부를 확정할 수는 없습니다."} 입력한 내용은 아래에서 확인·복사하거나 편집을 종료할 수 있습니다.</p>
+        {editForm(true)}
+      </aside>}
+      {page.hasNext && (
+        <button
+          className="iyum-button iyum-button-outline"
+          disabled={loading || busy}
+          onClick={() => void load(true)}
+        >
+          댓글 더 보기
+        </button>
+      )}
+      {error && !deleting && (
+        <div className="community-error" role="alert">
+          <p>{error.message}</p>
+          {error.uncertain && (
+            <p>
+              자동 재시도하지 않습니다. 댓글 목록 새로고침과 더 보기로 확인해
+              주세요.
+            </p>
+          )}
+        </div>
+      )}
       {loginPrompt && <CommunityDialog titleId="comment-login-title" descriptionId="comment-login-description" onCancel={() => setLoginPrompt(false)}>
         <h2 id="comment-login-title">로그인이 필요해요</h2>
         <div id="comment-login-description">

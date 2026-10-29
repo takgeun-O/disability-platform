@@ -1,0 +1,12 @@
+{
+  "checks": [
+    "late previous PUT preserves reentered form, baseline, focus and dirty",
+    "author id only; checking/anonymous/other member hidden",
+    "direct edit/reload; original fields; revert dirty; cancel",
+    "anonymous login return and non-author direct edit denied"
+  ],
+  "pageErrors": [],
+  "passed": 4,
+  "failed": true,
+  "mocked": true
+}

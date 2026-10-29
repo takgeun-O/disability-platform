@@ -63,7 +63,7 @@ function read(url) {
         items,
         hasNext,
         nextCursor: hasNext
-          ? { createdAt: last.createdAt, commentId: last.commentId }
+          ? { createdAt: last.createdAt, commentId: last.commentId, sort: "OLDEST", likeCount: null }
           : null,
       },
     }

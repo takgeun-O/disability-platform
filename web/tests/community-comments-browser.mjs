@@ -63,7 +63,7 @@ function read(url) {
         items,
         hasNext,
         nextCursor: hasNext
-          ? { createdAt: last.createdAt, commentId: last.commentId }
+          ? { createdAt: last.createdAt, commentId: last.commentId, sort: "OLDEST", likeCount: null }
           : null,
       },
     }
@@ -192,6 +192,40 @@ async function until(fn) {
   throw Error("controlled request was not reached")
 }
 try {
+  for(const width of [1440,390,320])for(const mode of ['csrf','denied','network','malformed'])await check(`creation error adjacent to composer ${width} ${mode}`,async()=>{
+    const {ctx,p,state}=await fixture(member,45)
+    try {
+      await p.setViewportSize({width,height:1000});await p.getByRole('button',{name:'댓글 더 보기',exact:true}).click();await p.locator('#comment-40').waitFor()
+      const draft=p.locator('#comment-draft');await draft.fill('오류 후에도 남는 작성 초안')
+      await p.locator('.community-comment-composer').evaluate(el=>window.scrollTo({top:window.scrollY+el.getBoundingClientRect().top-130,behavior:'instant'}))
+      let release,reach;const reached=new Promise(r=>reach=r)
+      const handler=async r=>{reach();await new Promise(r=>release=r);if(mode==='network')await r.abort('failed');else if(mode==='malformed')await r.fulfill({status:201,json:{malformed:true}});else await r.fulfill({status:403,json:failure(mode==='csrf'?'CSRF_TOKEN_INVALID':'ACCESS_DENIED')})}
+      if(mode==='csrf')state.csrf=handler;else state.write=handler
+      await p.getByRole('button',{name:'댓글 등록',exact:true}).click();await reached
+      const before=await p.evaluate(()=>scrollY);release()
+      await p.locator('#comment-create-error').waitFor();await p.waitForFunction(()=>!document.querySelector('.community-comment-composer button').disabled)
+      const position=await p.locator('#comment-create-error').evaluate(el=>{
+        const r=el.getBoundingClientRect(),d=document.querySelector('#comment-draft').getBoundingClientRect()
+        return {top:r.top,bottom:r.bottom,left:r.left,right:r.right,draftBottom:d.bottom,scroll:scrollY,height:innerHeight,width:innerWidth}
+      })
+      assert(position.top>=position.draftBottom&&position.top-position.draftBottom<60);assert(position.top>=0&&position.bottom<=position.height);assert(position.left>=0&&position.right<=position.width);assert.equal(position.scroll,before)
+      assert.equal(await draft.inputValue(),'오류 후에도 남는 작성 초안');assert((await draft.getAttribute('aria-describedby')).includes('comment-create-error'))
+      assert.equal(await p.locator('.community-comments [role="alert"]').count(),1);assert.equal(state.calls.filter(c=>c.method==='POST').length,mode==='csrf'?0:1)
+      if(mode==='network'||mode==='malformed')assert((await p.locator('#comment-create-error').innerText()).includes('자동 재등록하지 않습니다.'))
+      await p.screenshot({path:output+`/create-error-${width}-${mode}.png`})
+    }finally{await ctx.close()}
+  })
+  for(const method of ['PUT','DELETE'])await check(`mutation error ownership ${method} excludes creation region`,async()=>{
+    const {ctx,p,state}=await fixture(member,3)
+    try {
+      state.write=r=>r.fulfill({status:403,json:failure('ACCESS_DENIED')})
+      if(method==='PUT'){await p.locator('#comment-edit-button-1').click();await p.locator('#comment-edit-1').fill('수정 초안');await p.getByRole('button',{name:'댓글 저장',exact:true}).click()}
+      else{await p.locator('#comment-1').getByRole('button',{name:'댓글 삭제',exact:true}).click();await p.getByRole('button',{name:'댓글 삭제하기',exact:true}).click()}
+      await p.locator('.community-comments [role="alert"]').waitFor();assert.equal(await p.locator('#comment-create-error').count(),0)
+      if(method==='PUT')assert.equal(await p.locator('#comment-edit-1').inputValue(),'수정 초안')
+      else assert(await p.getByRole('dialog').getByRole('alert').isVisible())
+    }finally{await ctx.close()}
+  })
   await check('editor transitions: clean switch, dirty cancel/confirm, delete staging and independent draft',async()=>{
     const {ctx,p,state}=await fixture(member,3)
     try {
@@ -366,9 +400,12 @@ try {
       let release,reach;const reached=new Promise(r=>reach=r)
       state.get=async(r,u)=>{if(u.pathname.endsWith("/comments")){reach();await new Promise(r=>release=r)}await r.fulfill(read(u))}
       await p.getByRole('button',{name:'댓글 조회 다시 시도',exact:true}).click();await reached
-      await p.locator('.community-back').click();await p.waitForURL(u=>!u.pathname.endsWith('/posts/7'))
-      const done=p.waitForResponse(r=>new URL(r.url()).origin===api&&new URL(r.url()).pathname.endsWith('/comments'))
-      release();await(await done).finished();assert.equal(await p.locator('.comment-success-toast').count(),0)
+      // Navigation now aborts this GET. Wait for its actual cancellation instead
+      // of an impossible response; forced late delivery is covered in inline-comments-browser.
+      const cancelled=p.waitForEvent('requestfailed',{predicate:r=>new URL(r.url()).origin===api&&new URL(r.url()).pathname==='/api/v1/community/posts/7/comments'&&r.method()==='GET'})
+      await p.locator('.community-back').click();await cancelled
+      await p.waitForURL(u=>!u.pathname.endsWith('/posts/7'))
+      release();assert.equal(await p.locator('.comment-success-toast').count(),0)
     } finally {await ctx.close()}
   })
   await check("automatic boundaries 0/1/20/21 keep ASC timestamps and finite requests",async()=>{
@@ -602,13 +639,20 @@ try {
       } else assert(await p.locator("#comment-1").isVisible())
     } finally {ssrGate=null;release();readFail=false;await ctx.close()}
   })
-  await check("field errors appear once immediately below each textarea; clear when valid", async()=>{
+  await check("empty creation shows notice toast; other field errors remain below textarea", async()=>{
     const {ctx,p,state}=await fixture(member,3)
     const draft=p.locator("#comment-draft")
     for(const value of [""," \n\t","😀".repeat(2001)]){
       await draft.fill(value)
       await p.getByRole("button",{name:"댓글 등록",exact:true}).click()
-      const expected=value.includes("😀")?"댓글 내용은 2,000자 이하여야 합니다.":"댓글 내용은 필수입니다."
+      if (!value.includes("😀")) {
+        await p.locator('.comment-success-toast.is-notice').getByText('내용을 입력해 주세요.',{exact:true}).waitFor()
+        assert.equal(await p.getByText('댓글 내용은 필수입니다.',{exact:true}).count(),0)
+        assert.equal(await p.locator('#comment-draft-error').count(),0)
+        assert.equal(await draft.inputValue(),value)
+        continue
+      }
+      const expected="댓글 내용은 2,000자 이하여야 합니다."
       assert.equal(await p.getByText(expected,{exact:true}).count(),1)
       assert(await draft.evaluate((el,msg)=>el.nextElementSibling?.textContent===msg,expected))
       assert.equal(await draft.getAttribute("aria-invalid"),"true")
@@ -1180,6 +1224,10 @@ try {
     await p.getByText("긴댓글".repeat(600),{exact:true}).waitFor()
     for (const width of [1440,390,320]) {
       await p.setViewportSize({width,height:950})
+      assert(await p.locator('#comment-draft').evaluate(el => {
+        const list=document.querySelector('.community-comment-list')
+        return !!(el.compareDocumentPosition(list) & Node.DOCUMENT_POSITION_FOLLOWING) && el.getBoundingClientRect().bottom < list.getBoundingClientRect().top
+      }))
       assert(await p.evaluate(()=>document.documentElement.scrollWidth<=innerWidth))
       await p.locator("#comment-edit-button-1").focus();await p.keyboard.press("Tab")
       assert.equal(await p.evaluate(()=>document.activeElement.getAttribute("aria-label")),"댓글 삭제")

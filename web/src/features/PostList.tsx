@@ -1,4 +1,5 @@
 "use client"
+import WrittenTime from "@/components/WrittenTime"
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react"
 import CommentSuccessToast from "@/components/community/CommentSuccessToast"
 import PostListReactions from "@/components/community/PostListReactions"
@@ -10,7 +11,7 @@ import { FeedAvatar, FeedBest, FeedNavigation } from "@/components/community/Fee
 import { getPostVersion, usePostVersion } from "@/lib/community-mutations"
 import { CommunityApiError, getFeed } from "@/lib/community-api"
 import { cacheFeed, readFeedCache, setFeedReturn, takeFeedReturn, mergeFeed, reconcileFeed, MAX_FEED_SEGMENTS, type FeedSnapshot, type FeedPosition } from "@/lib/community-feed"
-import { consumeListReturn, listHref, POST_TYPES, POST_TOPICS, postDate } from "@/lib/community-posts"
+import { consumeListReturn, listHref, POST_TYPES, POST_TOPICS } from "@/lib/community-posts"
 import { topicByValue, type CommunityTopic } from "@/lib/community-topics"
 import type { InitialFeed } from "@/lib/community-load"
 
@@ -166,7 +167,7 @@ export default function PostList({ initial, space }: { initial: InitialFeed; spa
         {!error && !busy && !view.items.length && <div className="community-empty"><h3>아직 표시할 게시글이 없어요.</h3><p>{selected ? `${name}에 관한 첫 이야기를 나눠 주세요.` : "첫 질문이나 경험을 나눠 주세요."}</p><Link className="iyum-text-link" href={`/community/posts/create?${create}`} onNavigate={leaving}>글쓰기</Link></div>}
         <ol className="feed-posts" aria-label="게시글 목록" aria-busy={!!busy}>
           {view.items.map(post => <li key={post.id} data-feed-id={post.id}><article>
-            <FeedAvatar/><div className="feed-post-content"><div className="feed-author"><strong>{post.author.nickname}</strong><div className="feed-meta"><span>{POST_TOPICS[post.topic]}</span><span>{POST_TYPES[post.type]}</span><time dateTime={post.createdAt}>{postDate(post.createdAt)}</time></div></div>
+            <FeedAvatar/><div className="feed-post-content"><div className="feed-author"><strong>{post.author.nickname}</strong><div className="feed-meta"><span>{POST_TOPICS[post.topic]}</span><span>{POST_TYPES[post.type]}</span><WrittenTime value={post.createdAt} /></div></div>
             <h3><Link href={`/community/posts/${post.id}?from=${encodeURIComponent(href)}`} onNavigate={leaving} prefetch={false}>{post.title}</Link></h3>
             <p className="feed-preview">{post.contentPreview}</p>
             <PostListReactions post={post} href={`/community/posts/${post.id}?from=${encodeURIComponent(href)}`} onLeaving={leaving}/>

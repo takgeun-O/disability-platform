@@ -1,0 +1,49 @@
+{
+  "kind": "mock",
+  "results": [
+    {
+      "name": "lazy independent regions, zero/one, IDs and layout 1440",
+      "pass": true
+    },
+    {
+      "name": "lazy independent regions, zero/one, IDs and layout 390",
+      "pass": true
+    },
+    {
+      "name": "lazy independent regions, zero/one, IDs and layout 320",
+      "pass": true
+    },
+    {
+      "name": "gated read, close/reopen does not duplicate or reopen on response",
+      "pass": true
+    },
+    {
+      "name": "more failure retains prefix and retries exact microsecond cursor; refresh atomic failure",
+      "pass": true
+    },
+    {
+      "name": "tab/detail back restores expanded prefix and position 1440",
+      "pass": true
+    },
+    {
+      "name": "tab/detail back restores expanded prefix and position 390",
+      "pass": true
+    },
+    {
+      "name": "like server result, latest shared state and refresh; no write retry",
+      "pass": true
+    },
+    {
+      "name": "404 distinction NOT_FOUND",
+      "pass": true
+    },
+    {
+      "name": "404 distinction POST_NOT_FOUND",
+      "pass": true
+    },
+    {
+      "name": "late read after logout does not repopulate private view",
+      "pass": true
+    }
+  ]
+}

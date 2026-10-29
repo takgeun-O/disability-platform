@@ -20,7 +20,7 @@ function publicRead(u){
  if(u.pathname.endsWith('/comments')) {
   const all=owned().filter(c=>c.postId===id),start=u.searchParams.has('afterId')?all.findIndex(c=>String(c.commentId)===u.searchParams.get('afterId'))+1:0
   const slice=all.slice(start,start+publicPageSize),hasNext=start+slice.length<all.length
-  return{json:{items:slice.map(c=>({commentId:c.commentId,content:c.content,createdAt:c.createdAt,updatedAt:c.updatedAt,likeCount:c.likeCount,liked:!!c.liked,author:post.author})),hasNext,nextCursor:hasNext?{createdAt:slice.at(-1).createdAt,commentId:slice.at(-1).commentId}:null}}
+  return{json:{items:slice.map(c=>({commentId:c.commentId,content:c.content,createdAt:c.createdAt,updatedAt:c.updatedAt,likeCount:c.likeCount,liked:!!c.liked,author:post.author})),hasNext,nextCursor:hasNext?{createdAt:slice.at(-1).createdAt,commentId:slice.at(-1).commentId,sort:'OLDEST',likeCount:null}:null}}
  }
  const detail={...post};delete detail.commentCount;delete detail.contentPreview;return{json:detail}
 }
@@ -58,7 +58,7 @@ async function fixture({width=1440,count=27,...options}={}){
   if(method==='DELETE'){posts=posts.filter(p=>p.id!==id);return r.fulfill({status:204})}
   Object.assign(post,req.postDataJSON());return r.fulfill({status:204})
  })
- await p.goto(base+'/mypage');await p.getByRole('button',{name:'프로필 수정',exact:true}).waitFor();await until(async()=>await p.locator('[data-member-post-id]').count()===10)
+ await p.goto(base+'/mypage');await p.getByRole('link',{name:'프로필·계정 설정',exact:true}).waitFor();await until(async()=>await p.locator('[data-member-post-id]').count()===10)
  return{p,state,ctx}
 }
 async function open(p,n=10){await p.getByRole('tab',{name:/내 댓글/}).click();await ready(p,n)}
@@ -71,6 +71,21 @@ async function back(p,kind='back'){if(kind==='back')await p.goBack();else {const
 async function check(name,fn){if(process.env.CASE_FILTER&&!name.includes(process.env.CASE_FILTER))return;try{await fn();results.push({name,pass:true});console.log('PASS',name)}catch(e){results.push({name,pass:false,error:e.stack});console.log('FAIL',name,e.message);process.exitCode=1;const p=browser.contexts().at(-1)?.pages()[0];if(p)await p.screenshot({path:`${out}/failure-${results.length}.png`}).catch(()=>{})}finally{for(const c of browser.contexts())await c.close()}}
 try{
 
+ for(const width of [1440,390,320])for(const way of ['back','link'])await check(`settings nickname round trip retains three comment pages/anchor ${width} ${way}`,async()=>{
+  const{p,state}=await fixture({width});await open(p);await all(p)
+  const row=p.locator('[data-member-comment-id="1978"]');await row.evaluate(e=>scrollBy(0,e.getBoundingClientRect().top-120));const y=await p.evaluate(()=>scrollY),before=calls(state).length
+  await p.screenshot({path:`${out}/activity-filled-${width}.png`})
+  await p.getByRole('link',{name:'프로필·계정 설정',exact:true}).evaluate(e=>e.click());await p.waitForURL(u=>u.pathname==='/mypage/settings')
+  await p.getByRole('button',{name:'프로필 수정',exact:true}).waitFor();assert.equal(await rows(p).count(),0)
+  await p.screenshot({path:`${out}/settings-filled-${width}.png`,fullPage:true})
+  state.write=async(r,u)=>{assert.equal(u.pathname,'/api/v1/members/me/nickname');state.profile.nickname='설정변경회원';state.member.nickname='설정변경회원';await r.fulfill({json:state.profile})}
+  await p.getByRole('button',{name:'프로필 수정',exact:true}).click();await p.locator('#my-nickname').fill('설정변경회원');await p.getByRole('button',{name:'저장',exact:true}).click();await p.getByText('닉네임을 변경했습니다.',{exact:true}).waitFor()
+  if(way==='back')await p.goBack();else await p.getByRole('link',{name:'← 마이페이지로 돌아가기',exact:true}).click()
+  await p.waitForURL(u=>u.pathname==='/mypage');await ready(p,27);assert.equal(await p.getByRole('tab',{name:/내 댓글/}).getAttribute('aria-selected'),'true')
+  await p.waitForFunction(y=>Math.abs(scrollY-y)<4,y);assert.equal(calls(state).length,before);assert.equal(await p.locator('.mypage-name h2').innerText(),'설정변경회원')
+  assert.equal(await p.locator('[data-member-comment-id="1999"] .mypage-comment-likes').getAttribute('data-liked'),'true')
+  assert(await p.evaluate(()=>document.documentElement.scrollWidth<=innerWidth))
+ })
  await check('readonly like counts: all three pages, no per-comment requests or interactive state',async()=>{
   const{p,state}=await fixture();await open(p);await all(p)
   for(const c of comments){const count=p.locator(`[data-member-comment-id="${c.commentId}"] .mypage-comment-likes`);assert.equal(await count.locator('.mypage-comment-like-count').innerText(),`좋아요 ${c.likeCount}`);assert.equal(await count.getAttribute('tabindex'),null);assert.equal(await count.getAttribute('role'),null);assert.equal(await count.getAttribute('aria-pressed'),null);assert.equal(await count.locator('svg').getAttribute('aria-hidden'),'true');assert.equal(await count.getAttribute('data-liked'),String(c.liked));assert.equal(await count.locator('svg').getAttribute('fill'),c.liked?'currentColor':'none');assert.equal(await count.evaluate(e=>getComputedStyle(e).cursor),'auto');assert((await count.ariaSnapshot()).includes(c.liked?'내가 좋아요한 댓글':'내가 좋아요하지 않은 댓글'))}
@@ -98,7 +113,7 @@ try{
  for(const value of [undefined,null,-1,1.5,'3',Number.MAX_SAFE_INTEGER+1])await check(`invalid likeCount ${String(value)} reports error then retries`,async()=>{
   const{p,state}=await fixture();state.get=(r,u)=>{const data=listing(u);data.items[0].likeCount=value;return r.fulfill({json:data})}
   await p.getByRole('tab',{name:/내 댓글/}).click();await retry(p).waitFor();assert.equal(await rows(p).count(),0)
-  assert(await p.getByRole('button',{name:'프로필 수정',exact:true}).isVisible())
+  assert(await p.getByRole('link',{name:'프로필·계정 설정',exact:true}).isVisible())
   state.get=null;await retry(p).click();await ready(p);assert.equal(await rows(p).first().locator('.mypage-comment-like-count').innerText(),'좋아요 0')
  })
  for(const mode of ['back','link'])await check(`detail like PUT/DELETE refreshes all three private pages and anchor / ${mode}`,async()=>{
@@ -153,7 +168,7 @@ try{
    if(authChange!=='logout'){
     if(authChange==='other')state.profile={...state.profile,memberId:322,email:'second@example.test',nickname:'다른회원'}
     await p.getByRole('link',{name:'로그인하기',exact:true}).click();await p.locator('input[name=email]').fill(state.profile.email);await p.locator('input[name=password]').fill('test-only');await p.locator('main').getByRole('button',{name:'로그인',exact:true}).click()
-    await p.waitForURL(u=>u.pathname==='/mypage');await p.getByRole('button',{name:'프로필 수정'}).waitFor();await open(p);await all(p)
+    await p.waitForURL(u=>u.pathname==='/mypage');await p.getByRole('link',{name:'프로필·계정 설정'}).waitFor();await open(p);await all(p)
    }
   }
   const before=calls(state).length
@@ -202,22 +217,21 @@ try{
   const failed=calls(state).at(-1).url;state.get=null;await retry(p).click();await ready(p,20)
   assert.equal(calls(state).at(-1).url,failed);assert.equal(await rows(p).nth(10).locator('.mypage-comment-like-count').innerText(),'좋아요 2')
  })
- await check('activity/account layout and explicit comment/source labels',async()=>{
+ await check('central activity layout and explicit comment/source labels',async()=>{
   const{p}=await fixture();await open(p)
   await more(p).click();await ready(p,20);await more(p).click();await ready(p,27)
   for(const width of [1440,1024,390,320]) {
    await p.setViewportSize({width,height:900});await p.evaluate(()=>scrollTo(0,0))
-   const account=await p.locator('.mypage-account').boundingBox(),activity=await p.locator('.mypage-activity').boundingBox()
-   if(width>900){assert(account.x>=activity.x+activity.width);assert(Math.abs(account.y-activity.y)<2)}else assert(account.y+account.height<=activity.y)
+   const profile=await p.locator('.mypage-profile').boundingBox(),activity=await p.locator('.mypage-activity').boundingBox();assert.equal(await p.locator('.mypage-account').count(),0);assert(Math.abs(profile.x-activity.x)<2);assert(Math.abs(profile.width-activity.width)<2)
    const first=rows(p).first();assert(await first.getByText('내가 쓴 댓글',{exact:true}).isVisible());assert(await first.getByText('원문 게시글',{exact:true}).isVisible())
    assert(await p.evaluate(()=>document.documentElement.scrollWidth<=innerWidth))
    await p.screenshot({path:`${out}/workspace-${width}.png`})
-   if(width>900){await rows(p).nth(20).scrollIntoViewIfNeeded();const sticky=await p.locator('.mypage-account').boundingBox();assert(sticky.y>=0 && sticky.y+sticky.height<900);await p.screenshot({path:`${out}/workspace-scrolled-${width}.png`})}
+   if(width>900){await rows(p).nth(20).scrollIntoViewIfNeeded();assert.equal(await p.locator('.mypage-account').count(),0);await p.screenshot({path:`${out}/workspace-scrolled-${width}.png`})}
   }
  })
- for(const width of [1440,390]) await check(`exact comment across cursor pages and verified email ${width}`,async()=>{
+ for(const width of [1440,390]) await check(`exact comment across cursor pages and settings entry ${width}`,async()=>{
   const{p,state}=await fixture({width});publicPageSize=10;comments.forEach(c=>c.postId=1000)
-  await p.getByText('이메일 인증 완료',{exact:true}).waitFor();assert.equal(await p.getByText('읽기 전용',{exact:true}).count(),0)
+  assert.equal(await p.getByText('이메일 인증 완료',{exact:true}).count(),0);assert.equal(await p.getByRole('link',{name:'프로필·계정 설정',exact:true}).getAttribute('href'),'/mypage/settings')
   await open(p);await all(p);await detail(p,22)
   assert.equal(await p.evaluate(()=>document.activeElement.id),'comment-1978')
   await until(async()=>{const box=await p.locator('#comment-1978').boundingBox();return box.y>=0&&box.y+box.height<=900})
@@ -274,7 +288,7 @@ try{
  })
  await check('401 clears both lists, late request after logout cannot restore private data',async()=>{
   const{p,state}=await fixture();await open(p);const gate=held(state);await more(p).click();await gate.requested;await p.getByRole('button',{name:'로그아웃',exact:true}).click();await p.getByText('로그인이 필요해요').waitFor();await gate.respond();await pause(100);assert.equal(await rows(p).count(),0);assert.equal(await p.locator('[data-member-post-id]').count(),0)
-  state.member={...member};state.get=r=>r.fulfill({status:401,json:fail('AUTHENTICATION_REQUIRED')});await p.reload();await p.getByRole('button',{name:'프로필 수정'}).waitFor();await p.getByRole('tab',{name:/내 댓글/}).click();await p.getByText('로그인이 필요해요').waitFor();assert.equal(await rows(p).count(),0)
+  state.member={...member};state.get=r=>r.fulfill({status:401,json:fail('AUTHENTICATION_REQUIRED')});await p.reload();await p.getByRole('link',{name:'프로필·계정 설정'}).waitFor();await p.getByRole('tab',{name:/내 댓글/}).click();await p.getByText('로그인이 필요해요').waitFor();assert.equal(await rows(p).count(),0)
  })
  await check('pending first read tab switch retains independent posts; later comments show response',async()=>{
   const{p,state}=await fixture();const gate=held(state);await p.getByRole('tab',{name:/내 댓글/}).click();await gate.requested;await p.getByRole('tab',{name:/내 게시글/}).click();await gate.respond();assert.equal(await p.locator('[data-member-post-id]').count(),10);await open(p);assert.equal(calls(state).length,1)
@@ -282,7 +296,7 @@ try{
  await check('old pending read after leaving and new session cannot mix into fresh account comments',async()=>{
   const{p,state}=await fixture();await open(p);const gate=held(state);await more(p).click();await gate.requested;await p.getByRole('button',{name:'로그아웃',exact:true}).click();await p.getByText('로그인이 필요해요').waitFor();const old=listing(new URL('http://test?afterId=1991'))
   state.profile={...state.profile,memberId:322,email:'second@example.test',nickname:'다른회원'};state.get=null;comments=[{...makeComment(4000,0),content:'새 회원 댓글'}];posts=posts.map(post=>({...post,author:{memberId:322,nickname:'다른회원'}}))
-  await p.getByRole('link',{name:'로그인하기',exact:true}).click();await p.locator('input[name=email]').fill(state.profile.email);await p.locator('input[name=password]').fill('test-only');await p.locator('main').getByRole('button',{name:'로그인',exact:true}).click();await p.waitForURL(u=>u.pathname==='/mypage');await p.getByRole('button',{name:'프로필 수정'}).waitFor();await open(p,1);await gate.respond({json:old});await pause(100);assert.equal(await rows(p).count(),1);assert((await rows(p).innerText()).includes('새 회원 댓글'));assert.equal(await p.locator('.mypage-comment-likes[data-liked="true"]').count(),0)
+  await p.getByRole('link',{name:'로그인하기',exact:true}).click();await p.locator('input[name=email]').fill(state.profile.email);await p.locator('input[name=password]').fill('test-only');await p.locator('main').getByRole('button',{name:'로그인',exact:true}).click();await p.waitForURL(u=>u.pathname==='/mypage');await p.getByRole('link',{name:'프로필·계정 설정'}).waitFor();await open(p,1);await gate.respond({json:old});await pause(100);assert.equal(await rows(p).count(),1);assert((await rows(p).innerText()).includes('새 회원 댓글'));assert.equal(await p.locator('.mypage-comment-likes[data-liked="true"]').count(),0)
  })
  await check('late successful PUT invalidates new comments visit; older GET cannot overwrite fresh data',async()=>{
   const{p,state}=await fixture();await open(p);await detail(p);let send

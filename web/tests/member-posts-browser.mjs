@@ -31,6 +31,7 @@ async function fixture({width=1440,count=27,...options}={}){
  await p.route(u=>u.pathname.startsWith('/api/v1/'),async r=>{
   const req=r.request(),u=new URL(req.url()),method=req.method();state.calls.push({path:u.pathname,url:u.href,method})
   if(u.pathname==='/api/v1/auth/me')return r.fulfill(state.member?{json:state.member}:{status:401,json:failure('AUTHENTICATION_REQUIRED')})
+  if(u.pathname.endsWith('/csrf')&&state.csrf)return state.csrf(r)
   if(u.pathname.endsWith('/csrf'))return r.fulfill({json:{headerName:'X-CSRF-TOKEN',token:'test-only'}})
   if(u.pathname.endsWith('/logout')){state.member=null;return r.fulfill({status:204})}
   if(u.pathname.endsWith('/login')){state.member=state.profile;return r.fulfill({json:state.member})}
@@ -38,7 +39,7 @@ async function fixture({width=1440,count=27,...options}={}){
   if(u.pathname.endsWith('/activity-summary'))return state.summary?state.summary(r):r.fulfill({json:{postCount:posts.length,commentCount:comments.length}})
   if(u.pathname==='/api/v1/members/me/posts')return state.get?state.get(r,u):r.fulfill({json:listing(u)})
   if(u.pathname==='/api/v1/members/me/nickname'){state.member.nickname=req.postDataJSON().nickname;state.profile.nickname=state.member.nickname;return r.fulfill({json:state.profile})}
-  if(u.pathname==='/api/v1/members/me/comments')return r.fulfill({json:{items:[],hasNext:false,nextCursor:null}})
+  if(u.pathname==='/api/v1/members/me/comments')return r.fulfill({json:{items:state.ownedComments?.()??[],hasNext:false,nextCursor:null}})
   if(method==='GET')return r.fulfill(publicRead(u))
   assert.equal(req.headers()['x-csrf-token'],'test-only')
   if(state.write)return state.write(r,u)
@@ -52,7 +53,7 @@ async function fixture({width=1440,count=27,...options}={}){
  })
  await p.goto(base+'/mypage');return{ctx,p,state}
 }
-async function ready(p,n=10){await until(async()=>await rows(p).count()===n);await p.getByRole('button',{name:'프로필 수정',exact:true}).waitFor()}
+async function ready(p,n=10){await until(async()=>await rows(p).count()===n);await p.getByRole('link',{name:'프로필·계정 설정',exact:true}).waitFor()}
 async function more(p,n){for(let i=1;i<n;i++){await p.getByRole('button',{name:'더 보기',exact:true}).click();await until(async()=>await rows(p).count()===Math.min((i+1)*10,posts.length))}}
 async function enter(p,id=976){const row=p.locator(`[data-member-post-id="${id}"]`);await row.evaluate(e=>scrollBy(0,e.getBoundingClientRect().top-120));const y=await p.evaluate(()=>scrollY);await p.evaluate(id=>{window.__frames=[];window.__watch=true;const tick=()=>{if(!window.__watch)return;if(location.pathname===`/community/posts/${id}`&&document.querySelector('.community-post-body'))window.__frames.push(scrollY);requestAnimationFrame(tick)};requestAnimationFrame(tick)},id);await row.locator('h3 a').click();await p.locator('.community-post-body').waitFor();await p.waitForFunction(()=>window.__frames.length>=5);const frames=await p.evaluate(()=>{window.__watch=false;return window.__frames});assert(frames.every(y=>y===0),JSON.stringify(frames));assert.equal(new URL(p.url()).searchParams.get('from'),'/mypage');return y}
 async function back(p,kind='back'){if(kind==='back')await p.goBack();else {const link=p.getByRole('link',{name:'← 마이페이지로 돌아가기',exact:true});assert.equal(await link.getAttribute('href'),'/mypage');await link.click()}await p.waitForURL(u=>u.pathname==='/mypage')}
@@ -78,6 +79,77 @@ async function beginRetry(p,state,keyboard=true) {
 }
 async function check(name,fn){try{await fn();results.push({name,pass:true});console.log('PASS',name)}catch(e){results.push({name,pass:false,error:e.stack});console.log('FAIL',name,e.message);process.exitCode=1;const p=browser.contexts().at(-1)?.pages()[0];if(p){await p.screenshot({path:`${out}/failure-${results.length}.png`}).catch(()=>{});console.log('STATE',await p.evaluate(()=>({url:location.href,y:scrollY,rows:document.querySelectorAll('[data-member-post-id]').length,alerts:[...document.querySelectorAll('[role=alert]')].map(e=>e.textContent)})).catch(()=>({})))}}finally{for(const c of browser.contexts())await c.close()}}
 try{
+ await check('management: CSRF preparation failure sends no deletion and can retry',async()=>{
+  const{p,state}=await fixture();await ready(p);state.csrf=r=>r.abort('failed');await rows(p).first().getByRole('button',{name:'게시글 관리'}).click();await p.getByRole('menuitem',{name:'삭제',exact:true}).click();await p.getByRole('button',{name:'삭제하기',exact:true}).click();await p.getByRole('dialog').getByRole('alert').waitFor();assert.equal(state.calls.filter(c=>c.method==='DELETE').length,0);assert.equal(calls(state).length,1);state.csrf=null;await p.getByRole('button',{name:'삭제하기',exact:true}).click();await until(async()=>!await p.locator('[data-member-post-id="1000"]').count())
+ })
+ await check('management: deletion refresh failure preserves range; retry and related comments refresh',async()=>{
+  const{p,state}=await fixture();await ready(p);await more(p,3)
+  state.ownedComments=()=>posts.some(x=>x.id===978)?[{commentId:12,content:'내 댓글',createdAt:stamp,updatedAt:stamp,likeCount:2,liked:true,post:{postId:978,title:'원문',topic:'HEARING_AID',type:'QUESTION'}}]:[]
+  await p.getByRole('tab',{name:/내 댓글/}).click();await p.locator('[data-member-comment-id="12"]').waitFor();await p.getByRole('tab',{name:/내 게시글/}).click();state.get=r=>r.fulfill({status:503,json:failure('SERVICE_UNAVAILABLE')})
+  await p.locator('[data-member-post-id="978"]').getByRole('button',{name:'게시글 관리'}).click();await p.getByRole('menuitem',{name:'삭제',exact:true}).click();await p.getByRole('button',{name:'삭제하기',exact:true}).click();await retry(p).waitFor();assert.equal(await rows(p).count(),27);assert.equal(state.calls.filter(c=>c.method==='DELETE').length,1)
+  state.get=null;await retry(p).click();await ready(p,26);await p.getByRole('tab',{name:/내 댓글/}).click();await p.getByText('아직 작성한 댓글이 없어요.').waitFor();assert.equal(await p.locator('[data-member-comment-id]').count(),0);assert.equal(state.calls.filter(c=>c.path==='/api/v1/members/me/comments').length,2)
+ })
+ for(const way of ['cancel','back'])await check(`management: edit ${way} keeps unsaved confirmation and range`,async()=>{
+  const{p,state}=await fixture();await ready(p);await more(p,3);await rows(p).nth(22).getByRole('button',{name:'게시글 관리'}).click();await p.getByRole('menuitem',{name:'수정',exact:true}).click();await p.locator('input[name=title]').fill('취소 초안');if(way==='back')await p.goBack();else await p.getByRole('button',{name:'취소',exact:true}).click();await p.getByRole('dialog',{name:'수정 중인 내용이 있습니다.'}).waitFor();await p.getByRole('button',{name:'나가기',exact:true}).click();await p.waitForURL(u=>u.pathname==='/mypage');await ready(p,27);assert.equal(state.calls.filter(c=>c.method==='PUT').length,0)
+ })
+ for(const width of [1440,390,320])await check(`management: keyboard/menu/layout ${width}`,async()=>{
+  const{p,state}=await fixture({width});await ready(p);const first=rows(p).first(),button=first.getByRole('button',{name:'게시글 관리',exact:true})
+  await button.focus();await p.keyboard.press('Enter');await p.getByRole('menu').waitFor();const menuBox=await p.getByRole('menu').boundingBox();assert(menuBox.x>=0&&menuBox.x+menuBox.width<=width);assert.equal(await p.getByRole('menu').count(),1);assert(await p.getByRole('menuitem',{name:'수정',exact:true}).evaluate(e=>e===document.activeElement))
+  await p.keyboard.press('ArrowDown');assert(await p.getByRole('menuitem',{name:'삭제',exact:true}).evaluate(e=>e===document.activeElement));await p.screenshot({path:`${out}/menu-${width}.png`})
+  await p.keyboard.press('Escape');assert(await button.evaluate(e=>e===document.activeElement));assert.equal(await p.getByRole('menu').count(),0)
+  await button.click();await rows(p).nth(1).getByRole('button',{name:'게시글 관리',exact:true}).click();assert.equal(await p.getByRole('menu').count(),1);await p.getByRole('heading',{name:'내 활동',exact:true}).click();assert.equal(await p.getByRole('menu').count(),0)
+  await button.click();await p.getByRole('menuitem',{name:'삭제',exact:true}).click();await p.getByRole('dialog',{name:'게시글을 삭제할까요?'}).waitFor();assert(await p.locator('.mypage-delete-title').getByText(posts[0].title,{exact:true}).isVisible());assert.equal(state.calls.filter(c=>c.method==='DELETE').length,0);await p.screenshot({path:`${out}/delete-${width}.png`})
+  await p.getByRole('button',{name:'취소',exact:true}).click();assert(await button.evaluate(e=>e===document.activeElement));assert.equal(new URL(p.url()).pathname,'/mypage');assert(await p.evaluate(()=>document.documentElement.scrollWidth<=innerWidth));await p.screenshot({path:`${out}/feed-${width}.png`})
+ })
+ for(const id of [1000,978])await check(`management: confirmed delete ${id} retains range/neighbor focus`,async()=>{
+  const{p,state}=await fixture();await ready(p);await more(p,3);const row=p.locator(`[data-member-post-id="${id}"]`);await row.evaluate(e=>scrollBy(0,e.getBoundingClientRect().top-120));const before=calls(state).length
+  await row.getByRole('button',{name:'게시글 관리'}).click();await p.getByRole('menuitem',{name:'삭제',exact:true}).click();await p.getByRole('button',{name:'삭제하기',exact:true}).click();await until(async()=>await rows(p).count()===26)
+  await p.waitForFunction(id=>document.activeElement?.closest('[data-member-post-id]')?.getAttribute('data-member-post-id')===String(id-1),id)
+  assert.equal(calls(state).length-before,3);assert.equal(await row.count(),0);assert.equal(await p.locator('.mypage-counts strong').first().innerText(),'26');assert.equal(state.calls.filter(c=>c.method==='DELETE').length,1)
+  if(id===978)assert(Math.abs(await p.locator('[data-member-post-id="977"]').evaluate(e=>e.getBoundingClientRect().top)-120)<20)
+ })
+ await check('management: final post deletion focuses empty state',async()=>{
+  const{p}=await fixture({count:1});await ready(p,1);await rows(p).getByRole('button',{name:'게시글 관리'}).click();await p.getByRole('menuitem',{name:'삭제',exact:true}).click();await p.getByRole('button',{name:'삭제하기',exact:true}).click();await p.waitForFunction(()=>document.activeElement?.id==='my-posts-empty');assert.equal(await rows(p).count(),0);await p.screenshot({path:`${out}/empty-after-delete.png`})
+ })
+ for(const [status,code] of [[403,'ACCESS_DENIED'],[403,'CSRF_TOKEN_INVALID'],[404,'OTHER_NOT_FOUND']])await check(`management: definite ${code} keeps row and error`,async()=>{
+  const{p,state}=await fixture();await ready(p);state.write=r=>r.fulfill({status,json:failure(code)});await rows(p).first().getByRole('button',{name:'게시글 관리'}).click();await p.getByRole('menuitem',{name:'삭제',exact:true}).click();await p.getByRole('button',{name:'삭제하기',exact:true}).click();await p.getByRole('dialog').getByRole('alert').waitFor();assert.equal(await rows(p).count(),10);assert.equal(calls(state).length,status===404?2:1);assert.equal(state.calls.filter(c=>c.method==='DELETE').length,1);assert.equal(await p.getByRole('heading',{name:'로그인이 필요해요'}).count(),0)
+  if(status!==404){state.write=null;await p.getByRole('button',{name:'삭제하기',exact:true}).click();await until(async()=>!await p.locator('[data-member-post-id="1000"]').count());assert.equal(state.calls.filter(c=>c.method==='DELETE').length,2)}
+ })
+ await check('management: current 401 clears private lists',async()=>{
+  const{p,state}=await fixture();await ready(p);state.write=r=>r.fulfill({status:401,json:failure('AUTHENTICATION_REQUIRED')});await rows(p).first().getByRole('button',{name:'게시글 관리'}).click();await p.getByRole('menuitem',{name:'삭제',exact:true}).click();await p.getByRole('button',{name:'삭제하기',exact:true}).click();await p.getByRole('heading',{name:'로그인이 필요해요'}).waitFor();assert.equal(await rows(p).count(),0)
+ })
+ for(const outcome of ['network','500','missing'])await check(`management: ${outcome} rereads server without replay`,async()=>{
+  const{p,state}=await fixture();await ready(p);state.write=async r=>{if(outcome!=='500')posts=posts.filter(x=>x.id!==1000);return outcome==='network'?r.abort('failed'):r.fulfill({status:outcome==='missing'?404:500,json:failure(outcome==='missing'?'POST_NOT_FOUND':'INTERNAL_SERVER_ERROR')})}
+  await rows(p).first().getByRole('button',{name:'게시글 관리'}).click();await p.getByRole('menuitem',{name:'삭제',exact:true}).click();await p.getByRole('button',{name:'삭제하기',exact:true}).click();await until(()=>calls(state).length===2)
+  if(outcome==='500'){await p.getByRole('dialog').getByRole('alert').waitFor();assert.equal(await rows(p).count(),10);assert.equal(await p.getByRole('button',{name:'삭제하기',exact:true}).count(),0)}else await until(async()=>!await p.locator('[data-member-post-id="1000"]').count())
+  assert.equal(state.calls.filter(c=>c.method==='DELETE').length,1)
+ })
+ await check('management: pending delete blocks duplicate and close',async()=>{
+  const{p,state}=await fixture();await ready(p);let release,arrived;const gate=new Promise(r=>release=r),request=new Promise(r=>arrived=r);state.write=async r=>{arrived();await gate;posts=posts.filter(x=>x.id!==1000);await r.fulfill({status:204})}
+  await rows(p).first().getByRole('button',{name:'게시글 관리'}).click();await p.getByRole('menuitem',{name:'삭제',exact:true}).click();await p.getByRole('button',{name:'삭제하기',exact:true}).dblclick();await request;await p.keyboard.press('Escape');await p.getByRole('button',{name:'취소',exact:true}).evaluate(e=>e.click());assert(await p.getByRole('dialog').isVisible());assert.equal(state.calls.filter(c=>c.method==='DELETE').length,1);release();await until(async()=>!await p.locator('[data-member-post-id="1000"]').count())
+ })
+ for(const outcome of ['success','network','401'])for(const authChange of ['leave','logout','same','other'])await check(`management: late ${outcome} deletion after ${authChange}`,async()=>{
+  const{p,state}=await fixture();await ready(p);await p.getByRole('link',{name:'IYUM 홈으로 이동',exact:true}).click();await p.locator('.iyum-desktop-auth').getByRole('link',{name:'마이페이지',exact:true}).click();await ready(p)
+  let release,arrived,done;const gate=new Promise(r=>release=r),request=new Promise(r=>arrived=r),finished=new Promise(r=>done=r);state.write=async r=>{arrived();await gate;if(outcome!=='401')posts=posts.filter(x=>x.id!==1000);if(outcome==='network')await r.abort('failed');else await r.fulfill(outcome==='401'?{status:401,json:failure('AUTHENTICATION_REQUIRED')}:{status:204});done()}
+  await rows(p).first().getByRole('button',{name:'게시글 관리'}).click();await p.getByRole('menuitem',{name:'삭제',exact:true}).click();await p.getByRole('button',{name:'삭제하기',exact:true}).click();await request;await p.goBack();await p.waitForURL(u=>u.pathname==='/')
+  if(authChange!=='leave'){await p.getByRole('button',{name:'로그아웃',exact:true}).click();await p.getByText('로그아웃되었습니다.',{exact:true}).waitFor()}
+  if(['same','other'].includes(authChange)){if(authChange==='other'){state.profile={...state.profile,memberId:322,nickname:'다른회원'};posts=posts.map((_,i)=>({...make(2000-i),author:{memberId:322,nickname:'다른회원'}}))};await p.locator('.iyum-desktop-auth').getByRole('link',{name:'로그인',exact:true}).click();await p.locator('input[name=email]').fill(member.email);await p.locator('input[name=password]').fill('test-only');await p.locator('main').getByRole('button',{name:'로그인',exact:true}).click();await p.waitForURL(u=>u.pathname!=='/login');await p.locator('.iyum-desktop-auth').getByRole('link',{name:'마이페이지',exact:true}).click();await ready(p)}
+  const before=calls(state).length;release();await finished;await p.evaluate(()=>new Promise(r=>requestAnimationFrame(()=>requestAnimationFrame(r))));assert.equal(calls(state).length,before);assert.equal(await p.getByRole('dialog').count(),0);assert.equal(state.calls.filter(c=>c.method==='DELETE').length,1);if(['same','other'].includes(authChange)){assert.equal(await p.locator(`[data-member-post-id="${authChange==='other'?2000:1000}"]`).count(),1);assert.equal(await p.locator('.mypage-name h2').innerText(),state.profile.nickname)}
+  if(authChange==='leave'){await p.locator('.iyum-desktop-auth').getByRole('link',{name:'마이페이지',exact:true}).click();await ready(p);if(outcome!=='401')await until(async()=>!await p.locator('[data-member-post-id="1000"]').count());else assert.equal(await p.locator('[data-member-post-id="1000"]').count(),1)}
+ })
+ await check('management: edit uses full detail, failure/draft guard, success returns full range',async()=>{
+  const{p,state}=await fixture();await ready(p);await more(p,3);const row=p.locator('[data-member-post-id="978"]');await row.evaluate(e=>scrollBy(0,e.getBoundingClientRect().top-120));await row.getByRole('button',{name:'게시글 관리'}).click();await p.getByRole('menuitem',{name:'수정',exact:true}).click();await p.locator('textarea[name=content]').waitFor();assert.equal(await p.locator('textarea[name=content]').inputValue(),posts.find(x=>x.id===978).content)
+  await p.locator('input[name=title]').fill('관리 메뉴에서 바꾼 제목');await p.getByRole('button',{name:'취소',exact:true}).click();await p.getByRole('dialog',{name:'수정 중인 내용이 있습니다.'}).waitFor();await p.getByRole('button',{name:'계속 수정',exact:true}).click();assert.equal(await p.locator('input[name=title]').inputValue(),'관리 메뉴에서 바꾼 제목')
+  state.write=r=>r.fulfill({status:403,json:failure('ACCESS_DENIED')});await p.getByRole('button',{name:'수정 저장',exact:true}).click();await p.getByRole('form',{name:'게시글 수정'}).getByRole('alert').waitFor();assert.equal(await p.locator('input[name=title]').inputValue(),'관리 메뉴에서 바꾼 제목');state.write=null;await p.getByRole('button',{name:'수정 저장',exact:true}).click();await p.waitForURL(u=>u.pathname==='/mypage');await ready(p,27);await p.getByRole('link',{name:'관리 메뉴에서 바꾼 제목',exact:true}).waitFor();assert(Math.abs(await p.locator('[data-member-post-id="978"]').evaluate(e=>e.getBoundingClientRect().top)-120)<20)
+ })
+
+ for(const way of ['back','link'])await check(`settings round trip retains three post pages and position / ${way}`,async()=>{
+  const{p,state}=await fixture();await ready(p);await more(p,3)
+  await p.locator('[data-member-post-id="978"]').evaluate(e=>scrollBy(0,e.getBoundingClientRect().top-120));const y=await p.evaluate(()=>scrollY),before=calls(state).length
+  await p.getByRole('link',{name:'프로필·계정 설정',exact:true}).evaluate(e=>e.click());await p.getByRole('button',{name:'프로필 수정',exact:true}).waitFor()
+  await back(p,way);await ready(p,27);await p.waitForFunction(y=>Math.abs(scrollY-y)<4,y)
+  assert.equal(await p.getByRole('tab',{name:/내 게시글/}).getAttribute('aria-selected'),'true');assert.equal(calls(state).length,before);assert.equal(await rows(p).count(),27)
+ })
  await check('first ten real fields/order and zero count; no CSRF/per-post/comment list reads',async()=>{
   const{p,state}=await fixture();await ready(p);assert((await rows(p).first().innerText()).includes('보청기 · 질문·답변'));assert((await rows(p).first().innerText()).includes('서로의 경험'));assert(await p.getByText('댓글 0',{exact:true}).first().isVisible());assert.equal(calls(state).length,1);assert(!state.calls.some(c=>c.path.endsWith('/csrf')||c.path.includes('/posts/')))
   await p.getByRole('tab',{name:/내 댓글/}).click();await p.getByText('아직 작성한 댓글이 없어요.').waitFor();await p.getByRole('tab',{name:/내 게시글/}).click();assert.equal(calls(state).length,1);assert.equal(await rows(p).count(),10)
@@ -86,7 +158,7 @@ try{
   const{p,state}=await fixture({summary:r=>r.fulfill({json:{postCount:0,commentCount:0}})});await ready(p);assert.equal(await p.locator('.mypage-counts strong').first().innerText(),'0');state.summary=r=>r.fulfill({status:503,json:failure('SERVER_ERROR')});await p.reload();await ready(p);await p.getByRole('button',{name:'활동 개수 다시 시도'}).waitFor();assert.equal(await rows(p).count(),10)
  })
  await check('actual empty vs first error retry, profile remains',async()=>{
-  const{p,state}=await fixture({count:0,get:r=>r.fulfill({status:503,json:failure('SERVER_ERROR')})});await p.getByRole('button',{name:'내 게시글 다시 시도',exact:true}).waitFor();assert.equal(await p.getByText('아직 작성한 게시글이 없어요.').count(),0);assert(await p.getByRole('button',{name:'프로필 수정'}).isVisible());state.get=null;await p.getByRole('button',{name:'내 게시글 다시 시도',exact:true}).click();await p.getByText('아직 작성한 게시글이 없어요.').waitFor()
+  const{p,state}=await fixture({count:0,get:r=>r.fulfill({status:503,json:failure('SERVER_ERROR')})});await p.getByRole('button',{name:'내 게시글 다시 시도',exact:true}).waitFor();assert.equal(await p.getByText('아직 작성한 게시글이 없어요.').count(),0);assert(await p.getByRole('link',{name:'프로필·계정 설정'}).isVisible());state.get=null;await p.getByRole('button',{name:'내 게시글 다시 시도',exact:true}).click();await p.getByText('아직 작성한 게시글이 없어요.').waitFor()
  })
  await check('more failure retains ten and exact cursor; retry/duplicate click; final keyboard focus',async()=>{
   const{p,state}=await fixture();await ready(p);state.get=r=>r.fulfill({status:500,json:failure('SERVER_ERROR')});await p.getByRole('button',{name:'더 보기',exact:true}).click();await p.getByRole('button',{name:'내 게시글 더 보기 다시 시도'}).waitFor();assert.equal(await rows(p).count(),10);const failed=calls(state).at(-1).url
@@ -133,7 +205,7 @@ try{
   const{p,state}=await fixture();await ready(p);await failedMore(p,state);const{gate,handle}=await beginRetry(p,state);assert(await focused(handle))
   const tab=p.getByRole('tab',{name:/내 댓글/});await tab.click();const destination=await tab.elementHandle()
   await gate.respond(result==='failure'?{status:503,json:failure('SERVER_ERROR')}:undefined)
-  await p.waitForFunction(()=>document.querySelector('#my-panel-posts button')?.getAttribute('aria-disabled')==='false')
+  await p.waitForFunction(()=>document.querySelector('#my-panel-posts > div > button[aria-disabled]')?.getAttribute('aria-disabled')==='false')
   assert(await focused(destination));assert.equal(await p.locator('#my-panel-posts').isVisible(),false)
   await p.getByRole('tab',{name:/내 게시글/}).click();assert.equal(await rows(p).count(),result==='failure'?10:20)
  })
@@ -204,6 +276,6 @@ try{
   const{p,state}=await fixture();await ready(p);state.get=r=>r.fulfill({json:{items:[],hasNext:false,nextCursor:null}});await p.getByRole('button',{name:'더 보기',exact:true}).focus();await p.keyboard.press('Enter');await p.getByText('마지막 게시글까지 확인했어요.').waitFor();assert.equal(await rows(p).count(),10);assert.equal(await p.evaluate(()=>document.activeElement.id),'my-posts-end')
  })
  await check('nickname and mobile menu remain functional with populated list',async()=>{
-  const{p}=await fixture({width:390});await ready(p);await p.getByRole('button',{name:'프로필 수정'}).click();await p.locator('#my-nickname').fill('새로운회원');await p.getByRole('button',{name:'저장',exact:true}).click();await p.getByText('닉네임을 변경했습니다.').waitFor();assert.equal(await p.locator('.mypage-name h2').innerText(),'새로운회원');await rows(p).nth(6).scrollIntoViewIfNeeded();const y=await p.evaluate(()=>scrollY);await p.getByRole('button',{name:'메뉴 열기'}).evaluate(e=>e.click());await p.getByRole('dialog',{name:'전체 메뉴'}).waitFor();assert((await p.getByRole('dialog',{name:'전체 메뉴'}).innerText()).includes('새로운회원'));await p.keyboard.press('Escape');assert(Math.abs(await p.evaluate(()=>scrollY)-y)<3);assert.equal(await rows(p).count(),10)
+  const{p}=await fixture({width:390});await ready(p);await p.getByRole('link',{name:'프로필·계정 설정'}).click();await p.getByRole('button',{name:'프로필 수정',exact:true}).click();await p.locator('#my-nickname').fill('새로운회원');await p.getByRole('button',{name:'저장',exact:true}).click();await p.getByText('닉네임을 변경했습니다.').waitFor();assert.equal(await p.locator('.mypage-name h2').innerText(),'새로운회원');await p.getByRole('link',{name:'← 마이페이지로 돌아가기',exact:true}).click();await ready(p);assert.equal(await p.locator('.mypage-name h2').innerText(),'새로운회원');await rows(p).nth(6).scrollIntoViewIfNeeded();const y=await p.evaluate(()=>scrollY);await p.getByRole('button',{name:'메뉴 열기'}).evaluate(e=>e.click());await p.getByRole('dialog',{name:'전체 메뉴'}).waitFor();assert((await p.getByRole('dialog',{name:'전체 메뉴'}).innerText()).includes('새로운회원'));await p.keyboard.press('Escape');assert(Math.abs(await p.evaluate(()=>scrollY)-y)<3);assert.equal(await rows(p).count(),10)
  })
 }finally{await browser.close();await new Promise(r=>server.close(r));await fs.writeFile(out+'/results.json',JSON.stringify({kind:'mock API / production Next',results},null,2))}

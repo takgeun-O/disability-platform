@@ -1,0 +1,30 @@
+{
+  "mocked": true,
+  "results": [
+    {
+      "name": "all five surfaces, exact time keyboard/touch and bounds 1440",
+      "pass": true
+    },
+    {
+      "name": "all five surfaces, exact time keyboard/touch and bounds 390",
+      "pass": true
+    },
+    {
+      "name": "all five surfaces, exact time keyboard/touch and bounds 320",
+      "pass": true
+    },
+    {
+      "name": "minute transitions, resume, no API calls/remount/focus/scroll change",
+      "pass": true
+    },
+    {
+      "name": "large future exact label fits 320px without overlap",
+      "pass": true
+    },
+    {
+      "name": "no JavaScript public dates/body/exact popover and comment links remain usable",
+      "pass": true
+    }
+  ],
+  "errors": []
+}

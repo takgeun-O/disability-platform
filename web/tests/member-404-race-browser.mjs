@@ -62,7 +62,7 @@ async function fixture({width=1440,count=27,...options}={}){
   if(method==='DELETE'){posts=posts.filter(p=>p.id!==id);return r.fulfill({status:204})}
   Object.assign(post,req.postDataJSON());return r.fulfill({status:204})
  })
- await p.goto(base+'/mypage');await p.getByRole('button',{name:'프로필 수정',exact:true}).waitFor();await until(async()=>await p.locator('[data-member-post-id]').count()===10)
+ await p.goto(base+'/mypage');await p.getByRole('link',{name:'프로필·계정 설정',exact:true}).waitFor();await until(async()=>await p.locator('[data-member-post-id]').count()===10)
  return{p,state,ctx}
 }
 async function open(p,n=10){await p.getByRole('tab',{name:/내 댓글/}).click();await ready(p,n)}

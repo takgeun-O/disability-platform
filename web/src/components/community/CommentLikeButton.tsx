@@ -4,11 +4,11 @@ import { useRouter } from "next/navigation"
 import { useAuth } from "@/components/AuthProvider"
 import { useNavigationGuard, useNavigationRequest } from "@/components/NavigationGuard"
 import { changeCommentLike, CommentError, type Comment } from "@/lib/community-comments"
-import { memberCommentsChanged } from "@/lib/community-mutations"
+import { memberCommentsChanged, postCommentsChanged } from "@/lib/community-mutations"
 import CommunityDialog from "./CommunityDialog"
 
-export default function CommentLikeButton({ postId, comment, ready, reread }: {
-  postId: string; comment: Comment; ready: boolean; reread: (commentId: number) => Promise<boolean | undefined>
+export default function CommentLikeButton({ postId, comment, ready, reread, returnTo }: {
+  returnTo?: "/mypage"; postId: string; comment: Comment; ready: boolean; reread: (commentId: number) => Promise<boolean | undefined>
 }) {
   const auth = useAuth(), store = auth.commentLikes, scope = useNavigationRequest(), guard = useNavigationGuard(), router = useRouter(), uid = useId()
   const state = useSyncExternalStore(store.subscribe, () => store.get(comment.commentId), () => undefined)
@@ -39,18 +39,19 @@ export default function CommentLikeButton({ postId, comment, ready, reread }: {
     if (!operation) return
     try {
       const result = await changeCommentLike(postId, comment.commentId, !liked, current)
-      // Invalidate only this authenticated session's private list, including a
-      // confirmed response after leaving detail. The old screen stays untouched.
-      if (result && session.isCurrent() && operation.valid()) memberCommentsChanged()
-      if (result && current() && operation.valid()) operation.commit(result)
-      else if (operation.valid()) operation.uncertain()
+      // A confirmed result is useful across navigation within the same session.
+      // Shared state fences older reads; only the private activity list needs a reread.
+      if (result && session.isCurrent() && operation.valid()) {
+        operation.commit(result)
+        memberCommentsChanged()
+      } else if (operation.valid()) operation.uncertain()
     } catch (cause) {
       if (!operation.valid()) return
       const e = cause instanceof CommentError ? cause : null
       const uncertain = !e || e.uncertain || e.code === "COMMENT_NOT_FOUND" || e.code === "POST_NOT_FOUND"
       // An unknown write outcome can stale private counts even after navigation.
       // Session/operation ownership fences data; navigation fences screen effects.
-      if (uncertain) { operation.uncertain(); if (session.isCurrent()) memberCommentsChanged() }
+      if (uncertain) { operation.uncertain(); if (session.isCurrent()) { memberCommentsChanged(); postCommentsChanged(postId) } }
       if (!current()) { operation.uncertain(); return }
       if (e?.status === 401) { session.expire(); setPrompt(true); return }
       setFeedback({ revision: auth.memberRequests.revision, message: e?.message ?? "좋아요 처리 결과를 확인하지 못했습니다. 댓글 목록에서 현재 상태를 다시 확인해 주세요.", uncertain })
@@ -73,7 +74,7 @@ export default function CommentLikeButton({ postId, comment, ready, reread }: {
         <button type="button" className="iyum-button iyum-button-primary" disabled={!!auth.pending || auth.status === "checking"} onClick={() => {
           if (auth.status === "error") { void auth.refresh(); return }
           if (authenticated) { setPrompt(false); return }
-          const destination = location.pathname + location.search + `#comment-${comment.commentId}`
+          const destination = returnTo ?? (location.pathname + location.search + `#comment-${comment.commentId}`)
           guard.request(() => { setPrompt(false); router.push(`/login?from=${encodeURIComponent(destination)}`) })
         }}>{auth.status === "error" ? "로그인 상태 다시 확인" : authenticated ? "현재 화면에서 계속하기" : "로그인하기"}</button>
       </div>

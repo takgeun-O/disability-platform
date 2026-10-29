@@ -1,4 +1,4 @@
-.mypage { width:min(1080px,calc(100% - 64px)); margin:36px auto 60px; color:var(--iyum-ink); }
+.mypage { width:min(840px,calc(100% - 64px)); margin:36px auto 60px; color:var(--iyum-ink); }
 .mypage-heading { margin-bottom:28px; }
 .mypage h1 { font-size:30px; font-weight:700; margin:0 0 8px; }
 .mypage h2 { font-size:22px; font-weight:700; margin:0; }
@@ -173,56 +173,86 @@
  .mypage-toast-card.is-leaving { opacity:0; }
 }
 
-/* Account controls remain reachable independently of the accumulated activity list. */
-.mypage-workspace { display:grid; grid-template-columns:minmax(0,1fr) 340px; grid-template-areas:"activity account"; align-items:start; gap:32px; margin-top:28px; }
-.mypage-workspace > .mypage-activity { grid-area:activity; min-width:0; margin:0; }
-.mypage-workspace > .mypage-account { grid-area:account; min-width:0; position:sticky; top:24px; }
-.mypage-workspace .mypage-account dl { display:grid; grid-template-columns:1fr auto; gap:12px; padding:24px; }
-.mypage-workspace .mypage-account dd:not(.mypage-readonly) { grid-column:1 / -1; grid-row:2; font-size:14px; }
-.mypage-workspace .mypage-account .mypage-readonly { grid-column:2; grid-row:1; }
-.mypage-workspace .password-change-entry { padding:20px 24px; }
+/* One reading column; account actions have their own route. */
+.mypage-workspace { margin-top:28px; min-width:0; }
+.mypage-workspace > .mypage-activity { min-width:0; margin:0; }
 .mypage-workspace .mypage-post-list > li { align-items:stretch; flex-direction:column; gap:10px; padding:20px 0; }
 .mypage-workspace .post-reactions { align-self:flex-start; }
+.mypage-back { display:inline-flex; min-height:44px; align-items:center; margin-bottom:12px; color:var(--iyum-primary); }
+.mypage-identity { flex-wrap:wrap; }
+.mypage-identity > .iyum-button { max-width:100%; text-align:center; white-space:normal; }
+.mypage-settings .mypage-account dl { display:grid; grid-template-columns:auto minmax(0,1fr) auto; }
+.mypage-withdrawal-section { margin-top:36px; padding-top:24px; border-top:1px solid var(--iyum-border); }
+.mypage-withdrawal-section h3 { font-size:18px; font-weight:600; }
+.mypage-withdrawal-section p { color:var(--iyum-muted); font-size:14px; }
+.mypage-withdrawal-section .withdrawal-entry { margin-left:0; }
+@media(max-width:600px) {
+ .mypage-settings .mypage-account dl { grid-template-columns:1fr auto; }
+ .mypage-settings .mypage-account dd:not(.mypage-readonly) { grid-column:1 / -1; grid-row:2; }
+ .mypage-settings .mypage-readonly { grid-column:2; grid-row:1; }
+}
 .mypage-comment-bubble { padding:14px 16px; margin:10px 0 12px; background:var(--iyum-mist); border-left:3px solid var(--iyum-border); border-radius:0 10px 10px 0; }
 .mypage-comment-label { display:block; margin-bottom:6px; color:var(--iyum-primary); font-size:13px; font-weight:600; }
 .mypage .mypage-comment-content { font-size:16px; font-weight:500; margin:0; }
 .mypage-comment-link { display:flex; align-items:baseline; flex-wrap:wrap; gap:4px 8px; padding:6px 0; min-height:44px; }
 .mypage-comment-link > span:nth-child(2) { min-width:0; flex:1; }
 .mypage-comment-source-label { font-size:12px; font-weight:600; color:var(--iyum-muted); flex-shrink:0; }
-@media(max-width:900px) {
- .mypage-workspace { grid-template-columns:minmax(0,1fr); grid-template-areas:"account" "activity"; gap:28px; }
- .mypage-workspace > .mypage-account { position:static; }
- .mypage-workspace .mypage-account dl { grid-template-columns:auto minmax(0,1fr) auto; align-items:center; }
- .mypage-workspace .mypage-account dd:not(.mypage-readonly) { grid-column:2; grid-row:1; }
- .mypage-workspace .mypage-account .mypage-readonly { grid-column:3; }
-}
-@media(max-width:400px) {
- .mypage-workspace .mypage-account dl { grid-template-columns:1fr auto; }
- .mypage-workspace .mypage-account dd:not(.mypage-readonly) { grid-column:1 / -1; grid-row:2; }
- .mypage-workspace .mypage-account .mypage-readonly { grid-column:2; }
- .mypage-comment-bubble { padding:12px; }
-}
-
-/* Keep identity, editing and activity totals together instead of stretching the profile. */
-@media(min-width:901px) {
- .mypage-profile { display:grid; grid-template-columns:minmax(0,1fr) 300px; align-items:center; gap:28px; padding:24px; }
- .mypage-identity { gap:16px; }
- .mypage-identity .feed-avatar { flex-basis:64px; height:64px; }
- .mypage-identity .iyum-button { flex-shrink:0; }
- .mypage-counts { width:100%; max-width:none; margin:0; padding-left:20px; border-left:1px solid var(--iyum-border); }
- .mypage-counts > div:not(.mypage-summary-error) { flex-direction:column; gap:4px; padding-inline:10px; }
- .mypage-counts > div+div { border-left:0; }
- .mypage-workspace .mypage-account-card { border-radius:14px; }
- .mypage-workspace .mypage-account dd:not(.mypage-readonly) { font-size:16px; line-height:1.6; }
-}
-@media(min-width:901px) and (max-width:1100px) {
- .mypage-profile { grid-template-columns:minmax(0,1fr) 240px; gap:20px; }
- .mypage-workspace { grid-template-columns:minmax(0,1fr) 320px; gap:24px; }
-}
-
+@media(max-width:400px) { .mypage-comment-bubble { padding:12px; } }
 .mypage-account .mypage-email-verified { color:var(--iyum-primary); font-weight:600; }
 
 .mypage-comment-body { display:flex; align-items:center; flex-wrap:wrap; gap:8px 16px; }
 .mypage .mypage-comment-body .mypage-comment-content { flex:1 1 160px; min-width:0; }
 .mypage .mypage-comment-likes { font-size:13px; flex-wrap:wrap; overflow-wrap:anywhere; min-width:0; max-width:100%; margin-left:auto; }
 .mypage-comment-likes svg { flex-shrink:0; }
+
+/* Activity feed: metadata and controls above the reading content. */
+.mypage-post-heading { display:flex; align-items:center; justify-content:space-between; gap:12px; margin-bottom:6px; }
+.mypage-post-heading .mypage-post-meta { min-width:0; margin:0; overflow-wrap:anywhere; }
+.mypage-post-actions { position:relative; flex-shrink:0; align-self:flex-start; }
+.mypage-post-actions > button { display:grid; place-items:center; width:44px; height:44px; border:0; border-radius:8px; background:transparent; color:var(--iyum-muted); font-size:24px; cursor:pointer; }
+.mypage-post-actions > button:hover, .mypage-post-actions > button[aria-expanded=true] { background:var(--iyum-mist); color:var(--iyum-primary); }
+.mypage-post-menu { position:absolute; right:0; top:44px; z-index:5; min-width:140px; padding:4px; border:1px solid var(--iyum-border); border-radius:8px; background:white; box-shadow:0 4px 16px #0b25451a; }
+.mypage-post-menu > * { display:flex; align-items:center; width:100%; min-height:44px; padding:8px 14px; border:0; border-radius:4px; background:transparent; color:var(--iyum-ink); font:inherit; cursor:pointer; text-decoration:none; }
+.mypage-post-menu > *:hover { background:var(--iyum-mist); }
+.mypage-post-actions :focus-visible { outline:2px solid var(--iyum-primary); outline-offset:2px; }
+.mypage-delete-title { font-weight:600; overflow-wrap:anywhere; }
+.mypage-workspace .mypage-post-list > li { padding:24px 0; gap:12px; }
+.mypage-post-preview { margin:0; line-height:1.7; }
+.mypage-comment-bubble { background:transparent; border:0; border-radius:0; padding:4px 0; margin:8px 0; }
+.mypage-comment-link { border-top:0; font-size:14px; }
+
+.mypage-inline-comments { min-width:0; padding:20px 24px 12px; border:1px solid var(--iyum-border); border-radius:14px; background:var(--mypage-comment-panel, #f7f8f9); margin:4px 0 8px 28px; overflow-wrap:anywhere; }
+.mypage-inline-comments[hidden] { display:none; }
+.mypage-inline-heading { display:flex; align-items:center; justify-content:flex-end; flex-wrap:wrap; gap:8px; }
+.mypage-inline-comments button { min-height:44px; }
+.mypage-inline-comments .community-comment-list { margin:0; }
+.mypage-inline-comments .community-comment-list > li { padding:12px 0; }
+.mypage-inline-comments .community-comment-list > li:last-child { border-bottom:0; }
+@media(max-width:600px) { .mypage-inline-comments { padding:12px 14px 8px; margin-left:8px; border-radius:12px; } }
+
+.mypage-comment-preview { margin:0 0 4px; }
+.mypage-comment-preview-field { display:flex; align-items:center; gap:8px; padding:10px 12px; border:1px solid var(--iyum-border); border-radius:12px; background:var(--iyum-mist); }
+.mypage-comment-preview textarea { flex:1; min-width:0; width:100%; resize:none; border:0; padding:8px 0; background:transparent; font:inherit; font-size:14px; line-height:1.5; color:var(--iyum-muted); opacity:1; -webkit-text-fill-color:var(--iyum-muted); }
+.mypage-comment-preview textarea::placeholder { color:var(--iyum-muted); opacity:1; }
+.mypage-comment-preview button { flex-shrink:0; border:0; border-radius:8px; padding:6px 12px; background:var(--iyum-border); color:var(--iyum-muted); font:inherit; font-size:14px; }
+.mypage-comment-preview p { margin:5px 2px 0; font-size:12px; color:var(--iyum-muted); }
+.mypage-inline-heading { min-height:44px; }
+.mypage-post-like .post-like { margin:0; }
+.mypage-post-like .post-like-button { border:0; border-radius:6px; padding:6px 4px; background:transparent; }
+.mypage-post-like .post-like-button:hover,
+.mypage-post-like .post-like-button[aria-pressed="true"] { background:transparent; color:var(--iyum-muted); }
+.mypage-post-like .post-like-button[aria-pressed="true"] svg { color:#c43f50; }
+
+.mypage-comment-preview button:not(:disabled) { background:var(--iyum-primary); color:white; cursor:pointer; min-height:44px; }
+.mypage-comment-preview textarea:not(:disabled) { color:var(--iyum-ink); -webkit-text-fill-color:currentColor; resize:vertical; }
+.mypage-comment-preview .community-error { color:var(--iyum-danger, #b42336); }
+
+/* MyPage-only panel; the detail comment surface keeps its existing layout. */
+.mypage-inline-comments .mypage-comment-preview-field { background:white; }
+.mypage-inline-comments .community-comment-meta { flex-wrap:wrap; }
+.mypage-inline-comments .community-comment-meta > strong { min-width:0; overflow-wrap:anywhere; }
+.mypage-inline-heading { justify-content:space-between; margin:8px 0 4px; }
+.mypage-inline-footer { display:flex; justify-content:center; border-top:1px solid var(--iyum-border); margin-top:12px; padding-top:4px; }
+.mypage-inline-footer button { display:inline-flex; align-items:center; gap:8px; padding:8px 16px; }
+.mypage .post-comment-link[aria-expanded=true] { border-color:var(--iyum-primary); background:var(--iyum-mist); color:var(--iyum-primary); }
+@media(max-width:360px) { .mypage-inline-comments { margin-left:4px; padding-inline:12px; } }
