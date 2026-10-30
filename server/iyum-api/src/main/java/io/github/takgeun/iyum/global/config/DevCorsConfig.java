@@ -214,6 +214,58 @@ public class DevCorsConfig {
                 commentLikeCors
         );
 
+        CorsConfiguration adminPostModerationCors =
+                new CorsConfiguration(cors);
+
+        adminPostModerationCors.setAllowedMethods(
+                List.of("POST", "OPTIONS")
+        );
+
+        source.registerCorsConfiguration(
+                "/api/v1/admin/posts/*/hide",
+                adminPostModerationCors
+        );
+
+        source.registerCorsConfiguration(
+                "/api/v1/admin/posts/*/restore",
+                adminPostModerationCors
+        );
+
+        CorsConfiguration adminCommentModerationCors =
+                new CorsConfiguration(cors);
+
+        adminCommentModerationCors.setAllowedMethods(
+                List.of("POST", "OPTIONS")
+        );
+
+        source.registerCorsConfiguration(
+                "/api/v1/admin/posts/*/comments/*/hide",
+                adminCommentModerationCors
+        );
+
+        source.registerCorsConfiguration(
+                "/api/v1/admin/posts/*/comments/*/restore",
+                adminCommentModerationCors
+        );
+
+        // 관리자 게시글 목록·상세 조회
+        CorsConfiguration adminPostReadCors =
+                new CorsConfiguration(cors);
+
+        adminPostReadCors.setAllowedMethods(
+                List.of("GET", "OPTIONS")
+        );
+
+        source.registerCorsConfiguration(
+                "/api/v1/admin/posts",
+                adminPostReadCors
+        );
+
+        source.registerCorsConfiguration(
+                "/api/v1/admin/posts/*",
+                adminPostReadCors
+        );
+
         return source;
     }
 }

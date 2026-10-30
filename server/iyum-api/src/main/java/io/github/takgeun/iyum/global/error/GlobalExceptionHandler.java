@@ -1,5 +1,7 @@
 package io.github.takgeun.iyum.global.error;
 
+import io.github.takgeun.iyum.admin.content.application.AdminContentReadException;
+import io.github.takgeun.iyum.admin.moderation.application.ContentModerationException;
 import io.github.takgeun.iyum.auth.emailverification.application.InvalidEmailVerificationTokenException;
 import io.github.takgeun.iyum.auth.passwordreset.application.PasswordResetException;
 import io.github.takgeun.iyum.auth.passwordreset.application.PasswordResetRateLimitException;
@@ -802,6 +804,60 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
                 .status(status)
                 .cacheControl(CacheControl.noStore())
                 .body(ApiErrorResponse.of(code, message));
+    }
+
+    @ExceptionHandler(ContentModerationException.class)
+    public ResponseEntity<ApiErrorResponse> handleContentModeration(
+            ContentModerationException exception
+    ) {
+        HttpStatus status = switch (exception.getCode()) {
+            case AUTHENTICATION_REQUIRED -> HttpStatus.UNAUTHORIZED;
+
+            case ADMIN_REQUIRED -> HttpStatus.FORBIDDEN;
+
+            case INVALID_REASON -> HttpStatus.BAD_REQUEST;
+
+            case POST_NOT_FOUND, COMMENT_NOT_FOUND ->
+                    HttpStatus.NOT_FOUND;
+
+            case POST_DELETED, COMMENT_DELETED ->
+                    HttpStatus.CONFLICT;
+        };
+
+        return ResponseEntity
+                .status(status)
+                .cacheControl(CacheControl.noStore())
+                .body(ApiErrorResponse.of(
+                        exception.getCode().name(),
+                        exception.getMessage()
+                ));
+    }
+
+    @ExceptionHandler(AdminContentReadException.class)
+    public ResponseEntity<ApiErrorResponse> handleAdminContentRead(
+            AdminContentReadException exception
+    ) {
+        HttpStatus status = switch (exception.getCode()) {
+            case AUTHENTICATION_REQUIRED ->
+                    HttpStatus.UNAUTHORIZED;
+
+            case ADMIN_REQUIRED ->
+                    HttpStatus.FORBIDDEN;
+
+            case INVALID_PAGE_REQUEST, INVALID_SEARCH_KEYWORD ->
+                    HttpStatus.BAD_REQUEST;
+
+            case POST_NOT_FOUND ->
+                    HttpStatus.NOT_FOUND;
+        };
+
+        return ResponseEntity
+                .status(status)
+                .cacheControl(CacheControl.noStore())
+                .body(ApiErrorResponse.of(
+                        exception.getCode().name(),
+                        exception.getMessage()
+                ));
     }
 
     @ExceptionHandler(Exception.class)
