@@ -266,6 +266,33 @@ public class DevCorsConfig {
                 adminPostReadCors
         );
 
+        CorsConfiguration adminCommentReadCors = new CorsConfiguration();
+
+        adminCommentReadCors.setAllowedOrigins(
+                List.of(allowedOrigin)
+        );
+
+        adminCommentReadCors.setAllowCredentials(true);
+
+        adminCommentReadCors.setAllowedMethods(
+                List.of("GET", "OPTIONS")
+        );
+
+        adminCommentReadCors.setAllowedHeaders(
+                List.of(
+                        "Accept",
+                        "Content-Type",
+                        "X-CSRF-TOKEN"
+                )
+        );
+
+        adminCommentReadCors.setMaxAge(600L);
+
+        source.registerCorsConfiguration(
+                "/api/v1/admin/posts/*/comments",
+                adminCommentReadCors
+        );
+
         return source;
     }
 }
