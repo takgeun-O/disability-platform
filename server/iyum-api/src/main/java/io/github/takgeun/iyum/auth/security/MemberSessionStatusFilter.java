@@ -1,5 +1,6 @@
 package io.github.takgeun.iyum.auth.security;
 
+import io.github.takgeun.iyum.member.domain.MemberRole;
 import io.github.takgeun.iyum.member.domain.MemberStatus;
 import io.github.takgeun.iyum.member.infrastructure.MemberRepository;
 import jakarta.servlet.FilterChain;
@@ -86,21 +87,33 @@ public class MemberSessionStatusFilter extends OncePerRequestFilter {
             // 2. 세션에 남아있는 정보인 이전 로그인 정보를 불러온다.
             Long memberId = principal.getMemberId();
 
-            // 로그인 당시 세션에 저장한 버전
+            // 로그인 당시 세션에 저장된 인증 버전과 권한
             long credentialVersion = principal.getCredentialVersion();
+            MemberRole role = principal.getRole();
 
             boolean validSession =
                     memberId != null
                             && memberId > 0
                             && credentialVersion >= 0
+                            && role != null
                             && memberRepository
-                            .existsByIdAndStatusAndCredentialVersion(
+                            .existsByIdAndStatusAndCredentialVersionAndRole(
                                     memberId,
                                     MemberStatus.ACTIVE,
-                                    credentialVersion
+                                    credentialVersion,
+                                    role
                             );
 
             if (!validSession) {
+                /**
+                 * DB에서 무효로 확인된 인증을 정리한다.
+                 *
+                 * 세션·세션 ID·컨텍스트·인증이 검사 당시와 동일할 때만
+                 * 세션을 무효화하고 세션 쿠키를 삭제한다.
+                 * 다른 요청이 저장한 새 인증은 보존한다.
+                 *
+                 * 세션 로그아웃 여부와 관계없이 현재 요청의 인증은 항상 제거.
+                 */
                 clearInvalidAuthentication(
                         observation,
                         requestContext,
@@ -192,8 +205,8 @@ public class MemberSessionStatusFilter extends OncePerRequestFilter {
         } catch (IllegalStateException failure) {
             // 확인과 로그아웃 사이에 세션이 사라진 경우는 정리만 마친다.
             // 같은 세션이 여전히 유효하다면 다른 오류일 수 있으므로 전파한다.
-            if(observation != null
-            && request.getSession(false) == observation.session()) {
+            if (observation != null
+                    && request.getSession(false) == observation.session()) {
                 throw failure;
             }
 

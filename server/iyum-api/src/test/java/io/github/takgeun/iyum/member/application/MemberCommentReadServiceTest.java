@@ -16,6 +16,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.CsvSource;
+import org.junit.jupiter.params.provider.EnumSource;
 import org.junit.jupiter.params.provider.NullSource;
 import org.junit.jupiter.params.provider.ValueSource;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -534,6 +535,177 @@ class MemberCommentReadServiceTest {
         assertThat(after.items().get(0).liked()).isFalse();
     }
 
+    @ParameterizedTest
+    @EnumSource(
+            value = MemberContentVisibility.class,
+            names = {"HIDDEN", "PARENT_HIDDEN"}
+    )
+    void 마지막_댓글이_숨김이어도_해당_댓글의_커서로_다음_페이지를_조회한다(
+            MemberContentVisibility visibility
+    ) {
+        if (visibility == MemberContentVisibility.HIDDEN) {
+            secondComment.hide(Instant.now());
+            commentRepository.saveAndFlush(secondComment);
+        } else {
+            myPost.hide(Instant.now());
+            postRepository.saveAndFlush(myPost);
+        }
+
+        // 공개 댓글과 숨김 댓글 모두 실제 좋아요 데이터를 가진다.
+        commentLikeRepository.saveAndFlush(
+                CommentLike.create(firstComment, me)
+        );
+        commentLikeRepository.saveAndFlush(
+                CommentLike.create(secondComment, me)
+        );
+
+        clearInvocations(commentLikeReadService);
+
+        MemberCommentListResult firstPage =
+                memberCommentReadService.getComments(
+                        me.getId(), null, null, 2
+                );
+
+        assertThat(firstPage.items())
+                .extracting(MemberCommentItemResult::commentId)
+                .containsExactly(
+                        firstComment.getId(),
+                        secondComment.getId()
+                );
+
+        MemberCommentItemResult visibleItem =
+                firstPage.items().getFirst();
+
+        assertThat(visibleItem.visibility())
+                .isEqualTo(MemberContentVisibility.VISIBLE);
+        assertThat(visibleItem.content()).isEqualTo(FIRST_CONTENT);
+        assertThat(visibleItem.likeCount()).isEqualTo(1L);
+        assertThat(visibleItem.liked()).isTrue();
+
+        MemberCommentItemResult hiddenItem =
+                firstPage.items().get(1);
+
+        assertHiddenItem(
+                hiddenItem,
+                secondComment.getId(),
+                myPost.getId(),
+                visibility
+        );
+
+        assertThat(firstPage.hasNext()).isTrue();
+        assertThat(firstPage.nextCursor()).isNotNull();
+
+        CommentCursor cursor = firstPage.nextCursor();
+
+        // 미리 조회한 thirdComment가 아니라,
+        // 실제 반환한 마지막 댓글을 커서로 사용한다.
+        assertThat(cursor.commentId())
+                .isEqualTo(secondComment.getId());
+        assertThat(cursor.createdAt()).isEqualTo(CREATED_AT);
+
+        // 숨김 댓글과 다음 페이지 확인용 댓글은 집계하지 않는다.
+        verify(commentLikeReadService).getStates(
+                List.of(firstComment.getId()),
+                me.getId()
+        );
+        verifyNoMoreInteractions(commentLikeReadService);
+
+        clearInvocations(commentLikeReadService);
+
+        MemberCommentListResult nextPage =
+                memberCommentReadService.getComments(
+                        me.getId(),
+                        cursor.createdAt(),
+                        cursor.commentId(),
+                        2
+                );
+
+        assertThat(nextPage.items())
+                .extracting(MemberCommentItemResult::commentId)
+                .containsExactly(thirdComment.getId());
+
+        assertThat(nextPage.items().getFirst().visibility())
+                .isEqualTo(MemberContentVisibility.VISIBLE);
+        assertThat(nextPage.hasNext()).isFalse();
+        assertThat(nextPage.nextCursor()).isNull();
+
+        verify(commentLikeReadService).getStates(
+                List.of(thirdComment.getId()),
+                me.getId()
+        );
+        verifyNoMoreInteractions(commentLikeReadService);
+
+        // 응답에서 가리는 것이므로 원본과 좋아요는 보존한다.
+        Comment storedComment = commentRepository
+                .findById(secondComment.getId())
+                .orElseThrow();
+
+        assertThat(storedComment.getContent())
+                .isEqualTo("두 번째 댓글");
+        assertThat(storedComment.getDeletedAt()).isNull();
+        assertThat(commentLikeRepository.count()).isEqualTo(2L);
+    }
+
+    @Test
+    void 반환할_댓글이_모두_숨김이면_공개_댓글을_미리_조회해도_좋아요를_집계하지_않는다() {
+        firstComment.hide(Instant.now());
+        commentRepository.saveAndFlush(firstComment);
+
+        myPost.hide(Instant.now());
+        postRepository.saveAndFlush(myPost);
+
+        commentLikeRepository.saveAndFlush(
+                CommentLike.create(firstComment, me)
+        );
+        commentLikeRepository.saveAndFlush(
+                CommentLike.create(secondComment, me)
+        );
+        commentLikeRepository.saveAndFlush(
+                CommentLike.create(thirdComment, me)
+        );
+
+        clearInvocations(commentLikeReadService);
+
+        MemberCommentListResult result =
+                memberCommentReadService.getComments(
+                        me.getId(), null, null, 2
+                );
+
+        assertThat(result.items())
+                .extracting(MemberCommentItemResult::commentId)
+                .containsExactly(
+                        firstComment.getId(),
+                        secondComment.getId()
+                );
+
+        assertHiddenItem(
+                result.items().getFirst(),
+                firstComment.getId(),
+                otherPost.getId(),
+                MemberContentVisibility.HIDDEN
+        );
+
+        assertHiddenItem(
+                result.items().get(1),
+                secondComment.getId(),
+                myPost.getId(),
+                MemberContentVisibility.PARENT_HIDDEN
+        );
+
+        // thirdComment는 공개 상태지만 다음 페이지 확인용 데이터다.
+        assertThat(result.hasNext()).isTrue();
+        assertThat(result.nextCursor()).isNotNull();
+        assertThat(result.nextCursor().commentId())
+                .isEqualTo(secondComment.getId());
+        assertThat(result.nextCursor().createdAt())
+                .isEqualTo(CREATED_AT);
+
+        verifyNoInteractions(commentLikeReadService);
+
+        // 숨김 처리와 조회가 기존 좋아요를 삭제하지 않는다.
+        assertThat(commentLikeRepository.count()).isEqualTo(3L);
+    }
+
     private Member saveActiveMember(
             String email,
             String nickname
@@ -609,5 +781,27 @@ class MemberCommentReadServiceTest {
                 exception -> assertThat(exception.getCode())
                         .isEqualTo(expectedCode)
         );
+    }
+
+    private void assertHiddenItem(
+            MemberCommentItemResult item,
+            Long expectedCommentId,
+            Long expectedPostId,
+            MemberContentVisibility expectedVisibility
+    ) {
+        assertThat(item.commentId()).isEqualTo(expectedCommentId);
+        assertThat(item.createdAt()).isEqualTo(CREATED_AT);
+        assertThat(item.visibility()).isEqualTo(expectedVisibility);
+
+        assertThat(item.content()).isNull();
+        assertThat(item.updatedAt()).isNull();
+        assertThat(item.likeCount()).isNull();
+        assertThat(item.liked()).isNull();
+
+        assertThat(item.post()).isNotNull();
+        assertThat(item.post().postId()).isEqualTo(expectedPostId);
+        assertThat(item.post().title()).isNull();
+        assertThat(item.post().type()).isNull();
+        assertThat(item.post().topic()).isNull();
     }
 }

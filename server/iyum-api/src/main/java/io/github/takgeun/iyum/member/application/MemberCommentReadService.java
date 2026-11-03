@@ -44,15 +44,15 @@ public class MemberCommentReadService {
 
         List<Comment> fetched;
 
-        if(afterCreatedAt == null && afterId == null) {
-            fetched =
-                    commentRepository.findFirstVisibleCommentsByAuthorId(
+        if (afterCreatedAt == null && afterId == null) {
+            fetched = commentRepository
+                    .findFirstNotDeletedCommentsByAuthorId(
                             memberId,
                             limit
                     );
         } else {
-            fetched =
-                    commentRepository.findVisibleCommentsByAuthorIdAfter(
+            fetched = commentRepository
+                    .findNotDeletedCommentsByAuthorIdAfter(
                             memberId,
                             afterCreatedAt,
                             afterId,
@@ -67,7 +67,7 @@ public class MemberCommentReadService {
         List<Comment> returnedComments =
                 fetched.subList(0, returnedSize);
 
-        if(returnedComments.isEmpty()) {
+        if (returnedComments.isEmpty()) {
             return new MemberCommentListResult(
                     List.of(),
                     false,
@@ -75,14 +75,25 @@ public class MemberCommentReadService {
             );
         }
 
-        // 실제 응답에 포함할 댓글만 좋아요 집계 대상으로 사용
-        List<Long> commentIds = returnedComments.stream()
+        // 댓글 자체와 부모 게시글이 모두 공개인 항목만 집계한다.
+        // 부모 게시글은 join fetch로 가져오므로, 부모의 숨김 상태를 확인할 때
+        // 댓글마다 별도의 부모 조회가 필요하지 않음.
+        List<Long> visibleCommentIds = returnedComments.stream()
+                .filter(comment ->
+                        comment.getHiddenAt() == null
+                                && comment.getPost().getHiddenAt() == null
+                )
                 .map(Comment::getId)
                 .toList();
 
         // 로그인한 회원을 기준으로 전체 좋아요 개수와 본인의 좋아요 여부를 조회한다.
         Map<Long, CommentLikeState> likeStates =
-                commentLikeReadService.getStates(commentIds, memberId);
+                visibleCommentIds.isEmpty()
+                        ? Map.of()
+                        : commentLikeReadService.getStates(
+                        visibleCommentIds,
+                        memberId
+                );
 
         // 트랜잭션 안에서 댓글, 게시글, 좋아요 개수를 결과 객체로 복사한다.
         List<MemberCommentItemResult> items =
@@ -104,8 +115,8 @@ public class MemberCommentReadService {
 
         CommentCursor nextCursor = null;
 
-        if(hasNext) {
-            // 실제 반환할 마지막 댓글을 기준으로 커서를 만든다.
+        if (hasNext) {
+            // 숨김 항목도 실제 반환 항목이므로 커서 기준에 포함한다.
             MemberCommentItemResult last = items.getLast();
 
             nextCursor = new CommentCursor(
@@ -141,7 +152,7 @@ public class MemberCommentReadService {
     }
 
     private void validateSize(int size) {
-        if(size < 1 || size > MAX_PAGE_SIZE) {
+        if (size < 1 || size > MAX_PAGE_SIZE) {
             throw new MemberCommentReadException(
                     MemberCommentReadException.Code.INVALID_PAGE_REQUEST
             );

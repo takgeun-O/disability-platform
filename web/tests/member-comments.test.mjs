@@ -4,7 +4,7 @@ import {loadTypeScript} from './helpers/load-typescript.mjs'
 const {getMemberComments}=await loadTypeScript('../src/lib/member-api.ts',import.meta.url)
 const {refreshMemberComments,mergeMemberComments,createMemberActivityCache}=await loadTypeScript('../src/lib/member-activity.ts',import.meta.url)
 const stamp='2026-10-20T00:00:00.123456Z'
-const item=commentId=>({liked:false,likeCount:0,commentId,content:'댓글',createdAt:stamp,updatedAt:stamp,post:{postId:42,title:'원문',type:'QUESTION',topic:'HEARING_AID'}})
+const item=commentId=>({visibility:"VISIBLE",liked:false,likeCount:0,commentId,content:'댓글',createdAt:stamp,updatedAt:stamp,post:{postId:42,title:'원문',type:'QUESTION',topic:'HEARING_AID'}})
 const page={items:[item(10),item(9)],hasNext:true,nextCursor:{createdAt:stamp,commentId:9}}
 process.env.NEXT_PUBLIC_API_BASE_URL='http://test.invalid'
 test('comments use session, no-store and raw commentId cursor without CSRF/member parameter',async t=>{

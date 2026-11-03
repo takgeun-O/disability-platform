@@ -181,10 +181,11 @@ class CommentLikeControllerTest {
     void 회원_상태나_인증_버전이_유효하지_않으면_401이다(
             String method
     ) throws Exception {
-        when(memberRepository.existsByIdAndStatusAndCredentialVersion(
+        when(memberRepository.existsByIdAndStatusAndCredentialVersionAndRole(
                 7L,
                 MemberStatus.ACTIVE,
-                0L
+                0L,
+                MemberRole.USER
         )).thenReturn(false);
 
         mockMvc.perform(
@@ -366,10 +367,11 @@ class CommentLikeControllerTest {
     }
 
     private void givenActiveMember() {
-        when(memberRepository.existsByIdAndStatusAndCredentialVersion(
+        when(memberRepository.existsByIdAndStatusAndCredentialVersionAndRole(
                 7L,
                 MemberStatus.ACTIVE,
-                0L
+                0L,
+                MemberRole.USER
         )).thenReturn(true);
     }
 }

@@ -7,9 +7,10 @@ import CommentSuccessToast from '@/components/community/CommentSuccessToast'
 import { useNavigationRequest } from '@/components/NavigationGuard'
 import { getMemberPosts, MemberApiError, type ActivitySummary } from '@/lib/member-api'
 import { refreshMemberPosts, type ActivityTab, type MemberPostSnapshot } from '@/lib/member-activity'
-import { mergeFeed, type FeedPosition } from '@/lib/community-feed'
+import { type FeedPosition } from '@/lib/community-feed'
 import { consumeListReturn, POST_TOPICS, POST_TYPES } from '@/lib/community-posts'
 import { getPostVersion, usePostVersion } from '@/lib/community-mutations'
+import { mergeMemberPosts } from '@/lib/member-activity'
 import InlineComments from './InlineComments'
 import type { InlineCommentsSnapshot } from '@/lib/inline-comments'
 import MyComments from './MyComments'
@@ -76,7 +77,7 @@ export default function MyActivity({ memberId, summary, layoutReady, leavingRef 
     if (id === null || !keyboardMore.current || !scope.isActive() || !lease.valid() || view.tab !== 'posts' || view.version !== getPostVersion('list') || view.requestRevision !== memberRequests.revision) return
     // A completed last page can remove the action button. Otherwise it must still own focus.
     if (moreTrigger.current?.isConnected && document.activeElement !== moreTrigger.current) return
-    const target = document.querySelector<HTMLElement>(`[data-member-post-id="${id}"] h3 a`)
+    const target = (document.querySelector<HTMLElement>(`[data-member-post-id="${id}"] h3 a`) ?? document.querySelector<HTMLElement>(`[data-member-post-id="${id}"] .mypage-post-actions > button`))
       ?? document.getElementById('my-posts-end') ?? document.getElementById('my-posts-empty')
     if (target?.getClientRects().length) target.focus({ preventScroll: true })
   }, [view, lease, scope, memberRequests])
@@ -99,12 +100,12 @@ export default function MyActivity({ memberId, summary, layoutReady, leavingRef 
       const data = kind === 'more' ? { ...await getMemberPosts(memberId, previous.nextCursor, controller.signal), segments: previous.segments + 1 }
         : await refreshMemberPosts(memberId, previous.segments, controller.signal)
       if (!valid() || requestedVersion !== getPostVersion('list')) return
-      likeRead.accept(data.items)
-      const items = kind === 'more' ? mergeFeed(previous.items, data.items) : data.items
+      likeRead.accept(data.items.filter(item => item.visibility === 'VISIBLE'))
+      const items = kind === 'more' ? mergeMemberPosts(previous.items, data.items) : data.items
       // Tab selection made while a request was pending wins over the old request's snapshot.
       const updated: MemberPostSnapshot = { ...data, items, segments: data.segments,
         version: requestedVersion, requestRevision: memberRequests.revision, tab: current.current.tab, comments: current.current.comments,
-        inlineComments: Object.fromEntries(Object.entries(current.current.inlineComments ?? {}).filter(([id]) => items.some(item => item.id === Number(id)))) }
+        inlineComments: Object.fromEntries(Object.entries(current.current.inlineComments ?? {}).filter(([id]) => items.some(item => item.id === Number(id) && item.visibility === 'VISIBLE'))) }
       if (kind === 'refresh' && previous.segments && current.current.tab === 'posts') { pendingPosition.current = activityPosition(current.current.tab); setRestoring(true) }
       if (keyboardMore.current && document.activeElement === moreTrigger.current && current.current.tab === 'posts') {
         pendingFocus.current = items[kind === 'more' ? previous.items.length : 0]?.id ?? 0
@@ -131,7 +132,7 @@ export default function MyActivity({ memberId, summary, layoutReady, leavingRef 
     if (view.items.some(item => item.id === pending.id)) return
     removed.current = null
     if (document.activeElement !== document.body && document.activeElement !== pending.trigger) return
-    const target = pending.candidates.map(id => document.querySelector<HTMLElement>(`[data-member-post-id="${id}"] h3 a`)).find(Boolean) ?? document.getElementById('my-posts-empty')
+    const target = pending.candidates.map(id => (document.querySelector<HTMLElement>(`[data-member-post-id="${id}"] h3 a`) ?? document.querySelector<HTMLElement>(`[data-member-post-id="${id}"] .mypage-post-actions > button`))).find(Boolean) ?? document.getElementById('my-posts-empty')
     target?.focus({ preventScroll: true })
   }, [view, memberRequests, scope, lease])
   function afterRemoval(id: number, trigger: HTMLElement) {
@@ -151,7 +152,7 @@ export default function MyActivity({ memberId, summary, layoutReady, leavingRef 
     if (entry.current) lease.write(entry.current, { ...current.current, position: activityPosition(current.current.tab) })
   }, [lease, scope])
   const saveInline = useCallback((postId: number, snapshot: InlineCommentsSnapshot) => {
-    if (!scope.isActive() || !lease.valid() || !current.current.items.some(item => item.id === postId)) return
+    if (!scope.isActive() || !lease.valid() || !current.current.items.some(item => item.id === postId && item.visibility === 'VISIBLE')) return
     current.current = { ...current.current, inlineComments: { ...current.current.inlineComments, [postId]: snapshot } }
     if (entry.current) lease.write(entry.current, { ...current.current, position: activityPosition(current.current.tab) })
   }, [lease, scope])
@@ -175,12 +176,12 @@ export default function MyActivity({ memberId, summary, layoutReady, leavingRef 
     <div id="my-panel-posts" className="mypage-posts" role="tabpanel" aria-labelledby="my-tab-posts" hidden={view.tab !== 'posts'}>
       {(!ready || (!view.segments && (!error || !!busy))) && <p role="status" className="mypage-list-message">내 게시글을 불러오고 있습니다.</p>}
       {!!view.segments && !view.items.length && <p id="my-posts-empty" tabIndex={-1} className="mypage-list-message">아직 작성한 게시글이 없어요.</p>}
-      <ul className="mypage-post-list">{view.items.map(post => <li key={post.id} data-member-post-id={post.id}>
-        <div className="mypage-post-copy"><div className="mypage-post-heading"><p className="mypage-post-meta">{POST_TOPICS[post.topic]} · {POST_TYPES[post.type]} · <WrittenTime value={post.createdAt} /></p><MemberPostActions post={post} open={managedId === post.id} onOpen={setManagedId} onLeaving={leaving} onRemoved={afterRemoval} active={view.tab === 'posts'} /></div>
-          <h3><Link href={`/community/posts/${post.id}?from=%2Fmypage`} prefetch={false} onNavigate={leaving}>{post.title}</Link></h3>
-          <p className="mypage-post-preview">{post.contentPreview}</p></div>
-        <InlineComments post={post} memberId={memberId} initial={view.inlineComments?.[post.id]} draft={drafts[post.id] ?? ''} onDraft={text => { commentDrafts.set(memberId, post.id, text) }} onCreated={showCreated}
-          active={view.tab === 'posts'} restoring={restoring || !layoutReady} onSnapshot={saveInline} onLeaving={leaving} />
+      <ul className="mypage-post-list">{view.items.map(post => <li key={`${post.id}:${post.visibility}`} data-member-post-id={post.id}>
+        <div className="mypage-post-copy"><div className="mypage-post-heading"><p className="mypage-post-meta">{post.visibility === 'VISIBLE' && <>{POST_TOPICS[post.topic]} · {POST_TYPES[post.type]} · </>}<WrittenTime value={post.createdAt} /></p><MemberPostActions memberId={memberId} post={post} open={managedId === post.id} onOpen={setManagedId} onLeaving={leaving} onRemoved={afterRemoval} active={view.tab === 'posts'} /></div>
+          {post.visibility === 'VISIBLE' ? <><h3><Link href={`/community/posts/${post.id}?from=%2Fmypage`} prefetch={false} onNavigate={leaving}>{post.title}</Link></h3>
+          <p className="mypage-post-preview">{post.contentPreview}</p></> : <p>운영 정책에 따라 숨겨진 게시글입니다.</p>}</div>
+        {post.visibility === 'VISIBLE' && <InlineComments post={post} memberId={memberId} initial={view.inlineComments?.[post.id]} draft={drafts[post.id] ?? ''} onDraft={text => { commentDrafts.set(memberId, post.id, text) }} onCreated={showCreated}
+          active={view.tab === 'posts'} restoring={restoring || !layoutReady} onSnapshot={saveInline} onLeaving={leaving} />}
       </li>)}</ul>
       {busy === 'refresh' && !!view.segments && <p role="status">내 게시글을 갱신하고 있습니다.</p>}
       <div className={error ? 'mypage-list-message' : undefined}>

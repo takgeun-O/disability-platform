@@ -382,4 +382,141 @@ public class MemberRepositoryTest {
                 )
         ).isTrue();
     }
+
+    @Test
+    void 상태와_인증버전과_권한이_모두_일치해야_세션을_허용한다() {
+        Member member = Member.createPending(
+                "session-role@example.com",
+                TEST_HASH,
+                "권한검증회원"
+        );
+
+        memberRepository.saveAndFlush(member);
+
+        Long memberId = member.getId();
+
+        // 권한과 버전이 맞아도 이메일 인증 대기 상태라면 거절한다.
+        assertThat(
+                memberRepository
+                        .existsByIdAndStatusAndCredentialVersionAndRole(
+                                memberId,
+                                MemberStatus.ACTIVE,
+                                0L,
+                                MemberRole.USER
+                        )
+        ).isFalse();
+
+        member.activeAfterEmailVerification();
+        memberRepository.flush();
+
+        // ACTIVE + 버전 0 + USER가 모두 일치한다.
+        assertThat(
+                memberRepository
+                        .existsByIdAndStatusAndCredentialVersionAndRole(
+                                memberId,
+                                MemberStatus.ACTIVE,
+                                0L,
+                                MemberRole.USER
+                        )
+        ).isTrue();
+
+        // 현재 DB 권한은 USER이므로 ADMIN 세션 조건은 일치하지 않는다.
+        assertThat(
+                memberRepository
+                        .existsByIdAndStatusAndCredentialVersionAndRole(
+                                memberId,
+                                MemberStatus.ACTIVE,
+                                0L,
+                                MemberRole.ADMIN
+                        )
+        ).isFalse();
+
+        // 상태와 권한이 맞아도 인증 버전이 다르면 거절한다.
+        assertThat(
+                memberRepository
+                        .existsByIdAndStatusAndCredentialVersionAndRole(
+                                memberId,
+                                MemberStatus.ACTIVE,
+                                1L,
+                                MemberRole.USER
+                        )
+        ).isFalse();
+    }
+
+    @Test
+    void DB_권한이_변경되면_이전_권한의_세션_조건은_일치하지_않는다() {
+        Member member = Member.createPending(
+                "role-change@example.com",
+                TEST_HASH,
+                "권한변경회원"
+        );
+
+        member.activeAfterEmailVerification();
+        memberRepository.saveAndFlush(member);
+
+        Long memberId = member.getId();
+
+        // DB에서 USER → ADMIN으로 승격한다.
+        // 테스트 준비용 SQL이며 권한 변경 API를 만드는 것은 아니다.
+        jdbcTemplate.update("""
+            UPDATE members
+            SET role = 'ADMIN'
+            WHERE id = ?
+            """, memberId);
+
+        entityManager.clear();
+
+        // 이전 USER 권한으로 로그인한 세션 조건은 더 이상 맞지 않는다.
+        assertThat(
+                memberRepository
+                        .existsByIdAndStatusAndCredentialVersionAndRole(
+                                memberId,
+                                MemberStatus.ACTIVE,
+                                0L,
+                                MemberRole.USER
+                        )
+        ).isFalse();
+
+        // 새 ADMIN 권한으로 로그인했다면 조건에 일치한다.
+        assertThat(
+                memberRepository
+                        .existsByIdAndStatusAndCredentialVersionAndRole(
+                                memberId,
+                                MemberStatus.ACTIVE,
+                                0L,
+                                MemberRole.ADMIN
+                        )
+        ).isTrue();
+
+        // 인증 버전을 그대로 두고 ADMIN → USER로 강등한다.
+        jdbcTemplate.update("""
+            UPDATE members
+            SET role = 'USER'
+            WHERE id = ?
+            """, memberId);
+
+        entityManager.clear();
+
+        // 기존 ADMIN 세션 조건은 거절한다.
+        assertThat(
+                memberRepository
+                        .existsByIdAndStatusAndCredentialVersionAndRole(
+                                memberId,
+                                MemberStatus.ACTIVE,
+                                0L,
+                                MemberRole.ADMIN
+                        )
+        ).isFalse();
+
+        // 새 USER 권한으로 로그인했다면 조건에 일치한다.
+        assertThat(
+                memberRepository
+                        .existsByIdAndStatusAndCredentialVersionAndRole(
+                                memberId,
+                                MemberStatus.ACTIVE,
+                                0L,
+                                MemberRole.USER
+                        )
+        ).isTrue();
+    }
 }

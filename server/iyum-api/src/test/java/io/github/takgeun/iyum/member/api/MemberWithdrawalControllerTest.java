@@ -377,10 +377,11 @@ class MemberWithdrawalControllerTest {
 
         MockHttpSession session = authenticatedSession();
 
-        when(memberRepository.existsByIdAndStatusAndCredentialVersion(
+        when(memberRepository.existsByIdAndStatusAndCredentialVersionAndRole(
                 MEMBER_ID,
                 MemberStatus.ACTIVE,
-                0L
+                0L,
+                MemberRole.USER
         )).thenReturn(false);
 
         mockMvc.perform(
@@ -396,10 +397,11 @@ class MemberWithdrawalControllerTest {
                 .andExpect(cookie().maxAge("JSESSIONID", 0))
                 .andExpect(unauthenticated());
 
-        verify(memberRepository).existsByIdAndStatusAndCredentialVersion(
+        verify(memberRepository).existsByIdAndStatusAndCredentialVersionAndRole(
                 MEMBER_ID,
                 MemberStatus.ACTIVE,
-                0L
+                0L,
+                MemberRole.USER
         );
         verifyNoInteractions(withdrawalService);
 
@@ -502,10 +504,11 @@ class MemberWithdrawalControllerTest {
     }
 
     private void givenActiveMember() {
-        when(memberRepository.existsByIdAndStatusAndCredentialVersion(
+        when(memberRepository.existsByIdAndStatusAndCredentialVersionAndRole(
                 MEMBER_ID,
                 MemberStatus.ACTIVE,
-                0L
+                0L,
+                MemberRole.USER
         )).thenReturn(true);
     }
 

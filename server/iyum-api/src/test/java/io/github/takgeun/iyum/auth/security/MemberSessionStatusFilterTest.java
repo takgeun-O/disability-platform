@@ -5,6 +5,8 @@ import io.github.takgeun.iyum.member.domain.MemberRole;
 import io.github.takgeun.iyum.member.domain.MemberStatus;
 import io.github.takgeun.iyum.member.infrastructure.MemberRepository;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.EnumSource;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
 import org.springframework.context.annotation.Import;
@@ -30,16 +32,30 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
         properties = "spring.config.import=")
 @Import({SecurityConfig.class, MemberSessionStatusFilterTest.Endpoints.class})
 class MemberSessionStatusFilterTest {
-    @Autowired MockMvc mvc;
-    @MockitoBean MemberRepository members;
-    @MockitoBean EndpointService service;
+    @Autowired
+    MockMvc mvc;
+    @MockitoBean
+    MemberRepository members;
+    @MockitoBean
+    EndpointService service;
 
     @Test
     void activeMemberContinuesWithTheExactPrincipalId() throws Exception {
-        when(members.existsByIdAndStatusAndCredentialVersion(7L, MemberStatus.ACTIVE, 0L)).thenReturn(true);
+
+        when(members.existsByIdAndStatusAndCredentialVersionAndRole(
+                7L, MemberStatus.ACTIVE, 0L, MemberRole.USER
+        )).thenReturn(true);
+
         mvc.perform(get("/test/session-protected").with(user(principal())))
                 .andExpect(status().isOk());
-        verify(members).existsByIdAndStatusAndCredentialVersion(7L, MemberStatus.ACTIVE, 0L);
+
+        verify(members).existsByIdAndStatusAndCredentialVersionAndRole(
+                7L,
+                MemberStatus.ACTIVE,
+                0L,
+                MemberRole.USER
+        );
+
         verify(service).read();
     }
 
@@ -51,8 +67,15 @@ class MemberSessionStatusFilterTest {
                 .andExpect(jsonPath("$.code").value("AUTHENTICATION_REQUIRED"))
                 .andExpect(cookie().maxAge("JSESSIONID", 0))
                 .andExpect(unauthenticated());
+
         assertThat(session.isInvalid()).isTrue();
-        verify(members).existsByIdAndStatusAndCredentialVersion(7L, MemberStatus.ACTIVE, 0L);
+
+        verify(members).existsByIdAndStatusAndCredentialVersionAndRole(
+                7L,
+                MemberStatus.ACTIVE,
+                0L,
+                MemberRole.USER
+        );
         verifyNoInteractions(service);
     }
 
@@ -61,8 +84,15 @@ class MemberSessionStatusFilterTest {
         MockHttpSession session = new MockHttpSession();
         mvc.perform(get("/api/v1/community/posts").session(session).with(user(principal())))
                 .andExpect(status().isOk()).andExpect(unauthenticated());
+
         assertThat(session.isInvalid()).isTrue();
-        verify(members).existsByIdAndStatusAndCredentialVersion(7L, MemberStatus.ACTIVE, 0L);
+
+        verify(members).existsByIdAndStatusAndCredentialVersionAndRole(
+                7L,
+                MemberStatus.ACTIVE,
+                0L,
+                MemberRole.USER
+        );
         verify(service).read();
     }
 
@@ -71,7 +101,13 @@ class MemberSessionStatusFilterTest {
         mvc.perform(post("/test/session-protected").with(user(principal())).with(csrf()))
                 .andExpect(status().isUnauthorized())
                 .andExpect(jsonPath("$.code").value("AUTHENTICATION_REQUIRED"));
-        verify(members).existsByIdAndStatusAndCredentialVersion(7L, MemberStatus.ACTIVE, 0L);
+
+        verify(members).existsByIdAndStatusAndCredentialVersionAndRole(
+                7L,
+                MemberStatus.ACTIVE,
+                0L,
+                MemberRole.USER
+        );
         verifyNoInteractions(service);
     }
 
@@ -104,10 +140,12 @@ class MemberSessionStatusFilterTest {
 
     @Test
     void 인증_버전이_일치하면_로그인을_유지한다() throws Exception {
-        when(members.existsByIdAndStatusAndCredentialVersion(
+
+        when(members.existsByIdAndStatusAndCredentialVersionAndRole(
                 7L,
                 MemberStatus.ACTIVE,
-                7L
+                7L,
+                MemberRole.USER
         )).thenReturn(true);
 
         MockHttpSession session = new MockHttpSession();
@@ -126,10 +164,11 @@ class MemberSessionStatusFilterTest {
 
         assertThat(session.isInvalid()).isFalse();
 
-        verify(members).existsByIdAndStatusAndCredentialVersion(
+        verify(members).existsByIdAndStatusAndCredentialVersionAndRole(
                 7L,
                 MemberStatus.ACTIVE,
-                7L
+                7L,
+                MemberRole.USER
         );
         verify(service).read();
     }
@@ -138,10 +177,11 @@ class MemberSessionStatusFilterTest {
     void 이전_인증_버전의_세션은_보호된_요청에서_로그아웃된다()
             throws Exception {
 
-        when(members.existsByIdAndStatusAndCredentialVersion(
+        when(members.existsByIdAndStatusAndCredentialVersionAndRole(
                 7L,
                 MemberStatus.ACTIVE,
-                6L
+                6L,
+                MemberRole.USER
         )).thenReturn(false);
 
         MockHttpSession session = new MockHttpSession();
@@ -161,10 +201,11 @@ class MemberSessionStatusFilterTest {
 
         assertThat(session.isInvalid()).isTrue();
 
-        verify(members).existsByIdAndStatusAndCredentialVersion(
+        verify(members).existsByIdAndStatusAndCredentialVersionAndRole(
                 7L,
                 MemberStatus.ACTIVE,
-                6L
+                6L,
+                MemberRole.USER
         );
         verifyNoInteractions(service);
     }
@@ -173,10 +214,11 @@ class MemberSessionStatusFilterTest {
     void 이전_인증_버전이라도_공개_조회는_비로그인으로_진행한다()
             throws Exception {
 
-        when(members.existsByIdAndStatusAndCredentialVersion(
+        when(members.existsByIdAndStatusAndCredentialVersionAndRole(
                 7L,
                 MemberStatus.ACTIVE,
-                6L
+                6L,
+                MemberRole.USER
         )).thenReturn(false);
 
         MockHttpSession session = new MockHttpSession();
@@ -192,10 +234,11 @@ class MemberSessionStatusFilterTest {
 
         assertThat(session.isInvalid()).isTrue();
 
-        verify(members).existsByIdAndStatusAndCredentialVersion(
+        verify(members).existsByIdAndStatusAndCredentialVersionAndRole(
                 7L,
                 MemberStatus.ACTIVE,
-                6L
+                6L,
+                MemberRole.USER
         );
         verify(service).read();
     }
@@ -209,8 +252,11 @@ class MemberSessionStatusFilterTest {
 
         session.setAttribute(SPRING_SECURITY_CONTEXT_KEY, oldContext);
 
-        when(members.existsByIdAndStatusAndCredentialVersion(
-                7L, MemberStatus.ACTIVE, 6L
+        when(members.existsByIdAndStatusAndCredentialVersionAndRole(
+                7L,
+                MemberStatus.ACTIVE,
+                6L,
+                MemberRole.USER
         )).thenAnswer(invocation -> {
             // DB 조회 중 다른 요청이 세션 갱신을 완료한 상황
             session.changeSessionId();
@@ -222,8 +268,11 @@ class MemberSessionStatusFilterTest {
             return false;
         });
 
-        when(members.existsByIdAndStatusAndCredentialVersion(
-                7L, MemberStatus.ACTIVE, 7L
+        when(members.existsByIdAndStatusAndCredentialVersionAndRole(
+                7L,
+                MemberStatus.ACTIVE,
+                7L,
+                MemberRole.USER
         )).thenReturn(true);
 
         // 이전 인증을 사용하는 이번 요청은 차단한다.
@@ -246,8 +295,11 @@ class MemberSessionStatusFilterTest {
         mvc.perform(get("/test/session-protected").session(session))
                 .andExpect(status().isOk());
 
-        verify(members).existsByIdAndStatusAndCredentialVersion(
-                7L, MemberStatus.ACTIVE, 7L
+        verify(members).existsByIdAndStatusAndCredentialVersionAndRole(
+                7L,
+                MemberStatus.ACTIVE,
+                7L,
+                MemberRole.USER
         );
 
         verify(service).read();
@@ -265,8 +317,11 @@ class MemberSessionStatusFilterTest {
 
         session.setAttribute(SPRING_SECURITY_CONTEXT_KEY, oldContext);
 
-        when(members.existsByIdAndStatusAndCredentialVersion(
-                7L, MemberStatus.ACTIVE, 6L
+        when(members.existsByIdAndStatusAndCredentialVersionAndRole(
+                7L,
+                MemberStatus.ACTIVE,
+                6L,
+                MemberRole.USER
         )).thenAnswer(invocation -> {
             session.setAttribute(
                     SPRING_SECURITY_CONTEXT_KEY,
@@ -300,8 +355,11 @@ class MemberSessionStatusFilterTest {
 
         session.setAttribute(SPRING_SECURITY_CONTEXT_KEY, context);
 
-        when(members.existsByIdAndStatusAndCredentialVersion(
-                7L, MemberStatus.ACTIVE, 6L
+        when(members.existsByIdAndStatusAndCredentialVersionAndRole(
+                7L,
+                MemberStatus.ACTIVE,
+                6L,
+                MemberRole.USER
         )).thenAnswer(invocation -> {
             // 다른 코드가 공유 컨텍스트를 수정한 상황을 재현한다.
             context.setAuthentication(replacementAuthentication);
@@ -331,8 +389,11 @@ class MemberSessionStatusFilterTest {
         session.setAttribute(SPRING_SECURITY_CONTEXT_KEY, context);
         String originalSessionId = session.getId();
 
-        when(members.existsByIdAndStatusAndCredentialVersion(
-                7L, MemberStatus.ACTIVE, 6L
+        when(members.existsByIdAndStatusAndCredentialVersionAndRole(
+                7L,
+                MemberStatus.ACTIVE,
+                6L,
+                MemberRole.USER
         )).thenAnswer(invocation -> {
             session.changeSessionId();
             return false;
@@ -362,8 +423,11 @@ class MemberSessionStatusFilterTest {
                 contextWithVersion(6L)
         );
 
-        when(members.existsByIdAndStatusAndCredentialVersion(
-                7L, MemberStatus.ACTIVE, 6L
+        when(members.existsByIdAndStatusAndCredentialVersionAndRole(
+                7L,
+                MemberStatus.ACTIVE,
+                6L,
+                MemberRole.USER
         )).thenAnswer(invocation -> {
             session.invalidate();
             return false;
@@ -382,6 +446,47 @@ class MemberSessionStatusFilterTest {
         verifyNoInteractions(service);
     }
 
+    @ParameterizedTest
+    @EnumSource(MemberRole.class)
+    void DB_권한과_일치하지_않는_세션은_로그아웃된다(
+            MemberRole sessionRole
+    ) throws Exception {
+
+        // 상태와 버전은 같지만 DB 권한이 달라서
+        // 결합 조건 조회가 false를 반환하는 상황을 재현한다.
+        when(members.existsByIdAndStatusAndCredentialVersionAndRole(
+                7L,
+                MemberStatus.ACTIVE,
+                0L,
+                sessionRole
+        )).thenReturn(false);
+
+        MockHttpSession session = new MockHttpSession();
+
+        mvc.perform(
+                        get("/test/session-protected")
+                                .session(session)
+                                .with(user(principal(sessionRole)))
+                )
+                .andExpect(status().isUnauthorized())
+                .andExpect(jsonPath("$.code")
+                        .value("AUTHENTICATION_REQUIRED"))
+                .andExpect(cookie().maxAge("JSESSIONID", 0))
+                .andExpect(unauthenticated());
+
+        assertThat(session.isInvalid()).isTrue();
+
+        verify(members)
+                .existsByIdAndStatusAndCredentialVersionAndRole(
+                        7L,
+                        MemberStatus.ACTIVE,
+                        0L,
+                        sessionRole
+                );
+
+        verifyNoInteractions(service);
+    }
+
     private MemberPrincipal principal() {
         return principal(0L);
     }
@@ -395,6 +500,19 @@ class MemberSessionStatusFilterTest {
                 MemberStatus.ACTIVE,
                 MemberRole.USER,
                 credentialVersion
+        );
+    }
+
+    // 권한을 지정할 수 있는 principal 헬퍼
+    private MemberPrincipal principal(MemberRole role) {
+        return new MemberPrincipal(
+                7L,
+                "fixture@example.com",
+                "test-only-hash",
+                "테스트회원",
+                MemberStatus.ACTIVE,
+                role,
+                0L
         );
     }
 
@@ -416,15 +534,28 @@ class MemberSessionStatusFilterTest {
         return context;
     }
 
-    interface EndpointService { void read(); }
+    interface EndpointService {
+        void read();
+    }
 
     @RestController
     static class Endpoints {
         private final EndpointService service;
-        Endpoints(EndpointService service) { this.service = service; }
+
+        Endpoints(EndpointService service) {
+            this.service = service;
+        }
+
         @GetMapping({"/test/session-protected", "/api/v1/community/posts"})
-        String read() { service.read(); return "ok"; }
+        String read() {
+            service.read();
+            return "ok";
+        }
+
         @PostMapping("/test/session-protected")
-        String write() { service.read(); return "ok"; }
+        String write() {
+            service.read();
+            return "ok";
+        }
     }
 }

@@ -291,3 +291,16 @@
  .iyum-global-notice { top:88px; right:16px; }
 }
 @media(prefers-reduced-motion:reduce) { .iyum-menu-panel { animation:none; } }
+
+/* Compact auth feedback only; comment/profile toast styles and lifetimes are unchanged. */
+.iyum-global-notice { pointer-events:none; }
+.iyum-auth-notice { pointer-events:auto; }
+.iyum-global-notice .iyum-auth-notice.is-compact, .iyum-auth-controls .iyum-auth-notice.is-compact { position:fixed; right:24px; width:min(360px,calc(100vw - 32px)); }
+.iyum-auth-notice.is-compact { align-items:center; gap:10px; min-height:60px; padding:8px 10px 8px 16px; border:1px solid var(--iyum-border); border-radius:12px; background:white; box-shadow:0 4px 14px rgb(9 35 74 / 9%); color:var(--iyum-ink); font-size:15px; line-height:1.6; transition:opacity 200ms ease; }
+.iyum-auth-notice.is-leaving { opacity:0; }
+.iyum-auth-notice-icon { flex:none; color:var(--iyum-primary); }
+.iyum-auth-notice.is-info .iyum-auth-notice-icon { color:var(--iyum-muted); }
+.iyum-notice-close { display:grid; place-items:center; border-radius:8px; text-decoration:none; }
+.iyum-notice-close:focus-visible { outline:2px solid var(--iyum-primary); outline-offset:2px; }
+@media(max-width:600px) { .iyum-global-notice .iyum-auth-notice.is-compact, .iyum-auth-controls .iyum-auth-notice.is-compact { right:16px; left:16px; width:auto; } }
+@media(prefers-reduced-motion:reduce) { .iyum-auth-notice.is-compact { transition:none; animation:none; } }

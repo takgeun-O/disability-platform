@@ -33,6 +33,10 @@ dependencies {
 	runtimeOnly 'org.flywaydb:flyway-database-postgresql'
 	annotationProcessor 'org.projectlombok:lombok'
 
+	// QueryDSL
+	implementation 'io.github.openfeign.querydsl:querydsl-jpa:7.7'
+	annotationProcessor 'io.github.openfeign.querydsl:querydsl-apt:7.7:jpa'
+
 	testImplementation 'org.springframework.boot:spring-boot-starter-test'
 	testImplementation 'org.springframework.boot:spring-boot-starter-actuator-test'
 	testImplementation 'org.springframework.boot:spring-boot-starter-data-jpa-test'

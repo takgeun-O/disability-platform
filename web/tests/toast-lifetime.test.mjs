@@ -24,3 +24,16 @@ test('unmount cancels visible and exit timers',t=>{
   const dispose=startToastLifetime(()=>events.push('leave'),()=>events.push('remove'));dispose()
   t.mock.timers.tick(10000);assert.deepEqual(events,[])
 })
+
+const { startPausableToastLifetime } = await loadTypeScript('../src/lib/toast-lifetime.ts', import.meta.url)
+test('auth toast pauses remaining budget and fades for 200ms',t=>{
+ t.mock.timers.enable({apis:['setTimeout','Date']});const events=[];const life=startPausableToastLifetime(v=>events.push(v),()=>events.push('remove'),Date.now);
+ t.mock.timers.tick(3000);life.pause();t.mock.timers.tick(10000);assert.deepEqual(events,[]);life.resume();t.mock.timers.tick(1999);assert.deepEqual(events,[]);t.mock.timers.tick(1);assert.deepEqual(events,[true]);t.mock.timers.tick(200);assert.deepEqual(events,[true,'remove']);life.dispose();
+});
+test('focus during fade cancels removal until resume; replacement cancels queued old removal',t=>{
+ t.mock.timers.enable({apis:['setTimeout','Date']});const events=[];const old=startPausableToastLifetime(v=>events.push(v),()=>events.push('old'),Date.now);
+ t.mock.timers.tick(5000);old.pause();t.mock.timers.tick(10000);assert.deepEqual(events,[true,false]);old.resume();t.mock.timers.tick(0);old.dispose();const next=startPausableToastLifetime(()=>{},()=>events.push('new'),Date.now);t.mock.timers.tick(200);assert(!events.includes('old'));t.mock.timers.tick(4800);t.mock.timers.tick(200);assert(events.includes('new'));next.dispose();
+});
+test('auth lifetime unmount/Strict Mode cleanup never removes replacement',t=>{
+ t.mock.timers.enable({apis:['setTimeout']});let removed=0;const first=startPausableToastLifetime(()=>{},()=>removed++);first.dispose();const replay=startPausableToastLifetime(()=>{},()=>removed++);replay.dispose();t.mock.timers.tick(10000);assert.equal(removed,0);
+});

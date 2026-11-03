@@ -1,8 +1,11 @@
 package io.github.takgeun.iyum.community.comment.infrastructure;
 
+import io.github.takgeun.iyum.community.comment.domain.Comment;
 import io.github.takgeun.iyum.community.comment.domain.CommentLike;
 import jakarta.annotation.Nullable;
+import jakarta.persistence.LockModeType;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Lock;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
@@ -37,7 +40,9 @@ public interface CommentLikeRepository
             join c.post p
             where c.id in :commentIds
                 and c.deletedAt is null
+                and c.hiddenAt is null
                 and p.deletedAt is null
+                and p.hiddenAt is null
             group by c.id
             """)
     List<CommentLikeSummary> findSummariesByCommentIds(

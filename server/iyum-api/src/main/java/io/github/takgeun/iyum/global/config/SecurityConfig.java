@@ -112,6 +112,15 @@ public class SecurityConfig {
         http
                 .authorizeHttpRequests(authorize -> {
                     authorize
+                            // 관리자 API는 ADMIN 권한을 가진 인증 사용자만 접근할 수 있다.
+                            .requestMatchers(
+                                    "/api/v1/admin",
+                                    "/api/v1/admin/**"
+                            )
+                            // hasRole(): 요청한 사용자가 관리자 역할을 가지고 있는지 검사하는 접근 권한 조건
+                            // 위 경로는 ADMIN 역할을 가진 사용자만 접근하도록 허용한다.
+                            .hasRole("ADMIN")
+
                             // 다음 POST 요청은 로그인 없이 허용
                             .requestMatchers(
                                     HttpMethod.POST,

@@ -388,7 +388,7 @@ class PostUpdateControllerTest {
     }
 
     private void givenActiveMember() {
-        when(memberRepository.existsByIdAndStatusAndCredentialVersion(
-                7L, MemberStatus.ACTIVE, 0L)).thenReturn(true);
+        when(memberRepository.existsByIdAndStatusAndCredentialVersionAndRole(
+                7L, MemberStatus.ACTIVE, 0L, MemberRole.USER)).thenReturn(true);
     }
 }

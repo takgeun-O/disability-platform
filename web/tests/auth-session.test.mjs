@@ -143,3 +143,25 @@ test('Provider 해제 후 오래된 응답과 후속 CSRF 조회는 상태를 �
   assert.deepEqual(calls, ['me', 'csrf']);
   session.start(); await flush(); assert.equal(session.getSnapshot().status, 'anonymous'); session.stop();
 });
+
+test('explicit expiration emits one notice; initial anonymous and logout never impersonate expiry', async () => {
+  const {session,client}=setup();await flush();assert.equal(session.getExpiryNotice(),null);
+  client.getCurrentMember=async()=>member;await session.refresh();const old=session.captureMemberRequest(member.memberId);
+  assert(old.expire());const notice=session.getExpiryNotice();assert(notice);assert.equal(old.expire(),false);assert.equal(session.getExpiryNotice(),notice);
+  session.dismissExpiryNotice(notice.id+1);assert.equal(session.getExpiryNotice(),notice);session.dismissExpiryNotice(notice.id);assert.equal(session.getExpiryNotice(),null);
+  await session.signIn(credentials,()=>{});await session.signOut();assert.equal(session.getExpiryNotice(),null);session.stop();
+});
+test('refresh expiry is explicit validated anonymous, not lookup failure or initial lookup',async()=>{
+  const {session,client}=setup({getCurrentMember:async()=>member});await flush();client.getCurrentMember=async()=>{throw new Error('offline')};await session.refresh();assert.equal(session.getExpiryNotice(),null);
+  client.getCurrentMember=async()=>member;await session.refresh();client.getCurrentMember=async()=>null;await session.refresh();assert(session.getExpiryNotice());session.stop();
+});
+test('withdrawal and successful password relogin do not announce timeout; actual 401 does',async()=>{
+  for(const reason of ['withdrawal','credentials','expired']){
+    const{session}=setup({getCurrentMember:async()=>member});await flush();
+    if(reason==='withdrawal')session.expire(member.memberId,reason);else session.beginCredentialChange(member.memberId).expire(reason);
+    assert.equal(!!session.getExpiryNotice(),reason==='expired');session.stop();
+  }
+});
+test('stale session cannot emit expiration or dismiss newer notice',async()=>{
+ const{session}=setup({getCurrentMember:async()=>member});await flush();const old=session.captureMemberRequest(member.memberId);await session.signIn(credentials,()=>{});assert.equal(old.expire(),false);assert.equal(session.getExpiryNotice(),null);session.captureMemberRequest(member.memberId).expire();const first=session.getExpiryNotice();await session.signIn(credentials,()=>{});assert.equal(session.getExpiryNotice(),null);session.expire(member.memberId);const next=session.getExpiryNotice();session.dismissExpiryNotice(first.id);assert.equal(session.getExpiryNotice(),next);session.stop();
+});

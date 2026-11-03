@@ -35,6 +35,7 @@ public interface PostRepository extends JpaRepository<Post, Long> {
                     from Post p
                     join fetch p.author
                     where p.deletedAt is null
+                      and p.hiddenAt is null
                       and (:type is null or p.type = :type)
                       and (:topic is null or p.topic = :topic)
                     order by p.createdAt desc, p.id desc
@@ -49,6 +50,7 @@ public interface PostRepository extends JpaRepository<Post, Long> {
                     select count(p)
                     from Post p
                     where p.deletedAt is null
+                      and p.hiddenAt is null
                       and (:type is null or p.type = :type)
                       and (:topic is null or p.topic = :topic)
                     """
@@ -65,6 +67,7 @@ public interface PostRepository extends JpaRepository<Post, Long> {
             join fetch p.author
             where p.id = :postId
               and p.deletedAt is null
+              and p.hiddenAt is null
             """)
     Optional<Post> findVisiblePostById(
             @Param("postId") Long postId
@@ -75,12 +78,18 @@ public interface PostRepository extends JpaRepository<Post, Long> {
     // 잠금 순서는 회원 -> 게시글 (삭제도 이 순서로 통일)
     // 참고로 이 잠금은 DB에서 실행되는 변경을 조정하는 장치임.
     // 그러니까 두 편집 화면에서 순서대로 저장했을 때 충돌을 알리는 기능까지 제공하는 건 아님
+
+    /**
+     * 일반 사용자의 수정·댓글 등록·좋아요 처리를 위해
+     * 공개 상태인 게시글을 잠금 조회한다.
+     */
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     @Query("""
             select p
             from Post p
             where p.id = :postId
                 and p.deletedAt is null
+                and p.hiddenAt is null
             """)
     Optional<Post> findVisiblePostByIdForUpdate(
             @Param("postId") Long postId
@@ -92,6 +101,7 @@ public interface PostRepository extends JpaRepository<Post, Long> {
             from Post p
             join fetch p.author
             where p.deletedAt is null
+                and p.hiddenAt is null
                 and (:type is null or p.type = :type)
                 and (:topic is null or p.topic = :topic)
             order by p.createdAt desc, p.id desc
@@ -112,6 +122,7 @@ public interface PostRepository extends JpaRepository<Post, Long> {
             from Post p
             join fetch p.author
             where p.deletedAt is null
+                and p.hiddenAt is null
                 and (:type is null or p.type = :type)
                 and (:topic is null or p.topic = :topic)
                 and (
@@ -138,6 +149,7 @@ public interface PostRepository extends JpaRepository<Post, Long> {
             from Post p
             where p.author.id = :memberId
                 and p.deletedAt is null
+                and p.hiddenAt is null
             """)
     long countVisiblePostsByAuthorId(
             @Param("memberId") Long memberId
@@ -154,6 +166,7 @@ public interface PostRepository extends JpaRepository<Post, Long> {
             join fetch p.author
             where p.author.id = :memberId
                 and p.deletedAt is null
+                and p.hiddenAt is null
             order by p.createdAt desc, p.id desc
             """)
     List<Post> findFirstVisiblePostsByAuthorId(
@@ -169,6 +182,7 @@ public interface PostRepository extends JpaRepository<Post, Long> {
             join fetch p.author
             where p.author.id = :memberId
                 and p.deletedAt is null
+                and p.hiddenAt is null
                 and (
                     p.createdAt < :afterCreatedAt
                     or (
@@ -185,6 +199,88 @@ public interface PostRepository extends JpaRepository<Post, Long> {
             // Pageable: 조회 개수를 제한하는 용도로 사용할 것
             // 위 쿼리상 조건에 만족하면 내림차순으로 모두 가져오는데
             // Pageable이 그 개수를 제한할 것
+            Pageable pageable
+    );
+
+    /**
+     * 관리자 상태 변경을 위해 게시글을 잠금 조회한다.
+     * <p>
+     * 숨김·삭제 여부로 제외하지 않는다.
+     * 삭제된 게시글의 처리 허용 여부는 서비스에서 판단
+     */
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("""
+            select p
+            from Post p
+            where p.id = :postId
+            """)
+    Optional<Post> findPostByIdForModerationForUpdate(
+            @Param("postId") Long postId
+    );
+
+    /**
+     * 삭제되지 않은 게시글을 잠금 조회한다. (숨김 여부와 관계없이 삭제되지 않은 게시글 조회)
+     * <p>
+     * 숨김 상태는 제외하지 않으므로 작성자 삭제에 사용할 수 있다.
+     * 작성자 권한은 호출한 서비스에서 검증해야 한다.
+     */
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("""
+            select p
+            from Post p
+            where p.id = :postId
+                and p.deletedAt is null
+            """)
+    Optional<Post> findNotDeletedPostByIdForUpdate(
+            @Param("postId") Long postId
+    );
+
+    // 마이페이지용: 본인이 작성했고 삭제되지 않은 게시글 수.
+    // 관리자 숨김 상태의 게시글도 포함한다.
+    @Query("""
+            select count(p)
+            from Post p
+            where p.author.id = :memberId
+                and p.deletedAt is null
+            """)
+    long countNotDeletedPostsByAuthorId(
+            @Param("memberId") Long memberId
+    );
+
+    // 마이페이지 첫 조회: 공개·숨김 항목을 함께 최신순으로 조회한다.
+    @Query("""
+            select p
+            from Post p
+            join fetch p.author
+            where p.author.id = :memberId
+                and p.deletedAt is null
+            order by p.createdAt desc, p.id desc
+            """)
+    List<Post> findFirstNotDeletedPostsByAuthorId(
+            @Param("memberId") Long memberId,
+            Pageable pageable
+    );
+
+    // 마이페이지 후속 조회: 마지막 반환 항목보다 뒤에 있는 게시글
+    @Query("""
+            select p
+            from Post p
+            join fetch p.author
+            where p.author.id = :memberId
+                and p.deletedAt is null
+                and (
+                    p.createdAt < :afterCreatedAt
+                    or (
+                        p.createdAt = :afterCreatedAt
+                        and p.id < :afterId
+                    )
+                )
+            order by p.createdAt desc, p.id desc
+            """)
+    List<Post> findNotDeletedPostsByAuthorIdAfter(
+            @Param("memberId") Long memberId,
+            @Param("afterCreatedAt") Instant afterCreatedAt,
+            @Param("afterId") Long afterId,
             Pageable pageable
     );
 }

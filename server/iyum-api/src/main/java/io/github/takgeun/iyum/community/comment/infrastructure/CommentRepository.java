@@ -30,7 +30,9 @@ public interface CommentRepository
             join fetch c.author
             where p.id = :postId
                 and p.deletedAt is null
+                and p.hiddenAt is null
                 and c.deletedAt is null
+                and c.hiddenAt is null
             order by c.createdAt asc, c.id asc
             """)
     List<Comment> findFirstVisibleComments(
@@ -47,7 +49,9 @@ public interface CommentRepository
             join fetch c.author
             where p.id = :postId
                 and p.deletedAt is null
+                and p.hiddenAt is null
                 and c.deletedAt is null
+                and c.hiddenAt is null
                 and (
                     c.createdAt > :afterCreatedAt
                     or (
@@ -65,6 +69,13 @@ public interface CommentRepository
     );
 
     // @Lock이 있으므로 이 메서드는 트랜잭션 안에서 호출해야 한다.
+
+    /**
+     * 공개 게시글에 속한 공개 댓글을 잠금 조회한다.
+     * <p>
+     * 댓글 수정·좋아요 처리에 사용한다.
+     * 호출 전에 부모 게시글 잠금을 먼저 획득해야 한다.
+     */
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     @Query("""
             select c
@@ -73,7 +84,9 @@ public interface CommentRepository
             where c.id = :commentId
                 and p.id = :postId
                 and p.deletedAt is null
+                and p.hiddenAt is null
                 and c.deletedAt is null
+                and c.hiddenAt is null
             """)
     Optional<Comment> findVisibleCommentByIdForUpdate(
             @Param("postId") Long postId,
@@ -94,7 +107,9 @@ public interface CommentRepository
             join c.post p
             where p.id in :postIds
                 and p.deletedAt is null
+                and p.hiddenAt is null
                 and c.deletedAt is null
+                and c.hiddenAt is null
             group by p.id
             """)
     List<PostCommentCount> countVisibleCommentsByPostIds(
@@ -108,7 +123,9 @@ public interface CommentRepository
             join c.post p
             where c.author.id = :memberId
                 and c.deletedAt is null
+                and c.hiddenAt is null
                 and p.deletedAt is null
+                and p.hiddenAt is null
             """)
     long countVisibleCommentsByAuthorId(
             @Param("memberId") Long memberId
@@ -122,7 +139,9 @@ public interface CommentRepository
             join fetch c.post p
             where c.author.id = :memberId
                 and c.deletedAt is null
+                and c.hiddenAt is null
                 and p.deletedAt is null
+                and p.hiddenAt is null
             order by c.createdAt desc, c.id desc
             """)
     List<Comment> findFirstVisibleCommentsByAuthorId(
@@ -138,7 +157,9 @@ public interface CommentRepository
             join fetch c.post p
             where c.author.id = :memberId
                 and c.deletedAt is null
+                and c.hiddenAt is null
                 and p.deletedAt is null
+                and p.hiddenAt is null
                 and (
                     c.createdAt < :afterCreatedAt
                     or (
@@ -168,7 +189,9 @@ public interface CommentRepository
             join fetch c.author
             where p.id = :postId
                 and p.deletedAt is null
+                and p.hiddenAt is null
                 and c.deletedAt is null
+                and c.hiddenAt is null
             order by c.createdAt desc, c.id desc
             """)
     List<Comment> findFirstVisibleCommentsLatest(
@@ -188,7 +211,9 @@ public interface CommentRepository
             join fetch c.author
             where p.id = :postId
                 and p.deletedAt is null
+                and p.hiddenAt is null
                 and c.deletedAt is null
+                and c.hiddenAt is null
                 and (
                     c.createdAt < :afterCreatedAt
                     or (
@@ -223,7 +248,9 @@ public interface CommentRepository
             left join CommentLike cl on cl.comment = c
             where p.id = :postId
                 and p.deletedAt is null
+                and p.hiddenAt is null
                 and c.deletedAt is null
+                and c.hiddenAt is null
             group by c.id, c.createdAt
             order by count(cl.id) desc, c.createdAt asc, c.id asc
             """)
@@ -249,7 +276,9 @@ public interface CommentRepository
             left join CommentLike cl on cl.comment = c
             where p.id = :postId
                 and p.deletedAt is null
+                and p.hiddenAt is null
                 and c.deletedAt is null
+                and c.hiddenAt is null
             group by c.id, c.createdAt
             having 
                 count(cl.id) < :afterLikeCount
@@ -283,7 +312,7 @@ public interface CommentRepository
      * <p>
      * IN에 ID를 넣는 순서대로 결과가 반환되는 것은 아님. (반환 순서는 보장하지 않는다.)
      * 서비스에서 이 결과를 ID별로 묶어서 인기순 결과의 순서대로 응답 조립할 것.
-     *
+     * <p>
      * 또한 조회할 ID가 비어 있으면 이 메서드를 호출하지 않도록 서비스에서 처리.
      */
     @Query("""
@@ -293,11 +322,119 @@ public interface CommentRepository
             join fetch c.author
             where p.id = :postId
                 and p.deletedAt is null
+                and p.hiddenAt is null
                 and c.deletedAt is null
+                and c.hiddenAt is null
                 and c.id in :commentIds
             """)
     List<Comment> findVisibleCommentsByIds(
             @Param("postId") Long postId,
             @Param("commentIds") List<Long> commentIds
+    );
+
+    /**
+     * 관리자 상태 변경을 위해 게시글에 속한 댓글을 잠금 조회한다.
+     * <p>
+     * 댓글과 부모 게시글의 숨김·삭제 여부는 서비스에서 판단.
+     * 호출 전에 부모 게시글 잠금을 먼저 획득해야 한다.
+     * <p>
+     * 조회 조건에 postId도 넣어서 다른 게시글에 속한 댓글을
+     * 잘못 처리하지 않도록 한다.
+     */
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("""
+            select c
+            from Comment c
+            where c.id = :commentId
+                and c.post.id = :postId
+            """)
+    Optional<Comment> findCommentByIdForModerationForUpdate(
+            @Param("postId") Long postId,
+            @Param("commentId") Long commentId
+    );
+
+    /**
+     * 삭제되지 않은 게시글에 속한 삭제되지 않은 댓글을 잠금 조회한다.
+     * <p>
+     * 부모 게시글과 댓글의 숨김 상태는 제외하지 않는다.
+     * 호출 전에 부모 게시글을 잠그고,
+     * 조회 후에는 댓글 작성자 권한을 검증해야 한다.
+     */
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("""
+            select c
+            from Comment c
+            join c.post p
+            where c.id = :commentId
+                and p.id = :postId
+                and p.deletedAt is null
+                and c.deletedAt is null
+            """)
+    Optional<Comment> findNotDeletedCommentByIdForUpdate(
+            @Param("postId") Long postId,
+            @Param("commentId") Long commentId
+    );
+
+    /**
+     * 마이페이지용 내 댓글 개수
+     * <p>
+     * 댓글과 부모 게시글이 모두 삭제되지 않은 경우만 포함한다.
+     * 댓글 자체의 숨김과 부모 게시글의 숨김은 제외 조건이 아니다.
+     */
+    @Query("""
+            select count(c)
+            from Comment c
+            join c.post p
+            where c.author.id = :memberId
+                and c.deletedAt is null
+                and p.deletedAt is null
+            """)
+    long countNotDeletedCommentsByAuthorId(
+            @Param("memberId") Long memberId
+    );
+
+    /**
+     * 마이페이지용 내 댓글 첫 조회
+     * 부모 게시글의 상태와 응답용 정보를 함께 가져온다.
+     */
+    @Query("""
+            select c
+            from Comment c
+            join fetch c.post p
+            where c.author.id = :memberId
+                and c.deletedAt is null
+                and p.deletedAt is null
+            order by c.createdAt desc, c.id desc
+            """)
+    List<Comment> findFirstNotDeletedCommentsByAuthorId(
+            @Param("memberId") Long memberId,
+            Pageable pageable
+    );
+
+    /**
+     * 마이페이지용 내 댓글 후속 조회
+     * 숨김 항목도 커서 기준에 포함한다.
+     */
+    @Query("""
+            select c
+            from Comment c
+            join fetch c.post p
+            where c.author.id = :memberId
+                and c.deletedAt is null
+                and p.deletedAt is null
+                and (
+                    c.createdAt < :afterCreatedAt
+                    or (
+                        c.createdAt = :afterCreatedAt
+                        and c.id < :afterId
+                    )
+                )
+            order by c.createdAt desc, c.id desc
+            """)
+    List<Comment> findNotDeletedCommentsByAuthorIdAfter(
+            @Param("memberId") Long memberId,
+            @Param("afterCreatedAt") Instant afterCreatedAt,
+            @Param("afterId") Long afterId,
+            Pageable pageable
     );
 }

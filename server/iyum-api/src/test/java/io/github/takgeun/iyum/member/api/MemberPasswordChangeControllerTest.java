@@ -126,8 +126,8 @@ class MemberPasswordChangeControllerTest {
                 MemberPasswordChangeSessionUpdater.SessionSnapshot.class
         );
 
-        when(members.existsByIdAndStatusAndCredentialVersion(
-                7L, MemberStatus.ACTIVE, 3L
+        when(members.existsByIdAndStatusAndCredentialVersionAndRole(
+                7L, MemberStatus.ACTIVE, 3L, MemberRole.USER
         )).thenReturn(true);
 
         when(updater.capture(any(), same(authentication)))

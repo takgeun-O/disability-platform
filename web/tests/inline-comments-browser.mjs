@@ -9,7 +9,7 @@ const base=process.env.BASE_URL??'http://127.0.0.1:8467',out=process.env.MEMBER_
 await fs.mkdir(out,{recursive:true})
 const stamp='2026-10-28T00:00:00.123456Z',member={memberId:321,nickname:'검증회원',email:'fixture@example.test',role:'USER'}
 const failure=code=>({code,message:'mock error',fieldErrors:[]})
-const post=id=>({id,type:'QUESTION',topic:'HEARING_AID',title:`검증 게시글 ${id}`,content:'전체 본문\n'.repeat(20),contentPreview:'목록 미리보기',author:member,createdAt:stamp,updatedAt:stamp,commentCount:id===998?0:id===999?1:45,likeCount:0,liked:false})
+const post=id=>({visibility:"VISIBLE",id,type:'QUESTION',topic:'HEARING_AID',title:`검증 게시글 ${id}`,content:'전체 본문\n'.repeat(20),contentPreview:'목록 미리보기',author:member,createdAt:stamp,updatedAt:stamp,commentCount:id===998?0:id===999?1:45,likeCount:0,liked:false})
 const comment=(pid,id)=>({commentId:pid*100+id,content:`게시글 ${pid} 댓글 ${id}\n줄바꿈과 긴 문자열 ${'가'.repeat(50)}`,author:member,createdAt:stamp,updatedAt:stamp,likeCount:id%3,liked:false})
 let posts=[],comments=new Map()
 const cp=(id,u)=>{

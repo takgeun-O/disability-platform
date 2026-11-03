@@ -303,6 +303,72 @@ class PostDeleteServiceIntegrationTest {
         assertThat(post.getContent()).isEqualTo("기존 본문");
     }
 
+    @Test
+    void 작성자는_숨겨진_게시글도_논리_삭제할_수_있다() {
+        Instant hiddenAt = hidePost();
+
+        postDeleteService.delete(authorId, postId);
+
+        Post deletedPost = findPost();
+
+        assertThat(deletedPost.getDeletedAt()).isNotNull();
+
+        // 작성자 삭제가 관리자 숨김 상태를 해제하지 않는다.
+        assertThat(deletedPost.getHiddenAt()).isEqualTo(hiddenAt);
+
+        // 논리 삭제이므로 기존 데이터는 유지된다.
+        assertThat(deletedPost.getTitle()).isEqualTo("기존 제목");
+        assertThat(deletedPost.getContent()).isEqualTo("기존 본문");
+        assertThat(postRepository.count()).isEqualTo(1);
+
+        assertThat(postRepository.findVisiblePostById(postId))
+                .isEmpty();
+    }
+
+    @Test
+    void 다른_회원은_숨겨진_게시글도_삭제할_수_없다() {
+        Instant hiddenAt = hidePost();
+
+        Member otherMember = createActiveMember(
+                "hidden-post-other@example.com",
+                "다른회원"
+        );
+
+        assertDeleteRejected(
+                otherMember.getId(),
+                postId,
+                PostDeleteException.Code.NOT_POST_AUTHOR
+        );
+
+        Post post = findPost();
+
+        assertThat(post.getDeletedAt()).isNull();
+        assertThat(post.getHiddenAt()).isEqualTo(hiddenAt);
+        assertThat(post.getTitle()).isEqualTo("기존 제목");
+        assertThat(post.getContent()).isEqualTo("기존 본문");
+    }
+
+    @Test
+    void 숨겨진_게시글을_삭제한_뒤에는_다시_삭제할_수_없다() {
+        Instant hiddenAt = hidePost();
+
+        postDeleteService.delete(authorId, postId);
+
+        Instant firstDeletedAt = findPost().getDeletedAt();
+
+        assertDeleteRejected(
+                authorId,
+                postId,
+                PostDeleteException.Code.POST_NOT_FOUND
+        );
+
+        Post post = findPost();
+
+        assertThat(post.getDeletedAt()).isEqualTo(firstDeletedAt);
+        assertThat(post.getHiddenAt()).isEqualTo(hiddenAt);
+        assertThat(postRepository.count()).isEqualTo(1);
+    }
+
     private Member createActiveMember(
             String email,
             String nickname
@@ -344,5 +410,22 @@ class PostDeleteServiceIntegrationTest {
                 exception -> assertThat(exception.getCode())
                         .isEqualTo(expectedCode)
         );
+    }
+
+    // 숨김 상태를 만드는 보조 메서드
+    private Instant hidePost() {
+        Instant hiddenAt = Instant.parse("2026-10-30T00:00:00Z");
+
+        jdbcTemplate.update(
+                """
+                UPDATE community_posts
+                SET hidden_at = ?
+                WHERE id = ?
+                """,
+                java.sql.Timestamp.from(hiddenAt),
+                postId
+        );
+
+        return hiddenAt;
     }
 }

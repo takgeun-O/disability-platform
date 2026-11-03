@@ -268,7 +268,7 @@ class AuthSessionControllerTest {
     }
 
     private void prepareActiveMember() {
-        when(memberRepository.existsByIdAndStatusAndCredentialVersion(1L, MemberStatus.ACTIVE, 0L)).thenReturn(true);
+        when(memberRepository.existsByIdAndStatusAndCredentialVersionAndRole(1L, MemberStatus.ACTIVE, 0L, MemberRole.USER)).thenReturn(true);
         Member member = mock(Member.class);
 
         when(member.getId()).thenReturn(1L);

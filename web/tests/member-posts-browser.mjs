@@ -6,7 +6,7 @@ const {chromium}=await import(process.env.PLAYWRIGHT_MODULE??'playwright')
 const base=process.env.BASE_URL??'http://127.0.0.1:8452',out=process.env.MEMBER_ARTIFACT_DIR??'/private/tmp/iyum-member-posts-browser'
 await fs.mkdir(out,{recursive:true})
 const stamp='2026-10-20T00:00:00.123456Z',member={memberId:321,nickname:'검토회원',email:'review@example.test',role:'USER'}
-const make=id=>({id,type:'QUESTION',topic:'HEARING_AID',title:`[검토 예시] 일상에서 나눈 질문 ${id}`,content:'상세 본문\n'.repeat(30),contentPreview:'서로의 경험을 나누며 일상에 도움이 되는 방법을 찾고 있어요.',likeCount: 0, liked: false, author:{memberId:321,nickname:'검토회원'},createdAt:stamp,updatedAt:stamp,commentCount:id%3})
+const make=id=>({visibility:"VISIBLE",id,type:'QUESTION',topic:'HEARING_AID',title:`[검토 예시] 일상에서 나눈 질문 ${id}`,content:'상세 본문\n'.repeat(30),contentPreview:'서로의 경험을 나누며 일상에 도움이 되는 방법을 찾고 있어요.',likeCount: 0, liked: false, author:{memberId:321,nickname:'검토회원'},createdAt:stamp,updatedAt:stamp,commentCount:id%3})
 const failure=code=>({code,message:'test error',fieldErrors:[]})
 let posts=[],comments=[]
 function publicRead(u){
@@ -84,7 +84,7 @@ try{
  })
  await check('management: deletion refresh failure preserves range; retry and related comments refresh',async()=>{
   const{p,state}=await fixture();await ready(p);await more(p,3)
-  state.ownedComments=()=>posts.some(x=>x.id===978)?[{commentId:12,content:'내 댓글',createdAt:stamp,updatedAt:stamp,likeCount:2,liked:true,post:{postId:978,title:'원문',topic:'HEARING_AID',type:'QUESTION'}}]:[]
+  state.ownedComments=()=>posts.some(x=>x.id===978)?[{visibility:"VISIBLE",commentId:12,content:'내 댓글',createdAt:stamp,updatedAt:stamp,likeCount:2,liked:true,post:{postId:978,title:'원문',topic:'HEARING_AID',type:'QUESTION'}}]:[]
   await p.getByRole('tab',{name:/내 댓글/}).click();await p.locator('[data-member-comment-id="12"]').waitFor();await p.getByRole('tab',{name:/내 게시글/}).click();state.get=r=>r.fulfill({status:503,json:failure('SERVICE_UNAVAILABLE')})
   await p.locator('[data-member-post-id="978"]').getByRole('button',{name:'게시글 관리'}).click();await p.getByRole('menuitem',{name:'삭제',exact:true}).click();await p.getByRole('button',{name:'삭제하기',exact:true}).click();await retry(p).waitFor();assert.equal(await rows(p).count(),27);assert.equal(state.calls.filter(c=>c.method==='DELETE').length,1)
   state.get=null;await retry(p).click();await ready(p,26);await p.getByRole('tab',{name:/내 댓글/}).click();await p.getByText('아직 작성한 댓글이 없어요.').waitFor();assert.equal(await p.locator('[data-member-comment-id]').count(),0);assert.equal(state.calls.filter(c=>c.path==='/api/v1/members/me/comments').length,2)

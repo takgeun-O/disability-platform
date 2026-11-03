@@ -40,10 +40,12 @@ public class MemberActivitySummaryService {
         }
 
         long postCount =
-                postRepository.countVisiblePostsByAuthorId(memberId);
+                postRepository.countNotDeletedPostsByAuthorId(memberId);
 
+        // 댓글 수는 기존 조회를 유지한다,.
+        // 이렇게 해야 내 게시글 탭의 N에도 숨김 항목이 포함된다.
         long commentCount =
-                commentRepository.countVisibleCommentsByAuthorId(memberId);
+                commentRepository.countNotDeletedCommentsByAuthorId(memberId);
 
         return new MemberActivitySummaryResult(
                 postCount,

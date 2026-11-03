@@ -1,4 +1,4 @@
-import { isFeedItem, olderThan, type FeedPage } from "./community-api";
+import { isFeedItem, olderThan, type FeedItem } from "./community-api";
 import { validateComment } from "./community-comments";
 import {
   normalizeTitle,
@@ -236,12 +236,23 @@ export async function updateNickname(
 }
 
 export const MEMBER_POST_SIZE = 10;
-// Public and private lists share item fields, but this endpoint must only return the session member's posts.
+export type MemberPostItem = (FeedItem & { visibility: "VISIBLE" }) | {
+  id: number; createdAt: string; visibility: "HIDDEN";
+  type: null; topic: null; title: null; contentPreview: null; author: null;
+  commentCount: null; likeCount: null; liked: null;
+};
+export type MemberPostPage = { items: MemberPostItem[]; hasNext: boolean; nextCursor: PostCursor | null };
+export function isMemberPost(v: unknown): v is MemberPostItem {
+  if (!object(v)) return false;
+  if (v.visibility === "VISIBLE") return isFeedItem(v);
+  return v.visibility === "HIDDEN" && positiveId(v.id) && instant(v.createdAt) &&
+    ["type", "topic", "title", "contentPreview", "author", "commentCount", "likeCount", "liked"].every(key => v[key] === null);
+}
 export async function getMemberPosts(
   memberId: number,
   cursor: PostCursor | null = null,
   signal?: AbortSignal,
-): Promise<FeedPage> {
+): Promise<MemberPostPage> {
   const params = new URLSearchParams({ size: String(MEMBER_POST_SIZE) });
   if (cursor) {
     params.set("afterCreatedAt", cursor.createdAt);
@@ -258,7 +269,7 @@ export async function getMemberPosts(
     !object(body) ||
     !Array.isArray(body.items) ||
     body.items.length > MEMBER_POST_SIZE ||
-    !body.items.every(isFeedItem) ||
+    !body.items.every(isMemberPost) ||
     typeof body.hasNext !== "boolean"
   )
     throw invalid();
@@ -267,7 +278,7 @@ export async function getMemberPosts(
   if (
     items.some(
       (item, index) =>
-        item.author.memberId !== memberId ||
+        (item.visibility === "VISIBLE" && item.author.memberId !== memberId) ||
         !parsePostCursor(
           new URLSearchParams({
             afterCreatedAt: item.createdAt,
@@ -289,11 +300,12 @@ export async function getMemberPosts(
       : body.nextCursor !== null)
   )
     throw invalid();
-  return body as FeedPage;
+  return { items, hasNext: body.hasNext, nextCursor: body.hasNext && last ? { createdAt: last.createdAt, postId: last.id } : null };
 }
 
 export type MemberCommentCursor = { createdAt: string; commentId: number };
-export type MemberCommentItem = {
+export type VisibleMemberComment = {
+  visibility: "VISIBLE";
   commentId: number;
   content: string;
   createdAt: string;
@@ -301,6 +313,11 @@ export type MemberCommentItem = {
   likeCount: number;
   liked: boolean;
   post: { postId: number; title: string; type: PostType; topic: PostTopic };
+};
+export type MemberCommentItem = VisibleMemberComment | {
+  visibility: "HIDDEN" | "PARENT_HIDDEN"; commentId: number; createdAt: string;
+  content: null; updatedAt: null; likeCount: null; liked: null;
+  post: { postId: number; title: null; type: null; topic: null };
 };
 export type MemberCommentPage = {
   items: MemberCommentItem[];
@@ -312,7 +329,14 @@ const positiveId = (v: unknown): v is number =>
 const instant = (v: unknown): v is string =>
   typeof v === "string" &&
   !!parsePostCursor(new URLSearchParams({ afterCreatedAt: v, afterId: "1" }));
-function isMemberComment(v: unknown): v is MemberCommentItem {
+export function isMemberComment(v: unknown): v is MemberCommentItem {
+  if (!object(v)) return false;
+  if (v.visibility === "HIDDEN" || v.visibility === "PARENT_HIDDEN") {
+    return positiveId(v.commentId) && instant(v.createdAt) &&
+      ["content", "updatedAt", "likeCount", "liked"].every(key => v[key] === null) &&
+      object(v.post) && positiveId(v.post.postId) && v.post.title === null && v.post.type === null && v.post.topic === null;
+  }
+  if (v.visibility !== "VISIBLE") return false;
   return (
     object(v) &&
     positiveId(v.commentId) &&
@@ -385,7 +409,7 @@ export async function getMemberComments(
       : body.nextCursor !== null)
   )
     throw invalid();
-  return body as MemberCommentPage;
+  return { items, hasNext: body.hasNext, nextCursor: body.hasNext && last ? { createdAt: last.createdAt, commentId: last.commentId } : null };
 }
 
 export class WithdrawalError extends MemberApiError {

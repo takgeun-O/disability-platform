@@ -15,6 +15,8 @@ export type LogoutResult = { kind: 'anonymous'; confirmedBy: 'logout' | 'me' } |
 // Provider마다 한 개 생성한다. 모듈 전역 싱글턴이나 브라우저 저장소에 회원을 보관하지 않는다.
 export function createAuthSession(client: AuthApi = api) {
   let state = INITIAL;
+  let expiryNotice: { id: number } | null = null;
+  let noticeSequence = 0;
   let generation = 0;
   let active = false;
   let memberRequests = INITIAL_REQUESTS;
@@ -27,14 +29,20 @@ export function createAuthSession(client: AuthApi = api) {
   const listeners = new Set<() => void>();
   const publish = (next: AuthState) => { state = next; listeners.forEach(listener => listener()); };
   const current = (ticket: number) => active && ticket === generation;
-  const setMember = (member: Member | null) => publish({
-    status: member ? 'authenticated' : 'anonymous', member, pending: state.pending,
-  });
+  const setMember = (member: Member | null) => {
+    if (member) expiryNotice = null;
+    publish({ status: member ? 'authenticated' : 'anonymous', member, pending: state.pending });
+  };
+  function makeAnonymous(reason: 'expired' | 'withdrawal' | 'credentials') {
+    expiryNotice = reason === 'expired' ? { id: ++noticeSequence } : null;
+    publish({ status: 'anonymous', member: null, pending: null });
+  }
   // GET도 순서를 가진다. 이전 GET의 성공·401·실패 모두 새 인증 결과를 덮어쓰지 못한다.
-  async function readCurrent(ticket: number): Promise<'known' | 'unknown' | 'stale'> {
+  async function readCurrent(ticket: number, reportExpiry = false): Promise<'known' | 'unknown' | 'stale'> {
     try {
       const member = await client.getCurrentMember();
       if (!current(ticket)) return 'stale';
+      if (!member && reportExpiry) expiryNotice = { id: ++noticeSequence };
       setMember(member);
       return 'known';
     } catch {
@@ -45,9 +53,10 @@ export function createAuthSession(client: AuthApi = api) {
   }
   async function refresh() {
     if (!active || state.pending) return;
+    const reportExpiry = state.status === 'authenticated';
     const ticket = advanceGeneration();
     publish({ status: 'checking', member: null, pending: null });
-    await readCurrent(ticket);
+    await readCurrent(ticket, reportExpiry);
   }
   async function renewCsrf(ticket: number): Promise<boolean> {
     try { await client.getAuthCsrf(); return current(ticket); }
@@ -133,10 +142,10 @@ export function createAuthSession(client: AuthApi = api) {
         && !state.pending && state.status === 'authenticated' && state.member?.memberId === memberId;
       return {
         isCurrent,
-        expire() {
+        expire(reason: 'expired' | 'credentials' = 'expired') {
           if (!isCurrent()) return false;
           advanceGeneration();
-          publish({ status: 'anonymous', member: null, pending: null });
+          makeAnonymous(reason);
           return true;
         },
         updateNickname(nickname: string) {
@@ -157,10 +166,10 @@ export function createAuthSession(client: AuthApi = api) {
       const isCurrent = () => current(ticket) && !state.pending && state.status === 'authenticated' && state.member?.memberId === memberId;
       return {
         isCurrent,
-        expire() {
+        expire(reason: 'expired' | 'credentials' = 'expired') {
           if (!isCurrent()) return false;
           advanceGeneration();
-          publish({ status: 'anonymous', member: null, pending: null });
+          makeAnonymous(reason);
           return true;
         },
         finish() {
@@ -171,6 +180,9 @@ export function createAuthSession(client: AuthApi = api) {
         },
       };
     },
+    getExpiryNotice: () => expiryNotice,
+    getServerExpiryNotice: () => null,
+    dismissExpiryNotice(id: number) { if (expiryNotice?.id === id) { expiryNotice = null; listeners.forEach(listener => listener()); } },
     getMemberRequestSnapshot: () => memberRequests,
     getServerMemberRequestSnapshot: () => INITIAL_REQUESTS,
     getSnapshot: () => state,
@@ -179,10 +191,10 @@ export function createAuthSession(client: AuthApi = api) {
     start: () => { active = true; publish({ ...state, pending: null }); void refresh(); },
     stop: () => { active = false; advanceGeneration(); },
     // A private API 401 expires only the still-current session, never a newer account.
-    expire(memberId: number) {
+    expire(memberId: number, reason: 'expired' | 'withdrawal' = 'expired') {
       if (!active || state.pending || state.status !== 'authenticated' || state.member?.memberId !== memberId) return false;
       advanceGeneration();
-      publish({ status: 'anonymous', member: null, pending: null });
+      makeAnonymous(reason);
       return true;
     },
     // Only a validated profile response for the still-current member may update the header.

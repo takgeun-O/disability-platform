@@ -1,4 +1,5 @@
 'use client'
+import MemberHiddenCommentDelete from './MemberHiddenCommentDelete'
 import WrittenTime from "@/components/WrittenTime"
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
 import Link from '@/components/AppLink'
@@ -26,6 +27,16 @@ export default function MyComments({ memberId, active, restoring, initial, lease
   const request = useRef<AbortController | null>(null), failedVersion = useRef<number | null>(null)
   const pendingPosition = useRef<FeedPosition | null>(null), pendingFocus = useRef<number | null>(null)
   const trigger = useRef<HTMLElement | null>(null), keyboard = useRef(false)
+  const removed = useRef<{ id: number; trigger: HTMLElement; revision: number } | null>(null)
+  const afterRemoval = (id: number, trigger: HTMLElement) => { removed.current = { id, trigger, revision: memberRequests.revision }; setNotice('댓글을 삭제했습니다.') }
+  useLayoutEffect(() => {
+    const pending = removed.current
+    if (!pending) return
+    if (!active || !scope.isActive() || !lease.valid() || pending.revision !== memberRequests.revision) { removed.current = null; return }
+    if (view.items.some(item => item.commentId === pending.id)) return
+    removed.current = null
+    if (document.activeElement === document.body || document.activeElement === pending.trigger) document.getElementById('my-tab-comments')?.focus({ preventScroll: true })
+  }, [view, active, scope, lease, memberRequests])
   useLayoutEffect(() => {
     request.current?.abort(); request.current = null
     failedVersion.current = null; pendingFocus.current = null
@@ -40,7 +51,7 @@ export default function MyComments({ memberId, active, restoring, initial, lease
     const id = pendingFocus.current; pendingFocus.current = null
     if (id === null || !keyboard.current || !active || !scope.isActive() || !lease.valid() || view.version !== getPostVersion('member-comments') || view.requestRevision !== memberRequests.revision) return
     if (trigger.current?.isConnected && document.activeElement !== trigger.current) return
-    const target = document.querySelector<HTMLElement>(`[data-member-comment-id="${id}"] .mypage-comment-link`)
+    const target = document.querySelector<HTMLElement>(`[data-member-comment-id="${id}"] .mypage-comment-link, [data-member-comment-id="${id}"] .mypage-comment-delete`)
       ?? document.getElementById('my-comments-end') ?? document.getElementById('my-comments-empty')
     if (target?.getClientRects().length) target.focus({ preventScroll: true })
   }, [view, active, scope, lease, memberRequests])
@@ -89,8 +100,8 @@ export default function MyComments({ memberId, active, restoring, initial, lease
   return <>
     {!view.segments && (!error || !!busy) && <p role="status" className="mypage-list-message">내 댓글을 불러오고 있습니다.</p>}
     {!!view.segments && !view.items.length && <p id="my-comments-empty" tabIndex={-1} className="mypage-list-message">아직 작성한 댓글이 없어요.</p>}
-    <ul className="mypage-post-list mypage-comment-list">{view.items.map(comment => <li key={comment.commentId} data-member-comment-id={comment.commentId}>
-      <div className="mypage-post-copy">
+    <ul className="mypage-post-list mypage-comment-list">{view.items.map(comment => <li key={comment.commentId} data-member-comment-id={comment.commentId} className={comment.visibility !== 'VISIBLE' ? 'mypage-hidden-comment' : undefined}>
+      <div className="mypage-post-copy">{comment.visibility === 'VISIBLE' ? <>
         <p className="mypage-post-meta">{POST_TOPICS[comment.post.topic]} · {POST_TYPES[comment.post.type]} · <WrittenTime value={comment.createdAt} /></p>
         <div className="mypage-comment-bubble">
           <span className="mypage-comment-label">내가 쓴 댓글</span>
@@ -99,8 +110,11 @@ export default function MyComments({ memberId, active, restoring, initial, lease
             <span className="post-like-count mypage-comment-likes" data-liked={comment.liked}><svg width="16" height="16" viewBox="0 0 24 24" fill={comment.liked ? "currentColor" : "none"} stroke="currentColor" strokeWidth="1.75" aria-hidden="true" focusable="false"><path d="M20.8 4.6a5.5 5.5 0 0 0-7.8 0L12 5.7l-1.1-1.1a5.5 5.5 0 0 0-7.8 7.8L12 21l8.8-8.6a5.5 5.5 0 0 0 0-7.8Z"/></svg><span className="mypage-comment-like-count">좋아요 {comment.likeCount.toLocaleString('ko-KR')}</span><span className="sr-only">{comment.liked ? '개, 내가 좋아요한 댓글' : '개, 내가 좋아요하지 않은 댓글'}</span></span>
           </div>
         </div>
-        <Link className="mypage-comment-link" href={`/community/posts/${comment.post.postId}?from=%2Fmypage#comment-${comment.commentId}`} prefetch={false} scroll={false} onNavigate={onLeaving}><span className="mypage-comment-source-label">원문 게시글</span><span>{comment.post.title}</span><span aria-hidden="true">→</span></Link>
-      </div>
+        <Link className="mypage-comment-link" href={`/community/posts/${comment.post.postId}?from=%2Fmypage#comment-${comment.commentId}`} prefetch={false} scroll={false} onNavigate={onLeaving}><span className="mypage-comment-source-label">원문 게시글</span><span>{comment.post.title}</span><span aria-hidden="true">→</span></Link></> : <>
+        <p className="mypage-post-meta"><WrittenTime value={comment.createdAt} anchored /></p>
+        <p className="mypage-hidden-comment-notice">{comment.visibility === 'PARENT_HIDDEN' ? '원문 게시글 숨김으로 표시가 제한된 댓글입니다.' : '운영 정책에 따라 숨겨진 댓글입니다.'}</p>
+        <MemberHiddenCommentDelete key={`${comment.commentId}:${comment.visibility}`} createdAt={comment.createdAt} memberId={memberId} commentId={comment.commentId} postId={comment.post.postId} active={active} onRemoved={afterRemoval} />
+      </>}</div>
     </li>)}</ul>
     {busy === 'refresh' && !!view.segments && <p role="status">내 댓글을 갱신하고 있습니다.</p>}
     <div className={error ? 'mypage-list-message' : undefined}>

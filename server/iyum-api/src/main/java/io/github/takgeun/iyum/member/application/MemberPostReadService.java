@@ -31,7 +31,7 @@ public class MemberPostReadService {
     private final PostLikeReadService postLikeReadService;
 
     @Transactional(readOnly = true)
-    public PostFeedResult getPosts(
+    public MemberPostListResult getPosts(
             @Nullable Long memberId,
             @Nullable Instant afterCreatedAt,
             @Nullable Long afterId,
@@ -59,7 +59,7 @@ public class MemberPostReadService {
              * 커서가 없으므로 첫 조회 메서드 호출
              * fetched = [105, 104, 103]; -> 이 때 103번은 다음 목록이 있는지 확인하기 위한 추가 1개
              */
-            fetched = postRepository.findFirstVisiblePostsByAuthorId(
+            fetched = postRepository.findFirstNotDeletedPostsByAuthorId(
                     memberId,
                     limit
             );
@@ -68,7 +68,7 @@ public class MemberPostReadService {
              * 여기는 프론트쪽에서 "더보기" 버튼 클릭 시부터
              * 커서가 존재하게 되므로 이 루트를 타게 된다.
              */
-            fetched = postRepository.findVisiblePostsByAuthorIdAfter(
+            fetched = postRepository.findNotDeletedPostsByAuthorIdAfter(
                     memberId,
                     afterCreatedAt,
                     afterId,
@@ -95,7 +95,7 @@ public class MemberPostReadService {
          * 조회 결과가 아예 없으면 여기서 빈 목록을 반환하고 종료
          */
         if (returnedPosts.isEmpty()) {
-            return new PostFeedResult(
+            return new MemberPostListResult(
                     List.of(),
                     false,
                     null
@@ -106,42 +106,52 @@ public class MemberPostReadService {
          * 반환할 게시글의 댓글 수를 한번에 조회할 것.
          * [105, 104]
          */
-        List<Long> postIds = returnedPosts.stream()
+        // 숨김 항목은 목록에는 포함하지만 집계값을 표시하지 않는다.
+        // 실제 반환할 공개 게시글만 댓글 수·좋아요 조회 대상으로 사용한다.
+        List<Long> visiblePostIds = returnedPosts.stream()
+                .filter(post -> post.getHiddenAt() == null)
                 .map(Post::getId)
                 .toList();
 
         /**
          * [105, 104]
          * 위 postId 목록으로 댓글 수 집계
-         */
-        List<PostCommentCount> counts =
-                commentRepository.countVisibleCommentsByPostIds(
-                        postIds
-                );
-
-        /**
+         *
          * 위 결과를 찾기 편하도록 Map에 넣기
          */
         Map<Long, Long> commentCounts = new HashMap<>();
+        Map<Long, PostLikeState> likeStates = Map.of();
 
-        for (PostCommentCount count : counts) {
-            commentCounts.put(
-                    count.getPostId(),
-                    count.getCommentCount()
+        if (!visiblePostIds.isEmpty()) {
+            List<PostCommentCount> counts =
+                    commentRepository.countVisibleCommentsByPostIds(
+                            visiblePostIds
+                    );
+
+            for (PostCommentCount count : counts) {
+                commentCounts.put(
+                        count.getPostId(),
+                        count.getCommentCount()
+                );
+            }
+
+            likeStates = postLikeReadService.getStates(
+                    visiblePostIds,
+                    memberId
             );
         }
 
-        Map<Long, PostLikeState> likeStates =
-                postLikeReadService.getStates(postIds, memberId);
+        // 람다에서 사용할 수 있도록 최종 참조를 둔다.
+        Map<Long, PostLikeState> resolvedLikeStates = likeStates;
 
-        List<PostFeedItemResult> items = returnedPosts.stream()
+        List<MemberPostItemResult> items = returnedPosts.stream()
                 .map(post -> {
-                    PostLikeState likeState = likeStates.getOrDefault(
+                    PostLikeState likeState = resolvedLikeStates.getOrDefault(
                             post.getId(),
                             PostLikeState.EMPTY
                     );
 
-                    return PostFeedItemResult.from(
+                    return MemberPostItemResult.from(
                             post,
                             commentCounts.getOrDefault(post.getId(), 0L),
                             likeState.likeCount(),
@@ -160,7 +170,8 @@ public class MemberPostReadService {
              * createdAt 시각에 생성된 104번 게시글까지 전달했으니
              * 그 다음에는 그 뒤부터 조회해라. (추가 확인용인 103번으로 커서를 만들면 안됨.)
              */
-            PostFeedItemResult last = items.getLast();
+            // 숨김 항목도 실제 반환한 목록의 일부이므로 커서 기준에 포함한다.
+            MemberPostItemResult last = items.getLast();
 
             nextCursor = new PostCursor(
                     last.createdAt(),
@@ -168,7 +179,7 @@ public class MemberPostReadService {
             );
         }
 
-        return new PostFeedResult(
+        return new MemberPostListResult(
                 items,
                 hasNext,
                 nextCursor
