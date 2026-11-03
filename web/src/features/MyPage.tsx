@@ -17,7 +17,7 @@ import { safeReturnPath } from '@/lib/navigation'
 import { getProfile, getActivitySummary, getMemberCsrf, updateNickname, nicknameError, normalizeNickname, joinedMonth, MemberApiError, type Profile, type ActivitySummary } from '@/lib/member-api'
 const message = (error: unknown) => error instanceof Error ? error.message : '정보를 확인하지 못했습니다. 다시 시도해 주세요.'
 type Resource<T> = { data?: T; error?: string }
-function LoginRequired({ settings }: { settings: boolean }) { const loginHref = `/login?from=${encodeURIComponent(safeReturnPath(settings ? '/mypage/settings' : '/mypage'))}`; return <div className="mypage-message"><h2>로그인이 필요해요</h2><p>로그인하고 내 프로필과 활동을 확인해 보세요.</p><Link className="iyum-button iyum-button-primary" href={loginHref}>로그인하기</Link></div> }
+function LoginRequired({ settings }: { settings: boolean }) { const loginHref = `/login?from=${encodeURIComponent(safeReturnPath(settings ? '/mypage/settings' : '/mypage'))}`; return <div className="mypage-message mypage-login-card"><FeedAvatar /><h2>로그인이 필요해요</h2><p>로그인하고 내 프로필과 활동을 확인해 보세요.</p><Link className="iyum-button iyum-button-primary" href={loginHref}>로그인하기</Link><Link className="mypage-community-link" href="/community">커뮤니티 둘러보기</Link></div> }
 function DraftProtection() {
   const { commentDrafts, commentCreated } = useAuth()
   const drafts = useSyncExternalStore(commentDrafts.subscribe, commentDrafts.snapshot, commentDrafts.snapshot)

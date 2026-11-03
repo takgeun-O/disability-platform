@@ -60,7 +60,7 @@ export default function PasswordChangeDialog({ memberId, onClose, onNotice }: { 
       clear(); setCompleted(true);
       if (result.reloginRequired) {
         onNotice('비밀번호가 변경되었습니다. 새 비밀번호로 다시 로그인해 주세요.');
-        session.expire(); // generation-bound; never send a logout POST
+        session.expire('credentials'); // generation-bound; never send a logout POST
         return;
       }
       try { await getAuthCsrf(); }

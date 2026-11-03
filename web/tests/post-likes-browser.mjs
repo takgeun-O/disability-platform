@@ -9,7 +9,7 @@ const out = process.env.LIKE_ARTIFACT_DIR ?? '/private/tmp/iyum-post-like-browse
 await fs.mkdir(out, { recursive: true })
 const stamp = '2026-10-25T00:00:00.123456Z'
 const member = { memberId: 321, nickname: '검토회원', email: 'review@example.test', role: 'USER' }
-const make = id => ({ id, type: 'QUESTION', topic: 'HEARING_AID', title: `[검토 예시] 경험 나누기 ${id}`, content: '게시글 본문입니다.\n'.repeat(20), contentPreview: '같은 경험을 가진 사람들과 이야기를 나누어 보세요.', author: { memberId: 321, nickname: '검토회원' }, createdAt: stamp, updatedAt: stamp, commentCount: 3, likeCount: 2, liked: false })
+const make = id => ({ visibility: "VISIBLE", id, type: 'QUESTION', topic: 'HEARING_AID', title: `[검토 예시] 경험 나누기 ${id}`, content: '게시글 본문입니다.\n'.repeat(20), contentPreview: '같은 경험을 가진 사람들과 이야기를 나누어 보세요.', author: { memberId: 321, nickname: '검토회원' }, createdAt: stamp, updatedAt: stamp, commentCount: 3, likeCount: 2, liked: false })
 let posts = [], serverCalls = []
 const failure = code => ({ code, message: 'test only', fieldErrors: [] })
 function read(u, who = null, liked = new Set()) {

@@ -4,13 +4,14 @@ import Link from '@/components/AppLink'
 import CommunityDialog from '@/components/community/CommunityDialog'
 import { useAuth } from '@/components/AuthProvider'
 import { useNavigationRequest } from '@/components/NavigationGuard'
-import { changePost, CommunityApiError, type PostSummary } from '@/lib/community-api'
+import { changePost, CommunityApiError } from '@/lib/community-api'
+import type { MemberPostItem } from '@/lib/member-api'
 import { postChanged } from '@/lib/community-mutations'
 
 // List controls use the same write client/dialog as detail. Session ownership fences
 // cache invalidation; navigation/active tab additionally fence screen effects.
-export default function MemberPostActions({ post, open, onOpen, onLeaving, onRemoved, active }: {
-  post: PostSummary; open: boolean; onOpen: (id: number | null) => void; onLeaving: () => void
+export default function MemberPostActions({ post, memberId, open, onOpen, onLeaving, onRemoved, active }: {
+  post: MemberPostItem; memberId: number; open: boolean; onOpen: (id: number | null) => void; onLeaving: () => void
   onRemoved: (id: number, trigger: HTMLElement) => void; active: boolean
 }) {
   const auth = useAuth(), scope = useNavigationRequest(), uid = useId()
@@ -19,7 +20,7 @@ export default function MemberPostActions({ post, open, onOpen, onLeaving, onRem
   const [error, setError] = useState<CommunityApiError | null>(null), flight = useRef(false)
   const visible = useRef(active)
   useLayoutEffect(() => { visible.current = active; return () => { visible.current = false } }, [active])
-  const owner = auth.status === 'authenticated' && !auth.pending && auth.member?.memberId === post.author.memberId
+  const owner = auth.status === 'authenticated' && !auth.pending && auth.member?.memberId === memberId && (post.visibility === 'HIDDEN' || post.author.memberId === memberId)
   function closeMenu(focus = false) { onOpen(null); if (focus) trigger.current?.focus({ preventScroll: true }) }
   useEffect(() => {
     if (!open) return
@@ -34,20 +35,20 @@ export default function MemberPostActions({ post, open, onOpen, onLeaving, onRem
   function close() { if (!flight.current) { setDialog(false); setError(null) } }
   async function remove() {
     if (!owner || flight.current || !active) return
-    const session = auth.captureMemberRequest(post.author.memberId), navigation = scope.begin()
+    const session = auth.captureMemberRequest(memberId), navigation = scope.begin()
     if (!session.isCurrent()) return
     const current = () => session.isCurrent() && navigation() && visible.current
     flight.current = true; setBusy(true); setError(null)
     try {
       const done = await changePost(String(post.id), 'DELETE', undefined, current)
       if (!done || !session.isCurrent()) return
-      auth.commentDrafts.discardDeleted(post.author.memberId, post.id); auth.commentCreated.discardDeleted(post.author.memberId, post.id)
+      auth.commentDrafts.discardDeleted(memberId, post.id); auth.commentCreated.discardDeleted(memberId, post.id)
       if (current()) { setDialog(false); if (trigger.current) onRemoved(post.id, trigger.current) }
       postChanged(String(post.id))
     } catch (cause) {
       if (!session.isCurrent()) return
       const failure = cause instanceof CommunityApiError ? cause : new CommunityApiError(0, 'UNEXPECTED_RESPONSE', '삭제 결과를 확인하지 못했습니다.', {}, true)
-      if (failure.status === 404 && failure.code === 'POST_NOT_FOUND') { auth.commentDrafts.discardDeleted(post.author.memberId, post.id); auth.commentCreated.discardDeleted(post.author.memberId, post.id) }
+      if (failure.status === 404 && failure.code === 'POST_NOT_FOUND') { auth.commentDrafts.discardDeleted(memberId, post.id); auth.commentCreated.discardDeleted(memberId, post.id) }
       if (failure.uncertain || failure.code === 'POST_NOT_FOUND') postChanged(String(post.id))
       if (!current()) return
       if (failure.status === 401) { session.expire(); return }
@@ -74,14 +75,14 @@ export default function MemberPostActions({ post, open, onOpen, onLeaving, onRem
       if (!open && ['ArrowDown','ArrowUp'].includes(e.key)) { e.preventDefault(); onOpen(post.id) }
     }}>⋯</button>
     {open && <ManagementMenu id={`${uid}-menu`}>
-      <Link role="menuitem" href={`/community/posts/${post.id}/edit?from=%2Fmypage&activity=1`} prefetch={false} onNavigate={() => { onLeaving(); onOpen(null) }}>수정</Link>
+      {post.visibility === 'VISIBLE' && <Link role="menuitem" href={`/community/posts/${post.id}/edit?from=%2Fmypage&activity=1`} prefetch={false} onNavigate={() => { onLeaving(); onOpen(null) }}>수정</Link>}
       <button role="menuitem" type="button" onClick={() => { closeMenu(true); setError(null); setDialog(true) }}>삭제</button>
     </ManagementMenu>}
     {dialog && <CommunityDialog titleId={`${uid}-title`} descriptionId={`${uid}-description`} onCancel={close}>
       <h2 id={`${uid}-title`}>게시글을 삭제할까요?</h2>
-      <p className="mypage-delete-title">{post.title}</p>
+      <p className="mypage-delete-title">{post.visibility === 'VISIBLE' ? post.title : `숨겨진 게시글 #${post.id}`}</p>
       <p id={`${uid}-description`}>삭제하면 목록과 상세에서 더 이상 볼 수 없습니다. 삭제 요청 중에는 이 창을 닫을 수 없습니다.</p>
-      {error && <div role="alert" className="community-error"><p>{error.message}</p>{error.uncertain && <Link href={`/community/posts/${post.id}?from=%2Fmypage`} target="_blank" rel="noopener noreferrer">새 탭에서 게시글 확인</Link>}</div>}
+      {error && <div role="alert" className="community-error"><p>{error.message}</p>{error.uncertain && post.visibility === 'VISIBLE' && <Link href={`/community/posts/${post.id}?from=%2Fmypage`} target="_blank" rel="noopener noreferrer">새 탭에서 게시글 확인</Link>}</div>}
       <div className="community-dialog-actions"><button type="button" data-initial-focus className="iyum-button iyum-button-outline" aria-disabled={busy} onClick={close}>취소</button>
         {error?.uncertain || error?.code === 'POST_NOT_FOUND' ? <button type="button" className="iyum-button iyum-button-outline" onClick={() => { close(); postChanged(String(post.id)) }}>목록 다시 확인</button> : <button type="button" className="iyum-button community-danger" disabled={busy || !owner || error?.status === 404} onClick={() => void remove()}>{busy ? '삭제 중…' : '삭제하기'}</button>}
       </div><p role="status">{busy ? '삭제 요청을 처리하고 있습니다.' : ''}</p>

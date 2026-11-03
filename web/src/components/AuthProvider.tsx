@@ -1,6 +1,6 @@
 'use client';
 
-import { createContext, useContext, useEffect, useState, useSyncExternalStore, type ReactNode } from 'react';
+import { useCallback, createContext, useContext, useEffect, useState, useSyncExternalStore, type ReactNode } from 'react';
 import { createCommentCreated } from '@/lib/comment-created';
 import { createCommentDrafts } from '@/lib/comment-drafts';
 import { createPostLikes } from '@/lib/post-likes';
@@ -8,7 +8,7 @@ import { createMemberActivityCache } from '@/lib/member-activity';
 import { createAuthSession, type AuthState } from '@/lib/auth-session';
 
 type Session = ReturnType<typeof createAuthSession>;
-type AuthContextValue = { commentCreated: ReturnType<typeof createCommentCreated>; commentDrafts: ReturnType<typeof createCommentDrafts>; commentLikes: ReturnType<typeof createPostLikes>; likes: ReturnType<typeof createPostLikes>; memberRequests: ReturnType<Session['getMemberRequestSnapshot']>; withdrawalNotice: boolean; dismissWithdrawalNotice: () => void; completeWithdrawal: (memberId: number) => boolean; activityCache: ReturnType<typeof createMemberActivityCache> } & AuthState & Pick<Session, 'refresh' | 'signIn' | 'signOut' | 'updateNickname' | 'expire' | 'captureMemberRequest' | 'beginCredentialChange'>;
+type AuthContextValue = { expiryNotice: ReturnType<Session['getExpiryNotice']>; dismissExpiryNotice: Session['dismissExpiryNotice']; commentCreated: ReturnType<typeof createCommentCreated>; commentDrafts: ReturnType<typeof createCommentDrafts>; commentLikes: ReturnType<typeof createPostLikes>; likes: ReturnType<typeof createPostLikes>; memberRequests: ReturnType<Session['getMemberRequestSnapshot']>; withdrawalNotice: boolean; dismissWithdrawalNotice: () => void; completeWithdrawal: (memberId: number) => boolean; activityCache: ReturnType<typeof createMemberActivityCache> } & AuthState & Pick<Session, 'refresh' | 'signIn' | 'signOut' | 'updateNickname' | 'expire' | 'captureMemberRequest' | 'beginCredentialChange'>;
 const AuthContext = createContext<AuthContextValue | null>(null);
 
 export function AuthProvider({ children }: { children: ReactNode }) {
@@ -26,6 +26,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return { session, activityCache, likes, commentLikes, commentDrafts, commentCreated };
   });
   const [withdrawalNotice, setWithdrawalNotice] = useState(false);
+  const dismissWithdrawalNotice = useCallback(() => setWithdrawalNotice(false), []);
+  const expiryNotice = useSyncExternalStore(session.subscribe, session.getExpiryNotice, session.getServerExpiryNotice);
   const state = useSyncExternalStore(session.subscribe, session.getSnapshot, session.getServerSnapshot);
   const memberRequests = useSyncExternalStore(session.subscribe, session.getMemberRequestSnapshot, session.getServerMemberRequestSnapshot);
   useEffect(() => {
@@ -33,7 +35,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return () => { session.stop(); activityCache.setOwner(null); };
   }, [session, activityCache]);
   return (
-    <AuthContext.Provider value={{ ...state, memberRequests, activityCache, likes, commentLikes, commentDrafts, commentCreated, withdrawalNotice, dismissWithdrawalNotice: () => setWithdrawalNotice(false), completeWithdrawal: (memberId) => { if (!session.expire(memberId)) return false; setWithdrawalNotice(true); return true; }, refresh: session.refresh, signIn: session.signIn, signOut: session.signOut, updateNickname: session.updateNickname, expire: session.expire, captureMemberRequest: session.captureMemberRequest, beginCredentialChange: session.beginCredentialChange }}>
+    <AuthContext.Provider value={{ ...state, expiryNotice, dismissExpiryNotice: session.dismissExpiryNotice, memberRequests, activityCache, likes, commentLikes, commentDrafts, commentCreated, withdrawalNotice, dismissWithdrawalNotice, completeWithdrawal: (memberId) => { if (!session.expire(memberId, 'withdrawal')) return false; setWithdrawalNotice(true); return true; }, refresh: session.refresh, signIn: session.signIn, signOut: session.signOut, updateNickname: session.updateNickname, expire: session.expire, captureMemberRequest: session.captureMemberRequest, beginCredentialChange: session.beginCredentialChange }}>
       {children}
     </AuthContext.Provider>
   );

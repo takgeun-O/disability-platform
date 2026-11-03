@@ -479,6 +479,8 @@ try {
       await page.clock.runFor(4999);
       assert.equal(await logoutNotice(page).isVisible(), true);
       await page.clock.runFor(1);
+      assert.match(await logoutNotice(page).getAttribute('class'), /is-leaving/);
+      await page.clock.runFor(200);
       await closeNotice(page).waitFor({ state: 'detached' });
       await anonymousMenu(page).waitFor();
       assert.equal(new URL(page.url()).pathname, '/');
@@ -526,6 +528,8 @@ try {
     await page.clock.runFor(2999);
     assert.equal(await logoutNotice(page).isVisible(), true);
     await page.clock.runFor(1);
+    assert.match(await logoutNotice(page).getAttribute('class'), /is-leaving/);
+    await page.clock.runFor(200);
     await closeNotice(page).waitFor({ state: 'detached' });
     await anonymousMenu(page).waitFor();
     await context.close();
@@ -551,6 +555,8 @@ try {
         await page.clock.runFor(1999);
         assert.equal(await logoutNotice(page).isVisible(), true);
         await page.clock.runFor(1);
+        assert.match(await logoutNotice(page).getAttribute('class'), /is-leaving/);
+        await page.clock.runFor(200);
         await closeNotice(page).waitFor({ state: 'detached' });
         await anonymousMenu(page).waitFor();
       } else {

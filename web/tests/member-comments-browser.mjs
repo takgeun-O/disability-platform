@@ -7,11 +7,11 @@ const base=process.env.BASE_URL??'http://127.0.0.1:8452',out=process.env.MEMBER_
 await fs.mkdir(out,{recursive:true})
 const stamp='2026-10-20T00:00:00.123456Z',member={memberId:321,nickname:'검토회원',email:'review@example.test',role:'USER'}
 const fail=code=>({code,message:'test error',fieldErrors:[]})
-const makePost=id=>({id,type:'QUESTION',topic:'HEARING_AID',title:`[검토 예시] 원본 게시글 ${id}`,content:'상세 본문\n'.repeat(30),contentPreview:'본문 미리보기',likeCount: 0, liked: false, author:{memberId:321,nickname:'검토회원'},createdAt:stamp,updatedAt:stamp,commentCount:0})
+const makePost=id=>({visibility:"VISIBLE",id,type:'QUESTION',topic:'HEARING_AID',title:`[검토 예시] 원본 게시글 ${id}`,content:'상세 본문\n'.repeat(30),contentPreview:'본문 미리보기',likeCount: 0, liked: false, author:{memberId:321,nickname:'검토회원'},createdAt:stamp,updatedAt:stamp,commentCount:0})
 let posts=[],comments=[],publicPageSize=Infinity
 const makeComment=(id,index)=>({liked:index%4===1,likeCount:index%4,commentId:id,content:`[검토 예시] 내가 나눈 경험 ${id}\n도움이 되었던 경험을 함께 나눠요.`,createdAt:stamp,updatedAt:stamp,postId:1000-Math.floor(index/3)})
 const owned=()=>comments.filter(c=>posts.some(p=>p.id===c.postId))
-const dto=c=>{const p=posts.find(p=>p.id===c.postId);return{liked:c.liked,likeCount:c.likeCount,commentId:c.commentId,content:c.content,createdAt:c.createdAt,updatedAt:c.updatedAt,post:{postId:p.id,title:p.title,type:p.type,topic:p.topic}}}
+const dto=c=>{const p=posts.find(p=>p.id===c.postId);return{visibility:"VISIBLE",liked:c.liked,likeCount:c.likeCount,commentId:c.commentId,content:c.content,createdAt:c.createdAt,updatedAt:c.updatedAt,post:{postId:p.id,title:p.title,type:p.type,topic:p.topic}}}
 function listing(u){let items=owned().filter(c=>!u.searchParams.has('afterId')||c.commentId<Number(u.searchParams.get('afterId')));const hasNext=items.length>10;items=items.slice(0,10).map(dto);return{items,hasNext,nextCursor:hasNext?{createdAt:items.at(-1).createdAt,commentId:items.at(-1).commentId}:null}}
 function publicRead(u){
  const id=Number(u.pathname.split('/')[5]),post=posts.find(p=>p.id===id)

@@ -12,7 +12,7 @@ const comment={commentId:11,content:'작성 시각을 확인하는 댓글입니�
 const page=items=>({items,hasNext:false,nextCursor:null})
 function read(path){
  if(path.endsWith('/comments'))return page([comment])
- if(path.endsWith('/feed'))return page([post])
+ if(path.endsWith('/feed'))return page([{...post,visibility:"VISIBLE"}])
  return post
 }
 const server=http.createServer((req,res)=>{assert(!req.headers.cookie);res.writeHead(200,{'Content-Type':'application/json'});res.end(JSON.stringify(read(new URL(req.url,'http://mock').pathname)))})
@@ -29,8 +29,8 @@ async function fixture(width=1440,js=true){
   if(path.endsWith('/auth/me'))return r.fulfill({json:member})
   if(path.endsWith('/members/me'))return r.fulfill({json:{...member,createdAt:'2026-09-30T16:00:00Z'}})
   if(path.endsWith('/activity-summary'))return r.fulfill({json:{postCount:1,commentCount:1}})
-  if(path.endsWith('/members/me/posts'))return r.fulfill({json:page([post])})
-  if(path.endsWith('/members/me/comments'))return r.fulfill({json:page([{commentId:comment.commentId,content:comment.content,createdAt:comment.createdAt,updatedAt:comment.updatedAt,likeCount:2,liked:false,post:{postId:post.id,title:post.title,type:post.type,topic:post.topic}}])})
+  if(path.endsWith('/members/me/posts'))return r.fulfill({json:page([{...post,visibility:"VISIBLE"}])})
+  if(path.endsWith('/members/me/comments'))return r.fulfill({json:page([{visibility:"VISIBLE",commentId:comment.commentId,content:comment.content,createdAt:comment.createdAt,updatedAt:comment.updatedAt,likeCount:2,liked:false,post:{postId:post.id,title:post.title,type:post.type,topic:post.topic}}])})
   return r.fulfill({json:read(path)})
  })
  return {ctx,p,calls}
