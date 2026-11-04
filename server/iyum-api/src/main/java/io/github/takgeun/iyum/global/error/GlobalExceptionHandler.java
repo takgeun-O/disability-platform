@@ -2,6 +2,7 @@ package io.github.takgeun.iyum.global.error;
 
 import io.github.takgeun.iyum.admin.content.application.AdminContentReadException;
 import io.github.takgeun.iyum.admin.moderation.application.ContentModerationException;
+import io.github.takgeun.iyum.admin.operation.application.AdminOperationLogReadException;
 import io.github.takgeun.iyum.auth.emailverification.application.InvalidEmailVerificationTokenException;
 import io.github.takgeun.iyum.auth.passwordreset.application.PasswordResetException;
 import io.github.takgeun.iyum.auth.passwordreset.application.PasswordResetRateLimitException;
@@ -849,6 +850,30 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
 
             case POST_NOT_FOUND ->
                     HttpStatus.NOT_FOUND;
+        };
+
+        return ResponseEntity
+                .status(status)
+                .cacheControl(CacheControl.noStore())
+                .body(ApiErrorResponse.of(
+                        exception.getCode().name(),
+                        exception.getMessage()
+                ));
+    }
+
+    @ExceptionHandler(AdminOperationLogReadException.class)
+    public ResponseEntity<ApiErrorResponse> handleAdminOperationLogRead(
+            AdminOperationLogReadException exception
+    ) {
+        HttpStatus status = switch (exception.getCode()) {
+            case AUTHENTICATION_REQUIRED ->
+                    HttpStatus.UNAUTHORIZED;
+
+            case ADMIN_REQUIRED ->
+                    HttpStatus.FORBIDDEN;
+
+            case INVALID_PAGE_REQUEST, INVALID_DATE_RANGE ->
+                    HttpStatus.BAD_REQUEST;
         };
 
         return ResponseEntity

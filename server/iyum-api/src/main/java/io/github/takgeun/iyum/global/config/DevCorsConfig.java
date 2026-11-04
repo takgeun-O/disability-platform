@@ -293,6 +293,19 @@ public class DevCorsConfig {
                 adminCommentReadCors
         );
 
+        // 관리자 운영 기록 조회
+        CorsConfiguration adminOperationLogReadCors =
+                new CorsConfiguration(cors);
+
+        adminOperationLogReadCors.setAllowedMethods(
+                List.of("GET", "OPTIONS")
+        );
+
+        source.registerCorsConfiguration(
+                "/api/v1/admin/operation-logs",
+                adminOperationLogReadCors
+        );
+
         return source;
     }
 }
