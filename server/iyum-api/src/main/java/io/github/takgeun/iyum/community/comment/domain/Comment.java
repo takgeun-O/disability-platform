@@ -57,14 +57,13 @@ public class Comment {
     private Instant createdAt;
 
     // 댓글 엔티티의 마지막 변경 시각
-    // JPA Auditing 관리 방식
-    // updatedAt의 null값은 본문 수정 시각이 별도로 기록되지 않았다는 의미
+    // 생성 시에도 기록되며, 본문 외 변경에도 갱신될 수 있음.
     @LastModifiedDate
     @Column(name = "updated_at", nullable = false)
     private Instant updatedAt;
 
     /**
-     * 마지막으로 보문이 실제 변경된 시각.
+     * 마지막으로 본문이 실제 변경된 시각.
      *
      * 신규 댓글 및 과거 본문 수정 시각이 별도로 기록되지 않은 댓글은 null.
      * 숨김·복원·삭제 등 본문 외 변경으로는 갱신하지 않음.

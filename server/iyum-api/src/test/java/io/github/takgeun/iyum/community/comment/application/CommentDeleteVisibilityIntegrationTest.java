@@ -40,6 +40,9 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 @Testcontainers
 class CommentDeleteVisibilityIntegrationTest {
 
+    private static final Instant CONTENT_UPDATED_AT =
+            Instant.parse("2026-10-29T09:00:30Z");
+
     private static final Instant HIDDEN_AT =
             Instant.parse("2026-10-30T00:00:00Z");
 
@@ -127,15 +130,21 @@ class CommentDeleteVisibilityIntegrationTest {
 
     @ParameterizedTest
     @CsvSource({
-            "false, false",
-            "false, true",
-            "true, false",
-            "true, true"
+            "false, false, false",
+            "false, false, true",
+            "false, true, false",
+            "false, true, true",
+            "true, false, false",
+            "true, false, true",
+            "true, true, false",
+            "true, true, true"
     })
     void 댓글_작성자는_숨김_여부와_관계없이_댓글을_삭제할_수_있다(
             boolean postHidden,
-            boolean commentHidden
+            boolean commentHidden,
+            boolean edited
     ) {
+        prepareContentUpdatedAt(edited);
         applyHiddenState(postHidden, commentHidden);
 
         Map<String, Object> parentBefore = postSnapshot();
@@ -147,6 +156,7 @@ class CommentDeleteVisibilityIntegrationTest {
                 commentId
         );
 
+        // 삭제 서비스의 트랜잭션이 끝난 뒤 다시 조회
         Comment deletedComment = findComment();
 
         assertThat(deletedComment.getDeletedAt()).isNotNull();
@@ -156,6 +166,10 @@ class CommentDeleteVisibilityIntegrationTest {
                 .isEqualTo(createdAt);
         assertThat(deletedComment.getContent())
                 .isEqualTo("삭제 검증 댓글");
+
+        // 삭제는 본문 수정이 아니므로 기존 값 유지
+        assertThat(deletedComment.getContentUpdatedAt())
+                .isEqualTo(edited ? CONTENT_UPDATED_AT : null);
 
         // 댓글 삭제가 부모 게시글의 상태나 내용을 바꾸지 않는다.
         assertThat(postSnapshot()).isEqualTo(parentBefore);
@@ -338,5 +352,25 @@ class CommentDeleteVisibilityIntegrationTest {
                 exception -> assertThat(exception.getCode())
                         .isEqualTo(expectedCode)
         );
+    }
+
+    // 초기 본문 수정 시각을 준비하는 메서드 추가
+    private void prepareContentUpdatedAt(boolean edited) {
+        // 삭제 전부터 본문 수정 이력이 존재하는 경우와
+        // 별도로 기록된 본문 수정 시각이 없는 경우를 준비한다.
+        Timestamp value = edited
+                ? Timestamp.from(CONTENT_UPDATED_AT)
+                : null;
+
+        int updatedRows = jdbcTemplate.update("""
+            UPDATE community_comments
+            SET content_updated_at = ?
+            WHERE id = ?
+            """,
+                value,
+                commentId
+        );
+
+        assertThat(updatedRows).isEqualTo(1);
     }
 }

@@ -52,6 +52,9 @@ class CommentModerationServiceIntegrationTest {
     private static final Instant CREATED_AT =
             Instant.parse("2026-10-29T09:00:00Z");
 
+    private static final Instant CONTENT_UPDATED_AT =
+            Instant.parse("2026-10-29T09:00:30Z");
+
     private static final Instant POST_HIDDEN_AT =
             Instant.parse("2026-10-29T10:00:00Z");
 
@@ -160,16 +163,23 @@ class CommentModerationServiceIntegrationTest {
 
     @ParameterizedTest
     @CsvSource({
-            "HIDE, false",
-            "HIDE, true",
-            "RESTORE, false",
-            "RESTORE, true"
+            "HIDE, false, false",
+            "HIDE, false, true",
+            "HIDE, true, false",
+            "HIDE, true, true",
+            "RESTORE, false, false",
+            "RESTORE, false, true",
+            "RESTORE, true, false",
+            "RESTORE, true, true"
     })
     void 댓글_상태와_이력이_함께_커밋되고_부모는_유지된다(
             ModerationAction action,
-            boolean parentHidden
+            boolean parentHidden,
+            boolean edited
     ) {
+        prepareContentUpdatedAt(edited);
         prepareInitialState(action, parentHidden);
+
         Map<String, Object> parentBefore = readParentSnapshot();
 
         CommentModerationResult result =
@@ -222,20 +232,29 @@ class CommentModerationServiceIntegrationTest {
                 .isTrue();
 
         assertThat(readParentSnapshot()).isEqualTo(parentBefore);
+        assertThat(readCommentContentUpdatedAt())
+                .isEqualTo(edited ? CONTENT_UPDATED_AT : null);
     }
 
     @ParameterizedTest
     @CsvSource({
-            "HIDE, false",
-            "HIDE, true",
-            "RESTORE, false",
-            "RESTORE, true"
+            "HIDE, false, false",
+            "HIDE, false, true",
+            "HIDE, true, false",
+            "HIDE, true, true",
+            "RESTORE, false, false",
+            "RESTORE, false, true",
+            "RESTORE, true, false",
+            "RESTORE, true, true"
     })
     void 동일한_요청을_반복해도_이력이_늘어나지_않는다(
             ModerationAction action,
-            boolean parentHidden
+            boolean parentHidden,
+            boolean edited
     ) {
+        prepareContentUpdatedAt(edited);
         prepareInitialState(action, parentHidden);
+
         Map<String, Object> parentBefore = readParentSnapshot();
 
         CommentModerationResult first =
@@ -261,19 +280,28 @@ class CommentModerationServiceIntegrationTest {
         assertThat(countLogs()).isEqualTo(1L);
         assertThat(readSingleLog().reason()).isEqualTo("최초 처리 사유");
         assertThat(readParentSnapshot()).isEqualTo(parentBefore);
+
+        assertThat(readCommentContentUpdatedAt())
+                .isEqualTo(edited ? CONTENT_UPDATED_AT : null);
     }
 
     @ParameterizedTest
     @CsvSource({
-            "HIDE, false",
-            "HIDE, true",
-            "RESTORE, false",
-            "RESTORE, true"
+            "HIDE, false, false",
+            "HIDE, false, true",
+            "HIDE, true, false",
+            "HIDE, true, true",
+            "RESTORE, false, false",
+            "RESTORE, false, true",
+            "RESTORE, true, false",
+            "RESTORE, true, true"
     })
     void DB_반영_후_실패하면_댓글과_이력이_함께_롤백된다(
             ModerationAction action,
-            boolean parentHidden
+            boolean parentHidden,
+            boolean edited
     ) {
+        prepareContentUpdatedAt(edited);
         prepareInitialState(action, parentHidden);
 
         Map<String, Object> parentBefore = readParentSnapshot();
@@ -311,6 +339,9 @@ class CommentModerationServiceIntegrationTest {
         assertThat(readCommentSnapshot()).isEqualTo(commentBefore);
         assertThat(readParentSnapshot()).isEqualTo(parentBefore);
         assertThat(countLogs()).isZero();
+
+        assertThat(readCommentContentUpdatedAt())
+                .isEqualTo(edited ? CONTENT_UPDATED_AT : null);
     }
 
     private void prepareInitialState(
@@ -390,7 +421,8 @@ class CommentModerationServiceIntegrationTest {
                        content,
                        hidden_at,
                        deleted_at,
-                       updated_at
+                       updated_at,
+                       content_updated_at
                 FROM community_comments
                 WHERE id = ?
                 """, commentId);
@@ -440,5 +472,42 @@ class CommentModerationServiceIntegrationTest {
             String reason,
             Instant createdAt
     ) {
+    }
+
+    private void prepareContentUpdatedAt(boolean edited) {
+        // 이번 테스트는 운영 조치 전후의 값 보존을 검증한다.
+        // 본문 수정 자체의 기록 동작은 별도 테스트에서 검증한다.
+        Timestamp value = edited
+                ? Timestamp.from(CONTENT_UPDATED_AT)
+                : null;
+
+        int updatedRows = jdbcTemplate.update("""
+            UPDATE community_comments
+            SET content_updated_at = ?
+            WHERE id = ?
+            """,
+                value,
+                commentId
+        );
+
+        assertThat(updatedRows).isEqualTo(1);
+    }
+
+    private Instant readCommentContentUpdatedAt() {
+        return jdbcTemplate.queryForObject("""
+            SELECT content_updated_at
+            FROM community_comments
+            WHERE id = ?
+            """,
+                (rs, rowNum) -> {
+                    Timestamp value =
+                            rs.getTimestamp("content_updated_at");
+
+                    return value == null
+                            ? null
+                            : value.toInstant();
+                },
+                commentId
+        );
     }
 }

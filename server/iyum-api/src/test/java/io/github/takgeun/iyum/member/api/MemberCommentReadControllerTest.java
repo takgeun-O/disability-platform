@@ -21,6 +21,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.CsvSource;
 import org.junit.jupiter.params.provider.EnumSource;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
 import org.springframework.context.annotation.Import;
@@ -481,6 +482,7 @@ class MemberCommentReadControllerTest {
         for (String path : List.of(
                 "$.items[1].content",
                 "$.items[1].updatedAt",
+                "$.items[1].contentUpdatedAt",
                 "$.items[1].likeCount",
                 "$.items[1].liked",
                 "$.items[1].post.title",
@@ -495,6 +497,93 @@ class MemberCommentReadControllerTest {
         verify(memberCommentReadService).getComments(
                 MEMBER_ID, null, null, 2
         );
+        verifyNoMoreInteractions(memberCommentReadService);
+
+        verifyNoInteractions(
+                memberActivitySummaryService,
+                memberPostReadService
+        );
+    }
+
+    @ParameterizedTest
+    @ValueSource(booleans = {false, true})
+    void 공개_댓글의_본문_수정_시각을_응답한다(
+            boolean edited
+    ) throws Exception {
+        givenActiveMember();
+
+        Instant contentUpdatedAt = edited
+                ? CREATED_AT.plusSeconds(60)
+                : null;
+
+        MemberCommentItemResult original = item(104L);
+
+        MemberCommentItemResult comment =
+                new MemberCommentItemResult(
+                        original.commentId(),
+                        original.content(),
+                        original.createdAt(),
+                        original.updatedAt(),
+                        contentUpdatedAt,
+                        original.post(),
+                        original.likeCount(),
+                        original.liked(),
+                        original.visibility()
+                );
+
+        when(memberCommentReadService.getComments(
+                MEMBER_ID,
+                null,
+                null,
+                10
+        )).thenReturn(
+                new MemberCommentListResult(
+                        List.of(comment),
+                        false,
+                        null
+                )
+        );
+
+        var response = mockMvc.perform(
+                        get(BASE)
+                                .with(user(principal()))
+                                .header(HttpHeaders.ORIGIN, ORIGIN)
+                )
+                .andExpect(status().isOk())
+                .andExpect(content().contentTypeCompatibleWith(
+                        MediaType.APPLICATION_JSON
+                ))
+                .andExpect(jsonPath("$.items.length()").value(1))
+                .andExpect(jsonPath("$.items[0].commentId").value(104))
+                .andExpect(jsonPath("$.items[0].visibility")
+                        .value("VISIBLE"))
+                .andExpect(jsonPath("$.items[0].createdAt")
+                        .value(CREATED_AT.toString()))
+                .andExpect(jsonPath("$.items[0].updatedAt")
+                        .value(UPDATED_AT.toString()))
+                // 값이 null이어도 JSON 필드는 존재해야 한다.
+                .andExpect(jsonPath("$.items[0].contentUpdatedAt")
+                        .hasJsonPath());
+
+        if (edited) {
+            response.andExpect(
+                    jsonPath("$.items[0].contentUpdatedAt")
+                            .value(contentUpdatedAt.toString())
+            );
+        } else {
+            response.andExpect(
+                    jsonPath("$.items[0].contentUpdatedAt")
+                            .value(nullValue())
+            );
+        }
+
+        verify(memberCommentReadService).getComments(
+                MEMBER_ID,
+                null,
+                null,
+                10
+        );
+
         verifyNoMoreInteractions(memberCommentReadService);
 
         verifyNoInteractions(

@@ -38,6 +38,7 @@ import java.time.Instant;
 import java.util.List;
 
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.nullValue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.verify;
@@ -642,6 +643,108 @@ class AdminCommentReadControllerTest {
                         role
                 )
         ).thenReturn(true);
+    }
+
+    @ParameterizedTest
+    @CsvSource({
+            "VISIBLE, false",
+            "VISIBLE, true",
+            "HIDDEN, false",
+            "HIDDEN, true",
+            "DELETED, false",
+            "DELETED, true"
+    })
+    void 관리자는_댓글_상태와_관계없이_기록된_본문_수정_시각을_조회한다(
+            AdminCommentStatus commentStatus,
+            boolean edited
+    ) throws Exception {
+        givenValidSession(MemberRole.ADMIN);
+
+        Instant contentUpdatedAt = edited
+                ? CREATED_AT.plusSeconds(60)
+                : null;
+
+        AdminCommentItemResult original =
+                commentItem(commentStatus, false);
+
+        AdminCommentItemResult comment =
+                new AdminCommentItemResult(
+                        original.commentId(),
+                        original.content(),
+                        original.author(),
+                        original.status(),
+                        original.createdAt(),
+                        original.updatedAt(),
+                        contentUpdatedAt,
+                        original.hiddenAt(),
+                        original.deletedAt()
+                );
+
+        AdminCommentReadQuery query =
+                new AdminCommentReadQuery(
+                        AdminCommentStatus.ALL,
+                        null,
+                        0,
+                        20
+                );
+
+        when(commentReadService.getComments(
+                ADMIN_ID,
+                CREDENTIAL_VERSION,
+                POST_ID,
+                query
+        )).thenReturn(
+                result(
+                        AdminPostStatus.HIDDEN,
+                        List.of(comment),
+                        0,
+                        20,
+                        1
+                )
+        );
+
+        var response = expectSuccess(
+                mockMvc.perform(
+                        request(POST_ID)
+                                .with(user(principal(MemberRole.ADMIN)))
+                )
+        )
+                .andExpect(jsonPath("$.postId").value(POST_ID))
+                .andExpect(jsonPath("$.postStatus").value("HIDDEN"))
+                .andExpect(jsonPath("$.items.length()").value(1))
+                .andExpect(jsonPath("$.items[0].commentId")
+                        .value(COMMENT_ID))
+                .andExpect(jsonPath("$.items[0].status")
+                        .value(commentStatus.name()))
+                .andExpect(jsonPath("$.items[0].content")
+                        .value(FULL_CONTENT))
+                .andExpect(jsonPath("$.items[0].createdAt")
+                        .value(CREATED_AT.toString()))
+                .andExpect(jsonPath("$.items[0].updatedAt")
+                        .value(UPDATED_AT.toString()))
+                .andExpect(jsonPath("$.items[0].contentUpdatedAt")
+                        .hasJsonPath());
+
+        if (edited) {
+            response.andExpect(
+                    jsonPath("$.items[0].contentUpdatedAt")
+                            .value(contentUpdatedAt.toString())
+            );
+        } else {
+            response.andExpect(
+                    jsonPath("$.items[0].contentUpdatedAt")
+                            .value(nullValue())
+            );
+        }
+
+        verify(commentReadService).getComments(
+                ADMIN_ID,
+                CREDENTIAL_VERSION,
+                POST_ID,
+                query
+        );
+
+        verifyNoMoreInteractions(commentReadService);
     }
 
     private void givenResult(AdminCommentListResult result) {
