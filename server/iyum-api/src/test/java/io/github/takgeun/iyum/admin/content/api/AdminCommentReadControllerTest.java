@@ -725,6 +725,7 @@ class AdminCommentReadControllerTest {
                 status,
                 CREATED_AT,
                 UPDATED_AT,
+                null,
                 hiddenAt,
                 deletedAt
         );

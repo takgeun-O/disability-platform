@@ -451,6 +451,82 @@ class CommentReadControllerTest {
         verifyNoMoreInteractions(commentReadService);
     }
 
+    // 서비스 결과가 올바르더라도 응답 DTO에서 필드를 빠뜨릴 수 있으므로
+    // HTTP 응답도 확인
+    @ParameterizedTest
+    @ValueSource(booleans = {false, true})
+    void 본문_수정_시각의_null과_값을_JSON으로_반환한다(
+            boolean edited
+    ) throws Exception {
+        Instant entityUpdatedAt = TIME.plusSeconds(120);
+
+        Instant contentUpdatedAt =
+                edited ? TIME.plusSeconds(60) : null;
+
+        CommentReadQuery expected = new CommentReadQuery(
+                CommentSort.OLDEST,
+                null,
+                20
+        );
+
+        CommentResult item = new CommentResult(
+                100L,
+                "조회 테스트 댓글",
+                new CommentAuthorResult(7L, "조회회원"),
+                TIME,
+                entityUpdatedAt,
+                contentUpdatedAt,
+                5L,
+                false
+        );
+
+        when(commentReadService.getComments(
+                123L,
+                expected,
+                null
+        )).thenReturn(
+                new CommentListResult(
+                        List.of(item),
+                        false,
+                        null
+                )
+        );
+
+        var response = mockMvc.perform(
+                        get(API_PATH)
+                )
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.items[0].commentId")
+                        .value(100))
+                .andExpect(jsonPath("$.items[0].createdAt")
+                        .value(TIME_TEXT))
+                .andExpect(jsonPath("$.items[0].updatedAt")
+                        .value(entityUpdatedAt.toString()))
+                // null이어도 필드 자체는 응답에 포함되어야 한다.
+                .andExpect(jsonPath("$.items[0].contentUpdatedAt")
+                        .hasJsonPath());
+
+        if (edited) {
+            response.andExpect(
+                    jsonPath("$.items[0].contentUpdatedAt")
+                            .value(contentUpdatedAt.toString())
+            );
+        } else {
+            response.andExpect(
+                    jsonPath("$.items[0].contentUpdatedAt")
+                            .value(nullValue())
+            );
+        }
+
+        verify(commentReadService).getComments(
+                123L,
+                expected,
+                null
+        );
+
+        verifyNoMoreInteractions(commentReadService);
+    }
+
     private CommentListResult emptyResult() {
         return new CommentListResult(
                 List.of(),
@@ -466,6 +542,7 @@ class CommentReadControllerTest {
                 new CommentAuthorResult(7L, "조회회원"),
                 TIME,
                 TIME,
+                null,
                 5L,
                 liked
         );

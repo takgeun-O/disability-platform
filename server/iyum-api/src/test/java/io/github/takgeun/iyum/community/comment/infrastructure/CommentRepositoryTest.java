@@ -120,6 +120,10 @@ class CommentRepositoryTest {
         assertThat(found.getContent()).isEqualTo(content);
         assertThat(found.getCreatedAt()).isEqualTo(CREATED_TIME);
         assertThat(found.getUpdatedAt()).isEqualTo(CREATED_TIME);
+
+        // 새 댓글에는 본문 수정 시각이 기록되지 않는다.
+        assertThat(found.getContentUpdatedAt()).isNull();
+
         assertThat(found.getDeletedAt()).isNull();
     }
 
@@ -155,12 +159,13 @@ class CommentRepositoryTest {
                 .thenReturn(Optional.of(UPDATED_TIME));
 
         String updatedContent = "  수정한 내용\n다음 줄  ";
-        comment.update(updatedContent);
+        comment.update(updatedContent, UPDATED_TIME);
 
         // 별도의 save() 없이 변경 감지로 UPDATE 실행
         entityManager.flush();
         entityManager.clear();
 
+        // DB에서 다시 읽음
         Comment found = commentRepository
                 .findById(commentId)
                 .orElseThrow();
@@ -171,6 +176,8 @@ class CommentRepositoryTest {
         assertThat(found.getPost().getId()).isEqualTo(postId);
         assertThat(found.getAuthor().getId()).isEqualTo(authorId);
         assertThat(found.getDeletedAt()).isNull();
+        assertThat(found.getContentUpdatedAt())
+                .isEqualTo(UPDATED_TIME);
     }
 
     @Test

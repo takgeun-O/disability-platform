@@ -12,6 +12,7 @@ public record AdminCommentItemResult(
         AdminCommentStatus status,
         Instant createdAt,
         Instant updatedAt,
+        @Nullable Instant contentUpdatedAt,
         @Nullable Instant hiddenAt,
         @Nullable Instant deletedAt
 ) {
@@ -24,6 +25,7 @@ public record AdminCommentItemResult(
                 AdminCommentStatus.from(comment),
                 comment.getCreatedAt(),
                 comment.getUpdatedAt(),
+                comment.getContentUpdatedAt(),
                 comment.getHiddenAt(),
                 comment.getDeletedAt()
         );

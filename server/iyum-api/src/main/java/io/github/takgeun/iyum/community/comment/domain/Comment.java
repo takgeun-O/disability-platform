@@ -56,9 +56,21 @@ public class Comment {
     @Column(name = "created_at", nullable = false, updatable = false)
     private Instant createdAt;
 
+    // 댓글 엔티티의 마지막 변경 시각
+    // JPA Auditing 관리 방식
+    // updatedAt의 null값은 본문 수정 시각이 별도로 기록되지 않았다는 의미
     @LastModifiedDate
     @Column(name = "updated_at", nullable = false)
     private Instant updatedAt;
+
+    /**
+     * 마지막으로 보문이 실제 변경된 시각.
+     *
+     * 신규 댓글 및 과거 본문 수정 시각이 별도로 기록되지 않은 댓글은 null.
+     * 숨김·복원·삭제 등 본문 외 변경으로는 갱신하지 않음.
+     */
+    @Column(name = "content_updated_at")
+    private Instant contentUpdatedAt;
 
     @Column(name = "deleted_at")
     private Instant deletedAt;
@@ -95,10 +107,31 @@ public class Comment {
         return new Comment(post, author, content);
     }
 
-    // 수정 시각은 기존 JPA Auditing이 처리
-    public void update(String content) {
+    /**
+     * 본문이 실제로 변경된 경우에만 본문 수정 시각을 기록한다.
+     *
+     * updatedAt은 JPA Auditing이 관리하는 엔티티 변경 시각
+     * contentUpdatedAt은 본문 변경만을 나타내는 시각
+     */
+    public void update(String content, Instant changedAt) {
         // 우변의 검증이 성공해야 대입되므로, 검증 실패 시 기존 내용 유지
-        this.content = CommentInputPolicy.validateContent(content);
+        // 검증에 실패하면 기존 본문과 본문 수정 시각을 보존
+        String validatedContent =
+                CommentInputPolicy.validateContent(content);
+
+        if(changedAt == null) {
+            throw new IllegalArgumentException(
+                    "본문 수정 시각은 필수입니다."
+            );
+        }
+
+        // 같은 본문으로 요청하면 수정 이력을 새로 만들지 않음.
+        if(this.content.equals(validatedContent)) {
+            return;
+        }
+
+        this.content = validatedContent;
+        this.contentUpdatedAt = changedAt;
     }
 
     // 삭제 시각은 서비스에서 전달할 파라미터

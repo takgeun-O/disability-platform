@@ -53,7 +53,7 @@ async function fixture(width=1440){
   if(u.pathname.endsWith('/like')){c.liked=method==='PUT';c.likeCount=c.liked?9:8;return r.fulfill({json:{postId:id,commentId:cid,liked:c.liked,likeCount:c.likeCount}})}
   return r.fulfill({status:500,json:failure('UNEXPECTED')})
  })
- await p.goto(base+'/mypage');await p.locator('[data-member-post-id="1000"]').waitFor()
+ await p.goto(base+'/mypage',{waitUntil:'domcontentloaded'});await p.locator('[data-member-post-id="1000"]').waitFor()
  return {ctx,p,state}
 }
 const row=(p,id)=>p.locator(`[data-member-post-id="${id}"]`),area=(p,id)=>row(p,id).locator('.mypage-inline-comments'),items=(p,id)=>area(p,id).locator('.community-comment-list > li')
@@ -61,7 +61,12 @@ const reads=(s,id)=>s.calls.filter(c=>c.method==='GET'&&c.path===`/api/v1/commun
 async function count(p,id,n){await p.waitForFunction(({id,n})=>document.querySelectorAll(`[data-member-post-id="${id}"] .community-comment-list > li`).length===n,{id,n})}
 async function open(p,id,n){await row(p,id).getByRole('button',{name:/^댓글 \d/}).click();await count(p,id,n);await p.waitForFunction(id=>document.querySelector(`[data-member-post-id="${id}"] .mypage-inline-comments`).getAttribute('aria-busy')==='false',id)}
 function gate(s,pid){let release,held;const reached=new Promise(resolve=>{s.get=async(r,u)=>{if(u.pathname===`/api/v1/community/posts/${pid}/comments`){held=r.request();s.get=null;await new Promise(done=>{release=async(data)=>{try{await r.fulfill(data??read(u))}finally{done()}};resolve()})}else await r.fulfill(read(u))}});return{reached,get request(){return held},release:data=>release(data)}}
-async function check(name,fn,width){const f=await fixture(width);try{await fn(f);results.push({name,pass:true});console.log('PASS',name)}catch(e){results.push({name,pass:false,error:String(e)});console.error('FAIL',name,e);process.exitCode=1;await f.p.screenshot({path:`${out}/failure-${results.length}.png`,fullPage:true})}finally{await f.ctx.close()}}
+async function check(name,fn,width){
+ let f
+ try{f=await fixture(width);await fn(f);results.push({name,pass:true});console.log('PASS',name)}
+ catch(e){results.push({name,pass:false,error:String(e)});console.error('FAIL',name,e);process.exitCode=1;if(f)await f.p.screenshot({path:`${out}/failure-${results.length}.png`,fullPage:true}).catch(()=>{})}
+ finally{await Promise.all(browser.contexts().map(c=>c.close()));await fs.writeFile(out+'/results.json',JSON.stringify({kind:'mock',results},null,2))}
+}
 try{
  for(const width of [1440,390,320])await check(`panel hierarchy bottom collapse draft focus and errors ${width}`,async({p,state})=>{
   comments.get(1000)[0].author={...member,nickname:'긴닉네임'.repeat(20)}

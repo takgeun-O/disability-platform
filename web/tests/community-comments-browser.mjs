@@ -2,6 +2,8 @@
 import http from "node:http"
 import assert from "node:assert/strict"
 import fs from "node:fs/promises"
+import { loadTypeScript } from "./helpers/load-typescript.mjs"
+const { isCommentPage } = await loadTypeScript("../src/lib/community-comments.ts", import.meta.url)
 const { chromium } = await import(process.env.PLAYWRIGHT_MODULE ?? "playwright")
 const base = process.env.BASE_URL ?? "http://127.0.0.1:8451",
   api = "http://127.0.0.1:8082"
@@ -165,13 +167,31 @@ async function fixture(identity = member, count = 22, automatic = false) {
       return r.fulfill({ status: 204 })
     },
   )
-  const initialRead = p.waitForResponse(r => new URL(r.url()).origin === api && new URL(r.url()).pathname.endsWith("/comments") && r.request().method() === "GET")
-  await p.goto(base + "/community/posts/7")
+  // Observe consumed JSON, not a response event that an aborted fetch may never emit.
+  await ctx.addInitScript(() => {
+    window.commentReads = []
+    const original = window.fetch
+    window.fetch = async (input, options) => {
+      if (!new URL(String(input), location.href).pathname.endsWith('/comments') || options?.method !== 'GET') return original(input, options)
+      const record = { consumed: false, aborted: false }
+      window.commentReads.push(record)
+      options.signal?.addEventListener('abort', () => { record.aborted = true })
+      const response = await original(input, options)
+      const json = response.json.bind(response)
+      response.json = async () => { try { return await json() } finally { record.consumed = true } }
+      return response
+    }
+  })
+  try {
+  await p.goto(base + "/community/posts/7", { waitUntil: 'domcontentloaded' })
   if (identity) await p.getByRole("button", { name: "댓글 등록", exact: true }).waitFor()
   else await p.getByRole("button", { name: "로그인하고 댓글 등록", exact: true }).waitFor()
-  await (await initialRead).finished()
-  await p.waitForFunction(() => document.querySelector("#comments-refresh")?.disabled === false)
+  await p.waitForFunction(() => window.commentReads.some(r => r.consumed) && document.querySelector("#comments-refresh")?.disabled === false)
+  // Geometry checks must run after the rendered fonts settle, not merely after
+  // response delivery. This is a resource/state wait, not a time allowance.
+  await p.evaluate(async () => { await document.fonts.ready; await new Promise(requestAnimationFrame) })
   return { ctx, p, state }
+  } catch (error) { await ctx.close(); throw error }
 }
 async function check(name, fn) {
   try {
@@ -181,7 +201,16 @@ async function check(name, fn) {
   } catch (e) {
     results.push({ name, status: "failed", message: e.message })
     console.error("FAIL", name, e.message)
+    for (const context of browser.contexts()) {
+      for (const page of context.pages()) {
+        await page.screenshot({path: `${output}/failure-${results.length}.png`, fullPage:true}).catch(() => {})
+      }
+    }
     process.exitCode = 1
+  } finally {
+    // A failed assertion must not leak a context into following scenarios.
+    await Promise.all(browser.contexts().map(context => context.close()))
+    await fs.writeFile(output + "/results.json", JSON.stringify({kind:"mock",results}, null, 2))
   }
 }
 async function until(fn) {
@@ -191,7 +220,150 @@ async function until(fn) {
   }
   throw Error("controlled request was not reached")
 }
+// Controlled transport deliberately ignores abort; consumed JSON + render boundary
+// distinguishes request cancellation from stale-response ownership protection.
+async function ignoreReadAbort(p) {
+  await p.evaluate(() => {
+    const original = window.fetch
+    window.fetch = (input, options) => original(input,
+      new URL(String(input), location.href).pathname.endsWith('/comments') && options?.method === 'GET'
+        ? { ...options, signal: undefined } : options)
+  })
+}
+function holdRead(state) {
+  let release, reached
+  const ready = new Promise(r => { reached = r })
+  const pending = new Promise(r => { release = r })
+  state.get = async (route, url) => {
+    if (!url.pathname.endsWith('/comments')) return route.fulfill(read(url))
+    state.get = null
+    reached(url)
+    const snapshot = structuredClone(read(url))
+    assert.equal(isCommentPage(snapshot.json, "OLDEST"), true)
+    await pending
+    await route.fulfill(snapshot)
+  }
+  return { ready, release: () => release() }
+}
+async function settledRead(p, index) {
+  await p.waitForFunction(i => window.commentReads[i]?.consumed, index)
+  await p.evaluate(() => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve))))
+}
+async function failEdit(p, state, id) {
+  await p.locator(`#comment-edit-button-${id}`).click()
+  await p.locator(`#comment-edit-${id}`).fill('보관할 수정 초안')
+  state.write = r => r.fulfill({ status: 404, json: failure('COMMENT_NOT_FOUND') })
+  await p.getByRole('button', { name: '댓글 저장', exact: true }).click()
+  await p.locator('.community-comment-detached').waitFor()
+  assert.equal(await p.locator(`#comment-${id}`).count(), 0)
+  assert.equal(await p.locator(`#comment-edit-${id}`).inputValue(), '보관할 수정 초안')
+  assert.equal(await p.getByRole('button', { name: '댓글 저장', exact: true }).count(), 0)
+  assert.equal(state.calls.filter(c => c.method === 'PUT').length, 1)
+}
 try {
+  for (const width of [1440, 320]) await check(`restoration A/B: fresh body, detached draft, explicit restart ${width}`, async () => {
+    const {ctx,p,state} = await fixture(member, 3)
+    try {
+      await p.setViewportSize({width,height:1000})
+      await p.locator('#comment-draft').fill('독립적인 새 댓글 초안')
+      await failEdit(p,state,1)
+      await p.locator('.comment-success-toast.is-notice').waitFor()
+      comments = comments.map(c => c.commentId === 1 ? {...c, content:'복원 후 최신 서버 본문'} : c)
+      await p.locator('#comments-refresh').click()
+      await p.waitForFunction(() => !document.querySelector('#comments-refresh').disabled && document.querySelector('#comment-1')?.textContent.includes('복원 후 최신 서버 본문'))
+      assert.equal(await p.locator('#comment-1').count(),1)
+      assert.equal(await p.locator('#comment-1 textarea').count(),0)
+      assert.equal(await p.locator('.community-comment-detached textarea').inputValue(),'보관할 수정 초안')
+      assert(await p.evaluate(() => {const ids=[...document.querySelectorAll('[id]')].map(e=>e.id);return new Set(ids).size===ids.length}))
+      assert(await p.evaluate(()=>document.documentElement.scrollWidth<=innerWidth))
+      await p.screenshot({path:`${output}/restored-${width}.png`,fullPage:true})
+      await p.locator('#comment-edit-button-1').click()
+      await p.getByRole('button',{name:'계속 수정',exact:true}).waitFor()
+      await p.screenshot({path:`${output}/discard-${width}.png`,fullPage:true})
+      await p.getByRole('button',{name:'계속 수정',exact:true}).click()
+      assert.equal(await p.locator('.community-comment-detached textarea').inputValue(),'보관할 수정 초안')
+      assert.equal(await p.locator('#comment-1 textarea').count(),0)
+      await p.locator('#comment-edit-button-1').click()
+      await p.getByRole('button',{name:'수정 내용 버리기',exact:true}).click()
+      await p.waitForFunction(()=>document.activeElement?.id==='comment-edit-1')
+      assert.equal(await p.locator('#comment-1 textarea').inputValue(),'복원 후 최신 서버 본문')
+      assert.equal(await p.locator('.community-comment-detached').count(),0)
+      assert.equal(await p.locator('#comment-draft').inputValue(),'독립적인 새 댓글 초안')
+      assert.equal(state.calls.filter(c=>c.method==='PUT').length,1)
+      await p.locator('.community-back').click()
+      await p.getByRole('button',{name:'계속 작성',exact:true}).click()
+      assert.equal(await p.locator('#comment-draft').inputValue(),'독립적인 새 댓글 초안')
+    } finally {await ctx.close()}
+  })
+  await check('restoration C: ignored abort old GET cannot restore or finish a newer GET',async()=>{
+    const {ctx,p,state}=await fixture(member,3)
+    try {
+      await ignoreReadAbort(p)
+      await p.locator('#comment-edit-button-1').click()
+      await p.locator('#comment-edit-1').fill('경합 중 수정 초안')
+      const oldIndex=await p.evaluate(()=>window.commentReads.length), old=holdRead(state)
+      await p.locator('#comments-refresh').click();await old.ready
+      state.write=r=>r.fulfill({status:404,json:failure('COMMENT_NOT_FOUND')})
+      await p.getByRole('button',{name:'댓글 저장',exact:true}).click()
+      await p.locator('.community-comment-detached').waitFor()
+      assert.equal(await p.locator('#comment-1').count(),0)
+      comments=comments.map(c=>c.commentId===1?{...c,content:'새 요청의 복원 본문'}:c)
+      const fresh=holdRead(state)
+      await p.locator('#comments-refresh').click();await fresh.ready
+      old.release();await settledRead(p,oldIndex)
+      assert.equal(await p.locator('#comment-1').count(),0)
+      assert.equal(await p.locator('#comments-refresh').getAttribute('aria-busy'),'true')
+      assert.equal(await p.locator('.community-comment-detached textarea').inputValue(),'경합 중 수정 초안')
+      assert.equal(await p.locator('.community-comments [role="alert"]').count(),0)
+      fresh.release()
+      await p.waitForFunction(()=>!document.querySelector('#comments-refresh').disabled&&document.querySelector('#comment-1')?.textContent.includes('새 요청의 복원 본문'))
+      assert.equal(await p.locator('#comment-1 textarea').count(),0)
+      assert.equal(state.calls.filter(c=>c.method==='PUT').length,1)
+    } finally {await ctx.close()}
+  })
+  await check('restoration D: more only confirms fetched page; prefix refresh confirms restored ID',async()=>{
+    const {ctx,p,state}=await fixture(member,45)
+    try {
+      await failEdit(p,state,1)
+      comments=comments.map(c=>c.commentId===1?{...c,content:'첫 페이지 복원'}:c)
+      await p.getByRole('button',{name:'댓글 더 보기',exact:true}).click()
+      await p.locator('#comment-40').waitFor()
+      assert.equal(await p.locator('#comment-1').count(),0)
+      assert.equal(await p.locator('.community-comment-list > li').count(),39)
+      await p.locator('#comments-refresh').click()
+      await p.waitForFunction(()=>!document.querySelector('#comments-refresh').disabled&&document.querySelector('#comment-1')?.textContent.includes('첫 페이지 복원'))
+      assert.equal(await p.locator('.community-comment-list > li').count(),40)
+      assert.equal(await p.locator('#comment-1').count(),1)
+      await p.getByRole('button',{name:'댓글 더 보기',exact:true}).click();await p.locator('#comment-45').waitFor()
+      assert.equal(await p.getByRole('button',{name:'댓글 더 보기',exact:true}).count(),0)
+    } finally {await ctx.close()}
+  })
+  await check('restoration D: later page itself confirms a removed ID after prefix contracts',async()=>{
+    const {ctx,p,state}=await fixture(member,22)
+    try {
+      await p.getByRole('button',{name:'댓글 더 보기',exact:true}).click();await p.locator('#comment-22').waitFor()
+      await failEdit(p,state,21)
+      comments=comments.filter(c=>c.commentId<=20)
+      await p.locator('#comments-refresh').click()
+      await p.waitForFunction(()=>!document.querySelector('#comments-refresh').disabled&&document.querySelectorAll('.community-comment-list > li').length===20)
+      assert.equal(await p.getByRole('button',{name:'댓글 더 보기',exact:true}).count(),0)
+      comments.push({...item(21),content:'다음 페이지에서 복원된 서버 본문'},item(22),item(23))
+      await p.locator('#comments-refresh').click()
+      await p.getByRole('button',{name:'댓글 더 보기',exact:true}).waitFor()
+      await p.waitForFunction(()=>!document.querySelector('#comments-refresh').disabled)
+      assert.equal(await p.locator('#comment-21').count(),0)
+      let cursor
+      state.get=(r,u)=>{if(u.pathname.endsWith('/comments'))cursor=Object.fromEntries(u.searchParams);return r.fulfill(read(u))}
+      await p.getByRole('button',{name:'댓글 더 보기',exact:true}).click()
+      await p.waitForFunction(()=>document.querySelector('#comment-21')?.textContent.includes('다음 페이지에서 복원된 서버 본문')&&!document.querySelector('#comments-refresh').disabled)
+      assert.equal(cursor.afterId,'20');assert.equal(cursor.afterCreatedAt,item(20).createdAt);assert.equal(cursor.afterSort,'OLDEST')
+      assert.equal(await p.locator('#comment-21').count(),1)
+      assert.equal(await p.locator('#comment-21 textarea').count(),0)
+      assert.equal(await p.locator('.community-comment-detached textarea').inputValue(),'보관할 수정 초안')
+      assert.equal(await p.locator('.community-comment-list > li').count(),23)
+      assert.equal(await p.getByRole('button',{name:'댓글 더 보기',exact:true}).count(),0)
+    } finally {await ctx.close()}
+  })
   for(const width of [1440,390,320])for(const mode of ['csrf','denied','network','malformed'])await check(`creation error adjacent to composer ${width} ${mode}`,async()=>{
     const {ctx,p,state}=await fixture(member,45)
     try {
@@ -208,7 +380,7 @@ try {
         const r=el.getBoundingClientRect(),d=document.querySelector('#comment-draft').getBoundingClientRect()
         return {top:r.top,bottom:r.bottom,left:r.left,right:r.right,draftBottom:d.bottom,scroll:scrollY,height:innerHeight,width:innerWidth}
       })
-      assert(position.top>=position.draftBottom&&position.top-position.draftBottom<60);assert(position.top>=0&&position.bottom<=position.height);assert(position.left>=0&&position.right<=position.width);assert.equal(position.scroll,before)
+      assert(position.top>=position.draftBottom&&position.top-position.draftBottom<60);assert(position.top>=0&&position.bottom<=position.height, JSON.stringify(position));assert(position.left>=0&&position.right<=position.width);assert.equal(position.scroll,before)
       assert.equal(await draft.inputValue(),'오류 후에도 남는 작성 초안');assert((await draft.getAttribute('aria-describedby')).includes('comment-create-error'))
       assert.equal(await p.locator('.community-comments [role="alert"]').count(),1);assert.equal(state.calls.filter(c=>c.method==='POST').length,mode==='csrf'?0:1)
       if(mode==='network'||mode==='malformed')assert((await p.locator('#comment-create-error').innerText()).includes('자동 재등록하지 않습니다.'))
@@ -701,6 +873,22 @@ try {
     await p.getByRole("heading",{name:"수정 초안을 보관하고 있어요"}).waitFor()
     assert.equal(await p.locator("#comment-edit-1").inputValue(),"사라지면 안 되는 수정 초안")
     if(method==="refresh")assert(await p.getByText(/이 결과만으로 삭제 여부를 확정할 수는 없습니다/).isVisible())
+    if(method==="PUT404") {
+      const toast=p.locator('.comment-success-toast.is-notice')
+      await toast.waitFor()
+      assert.equal(await toast.textContent(),"숨김 또는 삭제되어 수정할 수 없는 댓글입니다.")
+      assert.equal(await p.locator('.community-comments-status').textContent(),"")
+      assert.equal(await p.getByRole('button',{name:'댓글 저장',exact:true}).count(),0)
+      assert.equal(state.calls.filter(c=>c.method==='PUT').length,1)
+      assert.equal(await p.locator('#comment-1').count(),0)
+      for(const width of [390,320]) {
+        await p.setViewportSize({width,height:900})
+        assert(await p.evaluate(()=>document.documentElement.scrollWidth<=innerWidth))
+        const bounds=await toast.boundingBox()
+        assert(bounds.x>=0&&bounds.x+bounds.width<=width)
+      }
+      await p.screenshot({path:output+'/unavailable-edit-toast-320.png',fullPage:true})
+    }
     await p.getByRole("button",{name:"초안 전체 선택"}).click()
     assert(await p.locator("#comment-edit-1").evaluate(el=>el.selectionStart===0&&el.selectionEnd===el.value.length))
     await p.screenshot({path:output+"/review-detached-"+method+".png",fullPage:true})

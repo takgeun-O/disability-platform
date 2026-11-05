@@ -1,6 +1,7 @@
 import type { ReactNode } from "react"
 import Link from "@/components/AppLink"
 import AdminPostsLink from "@/components/admin/AdminPostsLink"
+import AdminOperationLogsLink from "@/components/admin/AdminOperationLogsLink"
 import AdminAccess from "@/components/admin/AdminAccess"
 import "@/styles/admin.css"
 export default function AdminLayout({ children }: { children: ReactNode }) {
@@ -12,6 +13,7 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
         </p>
         <nav aria-label="관리자 메뉴">
           <AdminPostsLink />
+          <AdminOperationLogsLink />
           <Link href="/">서비스로 돌아가기</Link>
         </nav>
       </aside>

@@ -51,6 +51,9 @@ class AdminCommentReadServiceTest {
     private static final Instant UPDATED_AT =
             Instant.parse("2026-10-30T10:30:00Z");
 
+    private static final Instant CONTENT_UPDATED_AT =
+            Instant.parse("2026-10-30T10:15:00Z");
+
     private static final Instant HIDDEN_AT =
             Instant.parse("2026-10-30T11:00:00Z");
 
@@ -91,8 +94,15 @@ class AdminCommentReadServiceTest {
         return Arrays.stream(ContentState.values())
                 .flatMap(postState ->
                         Arrays.stream(ContentState.values())
-                                .map(commentState ->
-                                        Arguments.of(postState, commentState)
+                                .flatMap(commentState ->
+                                        Stream.of(false, true)
+                                                .map(edited ->
+                                                        Arguments.of(
+                                                                postState,
+                                                                commentState,
+                                                                edited
+                                                        )
+                                                )
                                 )
                 );
     }
@@ -101,13 +111,25 @@ class AdminCommentReadServiceTest {
     @MethodSource("contentStates")
     void 부모와_댓글의_상태를_구분하고_원문과_페이지_정보를_유지한다(
             ContentState postState,
-            ContentState commentState
+            ContentState commentState,
+            boolean edited
     ) {
         givenAdmin();
 
         Member author = activeAuthor();
         Post post = createPost(author);
         Comment comment = createComment(post, author);
+
+        Instant contentUpdatedAt =
+                edited ? CONTENT_UPDATED_AT : null;
+
+        // 조회 서비스 테스트이므로 저장된 엔티티 상태를 준비한다.
+        // 본문 수정 자체의 동작은 별도 도메인·수정 서비스 테스트에서 검증
+        ReflectionTestUtils.setField(
+                comment,
+                "contentUpdatedAt",
+                contentUpdatedAt
+        );
 
         applyState(post, postState);
         applyState(comment, commentState);
@@ -155,8 +177,7 @@ class AdminCommentReadServiceTest {
                 switch (commentState) {
                     case VISIBLE -> AdminCommentStatus.VISIBLE;
                     case HIDDEN -> AdminCommentStatus.HIDDEN;
-                    case DELETED, HIDDEN_AND_DELETED ->
-                            AdminCommentStatus.DELETED;
+                    case DELETED, HIDDEN_AND_DELETED -> AdminCommentStatus.DELETED;
                 };
 
         assertThat(result.postId()).isEqualTo(POST_ID);
@@ -180,6 +201,8 @@ class AdminCommentReadServiceTest {
         assertThat(item.status()).isEqualTo(expectedCommentStatus);
         assertThat(item.createdAt()).isEqualTo(CREATED_AT);
         assertThat(item.updatedAt()).isEqualTo(UPDATED_AT);
+        assertThat(item.contentUpdatedAt())
+                .isEqualTo(contentUpdatedAt);
 
         assertThat(item.hiddenAt())
                 .isEqualTo(commentState.hidden() ? HIDDEN_AT : null);

@@ -92,7 +92,7 @@ const server = http.createServer(async (req, res) => {
   res.writeHead(result.status, { "Content-Type": "application/json" })
   res.end(JSON.stringify(result.json))
 })
-await new Promise((r) => server.listen(8856, "127.0.0.1", r))
+await new Promise((r) => server.listen(Number(process.env.COMMUNITY_SSR_MOCK_PORT ?? 8856), "127.0.0.1", r))
 const browser = await chromium.launch({ headless: true, channel: "chrome" })
 const results = []
 async function fixture(identity = member, count = 22, automatic = false) {
@@ -240,8 +240,22 @@ try {
   await btn(p).click();await g.reached;await logout(p);assert.equal(await btn(p).getAttribute('aria-pressed'),'false');await login(p);await settled(p);const done=p.waitForResponse(r=>r.request().method()==='PUT'&&r.url().endsWith('/like'));g.release();await(await done).finished();await settled(p);assert.equal(await reaction(p).getByRole('alert').count(),0);assert(await p.getByRole('button',{name:'로그아웃',exact:true}).isVisible())
  })
  await check('previous personalized GET rejected after other-account login',async()=>{
-  const{p,state}=await fixture(member,1);await settled(p);const g=gate();let once=true;state.get=async(r,u,result)=>{if(once&&u.pathname.endsWith('/comments')){once=false;result.json.items[0].liked=true;result.json.items[0].likeCount=99;await g.hold()}await r.fulfill(result)}
-  await p.locator('#comments-refresh').click();await g.reached;await logout(p);await login(p,'other@example.test');await settled(p);const done=p.waitForResponse(r=>r.url().includes('/comments?')&&r.status()===200);g.release();await(await done).finished();await settled(p)
+  const{p,state}=await fixture(member,1);await settled(p)
+  // Deliver one genuinely stale success despite abort. A cancelled native
+  // request has no response event, and proves cancellation rather than ownership.
+  await p.evaluate(()=>{
+    const original=window.fetch;let first=true
+    window.staleLikeReadConsumed=false
+    window.fetch=async(input,options)=>{
+      if(!first||options?.method!=='GET'||!new URL(String(input),location.href).pathname.endsWith('/comments'))return original(input,options)
+      first=false
+      const response=await original(input,{...options,signal:undefined}),json=response.json.bind(response)
+      response.json=async()=>{try{return await json()}finally{window.staleLikeReadConsumed=true}}
+      return response
+    }
+  })
+  const g=gate();let once=true;state.get=async(r,u,result)=>{if(once&&u.pathname.endsWith('/comments')){once=false;result.json.items[0].liked=true;result.json.items[0].likeCount=99;await g.hold()}await r.fulfill(result)}
+  await p.locator('#comments-refresh').click();await g.reached;await logout(p);await login(p,'other@example.test');await settled(p);g.release();await p.waitForFunction(()=>window.staleLikeReadConsumed);await p.evaluate(()=>new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve))));await settled(p)
  })
  await check('unknown personalized state cannot send a PUT; later confirmed state determines DELETE',async()=>{
   const{p,state}=await fixture(member,1);await settled(p);await logout(p);const g=gate();state.liked.add('123:1');comments[0].likeCount=1;state.get=async(r,u,result)=>{if(u.pathname.endsWith('/comments'))await g.hold();await r.fulfill(result)}

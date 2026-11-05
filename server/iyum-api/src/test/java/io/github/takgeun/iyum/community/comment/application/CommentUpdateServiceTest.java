@@ -26,6 +26,7 @@ import org.testcontainers.junit.jupiter.Testcontainers;
 import org.testcontainers.postgresql.PostgreSQLContainer;
 
 import java.sql.Timestamp;
+import java.time.Clock;
 import java.time.Instant;
 import java.util.Map;
 import java.util.Optional;
@@ -49,6 +50,12 @@ class CommentUpdateServiceTest {
 
     private static final Instant UPDATED_TIME =
             Instant.parse("2026-10-17T04:00:00.123456Z");
+
+    // Auditing 시각과 일부러 다르게 설정한다.
+    // contentUpdatedAt이 updatedAt을 복사한 값이 아니라
+    // Clock에서 전달받은 값인지 확인하기 위해서임.
+    private static final Instant CONTENT_UPDATED_TIME =
+            Instant.parse("2026-10-17T03:59:59.123456Z");
 
     private static final String ORIGINAL_CONTENT = "수정 전 댓글";
 
@@ -81,6 +88,9 @@ class CommentUpdateServiceTest {
     @MockitoBean(name = "auditingDateTimeProvider")
     DateTimeProvider dateTimeProvider;
 
+    @MockitoBean(name = "clock")
+    private Clock clock;
+
     private Long postId;
     private Long otherPostId;
     private Long commentId;
@@ -89,6 +99,7 @@ class CommentUpdateServiceTest {
 
     @BeforeEach
     void setUp() {
+        when(clock.instant()).thenReturn(CONTENT_UPDATED_TIME);
         when(dateTimeProvider.getNow())
                 .thenReturn(Optional.of(CREATED_TIME));
 
@@ -150,6 +161,8 @@ class CommentUpdateServiceTest {
                 .isEqualTo(Timestamp.from(CREATED_TIME));
         assertThat(saved.get("updated_at"))
                 .isEqualTo(Timestamp.from(UPDATED_TIME));
+        assertThat(saved.get("content_updated_at"))
+                .isEqualTo(Timestamp.from(CONTENT_UPDATED_TIME));
         assertThat(saved.get("deleted_at")).isNull();
 
         // 새 댓글을 생성한 것이 아니어야 한다.
@@ -325,6 +338,38 @@ class CommentUpdateServiceTest {
         );
     }
 
+    @Test
+    void 이미_수정된_댓글도_동일한_본문이면_수정_시각들을_유지한다() {
+        String changedContent = "수정한 댓글";
+
+        commentUpdateService.update(
+                commentAuthorId,
+                postId,
+                commentId,
+                new CommentUpdateCommand(changedContent)
+        );
+
+        Map<String, Object> before = readComment();
+
+        // 두 시계 모두 뒤로 진행시켜도 같은 본문이면 저장 값은 유지돼야 한다.
+        when(clock.instant()).thenReturn(
+                CONTENT_UPDATED_TIME.plusSeconds(60)
+        );
+
+        when(dateTimeProvider.getNow()).thenReturn(
+                Optional.of(UPDATED_TIME.plusSeconds(60))
+        );
+
+        commentUpdateService.update(
+                commentAuthorId,
+                postId,
+                commentId,
+                new CommentUpdateCommand(changedContent)
+        );
+
+        assertThat(readComment()).isEqualTo(before);
+    }
+
     private Member saveActiveMember(String email, String nickname) {
         Member member = Member.createPending(
                 email,
@@ -351,7 +396,8 @@ class CommentUpdateServiceTest {
     private Map<String, Object> readComment() {
         return jdbcTemplate.queryForMap("""
                 SELECT id, post_id, author_id, content,
-                       created_at, updated_at, deleted_at
+                       created_at, updated_at, content_updated_at,
+                       deleted_at
                 FROM community_comments
                 WHERE id = ?
                 """,

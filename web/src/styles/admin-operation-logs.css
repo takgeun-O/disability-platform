@@ -1,0 +1,26 @@
+.admin-operation-view .admin-panel { box-shadow: 0 4px 18px rgb(16 43 80 / .025); }
+.admin-log-filters { gap: 12px; }
+.admin-log-filters > label, .admin-log-select { flex: 1 1 120px; min-width: 0; }
+.admin-log-filters input, .admin-log-filters select { width: 100%; }
+.admin-log-help { color: #526c80; font-size: 14px; line-height: 1.7; margin: 12px 0; overflow-wrap: anywhere; }
+.admin-log-summary { display: flex; justify-content: space-between; flex-wrap: wrap; gap: 8px; margin-bottom: 8px; }
+.admin-log-summary > p:last-child { font-size: 14px; color: #526c80; }
+.admin-log-table { table-layout: fixed; margin-top: 20px; }
+.admin-log-table th:nth-child(1) { width: 20%; }
+.admin-log-table th:nth-child(2), .admin-log-table th:nth-child(3) { width: 17%; }
+.admin-log-table th:nth-child(4) { width: 10%; }
+.admin-log-table td { vertical-align: top; line-height: 1.7; }
+.admin-log-table a { color: #007d95; text-decoration: underline; text-underline-offset: 3px; }
+.admin-log-reason { white-space: pre-wrap; }
+.admin-log-empty { padding: 32px 0; color: #526c80; }
+@media(max-width:760px) {
+  .admin-log-filters > label, .admin-log-select { flex-basis: calc(50% - 12px); }
+  .admin-operation-view .admin-log-table, .admin-log-table tbody { display: block; width: 100%; }
+  .admin-log-table thead { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); }
+  .admin-log-table tr { display: block; padding: 16px 0; border-top: 1px solid #e4ebef; }
+  .admin-operation-view .admin-log-table td { display: grid; grid-template-columns: 78px minmax(0, 1fr); gap: 8px; padding: 5px 0; border: 0; }
+  .admin-log-table td::before { content: attr(data-label); color: #526c80; font-weight: 600; white-space: normal; }
+  .admin-log-table .admin-badge { justify-self: start; }
+}
+
+.admin-log-select { display: grid; gap: 6px; }

@@ -414,6 +414,7 @@ class MemberCommentReadControllerTest {
                         null,
                         CREATED_AT,
                         null,
+                        null,
                         MemberCommentPostResult.idOnly(31L),
                         null,
                         null,
@@ -520,6 +521,7 @@ class MemberCommentReadControllerTest {
                 "  제가 작성한 댓글입니다.\n두 번째 줄입니다.  ",
                 CREATED_AT,
                 UPDATED_AT,
+                null,
                 new MemberCommentPostResult(
                         31L,
                         "보청기 적응 질문",

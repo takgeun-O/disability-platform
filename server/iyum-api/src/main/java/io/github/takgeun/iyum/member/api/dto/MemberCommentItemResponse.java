@@ -14,6 +14,13 @@ public record MemberCommentItemResponse(
         @Nullable String content,
         Instant createdAt,
         @Nullable Instant updatedAt,
+
+        @Schema(
+                description = "별도로 기록된 마지막 본문 수정 시각. "
+                        + "기록이 없거나 숨김 항목이면 null"
+        )
+        @Nullable Instant contentUpdatedAt,
+
         MemberCommentPostResponse post,
 
         @Schema(description = "댓글이 받은 좋아요 개수. 숨김 항목은 null")
@@ -41,6 +48,7 @@ public record MemberCommentItemResponse(
                 result.content(),
                 result.createdAt(),
                 result.updatedAt(),
+                result.contentUpdatedAt(),
                 MemberCommentPostResponse.from(result.post()),
                 result.likeCount(),
                 result.liked(),

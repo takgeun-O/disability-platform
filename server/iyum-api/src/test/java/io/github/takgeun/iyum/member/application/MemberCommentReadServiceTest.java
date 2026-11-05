@@ -706,6 +706,103 @@ class MemberCommentReadServiceTest {
         assertThat(commentLikeRepository.count()).isEqualTo(3L);
     }
 
+    @ParameterizedTest
+    @CsvSource({
+            "VISIBLE, true",
+            "VISIBLE, false",
+            "HIDDEN, true",
+            "HIDDEN, false",
+            "PARENT_HIDDEN, true",
+            "PARENT_HIDDEN, false"
+    })
+    void 표시_상태에_따라_본문_수정_시각을_반환한다(
+            MemberContentVisibility visibility,
+            boolean edited
+    ) {
+        Instant contentUpdatedAt =
+                edited ? CREATED_AT.plusSeconds(60) : null;
+
+        Instant entityUpdatedAt =
+                CREATED_AT.plusSeconds(120);
+
+        // 조회 매핑을 검증하기 위한 DB 상태 준비.
+        jdbcTemplate.update(
+                """
+                UPDATE community_comments
+                SET updated_at = ?,
+                    content_updated_at = ?
+                WHERE id = ?
+                """,
+                Timestamp.from(entityUpdatedAt),
+                contentUpdatedAt == null
+                        ? null
+                        : Timestamp.from(contentUpdatedAt),
+                firstComment.getId()
+        );
+
+        if (visibility == MemberContentVisibility.HIDDEN) {
+            jdbcTemplate.update(
+                    """
+                    UPDATE community_comments
+                    SET hidden_at = ?
+                    WHERE id = ?
+                    """,
+                    Timestamp.from(entityUpdatedAt),
+                    firstComment.getId()
+            );
+        } else if (
+                visibility == MemberContentVisibility.PARENT_HIDDEN
+        ) {
+            jdbcTemplate.update(
+                    """
+                    UPDATE community_posts
+                    SET hidden_at = ?
+                    WHERE id = ?
+                    """,
+                    Timestamp.from(entityUpdatedAt),
+                    otherPost.getId()
+            );
+        }
+
+        MemberCommentListResult result =
+                memberCommentReadService.getComments(
+                        me.getId(),
+                        null,
+                        null,
+                        20
+                );
+
+        MemberCommentItemResult item = result.items().stream()
+                .filter(value ->
+                        value.commentId().equals(firstComment.getId())
+                )
+                .findFirst()
+                .orElseThrow();
+
+        assertThat(item.visibility()).isEqualTo(visibility);
+
+        if (visibility == MemberContentVisibility.VISIBLE) {
+            assertThat(item.content()).isEqualTo(FIRST_CONTENT);
+            assertThat(item.updatedAt()).isEqualTo(entityUpdatedAt);
+            assertThat(item.contentUpdatedAt())
+                    .isEqualTo(contentUpdatedAt);
+        } else {
+            assertThat(item.content()).isNull();
+            assertThat(item.updatedAt()).isNull();
+            assertThat(item.contentUpdatedAt()).isNull();
+            assertThat(item.likeCount()).isNull();
+            assertThat(item.liked()).isNull();
+        }
+
+        // 응답에서 가리더라도 DB의 원래 값은 보존되어야 한다.
+        Comment stored = commentRepository
+                .findById(firstComment.getId())
+                .orElseThrow();
+
+        assertThat(stored.getContentUpdatedAt())
+                .isEqualTo(contentUpdatedAt);
+    }
+
     private Member saveActiveMember(
             String email,
             String nickname
