@@ -1,6 +1,7 @@
 package io.github.takgeun.iyum.admin.operation.api;
 
 import io.github.takgeun.iyum.admin.moderation.domain.ModerationAction;
+import io.github.takgeun.iyum.admin.moderation.domain.ModerationReasonType;
 import io.github.takgeun.iyum.admin.operation.api.dto.AdminOperationLogListResponse;
 import io.github.takgeun.iyum.admin.operation.application.*;
 import io.github.takgeun.iyum.auth.security.MemberPrincipal;
@@ -26,6 +27,17 @@ import org.springframework.web.bind.annotation.RestController;
 
 import java.time.LocalDate;
 
+/**
+ * 요청 형태
+ * GET /api/v1/admin/operation-logs
+ * → 기본 최신순
+ * <p>
+ * GET /api/v1/admin/operation-logs?sort=OLDEST
+ * → 오래된순
+ * <p>
+ * GET /api/v1/admin/operation-logs?targetType=COMMENT&action=HIDE&sort=OLDEST
+ * → 댓글 숨김 기록을 오래된순으로 조회
+ */
 @RestController
 @RequiredArgsConstructor
 @RequestMapping(
@@ -70,9 +82,15 @@ public class AdminOperationLogReadController {
             summary = "관리자 운영 기록 목록 조회",
             description = """
                     게시글·댓글의 숨김 및 복원 기록을 조회합니다.
-                    대상 유형, 조치 유형, 한국 날짜 기준 처리 기간으로 검색합니다.
+                    대상 유형, 조치 유형, 사유 유형, 한국 날짜 기준 처리 기간으로 검색합니다.
+                    사유 유형을 생략하거나 빈 문자열로 전달하면 모든 사유를 조회합니다.
+                    LEGACY는 기존 자유입력 기록을 조회하는 조건입니다.
+                    지정한 검색 조건은 모두 AND로 결합합니다.
                     시작일과 종료일은 각각 생략할 수 있으며 종료일 전체를 포함합니다.
-                    처리 시각 내림차순, 같은 시각이면 기록 ID 내림차순입니다.
+                    정렬을 생략하면 LATEST를 적용합니다.
+                    LATEST는 처리 시각 내림차순, 같은 시각이면 기록 ID 내림차순입니다.
+                    OLDEST는 처리 시각 오름차순, 같은 시각이면 기록 ID 오름차순입니다.
+                    처리 시각은 운영 기록의 createdAt을 기준으로 합니다.
                     페이지 번호는 0부터 시작합니다.
                     """
     )
@@ -111,7 +129,27 @@ public class AdminOperationLogReadController {
 
             @Parameter(description = "페이지 크기, 기본 20, 최소 1, 최대 50")
             @RequestParam(name = "size", defaultValue = "20")
-            int size
+            int size,
+
+            @Parameter(
+                    description = "처리 시각 정렬, 생략하거나 빈 값이면 LATEST",
+                    schema = @Schema(
+                            allowableValues = {"LATEST", "OLDEST"},
+                            defaultValue = "LATEST"
+                    )
+            )
+            @RequestParam(name = "sort", defaultValue = "LATEST")
+            AdminOperationLogSort sort,
+
+            @Parameter(
+                    description = """
+                            처리 사유 유형. 생략하거나 빈 문자열이면 전체 조회.
+                            LEGACY는 기존 자유입력 기록 조회에 사용합니다.
+                            """,
+                    example = "SPAM_ADVERTISING"
+            )
+            @RequestParam(name = "reasonType", required = false)
+            ModerationReasonType reasonType
     ) {
         requirePrincipal(principal);
 
@@ -122,7 +160,9 @@ public class AdminOperationLogReadController {
                         startDate,
                         endDate,
                         page,
-                        size
+                        size,
+                        sort,
+                        reasonType
                 );
 
         // 요청 파라미터로 받은 회원 ID가 아니라
@@ -162,7 +202,7 @@ public class AdminOperationLogReadController {
     }
 
     private void requirePrincipal(MemberPrincipal principal) {
-        if(principal == null) {
+        if (principal == null) {
             throw new AdminOperationLogReadException(
                     AdminOperationLogReadException.Code.AUTHENTICATION_REQUIRED
             );

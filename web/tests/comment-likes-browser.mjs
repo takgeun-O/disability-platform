@@ -25,7 +25,7 @@ const post = {
   createdAt: "2026-10-17T00:00:00Z",
   updatedAt: "2026-10-17T00:00:00Z",
 }
-const item = (id) => ({
+const item = (id) => ({ contentUpdatedAt: null,
   likeCount: 0, liked: false,
   commentId: id,
   content: `댓글 예시 ${id}\n공백  유지`,
@@ -175,7 +175,7 @@ async function fixture(identity = member, count = 22, automatic = false) {
   )
   await p.goto(base + "/community/posts/7")
   if (identity) await p.getByRole("button", { name: "댓글 등록", exact: true }).waitFor()
-  else await p.getByRole("button", { name: "로그인하고 댓글 등록", exact: true }).waitFor()
+  else await p.getByPlaceholder("로그인 후 댓글을 남길 수 있어요", {exact:true}).waitFor()
   return { ctx, p, state }
 }
 async function check(name, fn) {
@@ -233,7 +233,7 @@ try {
  })
  await check('later-page COMMENT_NOT_FOUND rereads loaded prefix, removes only missing comment, preserves editor',async()=>{
   const{p,state}=await fixture(member,45);await settled(p);await p.getByRole('button',{name:'댓글 더 보기',exact:true}).click();await settled(p,21);await p.locator('#comment-edit-button-21').click();await p.locator('#comment-edit-21').fill('보관해야 할 편집')
-  state.write=r=>{comments=comments.filter(c=>c.commentId!==21);return r.fulfill({status:404,json:failure('COMMENT_NOT_FOUND')})};await btn(p,21).click();await reaction(p,21).getByRole('alert').waitFor();const before=state.calls.filter(c=>c.path.endsWith('/comments')&&c.method==='GET').length;await btn(p,21).click();await p.locator('.community-comment-detached').waitFor();assert.equal(await p.locator('#comment-edit-21').inputValue(),'보관해야 할 편집');assert(await p.locator('.community-post-body').isVisible());assert(state.calls.filter(c=>c.path.endsWith('/comments')&&c.method==='GET').length>=before+3)
+  state.write=r=>{comments=comments.filter(c=>c.commentId!==21);return r.fulfill({status:404,json:failure('COMMENT_NOT_FOUND')})};await btn(p,21).click();await reaction(p,21).getByRole('alert').waitFor();const before=state.calls.filter(c=>c.path.endsWith('/comments')&&c.method==='GET').length;await btn(p,21).click();await p.getByText('현재 목록에 없는 댓글을 수정하고 있어요. 입력한 내용은 유지했어요.',{exact:true}).waitFor();assert.equal(await p.locator('#comment-edit-21').inputValue(),'보관해야 할 편집');assert.equal(await p.getByRole('dialog').count(),0);assert(await p.locator('.community-post-body').isVisible());assert(state.calls.filter(c=>c.path.endsWith('/comments')&&c.method==='GET').length>=before+3)
  })
  for(const response of ['success','401','403','404'])await check(`old ${response} ignored after logout and same-member login`,async()=>{
   const{p,state}=await fixture(member,1);await settled(p);const g=gate();state.write=async r=>{await g.hold();await r.fulfill(response==='success'?{json:{postId:7,commentId:1,liked:true,likeCount:99}}:{status:Number(response),json:failure(response==='401'?'AUTHENTICATION_REQUIRED':response==='403'?'COMMENT_LIKE_NOT_ALLOWED':'COMMENT_NOT_FOUND')})}

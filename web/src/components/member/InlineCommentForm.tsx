@@ -6,11 +6,13 @@ import { useNavigationRequest } from '@/components/NavigationGuard'
 import { changeComment, validateComment, requiredContent, CommentError } from '@/lib/community-comments'
 import { characterCount } from '@/lib/community-posts'
 import { postCommentsChanged, postListChanged } from '@/lib/community-mutations'
+import { useInlineCommentAuthNotice } from './InlineCommentAuthNotice'
 
 export default function InlineCommentForm({ postId, memberId, draft, onDraft, onSuccess }: {
   postId: number; memberId: number; draft: string; onDraft: (value: string) => void; onSuccess: (text: string) => void
 }) {
   const auth = useAuth(), scope = useNavigationRequest(), id = useId()
+  const onAuthExpired = useInlineCommentAuthNotice()
   const [busy, setBusy] = useState(false), [field, setField] = useState(''), [error, setError] = useState('')
   const [notice, setNotice] = useState(0)
   const noticeSequence = useRef(0)
@@ -46,6 +48,10 @@ export default function InlineCommentForm({ postId, memberId, draft, onDraft, on
       }
       if (session.isCurrent() && failure.status === 404 && failure.code === 'POST_NOT_FOUND') { auth.commentDrafts.discardDeleted(memberId, postId); auth.commentCreated.discardDeleted(memberId, postId) }
       if (!current()) return
+      if (failure.status === 401 && failure.code === 'AUTHENTICATION_REQUIRED' && onAuthExpired) {
+        if (session.expire('expired', { notice: false })) onAuthExpired()
+        return
+      }
       setField(failure.field); setError(failure.field ? '' : failure.message)
       if (failure.status === 401) session.expire()
     } finally {

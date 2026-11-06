@@ -1,9 +1,11 @@
 package io.github.takgeun.iyum.admin.operation.application;
 
 import io.github.takgeun.iyum.admin.moderation.domain.ModerationAction;
+import io.github.takgeun.iyum.admin.moderation.domain.ModerationReasonType;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.CsvSource;
+import org.junit.jupiter.params.provider.EnumSource;
 import org.junit.jupiter.params.provider.ValueSource;
 
 import java.time.Instant;
@@ -225,5 +227,148 @@ class AdminOperationLogReadQueryTest {
 
         assertThat(query.toExclusive())
                 .isEqualTo(Instant.parse("9999-12-31T15:00:00Z"));
+    }
+
+    @Test
+    void 정렬을_지정하지_않는_기존_호출은_최신순을_적용한다() {
+        AdminOperationLogReadQuery query =
+                new AdminOperationLogReadQuery(
+                        null, null, null, null, 0, 20
+                );
+
+        assertThat(query.sort())
+                .isEqualTo(AdminOperationLogSort.LATEST);
+    }
+
+    @Test
+    void 정렬이_null이면_최신순을_적용한다() {
+        AdminOperationLogReadQuery query =
+                new AdminOperationLogReadQuery(
+                        null, null, null, null, 0, 20, null
+                );
+
+        assertThat(query.sort())
+                .isEqualTo(AdminOperationLogSort.LATEST);
+    }
+
+    @ParameterizedTest
+    @EnumSource(AdminOperationLogSort.class)
+    void 지정한_정렬과_기존_조회_조건을_유지한다(
+            AdminOperationLogSort sort
+    ) {
+        LocalDate startDate = LocalDate.of(2026, 11, 1);
+        LocalDate endDate = LocalDate.of(2026, 11, 6);
+
+        AdminOperationLogReadQuery query =
+                new AdminOperationLogReadQuery(
+                        AdminOperationLogTargetType.COMMENT,
+                        ModerationAction.HIDE,
+                        startDate,
+                        endDate,
+                        2,
+                        50,
+                        sort
+                );
+
+        assertThat(query.sort()).isEqualTo(sort);
+        assertThat(query.targetType())
+                .isEqualTo(AdminOperationLogTargetType.COMMENT);
+        assertThat(query.action()).isEqualTo(ModerationAction.HIDE);
+        assertThat(query.startDate()).isEqualTo(startDate);
+        assertThat(query.endDate()).isEqualTo(endDate);
+        assertThat(query.page()).isEqualTo(2);
+        assertThat(query.size()).isEqualTo(50);
+    }
+
+    @Test
+    void 기존_6개_인자_호출은_최신순과_사유_전체를_적용한다() {
+        AdminOperationLogReadQuery query =
+                new AdminOperationLogReadQuery(
+                        AdminOperationLogTargetType.ALL,
+                        null,
+                        null,
+                        null,
+                        0,
+                        20
+                );
+
+        assertThat(query.sort()).isEqualTo(AdminOperationLogSort.LATEST);
+        assertThat(query.reasonType()).isNull();
+    }
+
+    @Test
+    void 기존_7개_인자_호출은_정렬을_유지하고_사유_전체를_적용한다() {
+        AdminOperationLogReadQuery query =
+                new AdminOperationLogReadQuery(
+                        AdminOperationLogTargetType.ALL,
+                        null,
+                        null,
+                        null,
+                        0,
+                        20,
+                        AdminOperationLogSort.OLDEST
+                );
+
+        assertThat(query.sort()).isEqualTo(AdminOperationLogSort.OLDEST);
+        assertThat(query.reasonType()).isNull();
+    }
+
+    @ParameterizedTest
+    @EnumSource(ModerationReasonType.class)
+    void 모든_사유_유형을_조회_조건으로_허용한다(
+            ModerationReasonType reasonType
+    ) {
+        AdminOperationLogReadQuery query =
+                new AdminOperationLogReadQuery(
+                        AdminOperationLogTargetType.ALL,
+                        null,
+                        null,
+                        null,
+                        0,
+                        20,
+                        AdminOperationLogSort.LATEST,
+                        reasonType
+                );
+
+        // 신규 조치에서는 금지된 LEGACY도 조회에는 사용할 수 있다.
+        assertThat(query.reasonType()).isEqualTo(reasonType);
+    }
+
+    @Test
+    void 사유_유형이_null이면_전체_조회_조건으로_유지한다() {
+        AdminOperationLogReadQuery query =
+                new AdminOperationLogReadQuery(
+                        AdminOperationLogTargetType.ALL,
+                        null,
+                        null,
+                        null,
+                        0,
+                        20,
+                        AdminOperationLogSort.LATEST,
+                        null
+                );
+
+        assertThat(query.reasonType()).isNull();
+    }
+
+    @Test
+    void 신규_조치에서_허용하지_않는_조합도_조회_조건으로는_허용한다() {
+        AdminOperationLogReadQuery query =
+                new AdminOperationLogReadQuery(
+                        AdminOperationLogTargetType.ALL,
+                        ModerationAction.RESTORE,
+                        null,
+                        null,
+                        0,
+                        20,
+                        AdminOperationLogSort.LATEST,
+                        ModerationReasonType.SPAM_ADVERTISING
+                );
+
+        // 조회 조건은 그대로 보존한다.
+        // 일치하는 기록이 없다면 저장소에서 빈 목록을 반환한다.
+        assertThat(query.action()).isEqualTo(ModerationAction.RESTORE);
+        assertThat(query.reasonType())
+                .isEqualTo(ModerationReasonType.SPAM_ADVERTISING);
     }
 }

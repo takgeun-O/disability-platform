@@ -26,6 +26,7 @@ import {
   useUnsavedChanges,
 } from "@/components/NavigationGuard";
 import CommunityDialog from "./CommunityDialog";
+import CommentAuthDialog from "./CommentAuthDialog";
 import CommentLikeButton from "./CommentLikeButton";
 import CommentSuccessToast from "./CommentSuccessToast";
 import {
@@ -51,7 +52,10 @@ type Editor = {
   id: number;
   original: string;
   value: string;
-  notFound?: boolean;
+  memberId: number;
+  postId: string;
+  contentUpdatedAt: string | null;
+  confirmed?: Comment;
 };
 export default function Comments({
   postId,
@@ -96,6 +100,13 @@ export default function Comments({
   const [createError, setCreateError] = useState<CommentError | null>(null);
   const [draft, setDraft] = useState("");
   const [editor, setEditor] = useState<Editor | null>(null);
+  const [expiredAction, setExpiredAction] = useState<"create" | "edit" | null>(null);
+  if (expiredAction && (auth.status === "authenticated" || auth.pending === "login")) setExpiredAction(null);
+  // Transient auth checks/logout failures preserve drafts; confirmed identity loss does not.
+  if (editor && (editor.postId !== postId || auth.status === "anonymous" || auth.pending === "login" ||
+    (auth.status === "authenticated" && auth.member?.memberId !== editor.memberId))) {
+    setEditor(null);
+  }
   const [busy, setBusy] = useState(false),
     [loading, setLoading] = useState(false);
   const toastSequence = useRef(0);
@@ -141,12 +152,13 @@ export default function Comments({
   const [inputFocused, setInputFocused] = useState(false);
   const [deleting, setDeleting] = useState<Comment | null>(null);
   const [discard, setDiscard] = useState<EditorAction | null>(null);
-  const [focusTarget, setFocusTarget] = useState<{ id: string } | null>(null);
+  const [focusTarget, setFocusTarget] = useState<{ id: string; scroll?: boolean } | null>(null);
   const requestFocus = (id: string | null) =>
     setFocusTarget(id ? { id } : null);
-  const blocker = useUnsavedChanges(
-    draft.length > 0 || (!!editor && editor.value !== editor.original),
-  );
+  // original is the edit-start snapshot; confirmed is the latest accepted server body.
+  // Every save/discard/departure decision uses this same comparison.
+  const editDirty = !!editor && editor.value !== (editor.confirmed?.content ?? editor.original);
+  const blocker = useUnsavedChanges(draft.length > 0 || editDirty);
   const permitted = auth.status === "authenticated" && !auth.pending;
   const owner = (c: Comment) =>
     permitted && auth.member?.memberId === c.author.memberId;
@@ -292,6 +304,17 @@ export default function Comments({
           removed.current.delete(comment.commentId);
         }
 
+        // Functional update preserves typing performed while the GET was pending.
+        setEditor(previous => {
+          if (!previous) return previous;
+          const found = fetched.find(c => c.commentId === previous.id);
+          if (found) {
+            return { ...previous,
+              contentUpdatedAt: found.contentUpdatedAt,
+              confirmed: found };
+          }
+          return previous;
+        });
         likeRead.accept(fetched.map((c) => ({ ...c, id: c.commentId })));
 
         setLoadedContext(likeContext);
@@ -308,7 +331,8 @@ export default function Comments({
 
         if (
           editor &&
-          !result.items.some((c) => c.commentId === editor.id) &&
+          page.items.some((c) => c.commentId === editor.id) !==
+            result.items.some((c) => c.commentId === editor.id) &&
           document.activeElement?.id === `comment-edit-${editor.id}`
         )
           requestFocus(`comment-edit-${editor.id}`);
@@ -367,8 +391,11 @@ export default function Comments({
   }
 
   useEffect(() => {
-    if (focusTarget && scope.isActive())
-      document.getElementById(focusTarget.id)?.focus({ preventScroll: true });
+    if (focusTarget && scope.isActive()) {
+      const element = document.getElementById(focusTarget.id);
+      element?.focus({ preventScroll: true });
+      if (focusTarget.scroll) element?.scrollIntoView({ block: "center", behavior: matchMedia("(prefers-reduced-motion: reduce)").matches ? "instant" : "smooth" });
+    }
   }, [focusTarget, scope]);
   useEffect(() => cancelRead, [cancelRead]);
 
@@ -491,14 +518,16 @@ export default function Comments({
   ]);
 
   function edit(c: Comment) {
-    setEditor({ id: c.commentId, original: c.content, value: c.content });
+    if (!auth.member) return;
+    setEditor({ id: c.commentId, original: c.content, value: c.content, memberId: auth.member.memberId,
+      postId, contentUpdatedAt: c.contentUpdatedAt, confirmed: c });
     setFields((f) => ({ ...f, [String(c.commentId)]: "" }));
     setError(null);
     requestFocus(`comment-edit-${c.commentId}`);
   }
   function transitionEditor(action: EditorAction) {
     if (writing.current || busy || !scope.isActive()) return;
-    if (editor && editor.value !== editor.original) {
+    if (editDirty) {
       setDiscard(action);
       requestFocus(null);
       return;
@@ -539,7 +568,7 @@ export default function Comments({
           : "comments-refresh",
       );
   }
-  function removeItem(id: number, preserveEditor = false) {
+  function removeItem(id: number) {
     removed.current.add(id);
 
     setCreated((receipts) =>
@@ -553,14 +582,10 @@ export default function Comments({
 
     setDeleting(null);
 
-    if (editor?.id === id) {
-      // 숨김 댓글 수정 실패 시 초안 보존
-      if (preserveEditor) setEditor({ ...editor, notFound: true });
-      else setEditor(null);
-    }
-
-    requestFocus(preserveEditor ? `comment-edit-${id}` : "comments-refresh");
+    setEditor(previous => previous?.id === id ? null : previous);
+    requestFocus("comments-refresh");
   }
+
   async function mutate(
     method: "POST" | "PUT" | "DELETE",
     id: number | null,
@@ -608,7 +633,7 @@ export default function Comments({
       : null;
     let refresh = false;
     try {
-      const result = await changeComment(postId, method, id, content, current);
+      const result = await changeComment(postId, method, id, content, () => current() && !!session?.isCurrent());
       if (result === null) return;
       // 이미 보낸 요청의 성공은 이탈 후에도 목록에 반영하되 이전 폼은 건드리지 않는다.
       if (session?.isCurrent()) {
@@ -616,7 +641,7 @@ export default function Comments({
         if (method === "POST" || method === "DELETE") postListChanged();
         else memberCommentsChanged();
       }
-      if (!current()) return;
+      if (!current() || !session?.isCurrent()) return;
       if (session?.isCurrent()) {
         const message =
           method === "POST"
@@ -663,17 +688,33 @@ export default function Comments({
         postCommentsChanged(postId);
         postListChanged();
       }
-      if (!current()) return;
-      if (failure.code === "COMMENT_NOT_FOUND" && id) {
-        removeItem(id, method === "PUT");
-        if (method === "PUT") {
-          if (session?.isCurrent())
-            showToast(
-              "숨김 또는 삭제되어 수정할 수 없는 댓글입니다.",
-              session.isCurrent,
-              "notice",
-            );
-        } else setNotice("댓글이 없거나 이미 삭제되었습니다.");
+      if (!current() || !session?.isCurrent()) return;
+      if ((method === "PUT" || method === "POST") && failure.status === 401 && failure.code === "AUTHENTICATION_REQUIRED") {
+        // Check ownership before expiry invalidates this session's requests.
+        if (session.expire("expired", { notice: false })) {
+          setEditor(null);
+          setError(null);
+          setToast(null);
+          setNotice("");
+          setDiscard(null);
+          setDeleting(null);
+          setLoginPrompt(false);
+          setCreateError(null);
+          setExpiredAction(method === "POST" ? "create" : "edit");
+        }
+        return;
+      }
+      if (method === "PUT" && id && failure.status === 404 &&
+          (failure.code === "COMMENT_NOT_FOUND" || failure.code === "POST_NOT_FOUND")) {
+        removeItem(id);
+        setError(null);
+        refresh = true;
+        // Refresh is disabled while rereading; the persistent heading remains focusable.
+        requestFocus("comments-title");
+        showToast("현재 이 댓글을 수정할 수 없어요.", session.isCurrent, "notice");
+      } else if (method === "DELETE" && failure.code === "COMMENT_NOT_FOUND" && id) {
+        removeItem(id);
+        setNotice("댓글이 없거나 이미 삭제되었습니다.");
       } else {
         if (method === "POST") setCreateError(failure.field ? null : failure);
         else setError(failure.field ? null : failure);
@@ -699,95 +740,43 @@ export default function Comments({
       f[id ?? "draft"] ? { ...f, [id ?? "draft"]: validateComment(value) } : f,
     );
   }
-  const detached =
-    !!editor &&
-    (editor?.notFound === true ||
-      !page.items.some((c) => c.commentId === editor.id));
-  function editForm(missing: boolean) {
+  const outsidePage = !!editor && !page.items.some(c => c.commentId === editor.id);
+  const alreadyMatches = !!editor && editor.confirmed?.content === editor.value;
+  const serverChanged = !!editor && !!editor.confirmed && editor.confirmed.content !== editor.original && !alreadyMatches;
+  function editForm() {
     if (!editor) return null;
     const errorId = `comment-edit-${editor.id}-error`;
     return (
-      <form
-        className="community-comment-form"
-        onSubmit={(e) => {
-          if (missing) e.preventDefault();
-          else void mutate("PUT", editor.id, editor.value, e);
-        }}
-      >
-        <label htmlFor={`comment-edit-${editor.id}`}>
-          {missing ? "보관 중인 수정 초안" : "댓글 수정"}
-        </label>
-        <textarea
-          id={`comment-edit-${editor.id}`}
-          value={editor.value}
-          disabled={busy}
+      <form className="community-comment-form" onSubmit={e => void mutate("PUT", editor.id, editor.value, e)}>
+        <label htmlFor={`comment-edit-${editor.id}`}>댓글 수정</label>
+        <textarea id={`comment-edit-${editor.id}`} value={editor.value} disabled={busy}
           aria-invalid={!!fieldFor(editor.id)}
-          aria-describedby={fieldFor(editor.id) ? errorId : undefined}
-          onChange={(e) => {
+          aria-describedby={[fieldFor(editor.id) && errorId, error && `${errorId}-request`].filter(Boolean).join(" ") || undefined}
+          onChange={e => {
             blocker.markDirty();
             clearField(editor.id, e.target.value);
             setEditor({ ...editor, value: e.target.value });
-          }}
-        />
-        {fieldFor(editor.id) && (
-          <p
-            id={errorId}
-            className="community-comment-field-error"
-            role="alert"
-          >
-            {fieldFor(editor.id)}
-          </p>
-        )}
+          }} />
+        {fieldFor(editor.id) && <p id={errorId} className="community-comment-field-error" role="alert">{fieldFor(editor.id)}</p>}
+        {error && <p id={`${errorId}-request`} role="alert" className="community-error">{error.uncertain ? "수정 결과를 확인하지 못했어요. 잠시 후 다시 시도해 주세요." : error.message}</p>}
         <span>{characterCount(editor.value)} / 2,000자</span>
-        {missing && (
-          <p className="community-help">
-            아래 버튼으로 초안을 선택한 뒤 복사하세요. 키보드에서는 Ctrl+C 또는
-            ⌘C, 모바일에서는 선택한 텍스트의 복사 메뉴를 사용할 수 있습니다.
-          </p>
-        )}
+        {outsidePage && <p className="community-help">현재 목록에 없는 댓글을 수정하고 있어요. 입력한 내용은 유지했어요.</p>}
+        {serverChanged && <p className="community-help">댓글 내용이 변경됐어요. 입력한 내용은 유지했어요.</p>}
+        {alreadyMatches && !!error?.uncertain && <p className="community-help">현재 댓글에 같은 내용이 반영되어 있어요.</p>}
+        {!busy && !editDirty && <p id={`comment-edit-${editor.id}-save-help`} className="community-help">내용을 변경하면 저장할 수 있어요.</p>}
         <div className="community-comment-actions">
-          {missing && (
-            <button
-              type="button"
-              className="iyum-button iyum-button-outline"
-              disabled={busy}
-              onClick={() => {
-                const input = document.getElementById(
-                  `comment-edit-${editor.id}`,
-                ) as HTMLTextAreaElement | null;
-                input?.focus({ preventScroll: true });
-                input?.select();
-              }}
-            >
-              초안 전체 선택
-            </button>
-          )}
-          <button
-            className="iyum-button iyum-button-outline"
-            type="button"
-            disabled={busy}
-            onClick={cancelEdit}
-          >
-            {missing ? "편집 종료" : "수정 취소"}
+          <button className="iyum-button iyum-button-outline" type="button" disabled={busy} onClick={cancelEdit}>수정 취소</button>
+          <button className="iyum-button iyum-button-primary community-comment-save" aria-busy={busy}
+            aria-describedby={!busy && !editDirty ? `comment-edit-${editor.id}-save-help` : undefined}
+            disabled={busy || !permitted || editor.memberId !== auth.member?.memberId ||
+              (!!editor.confirmed && !owner(editor.confirmed)) || !editDirty}>
+            {busy ? "처리 중…" : "댓글 저장"}
           </button>
-          {!missing && (
-            <button
-              className="iyum-button iyum-button-primary"
-              disabled={
-                busy ||
-                !page.items.some(
-                  (c) => c.commentId === editor.id && owner(c),
-                ) ||
-                editor.value === editor.original
-              }
-            >
-              {busy ? "처리 중…" : "댓글 저장"}
-            </button>
-          )}
         </div>
       </form>
     );
   }
+
   return (
     <section
       ref={section}
@@ -875,7 +864,7 @@ export default function Comments({
           <label htmlFor="comment-draft">댓글 남기기</label>
           <textarea
             id="comment-draft"
-            placeholder="댓글로 이야기를 나눠보세요"
+            placeholder={auth.status === "anonymous" && !auth.pending ? "로그인 후 댓글을 남길 수 있어요" : "댓글로 이야기를 나눠보세요"}
             value={draft}
             disabled={busy}
             aria-invalid={!!fieldFor(null)}
@@ -883,7 +872,7 @@ export default function Comments({
               "comment-count",
               createError && "comment-create-error",
               fieldFor(null) && "comment-draft-error",
-              !permitted && "comment-auth-help",
+              (auth.status === "checking" || auth.status === "error" || !!auth.pending) && "comment-auth-help",
             ]
               .filter(Boolean)
               .join(" ")}
@@ -921,7 +910,7 @@ export default function Comments({
             </div>
           )}
           <span id="comment-count">{characterCount(draft)} / 2,000자</span>
-          {!permitted && (
+          {(auth.status === "checking" || auth.status === "error" || !!auth.pending) && (
             <p id="comment-auth-help" role="status">
               {auth.status === "checking" || auth.pending
                 ? auth.pending === "logout"
@@ -929,20 +918,19 @@ export default function Comments({
                   : "로그인 상태를 확인하고 있습니다."
                 : auth.status === "error"
                   ? "로그인 상태를 확인하지 못했습니다. 다시 확인해 주세요. 입력한 내용은 유지됩니다."
-                  : "댓글을 등록하려면 로그인해 주세요. 로그인 화면으로 이동하면 입력은 보관되지 않습니다."}
+                  : null}
             </p>
           )}
           {auth.status === "anonymous" && !auth.pending ? (
             <button
               type="button"
               className="iyum-button iyum-button-primary"
-              aria-describedby="comment-auth-help"
               onClick={() => {
                 if (scope.isActive() && !loginMoving.current)
                   setLoginPrompt(true);
               }}
             >
-              로그인하고 댓글 등록
+              댓글 등록
             </button>
           ) : auth.status === "error" && !auth.pending ? (
             <button
@@ -1019,6 +1007,7 @@ export default function Comments({
             : "정렬 변경 전 목록입니다. 다시 조회해 주세요."}
         </p>
       )}
+      {outsidePage && editForm()}
       <ul ref={commentList} className="community-comment-list">
         {page.items.map((c) => (
           <CommentItem
@@ -1026,8 +1015,8 @@ export default function Comments({
             comment={c}
             anchorId={`comment-${c.commentId}`}
             body={
-              editor?.id === c.commentId && !editor.notFound
-                ? editForm(false)
+              editor?.id === c.commentId
+                ? editForm()
                 : undefined
             }
             reactions={
@@ -1040,7 +1029,7 @@ export default function Comments({
             }
             actions={
               owner(c) &&
-              (editor?.id !== c.commentId || editor.notFound === true) ? (
+              editor?.id !== c.commentId ? (
                 <div className="community-comment-tools">
                   <button
                     id={`comment-edit-button-${c.commentId}`}
@@ -1078,21 +1067,6 @@ export default function Comments({
           aria-hidden="true"
         />
       )}
-      {detached && (
-        <aside
-          className="community-comment-detached"
-          aria-labelledby="comment-detached-title"
-        >
-          <h3 id="comment-detached-title">수정 초안을 보관하고 있어요</h3>
-          <p role="status">
-            {editor?.notFound
-              ? "이전에 수정할 수 없어 보관한 초안입니다. 댓글이 다시 표시되어도 수정은 자동으로 재개되지 않습니다."
-              : "현재 조회한 목록에서 수정 중인 댓글을 찾지 못했습니다. 이 결과만으로 삭제 여부를 확정할 수는 없습니다."}{" "}
-            입력한 내용은 아래에서 확인·복사하거나 편집을 종료할 수 있습니다.
-          </p>
-          {editForm(true)}
-        </aside>
-      )}
       {page.hasNext && (
         <button
           className="iyum-button iyum-button-outline"
@@ -1102,7 +1076,7 @@ export default function Comments({
           댓글 더 보기
         </button>
       )}
-      {error && !deleting && (
+      {error && !deleting && !editor && (
         <div className="community-error" role="alert">
           <p>{error.message}</p>
           {error.uncertain && (
@@ -1113,82 +1087,24 @@ export default function Comments({
           )}
         </div>
       )}
-      {loginPrompt && (
-        <CommunityDialog
-          titleId="comment-login-title"
-          descriptionId="comment-login-description"
-          onCancel={() => setLoginPrompt(false)}
-        >
-          <h2 id="comment-login-title">로그인이 필요해요</h2>
-          <div id="comment-login-description">
-            <p>
-              {auth.status === "authenticated" && !auth.pending
-                ? "이미 로그인되어 있어요. 현재 화면에서 댓글 작성을 계속할 수 있습니다."
-                : "댓글을 등록하려면 로그인이 필요해요. 로그인 화면으로 이동할까요?"}
-            </p>
-            {(draft.length > 0 ||
-              (editor && editor.value !== editor.original)) && (
-              <p>
-                로그인 화면으로 이동하면 작성·수정 중인 댓글 입력은 보관되지
-                않습니다.
-              </p>
-            )}
-            {(auth.status === "checking" || auth.pending) && (
-              <p role="status">로그인 상태를 확인하고 있습니다.</p>
-            )}
-            {auth.status === "error" && (
-              <p role="status">로그인 상태를 확인하지 못했습니다.</p>
-            )}
-          </div>
-          <div className="community-dialog-actions">
-            <button
-              type="button"
-              data-initial-focus
-              className="iyum-button iyum-button-outline"
-              onClick={() => setLoginPrompt(false)}
-            >
-              그대로 머무르기
-            </button>
-            {auth.status === "error" ? (
-              <button
-                type="button"
-                className="iyum-button iyum-button-outline"
-                onClick={() => void auth.refresh()}
-              >
-                로그인 상태 다시 확인
-              </button>
-            ) : (
-              <button
-                type="button"
-                className="iyum-button iyum-button-primary"
-                disabled={auth.status === "checking" || !!auth.pending}
-                onClick={() => {
-                  if (
-                    !scope.isActive() ||
-                    auth.pending ||
-                    loginMoving.current ||
-                    auth.status === "checking"
-                  )
-                    return;
-                  setLoginPrompt(false);
-                  if (auth.status === "authenticated") {
-                    requestFocus("comment-draft");
-                    return;
-                  }
-                  if (auth.status !== "anonymous") return;
-                  loginMoving.current = true;
-                  guard.confirmNavigation(() =>
-                    router.push(`/login?from=${encodeURIComponent(returnTo)}`),
-                  );
-                }}
-              >
-                {auth.status === "authenticated"
-                  ? "댓글 작성 계속하기"
-                  : "로그인하기"}
-              </button>
-            )}
-          </div>
-        </CommunityDialog>
+      {(expiredAction || loginPrompt) && scope.isActive() && !guard.pending && (
+        <CommentAuthDialog idPrefix={expiredAction ? "comment-expired" : "comment-login"}
+          action={expiredAction ?? "login"} hasDraft={draft.length > 0}
+          status={auth.status} pending={!!auth.pending}
+          onClose={() => {
+            if (expiredAction) requestFocus(expiredAction === "create" ? "comment-draft" : "comments-title");
+            setExpiredAction(null); setLoginPrompt(false);
+          }}
+          onRetry={() => void auth.refresh()}
+          onLogin={() => {
+            if (!scope.isActive() || auth.pending || loginMoving.current || auth.status === "checking") return;
+            setExpiredAction(null); setLoginPrompt(false);
+            if (auth.status === "authenticated") { requestFocus("comment-draft"); return; }
+            if (auth.status !== "anonymous") return;
+            loginMoving.current = true;
+            // This dialog already explains loss of the independent new-comment draft.
+            guard.confirmNavigation(() => router.push(`/login?from=${encodeURIComponent(returnTo)}`));
+          }} />
       )}
       {deleting && (
         <CommunityDialog

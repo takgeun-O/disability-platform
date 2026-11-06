@@ -5,7 +5,7 @@ const api = await loadTypeScript(
   "../src/lib/community-comments.ts",
   import.meta.url,
 )
-const item = {
+const item = { contentUpdatedAt: null,
   likeCount: 0, liked: false,
   commentId: 10,
   content: "  본문\n",

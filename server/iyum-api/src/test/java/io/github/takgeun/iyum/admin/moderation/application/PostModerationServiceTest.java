@@ -2,6 +2,7 @@ package io.github.takgeun.iyum.admin.moderation.application;
 
 import io.github.takgeun.iyum.admin.moderation.domain.ContentModerationLog;
 import io.github.takgeun.iyum.admin.moderation.domain.ModerationAction;
+import io.github.takgeun.iyum.admin.moderation.domain.ModerationReasonType;
 import io.github.takgeun.iyum.admin.moderation.infrastructure.ContentModerationLogRepository;
 import io.github.takgeun.iyum.community.post.domain.Post;
 import io.github.takgeun.iyum.community.post.domain.PostTopic;
@@ -434,6 +435,130 @@ class PostModerationServiceTest {
         )).isSameAs(failure);
     }
 
+    @ParameterizedTest
+    @CsvSource({
+            "HIDE, SPAM_ADVERTISING, , 광고·홍보·스팸",
+            "RESTORE, NO_VIOLATION, , 재검토 결과 위반 없음",
+            "HIDE, OTHER, 개별 숨김 사유, 개별 숨김 사유",
+            "RESTORE, OTHER, 개별 복원 사유, 개별 복원 사유"
+    })
+    void 유형과_상세_사유로_상태를_변경하고_이력을_저장한다(
+            ModerationAction action,
+            ModerationReasonType reasonType,
+            String detail,
+            String expectedReason
+    ) {
+        givenAdmin();
+        Post post = givenPost();
+
+        if (action == ModerationAction.RESTORE) {
+            post.hide(ORIGINAL_HIDDEN_AT);
+        }
+
+        String inputDetail = detail == null
+                ? null
+                : "  " + detail + "  ";
+
+        PostModerationResult result = executeTyped(
+                action,
+                reasonType,
+                inputDetail
+        );
+
+        assertThat(result.changed()).isTrue();
+        assertThat(result.hidden())
+                .isEqualTo(action == ModerationAction.HIDE);
+        assertThat(result.hiddenAt()).isEqualTo(post.getHiddenAt());
+
+        ArgumentCaptor<ContentModerationLog> captor =
+                ArgumentCaptor.forClass(ContentModerationLog.class);
+
+        var order = inOrder(
+                memberRepository,
+                postRepository,
+                logRepository
+        );
+
+        order.verify(memberRepository).findByIdForUpdate(ADMIN_ID);
+        order.verify(postRepository)
+                .findPostByIdForModerationForUpdate(POST_ID);
+        order.verify(logRepository).save(captor.capture());
+
+        ContentModerationLog log = captor.getValue();
+
+        assertThat(log.getActorMemberId()).isEqualTo(ADMIN_ID);
+        assertThat(log.getPostId()).isEqualTo(POST_ID);
+        assertThat(log.getCommentId()).isNull();
+        assertThat(log.getAction()).isEqualTo(action);
+        assertThat(log.getReasonType()).isEqualTo(reasonType);
+        assertThat(log.getReasonDetail()).isEqualTo(detail);
+        assertThat(log.getReason()).isEqualTo(expectedReason);
+        assertThat(log.getCreatedAt()).isNotNull();
+
+        if (action == ModerationAction.HIDE) {
+            assertThat(log.getCreatedAt()).isEqualTo(post.getHiddenAt());
+        }
+    }
+
+    @ParameterizedTest
+    @CsvSource({
+            "HIDE, , 상세 설명",
+            "RESTORE, , 상세 설명",
+            "HIDE, LEGACY, 상세 설명",
+            "RESTORE, LEGACY, 상세 설명",
+            "HIDE, NO_VIOLATION, 상세 설명",
+            "RESTORE, SPAM_ADVERTISING, 상세 설명",
+            "HIDE, OTHER, ",
+            "RESTORE, OTHER, "
+    })
+    void 잘못된_사유는_게시글_조회와_이력_저장_전에_거부한다(
+            ModerationAction action,
+            ModerationReasonType reasonType,
+            String detail
+    ) {
+        givenAdmin();
+
+        assertThatThrownBy(() ->
+                executeTyped(action, reasonType, detail)
+        ).isInstanceOfSatisfying(
+                ContentModerationException.class,
+                exception -> assertThat(exception.getCode())
+                        .isEqualTo(
+                                ContentModerationException.Code.INVALID_REASON
+                        )
+        );
+
+        verify(memberRepository).findByIdForUpdate(ADMIN_ID);
+        verifyNoInteractions(postRepository, logRepository);
+    }
+
+    @ParameterizedTest
+    @EnumSource(ModerationAction.class)
+    void 유형을_사용한_중복_요청은_이력을_추가하지_않는다(
+            ModerationAction action
+    ) {
+        givenAdmin();
+        Post post = givenPost();
+
+        if (action == ModerationAction.HIDE) {
+            post.hide(ORIGINAL_HIDDEN_AT);
+        }
+
+        Instant previousHiddenAt = post.getHiddenAt();
+
+        PostModerationResult result = executeTyped(
+                action,
+                ModerationReasonType.OTHER,
+                "중복 요청 확인"
+        );
+
+        assertThat(result.changed()).isFalse();
+        assertThat(post.getHiddenAt()).isEqualTo(previousHiddenAt);
+        assertThat(result.hiddenAt()).isEqualTo(previousHiddenAt);
+
+        verifyNoInteractions(logRepository);
+    }
+
     private Member givenAdmin() {
         Member admin = Member.createPending(
                 "moderation-admin@example.com",
@@ -526,5 +651,28 @@ class PostModerationServiceTest {
                                 assertThat(exception.getCode())
                                         .isEqualTo(expectedCode)
                 );
+    }
+
+    private PostModerationResult executeTyped(
+            ModerationAction action,
+            ModerationReasonType reasonType,
+            String detail
+    ) {
+        return switch (action) {
+            case HIDE -> service.hide(
+                    ADMIN_ID,
+                    CREDENTIAL_VERSION,
+                    POST_ID,
+                    reasonType,
+                    detail
+            );
+            case RESTORE -> service.restore(
+                    ADMIN_ID,
+                    CREDENTIAL_VERSION,
+                    POST_ID,
+                    reasonType,
+                    detail
+            );
+        };
     }
 }

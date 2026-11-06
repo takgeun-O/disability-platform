@@ -5,7 +5,7 @@ import { useNavigationRequest } from "@/components/NavigationGuard"
 import { ADMIN_STATUSES, AdminApiError, adminKeywordError, normalizeAdminKeyword, type AdminQuery } from "@/lib/admin-posts"
 import { getAdminComments, type AdminCommentPage } from "@/lib/admin-detail"
 import AdminPagination from "./AdminPagination"
-import AdminContentMeta, { AdminAuthor, AdminStatusBadge } from "./AdminContentMeta"
+import { AdminCommentMeta, AdminAuthor, AdminStatusBadge } from "./AdminContentMeta"
 import { useAdminModeration } from "./AdminModeration"
 export default function AdminComments({postId,onForbidden,parentUnavailable=false}: {postId:number;onForbidden:()=>void;parentUnavailable?:boolean}) {
   const {revision,readCurrent,locked,completed,open}=useAdminModeration()
@@ -51,7 +51,7 @@ export default function AdminComments({postId,onForbidden,parentUnavailable=fals
         {!data.items.length ? query.page>0 && query.page>=data.totalPages ? <p>현재 페이지가 조회 범위를 벗어났습니다. <button onClick={()=>change({...query,page:0})}>댓글 첫 페이지로</button></p> : <p>{query.keyword||query.status!=="ALL"?"검색 조건에 맞는 댓글이 없습니다.":"아직 댓글이 없습니다."}</p> :
           <ol className="admin-comment-list">{data.items.map(item=><li key={item.commentId} data-admin-comment-id={item.commentId}>
             <div className="admin-comment-copy"><div className="admin-comment-heading"><h3><AdminAuthor author={item.author}/></h3><span className="admin-comment-id">#{item.commentId}</span><AdminStatusBadge status={item.status}/></div>
-            <p className="admin-full-content">{item.content}</p><AdminContentMeta item={item}/></div>
+            <p className="admin-full-content">{item.content}</p><AdminCommentMeta item={item}/></div>
             <div className="admin-item-action">{item.status === "DELETED" || data.postStatus === "DELETED" ? <p>{item.status === "DELETED" ? "삭제된 댓글은 변경할 수 없습니다." : "게시글이 삭제되어 댓글을 변경할 수 없습니다."}</p> : <button disabled={locked || parentUnavailable} onClick={()=>open({postId,commentId:item.commentId,label:item.content.slice(0,120),action:item.status === "HIDDEN" ? "restore" : "hide"})}>댓글 {item.status === "HIDDEN" ? "숨김 해제" : "숨김 처리"}</button>}
             </div>
           </li>)}</ol>}

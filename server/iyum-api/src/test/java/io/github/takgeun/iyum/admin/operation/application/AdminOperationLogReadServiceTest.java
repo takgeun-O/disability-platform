@@ -2,6 +2,7 @@ package io.github.takgeun.iyum.admin.operation.application;
 
 import io.github.takgeun.iyum.admin.moderation.domain.ContentModerationLog;
 import io.github.takgeun.iyum.admin.moderation.domain.ModerationAction;
+import io.github.takgeun.iyum.admin.moderation.domain.ModerationReasonType;
 import io.github.takgeun.iyum.admin.operation.infrastructure.AdminOperationLogReadRepository;
 import io.github.takgeun.iyum.member.domain.Member;
 import io.github.takgeun.iyum.member.domain.MemberRole;
@@ -105,6 +106,8 @@ class AdminOperationLogReadServiceTest {
                         AdminOperationLogTargetType.POST,
                         123L,
                         ModerationAction.HIDE,
+                        ModerationReasonType.LEGACY,
+                        null,
                         "운영 정책 위반",
                         NOW
                 ),
@@ -114,6 +117,8 @@ class AdminOperationLogReadServiceTest {
                         AdminOperationLogTargetType.COMMENT,
                         456L,
                         ModerationAction.RESTORE,
+                        ModerationReasonType.LEGACY,
+                        null,
                         "검토 결과 복원",
                         NOW.minusSeconds(60)
                 )

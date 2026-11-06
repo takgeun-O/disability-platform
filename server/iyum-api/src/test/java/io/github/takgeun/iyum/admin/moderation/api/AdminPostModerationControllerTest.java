@@ -3,6 +3,7 @@ package io.github.takgeun.iyum.admin.moderation.api;
 import io.github.takgeun.iyum.admin.moderation.application.ContentModerationException;
 import io.github.takgeun.iyum.admin.moderation.application.PostModerationResult;
 import io.github.takgeun.iyum.admin.moderation.application.PostModerationService;
+import io.github.takgeun.iyum.admin.moderation.domain.ModerationReasonType;
 import io.github.takgeun.iyum.auth.security.MemberPrincipal;
 import io.github.takgeun.iyum.global.config.DevCorsConfig;
 import io.github.takgeun.iyum.global.config.SecurityConfig;
@@ -65,8 +66,14 @@ class AdminPostModerationControllerTest {
     private static final Long POST_ID = 31L;
 
     // 컨트롤러는 사유를 가공하지 않고 서비스로 전달한다.
+    // 공백 제거와 입력 정책 검증은 서비스에서 수행한다.
     private static final String REASON =
             "  운영 정책에 따른 처리입니다.  ";
+
+    // OTHER는 숨김·복원 모두 사용할 수 있다.
+    // 기존 공통 요청 테스트에는 이 유형을 사용한다.
+    private static final ModerationReasonType REASON_TYPE =
+            ModerationReasonType.OTHER;
 
     private static final Instant HIDDEN_AT =
             Instant.parse("2026-10-31T00:00:00Z");
@@ -234,11 +241,11 @@ class AdminPostModerationControllerTest {
 
         if ("hide".equals(action)) {
             when(postModerationService.hide(
-                    MEMBER_ID, CREDENTIAL_VERSION, POST_ID, REASON
+                    MEMBER_ID, CREDENTIAL_VERSION, POST_ID, REASON_TYPE, REASON
             )).thenThrow(exception);
         } else {
             when(postModerationService.restore(
-                    MEMBER_ID, CREDENTIAL_VERSION, POST_ID, REASON
+                    MEMBER_ID, CREDENTIAL_VERSION, POST_ID, REASON_TYPE, REASON
             )).thenThrow(exception);
         }
 
@@ -317,6 +324,75 @@ class AdminPostModerationControllerTest {
         );
     }
 
+    @ParameterizedTest
+    @CsvSource({
+            "hide, SPAM_ADVERTISING, false",
+            "hide, SPAM_ADVERTISING, true",
+            "restore, NO_VIOLATION, false",
+            "restore, NO_VIOLATION, true"
+    })
+    void 상세_사유_생략과_null을_서비스에_그대로_전달한다(
+            String action,
+            ModerationReasonType reasonType,
+            boolean explicitNull
+    ) throws Exception {
+        givenActiveMember(MemberRole.ADMIN);
+        boolean hidden = "hide".equals(action);
+        var result = new PostModerationResult(POST_ID, hidden, hidden ? HIDDEN_AT : null, true);
+        if (hidden) {
+            when(postModerationService.hide(MEMBER_ID, CREDENTIAL_VERSION, POST_ID, reasonType, null)).thenReturn(result);
+        } else {
+            when(postModerationService.restore(MEMBER_ID, CREDENTIAL_VERSION, POST_ID, reasonType, null)).thenReturn(result);
+        }
+        // 명시적 null과 필드 생략을 서로 다른 JSON 요청으로 검증한다.
+        String body = "{\"reasonType\":\"" + reasonType.name() + "\""
+                + (explicitNull ? ",\"reasonDetail\":null" : "") + "}";
+
+        mockMvc.perform(request(action)
+                        .content(body)
+                        .with(user(principal(MemberRole.ADMIN)))
+                        .with(csrf().asHeader()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.postId").value(POST_ID))
+                .andExpect(jsonPath("$.hidden").value(hidden))
+                .andExpect(jsonPath("$.changed").value(true))
+                .andExpect(header().string(HttpHeaders.CACHE_CONTROL,
+                        containsString("no-store")));
+
+        if (hidden) {
+            verify(postModerationService).hide(MEMBER_ID, CREDENTIAL_VERSION, POST_ID, reasonType, null);
+        } else {
+            verify(postModerationService).restore(MEMBER_ID, CREDENTIAL_VERSION, POST_ID, reasonType, null);
+        }
+        verifyNoMoreInteractions(postModerationService);
+    }
+
+    @ParameterizedTest
+    @CsvSource({
+            "hide, UNKNOWN_REASON",
+            "restore, UNKNOWN_REASON",
+            "hide, spam_advertising",
+            "restore, no_violation"
+    })
+    void 알_수_없거나_소문자인_사유_유형은_요청_본문_오류로_거부한다(
+            String action,
+            String reasonType
+    ) throws Exception {
+        givenActiveMember(MemberRole.ADMIN);
+
+        mockMvc.perform(request(action)
+                        .content(objectMapper.writeValueAsString(Map.of(
+                                "reasonType", reasonType,
+                                "reasonDetail", REASON
+                        )))
+                        .with(user(principal(MemberRole.ADMIN)))
+                        .with(csrf().asHeader()))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("INVALID_REQUEST_BODY"));
+
+        verifyNoInteractions(postModerationService);
+    }
+
     private void givenActiveMember(MemberRole role) {
         when(memberRepository
                 .existsByIdAndStatusAndCredentialVersionAndRole(
@@ -352,7 +428,9 @@ class AdminPostModerationControllerTest {
                 .header(HttpHeaders.ORIGIN, origin)
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(objectMapper.writeValueAsString(
-                        Map.of("reason", REASON)
+                        Map.of("reasonType", REASON_TYPE.name(),
+                                "reasonDetail", REASON
+                        )
                 ));
     }
 
@@ -362,11 +440,11 @@ class AdminPostModerationControllerTest {
     ) {
         if ("hide".equals(action)) {
             when(postModerationService.hide(
-                    MEMBER_ID, CREDENTIAL_VERSION, POST_ID, REASON
+                    MEMBER_ID, CREDENTIAL_VERSION, POST_ID, REASON_TYPE, REASON
             )).thenReturn(result);
         } else {
             when(postModerationService.restore(
-                    MEMBER_ID, CREDENTIAL_VERSION, POST_ID, REASON
+                    MEMBER_ID, CREDENTIAL_VERSION, POST_ID, REASON_TYPE, REASON
             )).thenReturn(result);
         }
     }
@@ -374,11 +452,11 @@ class AdminPostModerationControllerTest {
     private void verifyServiceCall(String action) {
         if ("hide".equals(action)) {
             verify(postModerationService).hide(
-                    MEMBER_ID, CREDENTIAL_VERSION, POST_ID, REASON
+                    MEMBER_ID, CREDENTIAL_VERSION, POST_ID, REASON_TYPE, REASON
             );
         } else {
             verify(postModerationService).restore(
-                    MEMBER_ID, CREDENTIAL_VERSION, POST_ID, REASON
+                    MEMBER_ID, CREDENTIAL_VERSION, POST_ID, REASON_TYPE, REASON
             );
         }
 

@@ -3,6 +3,7 @@ package io.github.takgeun.iyum.admin.moderation.application;
 import io.github.takgeun.iyum.admin.moderation.domain.ContentModerationLog;
 import io.github.takgeun.iyum.admin.moderation.domain.ModerationAction;
 import io.github.takgeun.iyum.admin.moderation.domain.ModerationInputPolicy;
+import io.github.takgeun.iyum.admin.moderation.domain.ModerationReasonType;
 import io.github.takgeun.iyum.admin.moderation.infrastructure.ContentModerationLogRepository;
 import io.github.takgeun.iyum.community.comment.domain.Comment;
 import io.github.takgeun.iyum.community.comment.infrastructure.CommentRepository;
@@ -46,6 +47,27 @@ public class CommentModerationService {
     }
 
     @Transactional
+    public CommentModerationResult hide(
+            Long actorMemberId,
+            long credentialVersion,
+            Long postId,
+            Long commentId,
+            ModerationReasonType reasonType,
+            String reasonDetail
+    ) {
+        return changeState(
+                actorMemberId,
+                credentialVersion,
+                postId,
+                commentId,
+                reasonType,
+                reasonDetail,
+                ModerationAction.HIDE,
+                false   // 새 유형 입력 방식이라는 뜻. (서비스 내부 전환용이며 요청 파라미터로 노출하지 않음.)
+        );
+    }
+
+    @Transactional
     public CommentModerationResult restore(
             Long actorMemberId,
             long credentialVersion,
@@ -63,6 +85,31 @@ public class CommentModerationService {
         );
     }
 
+    @Transactional
+    public CommentModerationResult restore(
+            Long actorMemberId,
+            long credentialVersion,
+            Long postId,
+            Long commentId,
+            ModerationReasonType reasonType,
+            String reasonDetail
+    ) {
+        return changeState(
+                actorMemberId,
+                credentialVersion,
+                postId,
+                commentId,
+                reasonType,
+                reasonDetail,
+                ModerationAction.RESTORE,
+                false   // 새 유형 입력 방식이라는 뜻. (서비스 내부 전환용이며 요청 파라미터로 노출하지 않음.)
+        );
+    }
+
+    /**
+     * 기존 자유 입력 API를 위한 임시 호환 경로.
+     * 컨트롤러 전환 완료 후 제거한다.
+     */
     private CommentModerationResult changeState(
             Long actorMemberId,
             long credentialVersion,
@@ -71,6 +118,28 @@ public class CommentModerationService {
             String reason,
             ModerationAction action
     ) {
+        return changeState(
+                actorMemberId,
+                credentialVersion,
+                postId,
+                commentId,
+                null,
+                reason,
+                action,
+                true
+        );
+    }
+
+    private CommentModerationResult changeState(
+            Long actorMemberId,
+            long credentialVersion,
+            Long postId,
+            Long commentId,
+            ModerationReasonType reasonType,
+            String reasonDetail,
+            ModerationAction action,
+            boolean legacyInput
+    ) {
 
         // 1. 요청 관리자 회원을 잠그고 현재 자격을 확인한다.
         Member actor = lockAndValidateAdmin(
@@ -78,8 +147,11 @@ public class CommentModerationService {
                 credentialVersion
         );
 
-        // 중복 요청도 사유 검증은 동일하게 수행한다.
-        String normalizedReason = validateReason(reason);
+        // 관리자 자격을 먼저 확인한다.
+        // 중복 요청도 게시글·댓글 조회 전에 사유를 검증한다.
+        String normalizedReason = legacyInput
+                ? validateReason(reasonDetail)
+                : validateReasonDetail(action, reasonType, reasonDetail);
 
         if (postId == null || postId <= 0) {
             throw new ContentModerationException(
@@ -134,19 +206,36 @@ public class CommentModerationService {
             case RESTORE -> comment.restore();
         };
 
+        /**
+         * 여기서 postId와 commentId는 어느 게시글의 어느 댓글인가를 함께 기록하는 필드가 아니라,
+         * "이번 조치의 직접 대상은 무엇인가"를 구분하는 필드임.
+         * 만약 postId = 10L; commentId = 25L; 처럼 댓글 숨김 기록에 저장하면
+         * 이 기록은 게시글 처리 이력 검색에도 나오고, 댓글 처리 이력 검색에도 나온다.
+         * 실제로는 댓글만 숨겼는데 게시글도 처리한 것처럼 분류되는 것.
+         * 서비스에서 필요한 정보가 모두 이력의 "처리 대상" 필드에 들어가야 하는 건 아님.
+         */
         // 4. 실제로 댓글 상태가 변경된 경우에만 이력을 저장한다.
         // 이 때 부모 게시글 ID를 알고 있더라도 두 컬럼을 동시에 채우면 안된다.
         // DB 제약 조건은 처리 대상이 게시글 또는 댓글 중 "정확히" 하나일 것을 요구함.
         if (changed) {
-            logRepository.save(
-                    ContentModerationLog.forComment(
-                            actor.getId(),
-                            comment.getId(),
-                            action,
-                            normalizedReason,
-                            now
-                    )
+            ContentModerationLog log = legacyInput
+                    ? ContentModerationLog.forComment(
+                    actor.getId(),
+                    comment.getId(),
+                    action,
+                    normalizedReason,
+                    now
+            )
+                    : ContentModerationLog.forComment(
+                    actor.getId(),
+                    comment.getId(),
+                    action,
+                    reasonType,
+                    normalizedReason,
+                    now
             );
+
+            logRepository.save(log);
         }
 
         return new CommentModerationResult(
@@ -203,5 +292,23 @@ public class CommentModerationService {
         }
 
         return actor;
+    }
+
+    private String validateReasonDetail(
+            ModerationAction action,
+            ModerationReasonType reasonType,
+            String reasonDetail
+    ) {
+        try {
+            return ModerationInputPolicy.normalizeReasonDetail(
+                    action,
+                    reasonType,
+                    reasonDetail
+            );
+        } catch (IllegalArgumentException exception) {
+            throw new ContentModerationException(
+                    ContentModerationException.Code.INVALID_REASON
+            );
+        }
     }
 }

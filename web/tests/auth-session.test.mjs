@@ -7,6 +7,18 @@ const member = { memberId: 1, email: 'member@example.test', nickname: '회원', 
 const credentials = { email: member.email, password: 'test-only-value' };
 const deferred = () => { let resolve, reject; const promise = new Promise((yes, no) => { resolve = yes; reject = no; }); return { promise, resolve, reject }; };
 const flush = async () => { for (let i = 0; i < 10; i++) await Promise.resolve(); };
+test('request-owned expiry dialog suppresses only its global notice and invalidates old requests',async()=>{
+  const {session}=setup({getCurrentMember:async()=>member});await flush();
+  const edit=session.captureMemberRequest(member.memberId),parallel=session.captureMemberRequest(member.memberId);
+  assert.equal(edit.expire('expired',{notice:false}),true);
+  assert.equal(session.getSnapshot().status,'anonymous');assert.equal(session.getExpiryNotice(),null);
+  assert.equal(parallel.isCurrent(),false);assert.equal(parallel.expire(),false);
+  await session.signIn(credentials,()=>{});
+  assert.equal(edit.expire('expired',{notice:false}),false);
+  assert.equal(session.getSnapshot().status,'authenticated');
+  assert.equal(session.captureMemberRequest(member.memberId).expire(),true);
+  assert(session.getExpiryNotice());session.stop();
+});
 const uncertain = kind => new AuthApiError(kind, 0, 'NETWORK_ERROR', 'result unknown', {}, true);
 function setup(overrides = {}) {
   const calls = [];

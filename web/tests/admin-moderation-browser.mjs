@@ -117,7 +117,7 @@ async function run(name, fn) {
 }
 
 const detail=id=>({...item(id,id===2?'HIDDEN':id===3?'DELETED':'VISIBLE'),content:'전체 본문\n<script>안전한 일반 텍스트</script>\n'+'긴본문'.repeat(100)})
-const commentPage=(postId,page=0)=>({postId,postStatus:postId===2?'HIDDEN':'VISIBLE',items:[{...item(1),commentId:page*20+1,content:'댓글 전체 본문 '+ '긴문자'.repeat(100)}],page,size:20,totalElements:21,totalPages:2,hasNext:page===0,hasPrevious:page>0})
+const commentPage=(postId,page=0)=>({postId,postStatus:postId===2?'HIDDEN':'VISIBLE',items:[{ contentUpdatedAt: null,...item(1),commentId:page*20+1,content:'댓글 전체 본문 '+ '긴문자'.repeat(100)}],page,size:20,totalElements:21,totalPages:2,hasNext:page===0,hasPrevious:page>0})
 const commentReady=p=>p.locator('.admin-comment-results[aria-busy="false"]').waitFor()
 const commentReads=s=>s.calls.filter(c=>c.path.endsWith('/comments'))
 const flush=p=>p.evaluate(()=>new Promise(r=>requestAnimationFrame(()=>requestAnimationFrame(r))))

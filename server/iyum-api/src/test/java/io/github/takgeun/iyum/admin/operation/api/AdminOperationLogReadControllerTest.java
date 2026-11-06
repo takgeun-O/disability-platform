@@ -1,11 +1,8 @@
 package io.github.takgeun.iyum.admin.operation.api;
 
 import io.github.takgeun.iyum.admin.moderation.domain.ModerationAction;
-import io.github.takgeun.iyum.admin.operation.application.AdminOperationLogItemResult;
-import io.github.takgeun.iyum.admin.operation.application.AdminOperationLogReadException;
-import io.github.takgeun.iyum.admin.operation.application.AdminOperationLogReadQuery;
-import io.github.takgeun.iyum.admin.operation.application.AdminOperationLogReadService;
-import io.github.takgeun.iyum.admin.operation.application.AdminOperationLogTargetType;
+import io.github.takgeun.iyum.admin.moderation.domain.ModerationReasonType;
+import io.github.takgeun.iyum.admin.operation.application.*;
 import io.github.takgeun.iyum.auth.security.MemberPrincipal;
 import io.github.takgeun.iyum.global.config.DevCorsConfig;
 import io.github.takgeun.iyum.global.config.SecurityConfig;
@@ -16,6 +13,8 @@ import io.github.takgeun.iyum.member.infrastructure.MemberRepository;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.CsvSource;
+import org.junit.jupiter.params.provider.EnumSource;
+import org.junit.jupiter.params.provider.NullAndEmptySource;
 import org.junit.jupiter.params.provider.ValueSource;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
@@ -91,6 +90,8 @@ class AdminOperationLogReadControllerTest {
                         AdminOperationLogTargetType.COMMENT,
                         456L,
                         ModerationAction.HIDE,
+                        ModerationReasonType.OTHER,
+                        "운영 정책 위반",
                         "운영 정책 위반",
                         CREATED_AT
                 );
@@ -123,6 +124,10 @@ class AdminOperationLogReadControllerTest {
                 .andExpect(jsonPath("$.items[0].action").value("HIDE"))
                 .andExpect(jsonPath("$.items[0].reason")
                         .value("운영 정책 위반"))
+                .andExpect(jsonPath("$.items[0].reasonType")
+                        .value("OTHER"))
+                .andExpect(jsonPath("$.items[0].reasonDetail")
+                        .value("운영 정책 위반"))
                 .andExpect(jsonPath("$.items[0].createdAt")
                         .value(CREATED_AT.toString()))
                 .andExpect(jsonPath("$.items[0].email").doesNotExist())
@@ -145,13 +150,17 @@ class AdminOperationLogReadControllerTest {
 
     @ParameterizedTest
     @CsvSource({
-            "ALL, HIDE",
-            "POST, RESTORE",
-            "COMMENT, HIDE"
+            "ALL, HIDE, LATEST",
+            "ALL, HIDE, OLDEST",
+            "POST, RESTORE, LATEST",
+            "POST, RESTORE, OLDEST",
+            "COMMENT, HIDE, LATEST",
+            "COMMENT, HIDE, OLDEST"
     })
     void 필터와_날짜와_페이지_조건을_서비스에_전달한다(
             AdminOperationLogTargetType targetType,
-            ModerationAction action
+            ModerationAction action,
+            AdminOperationLogSort sort
     ) throws Exception {
         givenValidSession(MemberRole.ADMIN);
 
@@ -162,7 +171,8 @@ class AdminOperationLogReadControllerTest {
                         LocalDate.of(2026, 11, 1),
                         LocalDate.of(2026, 11, 4),
                         2,
-                        10
+                        10,
+                        sort
                 );
 
         // 전체 15건 중 2번 페이지는 범위 밖이므로 빈 목록이다.
@@ -185,6 +195,7 @@ class AdminOperationLogReadControllerTest {
                         .param("endDate", "2026-11-04")
                         .param("page", "2")
                         .param("size", "10")
+                        .param("sort", sort.name())
         ))
                 .andExpect(jsonPath("$.items").isEmpty())
                 .andExpect(jsonPath("$.page").value(2))
@@ -199,6 +210,8 @@ class AdminOperationLogReadControllerTest {
                 CREDENTIAL_VERSION,
                 expectedQuery
         );
+
+        verifyNoMoreInteractions(operationLogReadService);
     }
 
     @ParameterizedTest
@@ -383,7 +396,10 @@ class AdminOperationLogReadControllerTest {
             "targetType, UNKNOWN",
             "action, DELETE",
             "startDate, not-a-date",
-            "endDate, 2026-13-01"
+            "endDate, 2026-13-01",
+            "sort, UNKNOWN",
+            "sort, latest",
+            "sort, oldest"
     })
     void 파라미터_형식이_잘못되면_400이다(
             String name,
@@ -549,6 +565,186 @@ class AdminOperationLogReadControllerTest {
         verifyNoInteractions(operationLogReadService);
     }
 
+    @Test
+    void 정렬이_빈_값이면_최신순을_적용한다() throws Exception {
+        givenValidSession(MemberRole.ADMIN);
+
+        when(operationLogReadService.getLogs(
+                MEMBER_ID,
+                CREDENTIAL_VERSION,
+                defaultQuery()
+        )).thenReturn(Page.empty(PageRequest.of(0, 20)));
+
+        expectSuccess(mockMvc.perform(
+                request()
+                        .with(user(principal(MemberRole.ADMIN)))
+                        .param("sort", "")
+        ));
+
+        verify(operationLogReadService).getLogs(
+                MEMBER_ID,
+                CREDENTIAL_VERSION,
+                defaultQuery()
+        );
+    }
+
+    @ParameterizedTest
+    @EnumSource(ModerationReasonType.class)
+    void 모든_사유_유형을_조회_조건으로_전달한다(
+            ModerationReasonType reasonType
+    ) throws Exception {
+        givenValidSession(MemberRole.ADMIN);
+
+        AdminOperationLogReadQuery expectedQuery =
+                new AdminOperationLogReadQuery(
+                        AdminOperationLogTargetType.ALL,
+                        null,
+                        null,
+                        null,
+                        0,
+                        20,
+                        AdminOperationLogSort.LATEST,
+                        reasonType
+                );
+
+        when(operationLogReadService.getLogs(
+                MEMBER_ID,
+                CREDENTIAL_VERSION,
+                expectedQuery
+        )).thenReturn(Page.empty(PageRequest.of(0, 20)));
+
+        // LEGACY도 포함하며, GET 조회이므로 CSRF 토큰은 보내지 않는다.
+        expectSuccess(mockMvc.perform(
+                request()
+                        .with(user(principal(MemberRole.ADMIN)))
+                        .param("reasonType", reasonType.name())
+        ))
+                .andExpect(jsonPath("$.items").isEmpty())
+                .andExpect(jsonPath("$.totalElements").value(0));
+
+        verify(operationLogReadService).getLogs(
+                MEMBER_ID,
+                CREDENTIAL_VERSION,
+                expectedQuery
+        );
+        verifyNoMoreInteractions(operationLogReadService);
+    }
+
+    @ParameterizedTest
+    @NullAndEmptySource
+    void 사유_유형을_생략하거나_빈_문자열이면_전체_조회한다(
+            String reasonType
+    ) throws Exception {
+        givenValidSession(MemberRole.ADMIN);
+
+        when(operationLogReadService.getLogs(
+                MEMBER_ID,
+                CREDENTIAL_VERSION,
+                defaultQuery()
+        )).thenReturn(Page.empty(PageRequest.of(0, 20)));
+
+        MockHttpServletRequestBuilder builder = request()
+                .with(user(principal(MemberRole.ADMIN)));
+
+        if (reasonType != null) {
+            builder.param("reasonType", reasonType);
+        }
+
+        expectSuccess(mockMvc.perform(builder));
+
+        verify(operationLogReadService).getLogs(
+                MEMBER_ID,
+                CREDENTIAL_VERSION,
+                defaultQuery()
+        );
+        verifyNoMoreInteractions(operationLogReadService);
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {
+            "UNKNOWN",
+            "ALL",
+            "spam_advertising",
+            "legacy"
+    })
+    void 잘못된_사유_유형은_400이고_서비스를_호출하지_않는다(
+            String reasonType
+    ) throws Exception {
+        givenValidSession(MemberRole.ADMIN);
+
+        mockMvc.perform(
+                        request()
+                                .with(user(principal(MemberRole.ADMIN)))
+                                .param("reasonType", reasonType)
+                )
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code")
+                        .value("INVALID_REQUEST_PARAMETER"))
+                .andExpect(header().string(
+                        HttpHeaders.CACHE_CONTROL,
+                        containsString("no-store")
+                ));
+
+        verifyNoInteractions(operationLogReadService);
+    }
+
+    @ParameterizedTest
+    @CsvSource({
+            "POST, HIDE, SPAM_ADVERTISING, OLDEST",
+            "COMMENT, RESTORE, LEGACY, LATEST",
+            "POST, RESTORE, SPAM_ADVERTISING, OLDEST"
+    })
+    void 사유_유형과_기존_검색_조건을_함께_전달한다(
+            AdminOperationLogTargetType targetType,
+            ModerationAction action,
+            ModerationReasonType reasonType,
+            AdminOperationLogSort sort
+    ) throws Exception {
+        givenValidSession(MemberRole.ADMIN);
+
+        AdminOperationLogReadQuery expectedQuery =
+                new AdminOperationLogReadQuery(
+                        targetType,
+                        action,
+                        LocalDate.of(2026, 11, 1),
+                        LocalDate.of(2026, 11, 4),
+                        2,
+                        10,
+                        sort,
+                        reasonType
+                );
+
+        when(operationLogReadService.getLogs(
+                MEMBER_ID,
+                CREDENTIAL_VERSION,
+                expectedQuery
+        )).thenReturn(Page.empty(PageRequest.of(2, 10)));
+
+        expectSuccess(mockMvc.perform(
+                request()
+                        .with(user(principal(MemberRole.ADMIN)))
+                        .param("targetType", targetType.name())
+                        .param("action", action.name())
+                        .param("reasonType", reasonType.name())
+                        .param("startDate", "2026-11-01")
+                        .param("endDate", "2026-11-04")
+                        .param("page", "2")
+                        .param("size", "10")
+                        .param("sort", sort.name())
+        ))
+                .andExpect(jsonPath("$.items").isEmpty())
+                .andExpect(jsonPath("$.page").value(2))
+                .andExpect(jsonPath("$.size").value(10))
+                .andExpect(jsonPath("$.totalElements").value(0));
+
+        verify(operationLogReadService).getLogs(
+                MEMBER_ID,
+                CREDENTIAL_VERSION,
+                expectedQuery
+        );
+        verifyNoMoreInteractions(operationLogReadService);
+    }
+
     private ResultActions expectSuccess(
             ResultActions response
     ) throws Exception {
@@ -602,7 +798,13 @@ class AdminOperationLogReadControllerTest {
 
     private AdminOperationLogReadQuery defaultQuery() {
         return new AdminOperationLogReadQuery(
-                null, null, null, null, 0, 20
+                null,
+                null,
+                null,
+                null,
+                0,
+                20,
+                AdminOperationLogSort.LATEST
         );
     }
 }

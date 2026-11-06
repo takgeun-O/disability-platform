@@ -2,6 +2,7 @@ package io.github.takgeun.iyum.admin.operation.application;
 
 import io.github.takgeun.iyum.admin.moderation.domain.ContentModerationLog;
 import io.github.takgeun.iyum.admin.moderation.domain.ModerationAction;
+import io.github.takgeun.iyum.admin.moderation.domain.ModerationReasonType;
 
 import java.time.Instant;
 
@@ -15,6 +16,8 @@ public record AdminOperationLogItemResult(
         AdminOperationLogTargetType targetType,
         Long targetId,
         ModerationAction action,
+        ModerationReasonType reasonType,
+        String reasonDetail,
         String reason,
         Instant createdAt
 ) {
@@ -38,6 +41,10 @@ public record AdminOperationLogItemResult(
                         ? log.getPostId()
                         : log.getCommentId(),
                 log.getAction(),
+                log.getReasonType(),
+                log.getReasonDetail(),
+                // 과거 기록의 표시 문구를 그대로 반환한다.
+                // 현재 enum 표시명으로 다시 계산하지 않는다.
                 log.getReason(),
                 log.getCreatedAt()
         );

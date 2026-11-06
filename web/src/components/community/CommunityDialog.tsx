@@ -7,11 +7,13 @@ export default function CommunityDialog({
   descriptionId,
   onCancel,
   children,
+  className = "",
 }: {
   titleId: string
   descriptionId?: string
   onCancel: () => void
   children: ReactNode
+  className?: string
 }) {
   const ref = useRef<HTMLDialogElement>(null)
   useEffect(() => {
@@ -26,7 +28,7 @@ export default function CommunityDialog({
   }, [])
   return (
     <dialog
-      className="community-dialog"
+      className={`community-dialog ${className}`}
       ref={ref}
       aria-labelledby={titleId}
       aria-describedby={descriptionId}

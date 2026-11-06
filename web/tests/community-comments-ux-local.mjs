@@ -60,7 +60,7 @@ try{
  await p.setViewportSize({width:1440,height:1000})
  await p.locator('#comment-draft').fill('전송하지 않는 보존 초안')
  await p.getByLabel('회원 메뉴').getByRole('button',{name:'로그아웃',exact:true}).click()
- const button=p.getByRole('button',{name:'로그인하고 댓글 등록',exact:true});await button.waitFor()
+ const button=p.getByRole('button',{name:'댓글 등록',exact:true});await button.waitFor()
  for(const width of [1440,390,320]){await p.setViewportSize({width,height:950});await button.click();await p.getByRole('dialog').screenshot({path:out+`/actual-login-confirm-${width}.png`});await p.keyboard.press('Escape');assert.equal(new URL(p.url()).pathname,detail);assert.equal(await p.locator('#comment-draft').inputValue(),'전송하지 않는 보존 초안');assert(await button.evaluate(e=>document.activeElement===e))}
  await button.click();await p.getByRole('button',{name:'로그인하기',exact:true}).click();await p.waitForURL(u=>u.pathname==='/login'&&u.searchParams.get('from')?.startsWith(detail))
  results.push({name:'actual logout keeps draft; modal cancel and single confirmed login at all widths',pass:true})

@@ -116,10 +116,21 @@ async function run(name, fn) {
 }
 
 const detail=id=>({...item(id,id===2?'HIDDEN':id===3?'DELETED':'VISIBLE'),content:'전체 본문\n<script>안전한 일반 텍스트</script>\n'+'긴본문'.repeat(100)})
-const commentPage=(postId,page=0)=>({postId,postStatus:postId===2?'HIDDEN':'VISIBLE',items:[{...item(1),commentId:page*20+1,content:'댓글 전체 본문 '+ '긴문자'.repeat(100)}],page,size:20,totalElements:21,totalPages:2,hasNext:page===0,hasPrevious:page>0})
+const commentPage=(postId,page=0)=>({postId,postStatus:postId===2?'HIDDEN':'VISIBLE',items:[{ contentUpdatedAt: null,...item(1),commentId:page*20+1,content:'댓글 전체 본문 '+ '긴문자'.repeat(100)}],page,size:20,totalElements:21,totalPages:2,hasNext:page===0,hasPrevious:page>0})
 const commentReady=p=>p.locator('.admin-comment-results[aria-busy="false"]').waitFor()
 const commentReads=s=>s.calls.filter(c=>c.path.endsWith('/comments'))
 const flush=p=>p.evaluate(()=>new Promise(r=>requestAnimationFrame(()=>requestAnimationFrame(r))))
+await run('comment body edit date and entity update date are separate',async()=>{
+ const {context,p,state}=await setup()
+ state.comments=r=>{const body=commentPage(2);body.items.push({...body.items[0],commentId:2,contentUpdatedAt:'2026-11-02T01:02:03.123456Z',updatedAt:'2026-11-05T03:00:00Z'});return r.fulfill({json:body})}
+ await p.goto(base+'/admin/posts/2');await commentReady(p)
+ const rows=p.locator('.admin-comment-list > li')
+ assert.equal(await rows.first().getByText('기록 없음',{exact:true}).count(),1)
+ const meta=rows.nth(1).locator('.admin-content-meta')
+ assert.match(await meta.textContent(),/본문 수정.*2026.11.02. 10:02:03/)
+ assert.match(await meta.textContent(),/최종 변경.*2026.11.05. 12:00:00/)
+ await p.screenshot({path:out+'/content-time-admin.png',fullPage:true});await context.close()
+})
 await run('list conditions survive title navigation, direct detail and reload',async()=>{
  const {context,p}=await setup()
  await p.goto(base+'/admin/posts?status=HIDDEN&keyword=검색&page=1');await ready(p)
@@ -191,7 +202,7 @@ for(const action of ['filter','logout','leave'])await run(`late comment response
 })
 for(const width of [1440,1024,390,320])for(const [id,status] of [[1,'VISIBLE'],[2,'HIDDEN'],[3,'DELETED']])await run(`detail design ${width} ${status}`,async()=>{
  const {context,p,state}=await setup('ADMIN',width)
- state.comments=r=>r.fulfill({json:{...commentPage(id),postStatus:status,items:['VISIBLE','HIDDEN','DELETED'].map((v,i)=>({...item(i+1,v),commentId:i+1,content:'댓글 본문\n'+'긴댓글'.repeat(40)}))}})
+ state.comments=r=>r.fulfill({json:{...commentPage(id),postStatus:status,items:['VISIBLE','HIDDEN','DELETED'].map((v,i)=>({ contentUpdatedAt: null,...item(i+1,v),commentId:i+1,content:'댓글 본문\n'+'긴댓글'.repeat(40)}))}})
  state.detail=r=>r.fulfill({json:{...detail(id),title:'긴게시글제목'.repeat(12),author:{memberId:8,nickname:'긴작성자이름'.repeat(12),withdrawn:status==='DELETED'}}})
  await p.goto(base+'/admin/posts/'+id);await commentReady(p)
  const post=p.locator('.admin-post-detail'),comments=p.locator('.admin-comments')
@@ -267,7 +278,7 @@ await run('comment pagination preserves diverted focus and retry without duplica
 for(const width of [1440,1024,390,320])await run(`representative design and readable controls ${width}`,async()=>{
  const {context,p,state}=await setup('ADMIN',width)
  state.detail=r=>r.fulfill({json:{...detail(2),title:'보청기 적응 경험을 나눕니다',content:'새 보청기를 사용한 지 한 달이 되었습니다. 처음에는 주변 소리가 낯설었지만 조금씩 적응하고 있어요.\n\n비슷한 경험이 있으신 분들의 적응 방법이 궁금합니다.'}})
- state.comments=r=>r.fulfill({json:{...commentPage(2),items:['DELETED','VISIBLE','HIDDEN'].map((status,i)=>({...item(i+1,status),commentId:i+1,content:['처음 적응할 때는 조용한 곳에서 조금씩 사용 시간을 늘렸어요.','저도 비슷한 경험이 있어요. 꾸준히 착용하는 게 도움이 됐어요.','센터에서 조절받은 경험도 함께 공유해 주세요.'][i]}))}})
+ state.comments=r=>r.fulfill({json:{...commentPage(2),items:['DELETED','VISIBLE','HIDDEN'].map((status,i)=>({ contentUpdatedAt: null,...item(i+1,status),commentId:i+1,content:['처음 적응할 때는 조용한 곳에서 조금씩 사용 시간을 늘렸어요.','저도 비슷한 경험이 있어요. 꾸준히 착용하는 게 도움이 됐어요.','센터에서 조절받은 경험도 함께 공유해 주세요.'][i]}))}})
  await p.goto(base+'/admin/posts/2');await commentReady(p)
  await p.screenshot({path:`${out}/representative-${width}.png`,fullPage:true})
  if(width===1440){

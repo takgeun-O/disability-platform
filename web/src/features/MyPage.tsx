@@ -1,5 +1,5 @@
 "use client"
-import { useCallback, useEffect, useRef, useState, useSyncExternalStore, type FormEvent } from 'react'
+import { useCallback, useEffect, useLayoutEffect, useRef, useState, useSyncExternalStore, type FormEvent } from 'react'
 import Link from '@/components/AppLink'
 import PasswordChangeDialog from '@/components/member/PasswordChangeDialog'
 import WithdrawalDialog from '@/components/member/WithdrawalDialog'
@@ -14,6 +14,9 @@ import { FieldError } from '@/components/auth/AuthFields'
 import { FeedAvatar } from '@/components/community/FeedNavigation'
 import { requestListScrollRestore } from '@/lib/community-posts'
 import { safeReturnPath } from '@/lib/navigation'
+import { useRouter } from 'next/navigation'
+import CommentAuthDialog from '@/components/community/CommentAuthDialog'
+import { InlineCommentAuthNotice } from '@/components/member/InlineCommentAuthNotice'
 import { getProfile, getActivitySummary, getMemberCsrf, updateNickname, nicknameError, normalizeNickname, joinedMonth, MemberApiError, type Profile, type ActivitySummary } from '@/lib/member-api'
 const message = (error: unknown) => error instanceof Error ? error.message : '정보를 확인하지 못했습니다. 다시 시도해 주세요.'
 type Resource<T> = { data?: T; error?: string }
@@ -32,14 +35,34 @@ function DraftProtection() {
 }
 export default function MyPage({ settings = false }: { settings?: boolean }) {
   const auth = useAuth()
+  const router = useRouter(), guard = useNavigationGuard(), scope = useNavigationRequest()
+  const { subscribeNavigation } = guard
+  const [commentExpired, setCommentExpired] = useState(false)
+  const commentFocus = useRef(false)
+  useLayoutEffect(() => {
+    if (!commentExpired && commentFocus.current) {
+      commentFocus.current = false
+      if (scope.isActive()) document.getElementById('mypage-title')?.focus({preventScroll:true})
+    }
+  }, [commentExpired, scope])
+  if (commentExpired && (auth.status === 'authenticated' || auth.pending === 'login')) setCommentExpired(false)
+  useEffect(() => subscribeNavigation(() => setCommentExpired(false)), [subscribeNavigation])
+  const closeCommentNotice = () => {
+    setCommentExpired(false)
+    commentFocus.current = true
+  }
   const [passwordNotice, setPasswordNotice] = useState('')
-  return <main id="main-content" className={`mypage${settings ? ' mypage-settings' : ''}`}><header className="mypage-heading">{settings && <Link className="mypage-back" href="/mypage" scroll={false} prefetch={false} onNavigate={() => requestListScrollRestore('/mypage')}>← 마이페이지로 돌아가기</Link>}<h1>{settings ? '프로필·계정 설정' : '마이페이지'}</h1><p>{settings ? '프로필과 계정 보안을 관리하세요.' : '내가 나눈 이야기와 활동을 한곳에서 확인해요.'}</p></header>
+  return <InlineCommentAuthNotice.Provider value={() => { if(scope.isActive()) setCommentExpired(true) }}><main id="main-content" className={`mypage${settings ? ' mypage-settings' : ''}`}><header className="mypage-heading">{settings && <Link className="mypage-back" href="/mypage" scroll={false} prefetch={false} onNavigate={() => requestListScrollRestore('/mypage')}>← 마이페이지로 돌아가기</Link>}<h1 id="mypage-title" tabIndex={-1}>{settings ? '프로필·계정 설정' : '마이페이지'}</h1><p>{settings ? '프로필과 계정 보안을 관리하세요.' : '내가 나눈 이야기와 활동을 한곳에서 확인해요.'}</p></header>
     {!settings && <DraftProtection />}
     {passwordNotice && <p role="status" className="mypage-notice has-notice">{passwordNotice}</p>}
     {auth.status === 'checking' || auth.pending ? <p role="status">회원 상태를 확인하고 있습니다.</p>
       : auth.status === 'error' ? <div className="mypage-message" role="alert"><p>로그인 상태를 확인하지 못했어요.</p><button className="iyum-button iyum-button-outline" onClick={() => void auth.refresh()}>로그인 상태 다시 확인</button></div>
       : auth.status !== 'authenticated' || !auth.member ? <LoginRequired settings={settings} /> : <MemberPage settings={settings} key={`${auth.member.memberId}:${settings}`} memberId={auth.member.memberId} onPasswordNotice={setPasswordNotice} />}
-  </main>
+    {commentExpired && auth.status === 'anonymous' && !auth.pending && scope.isActive() && !guard.pending && <CommentAuthDialog
+      idPrefix="inline-comment-expired" action="create" hasDraft={false} status={auth.status} pending={false} dismissLabel="닫기"
+      onClose={closeCommentNotice} onRetry={() => void auth.refresh()}
+      onLogin={() => { if(!scope.isActive() || auth.status!=='anonymous' || auth.pending)return; setCommentExpired(false); guard.request(() => router.push(`/login?from=${encodeURIComponent(safeReturnPath('/mypage'))}`)) }} />}
+  </main></InlineCommentAuthNotice.Provider>
 }
 function MemberPage({ memberId, onPasswordNotice, settings }: { settings: boolean; memberId: number; onPasswordNotice: (message: string) => void }) {
   const { captureMemberRequest, memberRequests } = useAuth(), scope = useNavigationRequest()

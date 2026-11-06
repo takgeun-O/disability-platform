@@ -1,6 +1,7 @@
 package io.github.takgeun.iyum.admin.operation.application;
 
 import io.github.takgeun.iyum.admin.moderation.domain.ModerationAction;
+import io.github.takgeun.iyum.admin.moderation.domain.ModerationReasonType;
 import jakarta.annotation.Nullable;
 
 import java.time.Instant;
@@ -14,7 +15,9 @@ public record AdminOperationLogReadQuery(
         @Nullable LocalDate startDate,
         @Nullable LocalDate endDate,
         int page,
-        int size
+        int size,
+        AdminOperationLogSort sort,
+        @Nullable ModerationReasonType reasonType
 ) {
 
     public static final int DEFAULT_SIZE = 20;
@@ -22,6 +25,60 @@ public record AdminOperationLogReadQuery(
 
     private static final ZoneId SEARCH_ZONE =
             ZoneId.of("Asia/Seoul");
+
+    /**
+     * 정렬을 지정하지 않는 기존 호출은 최신순으로 처리한다.
+     * 기존 컨트롤러와 테스트의 6개 인자 호출 유지 목적
+     *
+     * 기존 6개 인자 호출: 최신순 + 사유 전체
+     */
+    public AdminOperationLogReadQuery(
+            AdminOperationLogTargetType targetType,
+            @Nullable ModerationAction action,
+            @Nullable LocalDate startDate,
+            @Nullable LocalDate endDate,
+            int page,
+            int size
+    ) {
+        this(
+                targetType,
+                action,
+                startDate,
+                endDate,
+                page,
+                size,
+                AdminOperationLogSort.LATEST
+        );
+    }
+
+    /**
+     * 사유 유형을 지정하지 않는 기존 호출은
+     * 사유 유형 제한 없이 조회한다.
+     * <p>
+     * 기존 컨트롤러와 테스트와 7개 인자 호출을 유지한다.
+     *
+     * 기존 7개 인자 호출: 지정한 정렬 + 사유 전체
+     */
+    public AdminOperationLogReadQuery(
+            AdminOperationLogTargetType targetType,
+            @Nullable ModerationAction action,
+            @Nullable LocalDate startDate,
+            @Nullable LocalDate endDate,
+            int page,
+            int size,
+            AdminOperationLogSort sort
+    ) {
+        this(
+                targetType,
+                action,
+                startDate,
+                endDate,
+                page,
+                size,
+                sort,
+                null
+        );
+    }
 
     public AdminOperationLogReadQuery {
         if (page < 0 || size < 1 || size > MAX_SIZE) {
@@ -54,6 +111,10 @@ public record AdminOperationLogReadQuery(
                     AdminOperationLogReadException.Code.INVALID_DATE_RANGE
             );
         }
+
+        if (sort == null) {
+            sort = AdminOperationLogSort.LATEST;
+        }
     }
 
     /**
@@ -64,7 +125,7 @@ public record AdminOperationLogReadQuery(
      */
     @Nullable
     public Instant fromInclusive() {
-        if(startDate == null) {
+        if (startDate == null) {
             return null;
         }
 
@@ -81,7 +142,7 @@ public record AdminOperationLogReadQuery(
      */
     @Nullable
     public Instant toExclusive() {
-        if(endDate == null) {
+        if (endDate == null) {
             return null;
         }
 
@@ -96,11 +157,11 @@ public record AdminOperationLogReadQuery(
      * Java에서 표현할 수 있는 극단적인 날짜가 DB까지 전달되지 않게 한다.
      */
     private static void validateDate(@Nullable LocalDate date) {
-        if(date == null) {
+        if (date == null) {
             return;
         }
 
-        if(date.getYear() < 1 || date.getYear() > 9999) {
+        if (date.getYear() < 1 || date.getYear() > 9999) {
             throw new AdminOperationLogReadException(
                     AdminOperationLogReadException.Code.INVALID_DATE_RANGE
             );

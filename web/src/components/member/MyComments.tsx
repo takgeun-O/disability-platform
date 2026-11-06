@@ -102,7 +102,7 @@ export default function MyComments({ memberId, active, restoring, initial, lease
     {!!view.segments && !view.items.length && <p id="my-comments-empty" tabIndex={-1} className="mypage-list-message">아직 작성한 댓글이 없어요.</p>}
     <ul className="mypage-post-list mypage-comment-list">{view.items.map(comment => <li key={comment.commentId} data-member-comment-id={comment.commentId} className={comment.visibility !== 'VISIBLE' ? 'mypage-hidden-comment' : undefined}>
       <div className="mypage-post-copy">{comment.visibility === 'VISIBLE' ? <>
-        <p className="mypage-post-meta">{POST_TOPICS[comment.post.topic]} · {POST_TYPES[comment.post.type]} · <WrittenTime value={comment.createdAt} /></p>
+        <p className="mypage-post-meta">{POST_TOPICS[comment.post.topic]} · {POST_TYPES[comment.post.type]} · <WrittenTime value={comment.createdAt} />{comment.contentUpdatedAt !== null && <span> · 수정됨</span>}</p>
         <div className="mypage-comment-bubble">
           <span className="mypage-comment-label">내가 쓴 댓글</span>
           <div className="mypage-comment-body">

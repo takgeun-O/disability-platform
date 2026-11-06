@@ -28,7 +28,11 @@ public class AdminCommentModerationController {
             summary = "댓글 숨김",
             description = """
                     ACTIVE 관리자만 사용할 수 있습니다.
-                    처리 사유와 유효한 로그인 세션·CSRF 토큰이 필요합니다.
+                    처리 사유 유형과 유효한 로그인 세션·CSRF 토큰이 필요합니다.
+                    OTHER 유형은 상세 사유가 필수이며,
+                    다른 유형은 상세 사유를 생략할 수 있습니다.
+                    상세 사유는 앞뒤 공백을 제거한 뒤
+                    Unicode 코드 포인트 기준 500자 이하여야 합니다.
                     
                     부모 게시글이 숨김 상태여도 처리할 수 있습니다.
                     부모 게시글 또는 댓글이 삭제된 경우에는 처리할 수 없습니다.
@@ -58,7 +62,8 @@ public class AdminCommentModerationController {
                 principal.getCredentialVersion(),
                 postId,
                 commentId,
-                request.reason()
+                request.reasonType(),
+                request.reasonDetail()
         );
 
         return ResponseEntity.ok()
@@ -70,7 +75,11 @@ public class AdminCommentModerationController {
             summary = "댓글 복원",
             description = """
                     ACTIVE 관리자만 사용할 수 있습니다.
-                    처리 사유와 유효한 로그인 세션·CSRF 토큰이 필요합니다.
+                    처리 사유 유형과 유효한 로그인 세션·CSRF 토큰이 필요합니다.
+                    OTHER 유형은 상세 사유가 필수이며,
+                    다른 유형은 상세 사유를 생략할 수 있습니다.
+                    상세 사유는 앞뒤 공백을 제거한 뒤
+                    Unicode 코드 포인트 기준 500자 이하여야 합니다.
                     
                     댓글 자체의 숨김 상태만 해제합니다.
                     부모 게시글이 숨김 상태라면 댓글을 복원해도
@@ -103,7 +112,8 @@ public class AdminCommentModerationController {
                 principal.getCredentialVersion(),
                 postId,
                 commentId,
-                request.reason()
+                request.reasonType(),
+                request.reasonDetail()
         );
 
         return ResponseEntity.ok()

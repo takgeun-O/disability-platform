@@ -6,7 +6,7 @@ const nav=await loadTypeScript("../src/lib/admin-navigation.ts",import.meta.url)
 const stamp="2026-11-01T00:00:00.123456Z"
 const common={author:{memberId:7,nickname:"검증",withdrawn:true},status:"HIDDEN",createdAt:stamp,updatedAt:stamp,hiddenAt:stamp,deletedAt:null}
 const post={...common,postId:1,title:"제목",content:"전체\n본문",type:"GENERAL",topic:"DAILY"}
-const page={postId:1,postStatus:"DELETED",items:[{...common,commentId:3,content:"댓글"}],page:0,size:20,totalElements:1,totalPages:1,hasNext:false,hasPrevious:false}
+const page={postId:1,postStatus:"DELETED",items:[{ contentUpdatedAt: null,...common,commentId:3,content:"댓글"}],page:0,size:20,totalElements:1,totalPages:1,hasNext:false,hasPrevious:false}
 test("admin detail/comment contracts preserve full content, parent status and nullable instants",()=>{
  assert(api.isAdminPostDetail(post));assert(api.isAdminCommentPage(page))
  for(const field of ['content','author','createdAt','updatedAt','hiddenAt','deletedAt']){const bad={...post};delete bad[field];assert(!api.isAdminPostDetail(bad),field)}

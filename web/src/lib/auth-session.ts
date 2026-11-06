@@ -33,8 +33,8 @@ export function createAuthSession(client: AuthApi = api) {
     if (member) expiryNotice = null;
     publish({ status: member ? 'authenticated' : 'anonymous', member, pending: state.pending });
   };
-  function makeAnonymous(reason: 'expired' | 'withdrawal' | 'credentials') {
-    expiryNotice = reason === 'expired' ? { id: ++noticeSequence } : null;
+  function makeAnonymous(reason: 'expired' | 'withdrawal' | 'credentials', notice = true) {
+    expiryNotice = reason === 'expired' && notice ? { id: ++noticeSequence } : null;
     publish({ status: 'anonymous', member: null, pending: null });
   }
   // GET도 순서를 가진다. 이전 GET의 성공·401·실패 모두 새 인증 결과를 덮어쓰지 못한다.
@@ -142,10 +142,11 @@ export function createAuthSession(client: AuthApi = api) {
         && !state.pending && state.status === 'authenticated' && state.member?.memberId === memberId;
       return {
         isCurrent,
-        expire(reason: 'expired' | 'credentials' = 'expired') {
+        expire(reason: 'expired' | 'credentials' = 'expired', options: { notice?: boolean } = {}) {
           if (!isCurrent()) return false;
           advanceGeneration();
-          makeAnonymous(reason);
+          // A request-owned dialog may provide the notice instead of the global toast.
+          makeAnonymous(reason, options.notice !== false);
           return true;
         },
         updateNickname(nickname: string) {

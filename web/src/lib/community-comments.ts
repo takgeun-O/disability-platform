@@ -1,3 +1,4 @@
+import { writtenInstant } from "./written-time";
 import { isLikeState, type LikeState } from "./community-api";
 import { getCsrfContext } from "./signup-api";
 import { characterCount, normalizeTitle } from "./community-posts";
@@ -7,6 +8,7 @@ export type Comment = LikeState & {
   author: { memberId: number; nickname: string };
   createdAt: string;
   updatedAt: string;
+  contentUpdatedAt: string | null;
 };
 export type CommentSort = "OLDEST" | "LATEST" | "POPULAR";
 export type CommentCursor = {
@@ -63,6 +65,7 @@ const comment = (v: unknown): v is Comment =>
   obj(v) &&
   typeof v.content === "string" &&
   instant(v.updatedAt) &&
+  (v.contentUpdatedAt === null || (typeof v.contentUpdatedAt === "string" && writtenInstant(v.contentUpdatedAt) !== null)) &&
   obj(v.author) &&
   id(v.author.memberId) &&
   typeof v.author.nickname === "string" &&
