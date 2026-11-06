@@ -1,14 +1,16 @@
+import { isModerationReasonType, type ModerationReasonType } from "./moderation-reasons"
 import { adminCount, adminGet, adminObject, AdminApiError, isAdminPageInfo, type AdminPageInfo } from "./admin-posts"
 import { writtenInstant } from "./written-time"
 
 export const LOG_TARGETS = { ALL: "전체", POST: "게시글", COMMENT: "댓글" } as const
 export const LOG_ACTIONS = { ALL: "전체", HIDE: "숨김", RESTORE: "복원" } as const
-export type LogFilters = { targetType: keyof typeof LOG_TARGETS; action: keyof typeof LOG_ACTIONS; startDate: string; endDate: string }
+export const LOG_SORTS = { LATEST: "최신순", OLDEST: "오래된순" } as const
+export type LogFilters = { reasonType: ModerationReasonType | ""; sort: keyof typeof LOG_SORTS; targetType: keyof typeof LOG_TARGETS; action: keyof typeof LOG_ACTIONS; startDate: string; endDate: string }
 export type LogQuery = LogFilters & { page: number }
-export const DEFAULT_LOG_QUERY: LogQuery = { targetType: "ALL", action: "ALL", startDate: "", endDate: "", page: 0 }
+export const DEFAULT_LOG_QUERY: LogQuery = { reasonType: "", sort: "LATEST", targetType: "ALL", action: "ALL", startDate: "", endDate: "", page: 0 }
 export type OperationLog = {
   logId: number; actorMemberId: number; targetType: "POST" | "COMMENT"; targetId: number
-  action: "HIDE" | "RESTORE"; reason: string; createdAt: string
+  action: "HIDE" | "RESTORE"; reasonType: ModerationReasonType; reasonDetail: string | null; reason: string; createdAt: string
 }
 export type OperationLogPage = AdminPageInfo & { items: OperationLog[] }
 // Calendar-only validation: never round-trip filter values through Date/UTC.
@@ -21,6 +23,7 @@ export function validLogDate(value: string) {
 }
 export function logFilterError(filters: LogFilters): string {
   if (!Object.prototype.hasOwnProperty.call(LOG_TARGETS, filters.targetType) || !Object.prototype.hasOwnProperty.call(LOG_ACTIONS, filters.action)) return "대상과 조치를 다시 선택해 주세요."
+  if ((filters.reasonType !== "" && !isModerationReasonType(filters.reasonType)) || !Object.prototype.hasOwnProperty.call(LOG_SORTS, filters.sort)) return "사유와 정렬을 다시 선택해 주세요."
   if ((filters.startDate && !validLogDate(filters.startDate)) || (filters.endDate && !validLogDate(filters.endDate)))
     return "날짜는 0001-01-01부터 9999-12-31까지 YYYY-MM-DD 형식으로 입력해 주세요."
   if (filters.startDate && filters.endDate && filters.startDate > filters.endDate) return "시작일은 종료일보다 늦을 수 없습니다."
@@ -31,6 +34,8 @@ export function logQueryParams(query: LogQuery) {
   if (error) throw new AdminApiError(400, error)
   if (!adminCount(query.page) || query.page * 20 > 2147483647) throw new AdminApiError(400, "조회할 수 있는 페이지 범위를 벗어났습니다.")
   const params = new URLSearchParams({ targetType: query.targetType, page: String(query.page), size: "20" })
+  params.set("sort", query.sort)
+  if (query.reasonType) params.set("reasonType", query.reasonType)
   if (query.action !== "ALL") params.set("action", query.action)
   if (query.startDate) params.set("startDate", query.startDate)
   if (query.endDate) params.set("endDate", query.endDate)
@@ -43,6 +48,7 @@ export function isOperationLogPage(value: unknown): value is OperationLogPage {
   return value.items.every(item => adminObject(item) && positiveId(item.logId) && positiveId(item.actorMemberId)
     && positiveId(item.targetId) && (item.targetType === "POST" || item.targetType === "COMMENT")
     && (item.action === "HIDE" || item.action === "RESTORE") && typeof item.reason === "string"
+    && isModerationReasonType(item.reasonType) && (item.reasonDetail === null || typeof item.reasonDetail === "string")
     && typeof item.createdAt === "string" && writtenInstant(item.createdAt) !== null)
     && new Set(value.items.map(item => item.logId)).size === value.items.length
 }

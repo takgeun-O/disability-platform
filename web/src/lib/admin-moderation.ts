@@ -1,10 +1,13 @@
+import { ACTION_REASONS, type ModerationReasonType } from "./moderation-reasons"
 import { getCsrfContext, SignupApiError } from "./signup-api"
 import { normalizeTitle, characterCount } from "./community-posts"
 import { adminObject } from "./admin-posts"
 import { writtenInstant } from "./written-time"
 export type ModerationTarget = { postId: number; commentId?: number; label: string; action: "hide" | "restore" }
 export type ModerationResult = { postId: number; commentId?: number; hidden: boolean; hiddenAt: string | null; changed: boolean }
-export function moderationReasonError(value: string) {
+export function moderationReasonError(value: string, reasonType: ModerationReasonType | "", action: ModerationTarget["action"]) {
+  if (!reasonType || !ACTION_REASONS[action].includes(reasonType)) return "처리 사유를 선택해 주세요."
+  if (reasonType !== "OTHER") return ""
   const reason = normalizeTitle(value)
   return !reason ? "처리 사유는 필수입니다." : characterCount(reason) > 500 ? "처리 사유는 500자 이하여야 합니다." : ""
 }
@@ -17,8 +20,8 @@ export function isModerationResult(v: unknown, target: ModerationTarget): v is M
     && typeof v.changed === "boolean" && v.hidden === (target.action === "hide")
     && (v.hidden ? typeof v.hiddenAt === "string" && writtenInstant(v.hiddenAt) !== null : v.hiddenAt === null)
 }
-export async function moderate(target: ModerationTarget, reason: string, current: () => boolean) {
-  const error = moderationReasonError(reason)
+export async function moderate(target: ModerationTarget, reason: { reasonType: ModerationReasonType | ""; reasonDetail: string }, current: () => boolean) {
+  const error = moderationReasonError(reason.reasonDetail, reason.reasonType, target.action)
   if (error) throw new ModerationError(400, "INVALID_REASON", error)
   if (!current()) return null
   let csrf
@@ -33,7 +36,7 @@ export async function moderate(target: ModerationTarget, reason: string, current
     response = await fetch((process.env.NEXT_PUBLIC_API_BASE_URL ?? "").replace(/\/$/, "") + path, {
       method: "POST", credentials: "include", cache: "no-store", redirect: "error", referrerPolicy: "no-referrer",
       headers: { Accept: "application/json", "Content-Type": "application/json", [csrf.headerName]: csrf.token },
-      body: JSON.stringify({ reason: normalizeTitle(reason) }), signal: AbortSignal.timeout(15000),
+      body: JSON.stringify({ reasonType: reason.reasonType, ...(reason.reasonType === "OTHER" ? { reasonDetail: normalizeTitle(reason.reasonDetail) } : {}) }), signal: AbortSignal.timeout(15000),
     })
   } catch { throw uncertain() }
   try {
@@ -45,7 +48,9 @@ export async function moderate(target: ModerationTarget, reason: string, current
   }
   const code = adminObject(body) && typeof body.code === "string" ? body.code : "UNEXPECTED_RESPONSE"
   const messages: Record<string, string> = {
-    INVALID_REASON: "처리 사유는 앞뒤 공백을 제거한 뒤 1자 이상 500자 이하로 입력해 주세요.",
+    INVALID_REASON: reason.reasonType === "OTHER"
+      ? "상세 사유를 확인해 주세요. 앞뒤 공백을 제외하고 1~500자로 입력해 주세요."
+      : "선택한 처리 사유를 확인해 주세요.",
     CSRF_TOKEN_INVALID: "보안 확인에 실패했습니다. 사유는 유지됩니다. 다시 실행하면 보안 정보를 새로 확인합니다.",
     POST_NOT_FOUND: "게시글을 찾을 수 없습니다. 최신 상태를 확인해 주세요.",
     COMMENT_NOT_FOUND: "댓글을 찾을 수 없습니다. 최신 상태를 확인해 주세요.",

@@ -2,14 +2,14 @@ import test from "node:test"
 import assert from "node:assert/strict"
 import { loadTypeScript } from "./helpers/load-typescript.mjs"
 const api = await loadTypeScript("../src/lib/admin-operation-logs.ts", import.meta.url)
-const item = {logId: 10, actorMemberId: 88, targetType: "COMMENT", targetId: 42, action: "HIDE", reason: "원문  공백\n보존", createdAt: "2026-11-03T18:04:05.123456Z"}
+const item = {logId: 10, actorMemberId: 88, targetType: "COMMENT", targetId: 42, action: "HIDE", reasonType:"LEGACY",reasonDetail:null,reason: "원문  공백\n보존", createdAt: "2026-11-03T18:04:05.123456Z"}
 const page = {items: [item], page: 0, size: 20, totalElements: 1, totalPages: 1, hasNext: false, hasPrevious: false}
 for (const date of ["0001-01-01", "9999-12-31", "2000-02-29", "2024-02-29", "2026-12-31"])
  test(`calendar accepts ${date}`, () => assert(api.validLogDate(date)))
 for (const date of ["0000-01-01", "10000-01-01", "1900-02-29", "2026-02-29", "2026-04-31", "2026-00-01", "2026-13-01", "2026-01-00", "2026-1-1", "2026-01-01Z", "", " 2026-01-01"])
  test(`calendar rejects ${JSON.stringify(date)}`, () => assert(!api.validLogDate(date)))
 test("filters keep single dates and boundary strings unchanged; ALL action omitted", () => {
- assert.equal(api.logQueryParams(api.DEFAULT_LOG_QUERY).toString(), "targetType=ALL&page=0&size=20")
+ assert.equal(api.logQueryParams(api.DEFAULT_LOG_QUERY).toString(), "targetType=ALL&page=0&size=20&sort=LATEST")
  for (const filters of [{startDate:"0001-01-01"}, {endDate:"9999-12-31"}, {startDate:"2026-11-01",endDate:"2026-11-01",targetType:"POST",action:"RESTORE"}]) {
   const query={...api.DEFAULT_LOG_QUERY,...filters},params=api.logQueryParams(query)
   for (const [key,value] of Object.entries(filters)) assert.equal(params.get(key),value)
@@ -27,7 +27,7 @@ test("strict DTO accepts both targets/actions, empty and out of range pages", ()
 test("missing fields, enums, malformed dates, unsafe ids and page metadata are rejected", () => {
  for(const key of Object.keys(item)){const bad={...item};delete bad[key];assert(!api.isOperationLogPage({...page,items:[bad]}),key)}
  for(const key of ["logId","actorMemberId","targetId"]) for(const value of [0,-1,1.2,"7",null,Number.MAX_SAFE_INTEGER+1]) assert(!api.isOperationLogPage({...page,items:[{...item,[key]:value}]}))
- for(const bad of [{targetType:"ALL"},{action:"ALL"},{createdAt:"2026-02-30T00:00:00Z"},{reason:null}]) assert(!api.isOperationLogPage({...page,items:[{...item,...bad}]}))
+ for(const bad of [{targetType:"ALL"},{action:"ALL"},{createdAt:"2026-02-30T00:00:00Z"},{reasonType:"LEGACY",reasonDetail:null,reason:null}]) assert(!api.isOperationLogPage({...page,items:[{...item,...bad}]}))
  for(const bad of [{hasNext:true},{hasPrevious:true},{page:"0"},{size:51},{totalPages:2},{totalElements:-1},{items:null}]) assert(!api.isOperationLogPage({...page,...bad}))
 })
 test("private GET preserves supplied dates, requests no CSRF, validates requested page/size", async t => {
@@ -47,4 +47,14 @@ test("401, both 403 codes, 400, server and malformed responses stay errors witho
   let calls=0;t.mock.method(globalThis,"fetch",async()=>{calls++;return new Response(JSON.stringify({code}),{status,headers:{"Content-Type":"application/json"}})})
   await assert.rejects(api.getOperationLogs(api.DEFAULT_LOG_QUERY,new AbortController().signal),e=>e.status===(status===200?0:status));assert.equal(calls,1)
  }
+})
+
+test('reason and server sort are independent, explicit null required',()=>{
+ const params=api.logQueryParams({...api.DEFAULT_LOG_QUERY,action:'RESTORE',reasonType:'SPAM_ADVERTISING',sort:'OLDEST',page:2})
+ assert.equal(params.get('reasonType'),'SPAM_ADVERTISING');assert.equal(params.get('action'),'RESTORE');assert.equal(params.get('sort'),'OLDEST');assert.equal(params.get('page'),'2')
+ assert(!api.logQueryParams(api.DEFAULT_LOG_QUERY).has('reasonType'))
+ assert.equal(api.logQueryParams({...api.DEFAULT_LOG_QUERY,reasonType:'LEGACY'}).get('reasonType'),'LEGACY')
+ for(const reasonType of ['ALL','unknown',null])assert(!api.isOperationLogPage({...page,items:[{...item,reasonType}]}))
+ for(const reasonDetail of [undefined,0,{}])assert(!api.isOperationLogPage({...page,items:[{...item,reasonDetail}]}))
+ assert(api.isOperationLogPage({...page,items:[{...item,reasonType:'OTHER',reasonDetail:'😀'}]}))
 })
