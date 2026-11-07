@@ -847,7 +847,8 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
 
             case INVALID_PAGE_REQUEST,
                  INVALID_SEARCH_KEYWORD,
-                 INVALID_REQUEST_PARAMETER ->
+                 INVALID_REQUEST_PARAMETER,
+                 INVALID_DATE_RANGE ->
                     HttpStatus.BAD_REQUEST;
 
             case POST_NOT_FOUND ->

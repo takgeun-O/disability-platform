@@ -19,12 +19,15 @@ import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
+import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.CacheControl;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.util.MultiValueMap;
 import org.springframework.web.bind.annotation.*;
+
+import java.time.LocalDate;
 
 @RestController
 @RequiredArgsConstructor
@@ -69,13 +72,20 @@ public class AdminPostReadController {
     @Operation(
             summary = "관리자 게시글 목록 조회",
             description = """
-                상태와 제목 검색어로 게시글을 조회합니다.
+                상태, 제목 검색어, 한국 날짜 기준 작성 기간으로 게시글을 조회합니다.
                 상태 파라미터를 생략하면 정상·숨김·삭제를 모두 포함합니다.
                 기존 단일 선택은 status, 다중 선택은 statuses를 사용합니다.
                 다중 선택 예: statuses=VISIBLE&statuses=HIDDEN
                 status와 statuses를 동시에 전달할 수 없습니다.
                 statuses에는 VISIBLE, HIDDEN, DELETED만 허용합니다.
-                작성 시각 내림차순, 같은 시각이면 ID 내림차순입니다.
+                선택한 상태끼리는 OR, 나머지 검색 조건과는 AND로 결합합니다.
+                시작일과 종료일은 각각 생략할 수 있으며 종료일 전체를 포함합니다.
+                날짜 범위는 0001-01-01부터 9999-12-31까지입니다.
+                시작일은 종료일보다 늦을 수 없습니다.
+                정렬을 생략하거나 빈 문자열로 전달하면 LATEST를 적용합니다.
+                LATEST는 작성 시각 내림차순, 같은 시각이면 ID 내림차순입니다.
+                OLDEST는 작성 시각 오름차순, 같은 시각이면 ID 오름차순입니다.
+                전체 검색 결과를 정렬한 뒤 페이지를 적용합니다.
                 페이지 번호는 0부터 시작합니다.
                 """
     )
@@ -128,29 +138,58 @@ public class AdminPostReadController {
             @RequestParam(name = "keyword", required = false)
             String keyword,
 
+            @Parameter(
+                    description = "작성 시작일, 한국 날짜 기준",
+                    example = "2026-11-01"
+            )
+            @RequestParam(name = "startDate", required = false)
+            @DateTimeFormat(iso = DateTimeFormat.ISO.DATE)
+            LocalDate startDate,
+
+            @Parameter(
+                    description = "작성 종료일, 한국 날짜 기준 해당 날짜 전체 포함",
+                    example = "2026-11-07"
+            )
+            @RequestParam(name = "endDate", required = false)
+            @DateTimeFormat(iso = DateTimeFormat.ISO.DATE)
+            LocalDate endDate,
+
             @Parameter(description = "페이지 번호, 0부터 시작")
             @RequestParam(name = "page", defaultValue = "0")
             int page,
 
             @Parameter(description = "페이지 크기, 기본 20, 최소 1, 최대 50")
             @RequestParam(name = "size", defaultValue = "20")
-            int size
+            int size,
+
+            @Parameter(
+                    description = "작성 시각 정렬, 생략하거나 빈 문자열이면 LATEST",
+                    schema = @Schema(
+                            allowableValues = {"LATEST", "OLDEST"},
+                            defaultValue = "LATEST"
+                    )
+            )
+            @RequestParam(name = "sort", defaultValue = "LATEST")
+            AdminPostSort sort
     ) {
         // 인증 객체가 없는 경우를 처리하는 방어 코드
         // 실제 관리자 여부는 기존 Security 필터와 조회 서비스에서 검증
         // GET 조회이므로 CSRF 토큰을 요구하지 않고 기존 로그인 세션 쿠키 사용
         requirePrincipal(principal);
 
-        // parameters에는 전체 요청 파라미터가 들어오지만,
-        // 해석 클래스에는 status와 statuses만 읽는다.
+        // 상태 파라미터의 기존 호환 정책은 해석 클래스에서 처리한다.
+        // 날짜 범위 검증과 한국 날짜의 Instant 변환은 조회 조건 객체가 담당한다.
         AdminPostReadQuery query = AdminPostReadQuery.ofStatuses(
                 AdminContentStatusRequestParser.postStatuses(parameters),   // 해석 클래스에서 분기에 따라 처리
                 keyword,
                 page,
-                size
+                size,
+                startDate,
+                endDate,
+                sort
         );
 
-        // 요청자가 전달한 회원 ID가 아닌 로그인 인증 정보를 사용
+        // 관리자 식별 정보는 요청 파라미터가 아닌 로그인 세션에서 가져온다.
         Page<AdminPostItemResult> result =
                 adminPostReadService.getPosts(
                         principal.getMemberId(),

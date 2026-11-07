@@ -1,9 +1,11 @@
 package io.github.takgeun.iyum.admin.content.infrastructure;
 
+import com.querydsl.core.types.OrderSpecifier;
 import com.querydsl.core.types.dsl.BooleanExpression;
 import com.querydsl.core.types.dsl.Expressions;
 import com.querydsl.jpa.impl.JPAQueryFactory;
 import io.github.takgeun.iyum.admin.content.application.AdminPostReadQuery;
+import io.github.takgeun.iyum.admin.content.application.AdminPostSort;
 import io.github.takgeun.iyum.admin.content.application.AdminPostStatus;
 import io.github.takgeun.iyum.community.post.domain.Post;
 import jakarta.annotation.Nullable;
@@ -12,6 +14,7 @@ import org.springframework.data.domain.*;
 import org.springframework.stereotype.Repository;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.Instant;
 import java.util.List;
 import java.util.Locale;
 import java.util.Optional;
@@ -32,7 +35,7 @@ public class AdminPostReadRepository {
 
     /**
      * 페이지와 정렬 정보 만들기
-     *
+     * <p>
      * query는 관리자가 선택한 검색 조건을 담은 객체(페이지 번호·페이지 크기·상태·검색어)
      */
     public Page<Post> findPosts(AdminPostReadQuery query) {
@@ -43,35 +46,27 @@ public class AdminPostReadRepository {
         Pageable pageable = PageRequest.of(
                 query.page(),
                 query.size(),
-                Sort.by(
-                        Sort.Order.desc("createdAt"),
-                        Sort.Order.desc("id")
-                )
+                pageSort(query.sort())
         );
 
-        // 검색 조건을 한 번 만들어두기
-        // BooleanExpression: 참 또는 거짓을 판단하는 쿼리 조건을 표현하는 객체
-        // Java의 boolean처럼 지금 즉시 판단하는 값은 아님
-        // 예를 들어 post.deletedAt.isNull() 표현식은
-        // DB에서 실행할 다음 조건을 표현한다.
-        // deleted_at IS NULL
-        BooleanExpression statusCondition =
-                statusCondition(query.statuses());
+        // 선택 상태들은 OR로 결합하고,
+        // 상태·검색어·작성일 조건은 서로 AND로 결합한다.
+        // 날짜가 생략된 조건은 null이며 QueryDSL에서 제외된다.
+        BooleanExpression[] conditions = {
+                statusCondition(query.statuses()),
+                titleContains(query.keyword()),
+                createdAtFrom(query.fromInclusive()),
+                createdAtBefore(query.toExclusive())
+        };
 
-        BooleanExpression keywordCondition =
-                titleContains(query.keyword());
-
-        // 조건에 맞는 전체 게시글 개수 조회
+        // 목록과 전체 개수에 같은 검색 조건을 적용한다.
         Long count = queryFactory
                 .select(post.count())
                 .from(post)
                 // 선택한 상태끼리는 OR로 결합한다.
                 // 상태 조건과 제목 검색 조건은 AND로 결합한다.
                 // 전체 상태를 선택하면 정상·숨김·삭제 게시글이 모두 포함된다.
-                .where(
-                        statusCondition,
-                        keywordCondition
-                )
+                .where(conditions)
                 // 단일 결과 반환
                 .fetchOne();
 
@@ -81,9 +76,10 @@ public class AdminPostReadRepository {
         long total = count == null ? 0L : count;
 
         // 요청한 페이지에 데이터가 없다면 일찍 반환한다.
+        // 범위 밖 페이지에서도 검색 조건에 맞는 전체 개수는 유지한다.
         // offset은 앞에서 건너뛸 게시글 개수를 의미한다.
         // offset = 페이지 번호 * 페이지 크기
-        if(pageable.getOffset() >= total) {
+        if (pageable.getOffset() >= total) {
             return new PageImpl<>(
                     List.of(),  // 실제_게시글_목록
                     pageable,   // 페이지_요청_정보
@@ -95,14 +91,9 @@ public class AdminPostReadRepository {
         List<Post> content = queryFactory
                 .selectFrom(post)
                 .join(post.author).fetchJoin()
-                .where(
-                        statusCondition,
-                        keywordCondition
-                )
-                .orderBy(
-                        post.createdAt.desc(),
-                        post.id.desc()
-                )
+                .where(conditions)
+                // 전체 검색 결과를 정렬한 다음 페이지를 적용한다.
+                .orderBy(postOrder(query.sort()))
                 // 앞에서 몇 개를 건너뛰고 최대 몇 개를 가져올지 지정
                 .offset(pageable.getOffset())
                 .limit(pageable.getPageSize())
@@ -147,21 +138,21 @@ public class AdminPostReadRepository {
          * )
          * AND 제목_검색_조건
          */
-        if(statuses.contains(AdminPostStatus.VISIBLE)) {
+        if (statuses.contains(AdminPostStatus.VISIBLE)) {
             condition = condition.or(
                     post.deletedAt.isNull()
                             .and(post.hiddenAt.isNull())
             );
         }
 
-        if(statuses.contains(AdminPostStatus.HIDDEN)) {
+        if (statuses.contains(AdminPostStatus.HIDDEN)) {
             condition = condition.or(
                     post.deletedAt.isNull()
                             .and(post.hiddenAt.isNotNull())
             );
         }
 
-        if(statuses.contains(AdminPostStatus.DELETED)) {
+        if (statuses.contains(AdminPostStatus.DELETED)) {
             // 숨김 시각이 남아 있어도 삭제된 게시글은 DELETED에만 속한다.
             condition = condition.or(
                     post.deletedAt.isNotNull()
@@ -177,7 +168,7 @@ public class AdminPostReadRepository {
             @Nullable String keyword
     ) {
         // 검색어가 없으면 제목 조건을 추가하지 않는다.
-        if(keyword == null) {
+        if (keyword == null) {
             return null;
         }
 
@@ -194,5 +185,68 @@ public class AdminPostReadRepository {
         return post.title
                 .lower()
                 .like("%" + escaped + "%", '!');
+    }
+
+    /**
+     * 반환되는 Page의 정렬 정보를 구성한다.
+     * 실제 QueryDSL 정렬은 postOrder()에서 별도로 적용한다.
+     */
+    private Sort pageSort(AdminPostSort sort) {
+        return switch (sort) {
+            case LATEST -> Sort.by(
+                    Sort.Order.desc("createdAt"),
+                    Sort.Order.desc("id")
+            );
+            case OLDEST -> Sort.by(
+                    Sort.Order.asc("createdAt"),
+                    Sort.Order.asc("id")
+            );
+        };
+    }
+
+    /**
+     * 작성 시각이 같으면 ID로 순서를 결정한다.
+     * 동일 시각에 작성된 게시글도 일정한 순서로 조회하기 위함.
+     */
+    private OrderSpecifier<?>[] postOrder(AdminPostSort sort) {
+        return switch (sort) {
+            case LATEST -> new OrderSpecifier<?>[]{
+                    post.createdAt.desc(),
+                    post.id.desc()
+            };
+            case OLDEST -> new OrderSpecifier<?>[]{
+                    post.createdAt.asc(),
+                    post.id.asc()
+            };
+        };
+    }
+
+    /**
+     * 한국 날짜 기준 시작일 00:00에 해당하는 Instant 이상
+     */
+    @Nullable
+    private BooleanExpression createdAtFrom(
+            @Nullable Instant fromInclusive
+    ) {
+        if(fromInclusive == null) {
+            return null;
+        }
+
+        return post.createdAt.goe(fromInclusive);
+    }
+
+    /**
+     * 한국 날짜 기준 종료일 다음날 00:00에 해당하는 Instant 미만
+     * 종료일 마지막 순간을 임의의 소수점 정밀도로 계산하지 않는다.
+     */
+    @Nullable
+    private BooleanExpression createdAtBefore(
+            @Nullable Instant toExclusive
+    ) {
+        if (toExclusive == null) {
+            return null;
+        }
+
+        return post.createdAt.lt(toExclusive);
     }
 }
