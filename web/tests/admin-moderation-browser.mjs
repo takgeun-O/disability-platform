@@ -50,6 +50,14 @@ const gate = () => {
     arrive: () => arrive(),
   }
 }
+
+async function selectStatuses(p, group, statuses) {
+  const field = p.getByRole('group', {name: group, exact: true})
+  for (const [value,label] of [['VISIBLE','정상'],['HIDDEN','숨김'],['DELETED','삭제']])
+    await field.getByRole('checkbox',{name:label,exact:true}).setChecked(statuses.includes(value))
+  // State chips apply automatically; callers wait for the resulting read.
+}
+
 async function setup(role = "ADMIN", width = 1440) {
   const context = await browser.newContext({
       viewport: { width, height: 900 },
@@ -190,12 +198,22 @@ await run('successful write with failed GET preserves success and retries only G
 })
 await run('comment filtered out on last page adjusts once and preserves conditions',async()=>{
  const {context,p,state}=await moderation();await p.goto(base+'/admin/posts/1',{waitUntil:'domcontentloaded'});await settled(p)
- await p.getByLabel('댓글 상태',{exact:true}).selectOption('VISIBLE');await commentReady(p)
+ await selectStatuses(p, '댓글 상태', ['VISIBLE']);await commentReady(p)
+ await p.getByLabel('댓글 본문 검색',{exact:true}).fill('  적용 검색어  ')
+ await button(p,'댓글 검색').click();await commentReady(p)
  await button(p,'다음').click();await commentReady(p)
+ // Unsubmitted keyword edits must not leak into either follow-up GET.
+ await p.getByLabel('댓글 본문 검색',{exact:true}).fill('아직 적용하지 않은 검색어')
+ const before=commentReads(state).length
  const original=state.comments;state.comments=(r,u)=>state.commentHidden?r.fulfill({json:{...commentPage(1,Number(u.searchParams.get('page'))),items:[],totalElements:0,totalPages:0,hasNext:false}}):original(r,u)
  await execute(p,'댓글 숨김 처리');await p.getByText('검색 조건에 맞는 댓글이 없습니다.',{exact:true}).waitFor()
- assert.equal(await p.getByLabel('댓글 상태',{exact:true}).inputValue(),'VISIBLE')
+ assert.equal(await p.getByRole('group',{name:'댓글 상태'}).getByRole('checkbox',{name:'정상',exact:true}).isChecked(),true)
  assert.equal(new URLSearchParams(commentReads(state).at(-1).search).get('page'),'0')
+ const followups=commentReads(state).slice(before).map(c=>new URLSearchParams(c.search))
+ assert.equal(followups.length,2)
+ assert.deepEqual(followups.map(q=>q.get('page')),['1','0'])
+ for(const q of followups){assert.deepEqual(q.getAll('statuses'),['VISIBLE']);assert.equal(q.get('keyword'),'적용 검색어');assert.equal(q.has('status'),false)}
+ assert.equal(await p.getByLabel('댓글 본문 검색',{exact:true}).inputValue(),'아직 적용하지 않은 검색어')
  assert.equal(writes(state).length,1);await context.close()
 })
 await run('pre-mutation delayed GET ignoring abort cannot overwrite refreshed parent',async()=>{
@@ -275,8 +293,10 @@ await run('list return corrects out of range once after moderation',async()=>{
  state.read=(r,u)=>{const page=Number(u.searchParams.get('page'));return r.fulfill({json:{...payload(page),items:page?[]:[item(2)],totalElements:1,totalPages:1,hasNext:false,hasPrevious:page>0}})}
  await p.getByRole('link',{name:'← 목록으로'}).click();await ready(p)
  await p.getByRole('link',{name:'검증 게시글 2',exact:true}).waitFor()
- assert.equal(await p.getByLabel('페이지 바로 이동',{exact:true}).inputValue(),'1')
- assert.equal(state.calls.filter(c=>c.path==='/api/v1/admin/posts').length,2)
+ assert.equal(await p.getByLabel('페이지 바로 이동',{exact:true}).count(),0)
+ const reads=state.calls.filter(c=>c.path==='/api/v1/admin/posts')
+ assert.deepEqual(reads.map(c=>new URLSearchParams(c.search).get('page')),['1','0'])
+ assert.equal(new URL(p.url()).searchParams.get('page'),'0')
  await context.close()
 })
 
@@ -314,4 +334,27 @@ for(const width of [1440,320])await run(`reason-specific INVALID_REASON and reta
  assert.deepEqual(requests[1].body,{reasonType:'OTHER',reasonDetail:'보존할 상세'});assert(await p.evaluate(()=>document.documentElement.scrollWidth<=innerWidth))
  await p.screenshot({path:`${out}/other-error-${width}.png`});await context.close()
 })
+
+for(const empty of [false,true])await run(`moderation follow-up read cannot undo changed chips: empty=${empty}`,async()=>{
+ const {context,p,state}=await moderation()
+ const hold=gate()
+ try {
+  await p.addInitScript(()=>{const f=window.fetch;window.fetch=(u,o)=>f(u,String(u).includes('/comments?')?{...o,signal:undefined}:o)})
+  await p.goto(base+'/admin/posts/1',{waitUntil:'domcontentloaded'});await settled(p)
+  const original=state.comments
+  state.comments=async(r,u)=>{hold.arrive();await hold.response;await original(r,u)}
+  await execute(p,'댓글 숨김 처리');await hold.arrived;await dialog(p).waitFor({state:'hidden'})
+  const field=p.getByRole('group',{name:'댓글 상태',exact:true})
+  await field.getByRole('checkbox',{name:'정상',exact:true}).uncheck()
+  if(empty){await field.getByRole('checkbox',{name:'숨김',exact:true}).uncheck();await field.getByRole('checkbox',{name:'삭제',exact:true}).uncheck()}
+  state.comments=r=>r.fulfill({json:{...commentPage(1),items:[],totalElements:0,totalPages:0,hasNext:false}})
+  const done=p.waitForEvent('requestfinished',{predicate:r=>r.url().includes('/comments?statuses=VISIBLE')})
+  hold.release();await done;await commentReady(p)
+  assert.equal(writes(state).length,1)
+  assert.equal(await p.locator('.admin-comment-list li').count(),0)
+  if(empty)await p.getByText('표시할 상태를 선택해 주세요.',{exact:true}).waitFor()
+  else {assert.deepEqual(new URLSearchParams(commentReads(state).at(-1).search).getAll('statuses'),['HIDDEN','DELETED']);await p.getByText('검색 조건에 맞는 댓글이 없습니다.',{exact:true}).waitFor()}
+ } finally {hold.release();await context.close()}
+})
+
 await browser.close();await fs.writeFile(`${out}/results.json`,JSON.stringify(results,null,2));if(results.some(r=>!r.passed))process.exitCode=1

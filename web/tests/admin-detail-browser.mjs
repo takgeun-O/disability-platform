@@ -1,3 +1,5 @@
+import { adminStableListScenarios } from "./helpers/admin-stable-list-scenarios.mjs"
+import { adminChipScenarios } from "./helpers/admin-chip-scenarios.mjs"
 import assert from "node:assert/strict"
 import fs from "node:fs/promises"
 const { chromium } = await import(process.env.PLAYWRIGHT_MODULE ?? "playwright")
@@ -50,6 +52,14 @@ const gate = () => {
     arrive: () => arrive(),
   }
 }
+
+async function selectStatuses(p, group, statuses) {
+  const field = p.getByRole('group', {name: group, exact: true})
+  for (const [value,label] of [['VISIBLE','정상'],['HIDDEN','숨김'],['DELETED','삭제']])
+    await field.getByRole('checkbox',{name:label,exact:true}).setChecked(statuses.includes(value))
+  // State chips apply automatically; callers wait for the resulting read.
+}
+
 async function setup(role = "ADMIN", width = 1440) {
   const context = await browser.newContext({
       viewport: { width, height: 900 },
@@ -133,12 +143,12 @@ await run('comment body edit date and entity update date are separate',async()=>
 })
 await run('list conditions survive title navigation, direct detail and reload',async()=>{
  const {context,p}=await setup()
- await p.goto(base+'/admin/posts?status=HIDDEN&keyword=검색&page=1');await ready(p)
+ await p.goto(base+'/admin/posts?statuses=VISIBLE&statuses=HIDDEN&keyword=검색&page=1');await ready(p)
  assert.equal(await p.getByRole('navigation',{name:'관리자 메뉴'}).getByRole('link',{name:'게시글 관리',exact:true}).getAttribute('aria-current'),'page')
  await p.getByRole('link',{name:'검증 게시글 4',exact:true}).click();await commentReady(p)
  assert(await p.locator('.admin-post-detail').getByText('검증 게시글 4',{exact:true}).isVisible())
  await p.getByRole('link',{name:'← 목록으로'}).click();await ready(p)
- assert.equal(await p.getByLabel('처리 상태',{exact:true}).inputValue(),'HIDDEN')
+ assert.deepEqual(await p.getByRole('group',{name:'게시글 상태'}).locator('input:checked').evaluateAll(es=>es.map(e=>e.nextSibling.textContent)),['정상','숨김'])
  assert.equal(await p.getByLabel('게시글 제목 검색',{exact:true}).inputValue(),'검색')
  assert.equal(await p.getByLabel('페이지 바로 이동',{exact:true}).inputValue(),'2')
  for(const id of [1,2,3]){await p.goto(base+'/admin/posts/'+id);await commentReady(p);assert(await p.locator('.admin-post-detail').getByText('<script>',{exact:false}).isVisible());assert.equal(await p.locator('.admin-post-detail script').count(),0)}
@@ -154,7 +164,7 @@ await run('comment filters, codepoint search, paging focus, parent vs child stat
  assert.equal(commentReads(state).length,1)
  await p.getByRole('button',{name:'댓글 검색',exact:true}).click();await commentReady(p)
  assert.equal(new URLSearchParams(commentReads(state).at(-1).search).get('keyword'),'본문  내부')
- await p.getByLabel('댓글 상태',{exact:true}).selectOption('DELETED');await commentReady(p)
+ await selectStatuses(p, '댓글 상태', ['DELETED']);await commentReady(p)
  const g=gate();state.comments=async(r,u)=>{g.arrive();await g.response;await r.fulfill({json:commentPage(2,Number(u.searchParams.get('page')))})}
  const input=p.getByLabel('페이지 바로 이동',{exact:true});await input.fill('2');await input.press('Enter');await g.arrived
  const n=commentReads(state).length;await input.press('Enter');assert.equal(commentReads(state).length,n)
@@ -191,10 +201,10 @@ for(const action of ['filter','logout','leave'])await run(`late comment response
  const g=gate();let first=true
  state.comments=async(r)=>{if(first){first=false;g.arrive();await g.response;await r.fulfill({json:{...commentPage(1),items:[{...commentPage(1).items[0],content:'이전 비밀 본문'}]}})}else await r.fulfill({json:commentPage(1)})}
  await p.goto(base+'/admin/posts/1');await g.arrived
- if(action==='filter'){await p.getByLabel('댓글 상태',{exact:true}).selectOption('HIDDEN');await commentReady(p)}
+ if(action==='filter'){await selectStatuses(p, '댓글 상태', ['HIDDEN']);await commentReady(p)}
  else if(action==='logout'){await p.getByRole('button',{name:'로그아웃',exact:true}).click();await p.getByRole('heading',{name:'로그인이 필요합니다',exact:true}).waitFor()}
  else{await p.getByRole('link',{name:'서비스로 돌아가기',exact:true}).click();await p.waitForURL(base+'/')}
- const done=p.waitForEvent('requestfinished',{predicate:r=>r.url().includes('/1/comments?status=ALL')});g.release();await done;await flush(p)
+ const done=p.waitForEvent('requestfinished',{predicate:r=>r.url().includes('/1/comments?statuses=VISIBLE&statuses=HIDDEN&statuses=DELETED')});g.release();await done;await flush(p)
  assert.equal(await p.getByText('이전 비밀 본문',{exact:true}).count(),0)
  if(action==='filter')assert.equal(await p.locator('.admin-comment-results').getAttribute('aria-busy'),'false')
  else assert.equal(await p.locator('.admin-post-detail').count(),0)
@@ -291,6 +301,11 @@ for(const width of [1440,1024,390,320])await run(`representative design and read
  }
  await context.close()
 })
+
+
+await adminChipScenarios({run,setup,base,out,kind:'comments',ready:commentReady,reads:commentReads,template:page=>commentPage(2,page)})
+
+await adminStableListScenarios({run,setup,base,out,kind:'comments',ready:commentReady,reads:commentReads,template:page=>commentPage(2,page)})
 
 await browser.close()
 await fs.writeFile(`${out}/results.json`,JSON.stringify(results,null,2))

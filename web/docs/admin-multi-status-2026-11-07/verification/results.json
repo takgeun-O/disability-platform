@@ -1,0 +1,368 @@
+{
+  "posts": {
+    "tests": 19,
+    "passed": 19,
+    "cases": [
+      {
+        "name": "checking, anonymous and USER direct access never expose rows or request admin data",
+        "passed": true
+      },
+      {
+        "name": "ADMIN entry/default query, server paging, search on Enter, filters and reset",
+        "passed": true
+      },
+      {
+        "name": "503 retry/empty/no results, 403 preserves session, 401 expires",
+        "passed": true
+      },
+      {
+        "name": "late response ignored with transport ignoring abort: logout=false",
+        "passed": true
+      },
+      {
+        "name": "late response ignored with transport ignoring abort: logout=true",
+        "passed": true
+      },
+      {
+        "name": "late ADMIN response after new login: sameMember=true",
+        "passed": true
+      },
+      {
+        "name": "late ADMIN response after new login: sameMember=false",
+        "passed": true
+      },
+      {
+        "name": "page jump validation, first/last and anchored time",
+        "passed": true
+      },
+      {
+        "name": "current menu during loading and later search: sidebar",
+        "passed": true
+      },
+      {
+        "name": "current menu during loading and later search: header",
+        "passed": true
+      },
+      {
+        "name": "current menu during loading and later search: mobile",
+        "passed": true
+      },
+      {
+        "name": "page input focus survives gated page completion",
+        "passed": true
+      },
+      {
+        "name": "page buttons retain focus, boundary fallback, focus diversion, error retry",
+        "passed": true
+      },
+      {
+        "name": "real navigation discards late admin response; modified click preserves original screen",
+        "passed": true
+      },
+      {
+        "name": "layout and keyboard 1440",
+        "passed": true
+      },
+      {
+        "name": "layout and keyboard 390",
+        "passed": true
+      },
+      {
+        "name": "layout and keyboard 320",
+        "passed": true
+      },
+      {
+        "name": "multi-status applied vs draft filters 1440",
+        "passed": true
+      },
+      {
+        "name": "multi-status applied vs draft filters 320",
+        "passed": true
+      }
+    ]
+  },
+  "detail": {
+    "tests": 39,
+    "passed": 39,
+    "cases": [
+      {
+        "name": "comment body edit date and entity update date are separate",
+        "passed": true
+      },
+      {
+        "name": "list conditions survive title navigation, direct detail and reload",
+        "passed": true
+      },
+      {
+        "name": "comment filters, codepoint search, paging focus, parent vs child status",
+        "passed": true
+      },
+      {
+        "name": "empty, search none and out-of-range are distinct without automatic loops",
+        "passed": true
+      },
+      {
+        "name": "detail error 401 and retry/data removal",
+        "passed": true
+      },
+      {
+        "name": "detail error 403 and retry/data removal",
+        "passed": true
+      },
+      {
+        "name": "detail error 404 and retry/data removal",
+        "passed": true
+      },
+      {
+        "name": "detail error 503 and retry/data removal",
+        "passed": true
+      },
+      {
+        "name": "detail error 200 and retry/data removal",
+        "passed": true
+      },
+      {
+        "name": "comments error 401 and retry/data removal",
+        "passed": true
+      },
+      {
+        "name": "comments error 403 and retry/data removal",
+        "passed": true
+      },
+      {
+        "name": "comments error 404 and retry/data removal",
+        "passed": true
+      },
+      {
+        "name": "comments error 503 and retry/data removal",
+        "passed": true
+      },
+      {
+        "name": "comments error 200 and retry/data removal",
+        "passed": true
+      },
+      {
+        "name": "late comment response ignores abort: filter",
+        "passed": true
+      },
+      {
+        "name": "late comment response ignores abort: logout",
+        "passed": true
+      },
+      {
+        "name": "late comment response ignores abort: leave",
+        "passed": true
+      },
+      {
+        "name": "detail design 1440 VISIBLE",
+        "passed": true
+      },
+      {
+        "name": "detail design 1440 HIDDEN",
+        "passed": true
+      },
+      {
+        "name": "detail design 1440 DELETED",
+        "passed": true
+      },
+      {
+        "name": "detail design 1024 VISIBLE",
+        "passed": true
+      },
+      {
+        "name": "detail design 1024 HIDDEN",
+        "passed": true
+      },
+      {
+        "name": "detail design 1024 DELETED",
+        "passed": true
+      },
+      {
+        "name": "detail design 390 VISIBLE",
+        "passed": true
+      },
+      {
+        "name": "detail design 390 HIDDEN",
+        "passed": true
+      },
+      {
+        "name": "detail design 390 DELETED",
+        "passed": true
+      },
+      {
+        "name": "detail design 320 VISIBLE",
+        "passed": true
+      },
+      {
+        "name": "detail design 320 HIDDEN",
+        "passed": true
+      },
+      {
+        "name": "detail design 320 DELETED",
+        "passed": true
+      },
+      {
+        "name": "late post A cannot replace B after real list navigation",
+        "passed": true
+      },
+      {
+        "name": "detail late response after login transition same=true",
+        "passed": true
+      },
+      {
+        "name": "detail late response after login transition same=false",
+        "passed": true
+      },
+      {
+        "name": "comment pagination preserves diverted focus and retry without duplicate request",
+        "passed": true
+      },
+      {
+        "name": "representative design and readable controls 1440",
+        "passed": true
+      },
+      {
+        "name": "representative design and readable controls 1024",
+        "passed": true
+      },
+      {
+        "name": "representative design and readable controls 390",
+        "passed": true
+      },
+      {
+        "name": "representative design and readable controls 320",
+        "passed": true
+      },
+      {
+        "name": "multi-status applied vs draft filters 1440",
+        "passed": true
+      },
+      {
+        "name": "multi-status applied vs draft filters 320",
+        "passed": true
+      }
+    ]
+  },
+  "moderation": {
+    "tests": 29,
+    "passed": 29,
+    "cases": [
+      {
+        "name": "post and comment hide/restore; confirmation validation, cancel, one write and shared refresh",
+        "passed": true
+      },
+      {
+        "name": "deleted parent/comment restrictions and hidden parent allowance",
+        "passed": true
+      },
+      {
+        "name": "pending mutation blocks duplicate submit and Escape; reason resets for next target",
+        "passed": true
+      },
+      {
+        "name": "mutation 401/AUTHENTICATION_REQUIRED",
+        "passed": true
+      },
+      {
+        "name": "mutation 403/ADMIN_REQUIRED",
+        "passed": true
+      },
+      {
+        "name": "mutation 403/CSRF_TOKEN_INVALID",
+        "passed": true
+      },
+      {
+        "name": "mutation 400/INVALID_REASON",
+        "passed": true
+      },
+      {
+        "name": "mutation 404/COMMENT_NOT_FOUND",
+        "passed": true
+      },
+      {
+        "name": "mutation 409/POST_DELETED",
+        "passed": true
+      },
+      {
+        "name": "mutation 500/INTERNAL_SERVER_ERROR",
+        "passed": true
+      },
+      {
+        "name": "mutation 200/MALFORMED",
+        "passed": true
+      },
+      {
+        "name": "successful write with failed GET preserves success and retries only GET",
+        "passed": true
+      },
+      {
+        "name": "comment filtered out on last page adjusts once and preserves conditions",
+        "passed": true
+      },
+      {
+        "name": "pre-mutation delayed GET ignoring abort cannot overwrite refreshed parent",
+        "passed": true
+      },
+      {
+        "name": "approved navigation during csrf ignores late work",
+        "passed": true
+      },
+      {
+        "name": "approved navigation during write ignores late work",
+        "passed": true
+      },
+      {
+        "name": "modal keyboard and layout 1440",
+        "passed": true
+      },
+      {
+        "name": "modal keyboard and layout 390",
+        "passed": true
+      },
+      {
+        "name": "modal keyboard and layout 320",
+        "passed": true
+      },
+      {
+        "name": "late mutation after auth transition anonymous",
+        "passed": true
+      },
+      {
+        "name": "late mutation after auth transition same",
+        "passed": true
+      },
+      {
+        "name": "late mutation after auth transition other",
+        "passed": true
+      },
+      {
+        "name": "CSRF preparation failure sends no mutation; network failure offers GET only",
+        "passed": true
+      },
+      {
+        "name": "success screenshot and long reason validation",
+        "passed": true
+      },
+      {
+        "name": "permission read failure suppresses pending mutation success",
+        "passed": true
+      },
+      {
+        "name": "list return corrects out of range once after moderation",
+        "passed": true
+      },
+      {
+        "name": "typed reasons: action choices, omitted stale detail and normalized OTHER for all targets",
+        "passed": true
+      },
+      {
+        "name": "reason-specific INVALID_REASON and retained inputs 1440",
+        "passed": true
+      },
+      {
+        "name": "reason-specific INVALID_REASON and retained inputs 320",
+        "passed": true
+      }
+    ]
+  }
+}

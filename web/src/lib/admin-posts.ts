@@ -14,8 +14,14 @@ export const ADMIN_STATUSES = {
   DELETED: "삭제",
 } as const
 export type AdminStatus = keyof typeof ADMIN_STATUSES
+export type AdminContentStatus = Exclude<AdminStatus, "ALL">
+export const ADMIN_CONTENT_STATUSES: readonly AdminContentStatus[] = ["VISIBLE", "HIDDEN", "DELETED"]
+export const normalizeAdminStatuses = (values: readonly AdminContentStatus[]) =>
+  ADMIN_CONTENT_STATUSES.filter(value => values.includes(value))
+export const sameAdminStatuses = (a: readonly AdminContentStatus[], b: readonly AdminContentStatus[]) =>
+  a.length === b.length && a.every((value, index) => value === b[index])
 export type AdminQuery = {
-  status: AdminStatus
+  statuses: readonly AdminContentStatus[]
   keyword: string
   page: number
 }
@@ -121,7 +127,12 @@ export class AdminApiError extends Error {
   }
 }
 export function adminQueryParams(query: AdminQuery) {
-  const params = new URLSearchParams({status: query.status, page: String(query.page), size: "20"})
+  if (!query.statuses.length || query.statuses.some(value => !ADMIN_CONTENT_STATUSES.includes(value)))
+    throw new AdminApiError(400, "조회할 상태를 하나 이상 선택해 주세요.")
+  const params = new URLSearchParams()
+  for (const status of normalizeAdminStatuses(query.statuses)) params.append("statuses", status)
+  params.set("page", String(query.page))
+  params.set("size", "20")
   const keyword = normalizeTitle(query.keyword)
   if (adminKeywordError(keyword)) throw new AdminApiError(400, adminKeywordError(keyword))
   if (keyword) params.set("keyword", keyword)

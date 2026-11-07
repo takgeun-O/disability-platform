@@ -20,7 +20,7 @@ test("admin reads validate requested identity/page/size and use only private GET
  process.env.NEXT_PUBLIC_API_BASE_URL='http://127.0.0.1:8082'
  let body=post;const calls=[]
  t.mock.method(globalThis,'fetch',async(u,o)=>{calls.push({u,o});return new Response(JSON.stringify(body),{headers:{'Content-Type':'application/json'}})})
- const signal=new AbortController().signal,q={status:'HIDDEN',keyword:'  본문  내부  ',page:0}
+ const signal=new AbortController().signal,q={statuses:['HIDDEN'],keyword:'  본문  내부  ',page:0}
  assert.deepEqual(await api.getAdminPost(1,signal),post)
  body=page;assert.deepEqual(await api.getAdminComments(1,q,signal),page)
  assert.equal(new URL(calls[1].u).searchParams.get('keyword'),'본문  내부')
@@ -29,8 +29,16 @@ test("admin reads validate requested identity/page/size and use only private GET
  body={...post,postId:2};await assert.rejects(api.getAdminPost(1,signal))
 })
 test("list return carries only safe filter/search/page state",()=>{
- const q={status:'HIDDEN',keyword:'검색  내부',page:2}
+ const q={statuses:['HIDDEN'],keyword:'검색  내부',page:2}
  assert.deepEqual(nav.adminListQuery(Object.fromEntries(new URL(nav.adminListHref(q),'https://local').searchParams)),q)
  for(const bad of ['https://evil.test','//evil.test','/admin/posts/2','/mypage',null])assert.equal(nav.adminReturnHref(bad),'/admin/posts')
  assert.equal(nav.adminListQuery({page:'-1',status:'bad'}).page,0)
+})
+
+test("multi-status return URL preserves repeated values and accepts legacy single status",()=>{
+ const q={statuses:['VISIBLE','HIDDEN'],keyword:'보청기',page:2}
+ const href=nav.adminListHref(q)
+ assert.equal(nav.adminReturnHref(href),href)
+ assert.deepEqual(nav.adminListQuery({statuses:['HIDDEN','VISIBLE','HIDDEN'],keyword:'보청기',page:'2'}),q)
+ assert.deepEqual(nav.adminListQuery({status:'HIDDEN'}).statuses,['HIDDEN'])
 })
