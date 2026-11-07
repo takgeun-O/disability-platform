@@ -845,7 +845,9 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
             case ADMIN_REQUIRED ->
                     HttpStatus.FORBIDDEN;
 
-            case INVALID_PAGE_REQUEST, INVALID_SEARCH_KEYWORD ->
+            case INVALID_PAGE_REQUEST,
+                 INVALID_SEARCH_KEYWORD,
+                 INVALID_REQUEST_PARAMETER ->
                     HttpStatus.BAD_REQUEST;
 
             case POST_NOT_FOUND ->

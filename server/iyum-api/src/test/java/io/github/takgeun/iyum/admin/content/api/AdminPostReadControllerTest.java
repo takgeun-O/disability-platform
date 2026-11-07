@@ -18,6 +18,8 @@ import io.github.takgeun.iyum.member.domain.MemberStatus;
 import io.github.takgeun.iyum.member.infrastructure.MemberRepository;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.Arguments;
+import org.junit.jupiter.params.provider.MethodSource;
 import org.junit.jupiter.params.provider.CsvSource;
 import org.junit.jupiter.params.provider.EnumSource;
 import org.junit.jupiter.params.provider.ValueSource;
@@ -37,6 +39,8 @@ import org.springframework.test.web.servlet.request.MockHttpServletRequestBuilde
 
 import java.time.Instant;
 import java.util.List;
+import java.util.Set;
+import java.util.stream.Stream;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.nullValue;
@@ -94,6 +98,141 @@ class AdminPostReadControllerTest {
 
     @MockitoBean
     MemberRepository memberRepository;
+
+
+    @ParameterizedTest
+    @MethodSource("multipleStatusSelections")
+    void 다중_상태와_정규화한_검색어를_정확히_전달한다(
+            String[] statuses, Set<AdminPostStatus> expectedStatuses
+    ) throws Exception {
+        givenValidSession(MemberRole.ADMIN);
+        AdminPostReadQuery expectedQuery = AdminPostReadQuery.ofStatuses(
+                expectedStatuses, "보청기 적응", 2, 10
+        );
+        when(adminPostReadService.getPosts(MEMBER_ID, CREDENTIAL_VERSION, expectedQuery)).thenReturn(new PageImpl<>(List.of(), PageRequest.of(2, 10), 15));
+
+        // 반복 쿼리 파라미터를 실제 컨트롤러에서 해석한다. GET에는 CSRF가 필요 없다.
+        expectSuccess(mockMvc.perform(
+                request(LIST_PATH)
+                        .with(user(principal(MemberRole.ADMIN)))
+                        .queryParam("statuses", statuses)
+                        .queryParam("keyword", "  보청기 적응  ")
+                        .queryParam("page", "2")
+                        .queryParam("size", "10")
+        ))
+                .andExpect(jsonPath("$.items").isArray())
+                .andExpect(jsonPath("$.items").isEmpty())
+                .andExpect(jsonPath("$.page").value(2))
+                .andExpect(jsonPath("$.size").value(10))
+                .andExpect(jsonPath("$.totalElements").value(15))
+                .andExpect(jsonPath("$.totalPages").value(2))
+                .andExpect(jsonPath("$.hasNext").value(false))
+                .andExpect(jsonPath("$.hasPrevious").value(true));
+
+        verify(adminPostReadService).getPosts(MEMBER_ID, CREDENTIAL_VERSION, expectedQuery);
+        verifyNoMoreInteractions(adminPostReadService);
+    }
+
+    static Stream<Arguments> multipleStatusSelections() {
+        return Stream.of(
+                Arguments.of(new String[]{"VISIBLE"}, Set.of(AdminPostStatus.VISIBLE)),
+                Arguments.of(new String[]{"HIDDEN"}, Set.of(AdminPostStatus.HIDDEN)),
+                Arguments.of(new String[]{"DELETED"}, Set.of(AdminPostStatus.DELETED)),
+                Arguments.of(new String[]{"VISIBLE", "HIDDEN"}, Set.of(AdminPostStatus.VISIBLE, AdminPostStatus.HIDDEN)),
+                Arguments.of(new String[]{"VISIBLE", "DELETED"}, Set.of(AdminPostStatus.VISIBLE, AdminPostStatus.DELETED)),
+                Arguments.of(new String[]{"HIDDEN", "DELETED"}, Set.of(AdminPostStatus.HIDDEN, AdminPostStatus.DELETED)),
+                Arguments.of(new String[]{"VISIBLE", "HIDDEN", "DELETED"}, Set.of(AdminPostStatus.VISIBLE, AdminPostStatus.HIDDEN, AdminPostStatus.DELETED)),
+                Arguments.of(new String[]{"HIDDEN", "VISIBLE", "HIDDEN"}, Set.of(AdminPostStatus.HIDDEN, AdminPostStatus.VISIBLE))
+        );
+    }
+
+    @Test
+    void 빈_단일_상태는_전체_조회와_호환된다() throws Exception {
+        givenValidSession(MemberRole.ADMIN);
+        AdminPostReadQuery expectedQuery = AdminPostReadQuery.ofStatuses(
+                Set.of(AdminPostStatus.VISIBLE, AdminPostStatus.HIDDEN, AdminPostStatus.DELETED),
+                "보청기 적응", 2, 10
+        );
+        when(adminPostReadService.getPosts(MEMBER_ID, CREDENTIAL_VERSION, expectedQuery)).thenReturn(new PageImpl<>(List.of(), PageRequest.of(2, 10), 15));
+
+        expectSuccess(mockMvc.perform(
+                request(LIST_PATH)
+                        .with(user(principal(MemberRole.ADMIN)))
+                        .queryParam("status", "")
+                        .queryParam("keyword", "  보청기 적응  ")
+                        .queryParam("page", "2")
+                        .queryParam("size", "10")
+        ))
+                .andExpect(jsonPath("$.items").isEmpty())
+                .andExpect(jsonPath("$.page").value(2))
+                .andExpect(jsonPath("$.size").value(10))
+                .andExpect(jsonPath("$.totalElements").value(15))
+                .andExpect(jsonPath("$.totalPages").value(2))
+                .andExpect(jsonPath("$.hasNext").value(false))
+                .andExpect(jsonPath("$.hasPrevious").value(true));
+        verify(adminPostReadService).getPosts(MEMBER_ID, CREDENTIAL_VERSION, expectedQuery);
+        verifyNoMoreInteractions(adminPostReadService);
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"", " ", "ALL", "hidden", "UNKNOWN", " HIDDEN ", "VISIBLE,HIDDEN"})
+    void 잘못된_다중_상태를_거부한다(String value) throws Exception {
+        givenValidSession(MemberRole.ADMIN);
+        mockMvc.perform(
+                request(LIST_PATH)
+                        .with(user(principal(MemberRole.ADMIN)))
+                        .queryParam("statuses", value)
+        )
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("INVALID_REQUEST_PARAMETER"))
+                .andExpect(header().string(HttpHeaders.CACHE_CONTROL, containsString("no-store")));
+        verifyNoInteractions(adminPostReadService);
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"", "UNKNOWN", "ALL"})
+    void 유효한_다중_상태에_잘못된_값이_섞이면_거부한다(String value) throws Exception {
+        givenValidSession(MemberRole.ADMIN);
+        mockMvc.perform(
+                request(LIST_PATH)
+                        .with(user(principal(MemberRole.ADMIN)))
+                        .queryParam("statuses", "VISIBLE", value)
+        )
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("INVALID_REQUEST_PARAMETER"))
+                .andExpect(header().string(HttpHeaders.CACHE_CONTROL, containsString("no-store")));
+        verifyNoInteractions(adminPostReadService);
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"", "ALL", "HIDDEN"})
+    void 단일과_다중_상태를_함께_보내면_거부한다(String value) throws Exception {
+        givenValidSession(MemberRole.ADMIN);
+        mockMvc.perform(
+                request(LIST_PATH)
+                        .with(user(principal(MemberRole.ADMIN)))
+                        .queryParam("status", value)
+                        .queryParam("statuses", "VISIBLE", "HIDDEN")
+        )
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("INVALID_REQUEST_PARAMETER"))
+                .andExpect(header().string(HttpHeaders.CACHE_CONTROL, containsString("no-store")));
+        verifyNoInteractions(adminPostReadService);
+    }
+
+    @Test
+    void 단일_상태를_반복하면_거부한다() throws Exception {
+        givenValidSession(MemberRole.ADMIN);
+        mockMvc.perform(
+                request(LIST_PATH)
+                        .with(user(principal(MemberRole.ADMIN)))
+                        .queryParam("status", "VISIBLE", "HIDDEN")
+        )
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("INVALID_REQUEST_PARAMETER"))
+                .andExpect(header().string(HttpHeaders.CACHE_CONTROL, containsString("no-store")));
+        verifyNoInteractions(adminPostReadService);
+    }
 
     @Test
     void 기본_조건으로_목록을_조회하고_인증된_회원_정보를_사용한다()

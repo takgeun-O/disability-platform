@@ -22,6 +22,10 @@ public class AdminContentReadException extends RuntimeException {
                 "관리자 권한이 필요합니다."
         ),
 
+        INVALID_REQUEST_PARAMETER(
+                "조회할 상태를 올바르게 선택해 주세요."
+        ),
+
         INVALID_PAGE_REQUEST(
                 "페이지는 0 이상이고 조회 개수는 1 이상 50 이하여야 하며, "
                         + "조회 시작 위치는 지원 범위 이내여야 합니다."

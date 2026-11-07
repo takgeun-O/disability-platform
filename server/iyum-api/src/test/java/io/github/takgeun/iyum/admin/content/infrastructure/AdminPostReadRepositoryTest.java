@@ -10,7 +10,9 @@ import jakarta.persistence.EntityManager;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.Arguments;
 import org.junit.jupiter.params.provider.EnumSource;
+import org.junit.jupiter.params.provider.MethodSource;
 import org.junit.jupiter.params.provider.ValueSource;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -28,6 +30,7 @@ import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
+import java.util.stream.Stream;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.when;
@@ -461,6 +464,88 @@ class AdminPostReadRepositoryTest {
                 .isEqualTo("조회검증회원");
     }
 
+    @Test
+    void 다중_상태와_검색어를_적용한_뒤_페이지를_나눈다() {
+        Post visible = createPost(
+                "보청기 정상",
+                ContentState.VISIBLE
+        );
+        Post hiddenFirst = createPost(
+                "보청기 숨김 첫 번째",
+                ContentState.HIDDEN
+        );
+        Post hiddenSecond = createPost(
+                "보청기 숨김 두 번째",
+                ContentState.HIDDEN
+        );
+
+        // 검색어는 일치하지만 선택하지 않은 상태다.
+        createPost("보청기 삭제", ContentState.DELETED);
+        createPost(
+                "보청기 숨김 후 삭제",
+                ContentState.HIDDEN_AND_DELETED
+        );
+
+        // 상태는 일치하지만 검색어는 일치하지 않는다.
+        createPost("인공와우 정상", ContentState.VISIBLE);
+        createPost("인공와우 숨김", ContentState.HIDDEN);
+
+        List<AdminPostStatus> statuses = List.of(
+                AdminPostStatus.VISIBLE,
+                AdminPostStatus.HIDDEN
+        );
+
+        flushAndClear();
+
+        Page<Post> firstPage = repository.findPosts(
+                AdminPostReadQuery.ofStatuses(
+                        statuses, "보청기", 0, 2
+                )
+        );
+
+        Page<Post> secondPage = repository.findPosts(
+                AdminPostReadQuery.ofStatuses(
+                        statuses, "보청기", 1, 2
+                )
+        );
+
+        Page<Post> outOfRangePage = repository.findPosts(
+                AdminPostReadQuery.ofStatuses(
+                        statuses, "보청기", 2, 2
+                )
+        );
+
+        // 게시글은 작성 시각 내림차순 → ID 내림차순이다.
+        assertThat(firstPage.getContent())
+                .extracting(Post::getId)
+                .containsExactly(
+                        hiddenSecond.getId(),
+                        hiddenFirst.getId()
+                );
+
+        assertThat(secondPage.getContent())
+                .extracting(Post::getId)
+                .containsExactly(visible.getId());
+
+        assertThat(outOfRangePage.getContent()).isEmpty();
+
+        // 범위 밖 페이지에서도 전체 검색 결과 개수를 유지해야 한다.
+        for (Page<Post> page : List.of(
+                firstPage,
+                secondPage,
+                outOfRangePage
+        )) {
+            assertThat(page.getTotalElements()).isEqualTo(3);
+            assertThat(page.getTotalPages()).isEqualTo(2);
+        }
+
+        assertThat(firstPage.hasNext()).isTrue();
+        assertThat(firstPage.hasPrevious()).isFalse();
+
+        assertThat(secondPage.hasNext()).isFalse();
+        assertThat(secondPage.hasPrevious()).isTrue();
+    }
+
     private Page<Post> readPage(int page, int size) {
         return repository.findPosts(
                 new AdminPostReadQuery(
@@ -532,5 +617,92 @@ class AdminPostReadRepositoryTest {
     private void flushAndClear() {
         entityManager.flush();
         entityManager.clear();
+    }
+
+    static Stream<Arguments> multiplePostStatusCases() {
+        // 데이터 생성 순서:
+        // 0 = 정상, 1 = 숨김, 2 = 삭제, 3 = 숨김 후 삭제
+        // 작성 시각이 같으므로 조회 결과는 ID 내림차순이다.
+        return Stream.of(
+                Arguments.of(
+                        List.of(
+                                AdminPostStatus.VISIBLE,
+                                AdminPostStatus.HIDDEN
+                        ),
+                        List.of(1, 0)
+                ),
+                Arguments.of(
+                        List.of(
+                                AdminPostStatus.VISIBLE,
+                                AdminPostStatus.DELETED
+                        ),
+                        List.of(3, 2, 0)
+                ),
+                Arguments.of(
+                        List.of(
+                                AdminPostStatus.HIDDEN,
+                                AdminPostStatus.DELETED
+                        ),
+                        List.of(3, 2, 1)
+                ),
+                Arguments.of(
+                        List.of(
+                                AdminPostStatus.VISIBLE,
+                                AdminPostStatus.HIDDEN,
+                                AdminPostStatus.DELETED
+                        ),
+                        List.of(3, 2, 1, 0)
+                ),
+                Arguments.of(
+                        List.of(
+                                AdminPostStatus.HIDDEN,
+                                AdminPostStatus.VISIBLE,
+                                AdminPostStatus.HIDDEN
+                        ),
+                        List.of(1, 0)
+                )
+        );
+    }
+
+    @ParameterizedTest
+    @MethodSource("multiplePostStatusCases")
+    void 다중_상태에_해당하는_게시글을_중복_없이_조회한다(
+            List<AdminPostStatus> statuses,
+            List<Integer> expectedIndexes
+    ) {
+        List<Post> posts = List.of(
+                createPost("정상 게시글", ContentState.VISIBLE),
+                createPost("숨김 게시글", ContentState.HIDDEN),
+                createPost("삭제 게시글", ContentState.DELETED),
+                createPost(
+                        "숨김 후 삭제 게시글",
+                        ContentState.HIDDEN_AND_DELETED
+                )
+        );
+
+        List<Long> expectedIds = expectedIndexes.stream()
+                .map(index -> posts.get(index).getId())
+                .toList();
+
+        flushAndClear();
+
+        Page<Post> result = repository.findPosts(
+                AdminPostReadQuery.ofStatuses(
+                        statuses,
+                        null,
+                        0,
+                        20
+                )
+        );
+
+        assertThat(result.getContent())
+                .extracting(Post::getId)
+                .containsExactlyElementsOf(expectedIds);
+
+        assertThat(result.getTotalElements())
+                .isEqualTo(expectedIds.size());
+
+        assertThat(result.getTotalPages()).isEqualTo(1);
+        assertThat(result.hasNext()).isFalse();
     }
 }

@@ -12,6 +12,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.Arguments;
+import org.junit.jupiter.params.provider.EnumSource;
 import org.junit.jupiter.params.provider.MethodSource;
 import org.junit.jupiter.params.provider.ValueSource;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -522,6 +523,110 @@ class AdminCommentReadRepositoryTest {
                 .isEqualTo("IYUM작성회원");
     }
 
+    @ParameterizedTest
+    @EnumSource(ContentState.class)
+    void 부모_상태와_관계없이_다중_상태와_검색어로_댓글을_페이지_조회한다(
+            ContentState parentState
+    ) {
+        Comment visible = createComment(
+                "보청기 정상",
+                ContentState.VISIBLE
+        );
+        Comment hiddenFirst = createComment(
+                "보청기 숨김 첫 번째",
+                ContentState.HIDDEN
+        );
+        Comment hiddenSecond = createComment(
+                "보청기 숨김 두 번째",
+                ContentState.HIDDEN
+        );
+
+        // 검색어는 같지만 선택하지 않은 상태다.
+        createComment("보청기 삭제", ContentState.DELETED);
+        createComment(
+                "보청기 숨김 후 삭제",
+                ContentState.HIDDEN_AND_DELETED
+        );
+
+        // 선택한 상태지만 검색어가 다르다.
+        createComment("인공와우 정상", ContentState.VISIBLE);
+        createComment("인공와우 숨김", ContentState.HIDDEN);
+
+        // 상태와 검색어가 모두 일치해도 다른 게시글의 댓글은 제외한다.
+        createComment(
+                otherPost,
+                "보청기 다른 게시글 정상",
+                ContentState.VISIBLE,
+                CREATED_AT
+        );
+        createComment(
+                otherPost,
+                "보청기 다른 게시글 숨김",
+                ContentState.HIDDEN,
+                CREATED_AT
+        );
+
+        applyParentState(parentState);
+
+        List<AdminCommentStatus> statuses = List.of(
+                AdminCommentStatus.VISIBLE,
+                AdminCommentStatus.HIDDEN
+        );
+
+        Long postId = targetPost.getId();
+        flushAndClear();
+
+        Page<Comment> firstPage = repository.findComments(
+                postId,
+                AdminCommentReadQuery.ofStatuses(
+                        statuses, "보청기", 0, 2
+                )
+        );
+
+        Page<Comment> secondPage = repository.findComments(
+                postId,
+                AdminCommentReadQuery.ofStatuses(
+                        statuses, "보청기", 1, 2
+                )
+        );
+
+        Page<Comment> outOfRangePage = repository.findComments(
+                postId,
+                AdminCommentReadQuery.ofStatuses(
+                        statuses, "보청기", 2, 2
+                )
+        );
+
+        // 댓글은 작성 시각 오름차순 → ID 오름차순이다.
+        assertThat(firstPage.getContent())
+                .extracting(Comment::getId)
+                .containsExactly(
+                        visible.getId(),
+                        hiddenFirst.getId()
+                );
+
+        assertThat(secondPage.getContent())
+                .extracting(Comment::getId)
+                .containsExactly(hiddenSecond.getId());
+
+        assertThat(outOfRangePage.getContent()).isEmpty();
+
+        for (Page<Comment> page : List.of(
+                firstPage,
+                secondPage,
+                outOfRangePage
+        )) {
+            assertThat(page.getTotalElements()).isEqualTo(3);
+            assertThat(page.getTotalPages()).isEqualTo(2);
+        }
+
+        assertThat(firstPage.hasNext()).isTrue();
+        assertThat(firstPage.hasPrevious()).isFalse();
+
+        assertThat(secondPage.hasNext()).isFalse();
+        assertThat(secondPage.hasPrevious()).isTrue();
+    }
+
     private Page<Comment> readPage(
             Long postId,
             int page,
@@ -597,5 +702,104 @@ class AdminCommentReadRepositoryTest {
     private void flushAndClear() {
         entityManager.flush();
         entityManager.clear();
+    }
+
+    static Stream<Arguments> multipleCommentStatusCases() {
+        // 데이터 생성 순서:
+        // 0 = 정상, 1 = 숨김, 2 = 삭제, 3 = 숨김 후 삭제
+        // 작성 시각이 같으므로 조회 결과는 ID 오름차순이다.
+        return Stream.of(
+                Arguments.of(
+                        List.of(
+                                AdminCommentStatus.VISIBLE,
+                                AdminCommentStatus.HIDDEN
+                        ),
+                        List.of(0, 1)
+                ),
+                Arguments.of(
+                        List.of(
+                                AdminCommentStatus.VISIBLE,
+                                AdminCommentStatus.DELETED
+                        ),
+                        List.of(0, 2, 3)
+                ),
+                Arguments.of(
+                        List.of(
+                                AdminCommentStatus.HIDDEN,
+                                AdminCommentStatus.DELETED
+                        ),
+                        List.of(1, 2, 3)
+                ),
+                Arguments.of(
+                        List.of(
+                                AdminCommentStatus.VISIBLE,
+                                AdminCommentStatus.HIDDEN,
+                                AdminCommentStatus.DELETED
+                        ),
+                        List.of(0, 1, 2, 3)
+                ),
+                Arguments.of(
+                        List.of(
+                                AdminCommentStatus.HIDDEN,
+                                AdminCommentStatus.VISIBLE,
+                                AdminCommentStatus.HIDDEN
+                        ),
+                        List.of(0, 1)
+                )
+        );
+    }
+
+    @ParameterizedTest
+    @MethodSource("multipleCommentStatusCases")
+    void 다중_상태에_해당하는_게시글의_댓글만_조회한다(
+            List<AdminCommentStatus> statuses,
+            List<Integer> expectedIndexes
+    ) {
+        List<Comment> comments = List.of(
+                createComment("정상 댓글", ContentState.VISIBLE),
+                createComment("숨김 댓글", ContentState.HIDDEN),
+                createComment("삭제 댓글", ContentState.DELETED),
+                createComment(
+                        "숨김 후 삭제 댓글",
+                        ContentState.HIDDEN_AND_DELETED
+                )
+        );
+
+        // 다른 게시글의 댓글은 어떤 상태든 목록과 개수에서 제외해야 한다.
+        for (ContentState state : ContentState.values()) {
+            createComment(
+                    otherPost,
+                    "다른 게시글 댓글",
+                    state,
+                    CREATED_AT
+            );
+        }
+
+        List<Long> expectedIds = expectedIndexes.stream()
+                .map(index -> comments.get(index).getId())
+                .toList();
+
+        Long postId = targetPost.getId();
+        flushAndClear();
+
+        Page<Comment> result = repository.findComments(
+                postId,
+                AdminCommentReadQuery.ofStatuses(
+                        statuses,
+                        null,
+                        0,
+                        20
+                )
+        );
+
+        assertThat(result.getContent())
+                .extracting(Comment::getId)
+                .containsExactlyElementsOf(expectedIds);
+
+        assertThat(result.getTotalElements())
+                .isEqualTo(expectedIds.size());
+
+        assertThat(result.getTotalPages()).isEqualTo(1);
+        assertThat(result.hasNext()).isFalse();
     }
 }

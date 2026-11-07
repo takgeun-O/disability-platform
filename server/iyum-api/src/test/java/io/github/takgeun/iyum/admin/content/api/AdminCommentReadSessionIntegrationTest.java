@@ -503,6 +503,155 @@ class AdminCommentReadSessionIntegrationTest {
         }
     }
 
+    @ParameterizedTest
+    @EnumSource(
+            value = AdminPostStatus.class,
+            names = {"VISIBLE", "HIDDEN", "DELETED"}
+    )
+    void 실제_관리자_세션으로_부모_상태와_관계없이_다중_댓글_상태를_조회한다(
+            AdminPostStatus parentStatus
+    ) throws Exception {
+        String searchKeyword = "다중상태검증";
+
+        Long visibleId = saveComment(
+                targetPost,
+                author,
+                searchKeyword + " 정상 첫 번째",
+                BASE_TIME
+        );
+
+        Long hiddenId = saveComment(
+                targetPost,
+                author,
+                searchKeyword + " 숨김",
+                BASE_TIME
+        );
+        hideComment(hiddenId);
+
+        Long laterVisibleId = saveComment(
+                targetPost,
+                author,
+                searchKeyword + " 정상 두 번째",
+                BASE_TIME.plusSeconds(60)
+        );
+
+        // 검색어가 같아도 선택하지 않은 삭제 상태는 제외한다.
+        Long deletedId = saveComment(
+                targetPost,
+                author,
+                searchKeyword + " 삭제",
+                BASE_TIME
+        );
+        deleteComment(deletedId);
+
+        Long hiddenAndDeletedId = saveComment(
+                targetPost,
+                author,
+                searchKeyword + " 숨김 후 삭제",
+                BASE_TIME
+        );
+        hideComment(hiddenAndDeletedId);
+        deleteComment(hiddenAndDeletedId);
+
+        // 상태가 같아도 검색어가 다르면 제외한다.
+        saveComment(
+                targetPost,
+                author,
+                "검색 대상이 아닌 정상 댓글",
+                BASE_TIME
+        );
+
+        Long unrelatedHiddenId = saveComment(
+                targetPost,
+                author,
+                "검색 대상이 아닌 숨김 댓글",
+                BASE_TIME
+        );
+        hideComment(unrelatedHiddenId);
+
+        // 상태와 검색어가 모두 일치해도 다른 게시글의 댓글은 제외한다.
+        Post otherPost = savePost(author);
+
+        saveComment(
+                otherPost,
+                author,
+                searchKeyword + " 다른 게시글 정상",
+                BASE_TIME.minusSeconds(60)
+        );
+
+        Long otherHiddenId = saveComment(
+                otherPost,
+                author,
+                searchKeyword + " 다른 게시글 숨김",
+                BASE_TIME.minusSeconds(60)
+        );
+        hideComment(otherHiddenId);
+
+        changePostStatus(targetPost.getId(), parentStatus);
+
+        MockHttpSession session = login(admin.getEmail());
+
+        String[] statuses = {"HIDDEN", "VISIBLE", "HIDDEN"};
+
+        JsonNode firstPage = readMultipleStatusComments(
+                session, searchKeyword, 0, 2, statuses
+        );
+        JsonNode secondPage = readMultipleStatusComments(
+                session, searchKeyword, 1, 2, statuses
+        );
+        JsonNode outOfRange = readMultipleStatusComments(
+                session, searchKeyword, 2, 2, statuses
+        );
+
+        // コメントは作成時刻の昇順、同時刻ならIDの昇順。
+        assertThat(commentIds(firstPage))
+                .containsExactly(visibleId, hiddenId);
+
+        assertThat(commentIds(secondPage))
+                .containsExactly(laterVisibleId);
+
+        assertThat(commentIds(outOfRange)).isEmpty();
+
+        assertThat(firstPage.path("items").path(0)
+                .path("status").asString())
+                .isEqualTo("VISIBLE");
+
+        assertThat(firstPage.path("items").path(1)
+                .path("status").asString())
+                .isEqualTo("HIDDEN");
+
+        for (JsonNode page : List.of(
+                firstPage,
+                secondPage,
+                outOfRange
+        )) {
+            assertThat(page.path("postId").asLong())
+                    .isEqualTo(targetPost.getId());
+
+            // 부모 상태는 댓글 상태 필터와 별도로 응답한다.
+            assertThat(page.path("postStatus").asString())
+                    .isEqualTo(parentStatus.name());
+
+            assertThat(page.path("totalElements").asLong())
+                    .isEqualTo(3);
+            assertThat(page.path("totalPages").asInt())
+                    .isEqualTo(2);
+            assertThat(page.path("size").asInt())
+                    .isEqualTo(2);
+        }
+
+        assertThat(firstPage.path("page").asInt()).isZero();
+        assertThat(firstPage.path("hasNext").asBoolean()).isTrue();
+        assertThat(firstPage.path("hasPrevious").asBoolean()).isFalse();
+
+        assertThat(secondPage.path("page").asInt()).isEqualTo(1);
+        assertThat(secondPage.path("hasNext").asBoolean()).isFalse();
+        assertThat(secondPage.path("hasPrevious").asBoolean()).isTrue();
+
+        assertThat(outOfRange.path("page").asInt()).isEqualTo(2);
+        assertThat(outOfRange.path("hasNext").asBoolean()).isFalse();
+    }
+
     private JsonNode readFilteredPage(
             MockHttpSession session,
             int page,
@@ -701,5 +850,33 @@ class AdminCommentReadSessionIntegrationTest {
         }
 
         return ids;
+    }
+
+    private JsonNode readMultipleStatusComments(
+            MockHttpSession session,
+            String keyword,
+            int page,
+            int size,
+            String... statuses
+    ) throws Exception {
+        MvcResult result = mockMvc.perform(
+                        get(PATH, targetPost.getId())
+                                .session(session)
+                                .queryParam("statuses", statuses)
+                                .queryParam("keyword", "  " + keyword + "  ")
+                                .queryParam("page", Integer.toString(page))
+                                .queryParam("size", Integer.toString(size))
+                )
+                .andExpect(status().isOk())
+                .andExpect(content().contentTypeCompatibleWith(
+                        MediaType.APPLICATION_JSON
+                ))
+                .andExpect(header().string(
+                        HttpHeaders.CACHE_CONTROL,
+                        "no-store"
+                ))
+                .andReturn();
+
+        return readJson(result);
     }
 }

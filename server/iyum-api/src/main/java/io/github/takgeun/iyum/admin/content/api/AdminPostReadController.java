@@ -7,6 +7,11 @@ import io.github.takgeun.iyum.auth.security.MemberPrincipal;
 import io.github.takgeun.iyum.global.error.ApiErrorResponse;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
+import io.swagger.v3.oas.annotations.Parameters;
+import io.swagger.v3.oas.annotations.enums.Explode;
+import io.swagger.v3.oas.annotations.enums.ParameterIn;
+import io.swagger.v3.oas.annotations.enums.ParameterStyle;
+import io.swagger.v3.oas.annotations.media.ArraySchema;
 import io.swagger.v3.oas.annotations.media.Content;
 import io.swagger.v3.oas.annotations.media.Schema;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
@@ -18,6 +23,7 @@ import org.springframework.http.CacheControl;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
+import org.springframework.util.MultiValueMap;
 import org.springframework.web.bind.annotation.*;
 
 @RestController
@@ -63,20 +69,60 @@ public class AdminPostReadController {
     @Operation(
             summary = "관리자 게시글 목록 조회",
             description = """
-                    상태와 제목 검색어로 게시글을 조회합니다.
-                    상태를 생략하면 공개·숨김·삭제 게시글을 모두 포함합니다.
-                    작성 시각 내림차순, 같은 시각이면 ID 내림차순입니다.
-                    페이지 번호는 0부터 시작합니다.
-                    """
+                상태와 제목 검색어로 게시글을 조회합니다.
+                상태 파라미터를 생략하면 정상·숨김·삭제를 모두 포함합니다.
+                기존 단일 선택은 status, 다중 선택은 statuses를 사용합니다.
+                다중 선택 예: statuses=VISIBLE&statuses=HIDDEN
+                status와 statuses를 동시에 전달할 수 없습니다.
+                statuses에는 VISIBLE, HIDDEN, DELETED만 허용합니다.
+                작성 시각 내림차순, 같은 시각이면 ID 내림차순입니다.
+                페이지 번호는 0부터 시작합니다.
+                """
     )
+    @Parameters({
+            @Parameter(
+                    name = "status",
+                    in = ParameterIn.QUERY,
+                    description = """
+                        기존 단일 상태 필터.
+                        생략하거나 빈 문자열이면 전체 조회.
+                        statuses와 동시에 전달할 수 없습니다.
+                        """,
+                    schema = @Schema(
+                            type = "string",
+                            allowableValues = {
+                                    "ALL", "VISIBLE", "HIDDEN", "DELETED"
+                            }
+                    )
+            ),
+            @Parameter(
+                    name = "statuses",
+                    in = ParameterIn.QUERY,
+                    description = """
+                        다중 상태 필터.
+                        예: statuses=VISIBLE&statuses=HIDDEN
+                        빈 값과 ALL은 허용하지 않습니다.
+                        status와 동시에 전달할 수 없습니다.
+                        """,
+                    style = ParameterStyle.FORM,
+                    explode = Explode.TRUE,
+                    array = @ArraySchema(
+                            schema = @Schema(
+                                    type = "string",
+                                    allowableValues = {
+                                            "VISIBLE", "HIDDEN", "DELETED"
+                                    }
+                            )
+                    )
+            )
+    })
     @GetMapping
     public ResponseEntity<AdminPostListResponse> getPosts(
             @Parameter(hidden = true)
             @AuthenticationPrincipal MemberPrincipal principal,
 
-            @Parameter(description = "조회할 게시글 상태")
-            @RequestParam(name = "status", defaultValue = "ALL")
-            AdminPostStatus status,
+            @Parameter(hidden = true)
+            @RequestParam MultiValueMap<String, String> parameters,
 
             @Parameter(description = "제목 검색어, 앞뒤 공백 제거 후 최대 100자")
             @RequestParam(name = "keyword", required = false)
@@ -95,8 +141,10 @@ public class AdminPostReadController {
         // GET 조회이므로 CSRF 토큰을 요구하지 않고 기존 로그인 세션 쿠키 사용
         requirePrincipal(principal);
 
-        AdminPostReadQuery query = new AdminPostReadQuery(
-                status,
+        // parameters에는 전체 요청 파라미터가 들어오지만,
+        // 해석 클래스에는 status와 statuses만 읽는다.
+        AdminPostReadQuery query = AdminPostReadQuery.ofStatuses(
+                AdminContentStatusRequestParser.postStatuses(parameters),   // 해석 클래스에서 분기에 따라 처리
                 keyword,
                 page,
                 size

@@ -32,6 +32,8 @@ import tools.jackson.databind.ObjectMapper;
 
 import java.sql.Timestamp;
 import java.time.Instant;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 
@@ -414,6 +416,111 @@ class AdminPostReadSessionIntegrationTest {
         }
     }
 
+    @Test
+    void 실제_관리자_세션으로_다중_상태와_검색어를_적용해_페이징한다()
+            throws Exception {
+        // 상태는 일치하지만 검색어가 다른 게시글을 추가한다.
+        // 상태 조건과 검색어 조건이 AND로 적용되는지 확인한다.
+        Post unrelatedVisible = Post.create(
+                author,
+                PostType.GENERAL,
+                PostTopic.DAILY,
+                "검색 대상이 아닌 정상 게시글",
+                ORIGINAL_CONTENT
+        );
+        postRepository.saveAndFlush(unrelatedVisible);
+
+        Post unrelatedHidden = Post.create(
+                author,
+                PostType.GENERAL,
+                PostTopic.DAILY,
+                "검색 대상이 아닌 숨김 게시글",
+                ORIGINAL_CONTENT
+        );
+        unrelatedHidden.hide(HIDDEN_AT);
+        postRepository.saveAndFlush(unrelatedHidden);
+
+        // 실제 CSRF 발급 및 로그인 API를 호출해 얻은 세션이다.
+        MockHttpSession session = login(admin.getEmail());
+
+        // 선택 순서를 바꾸거나 값을 반복해도 결과는 같아야 한다.
+        String[] statuses = {"HIDDEN", "VISIBLE", "HIDDEN"};
+
+        JsonNode firstPage = readMultipleStatusPosts(
+                session, 0, 1, statuses
+        );
+        JsonNode secondPage = readMultipleStatusPosts(
+                session, 1, 1, statuses
+        );
+        JsonNode outOfRange = readMultipleStatusPosts(
+                session, 2, 1, statuses
+        );
+
+        // 작성 시각이 같으므로 ID 내림차순이다.
+        assertThat(postIds(firstPage))
+                .containsExactly(hiddenPostId);
+        assertThat(postIds(secondPage))
+                .containsExactly(visiblePostId);
+        assertThat(postIds(outOfRange)).isEmpty();
+
+        assertThat(firstPage.path("items").path(0)
+                .path("status").asString())
+                .isEqualTo("HIDDEN");
+
+        assertThat(secondPage.path("items").path(0)
+                .path("status").asString())
+                .isEqualTo("VISIBLE");
+
+        for (JsonNode page : List.of(
+                firstPage,
+                secondPage,
+                outOfRange
+        )) {
+            assertThat(page.path("totalElements").asLong())
+                    .isEqualTo(2);
+            assertThat(page.path("totalPages").asInt())
+                    .isEqualTo(2);
+            assertThat(page.path("size").asInt())
+                    .isEqualTo(1);
+        }
+
+        assertThat(firstPage.path("page").asInt()).isZero();
+        assertThat(firstPage.path("hasNext").asBoolean()).isTrue();
+        assertThat(firstPage.path("hasPrevious").asBoolean()).isFalse();
+
+        assertThat(secondPage.path("page").asInt()).isEqualTo(1);
+        assertThat(secondPage.path("hasNext").asBoolean()).isFalse();
+        assertThat(secondPage.path("hasPrevious").asBoolean()).isTrue();
+
+        assertThat(outOfRange.path("page").asInt()).isEqualTo(2);
+        assertThat(outOfRange.path("hasNext").asBoolean()).isFalse();
+
+        // 세 상태를 모두 선택하면 삭제된 게시글까지 포함한다.
+        JsonNode allStates = readMultipleStatusPosts(
+                session,
+                0,
+                20,
+                "VISIBLE",
+                "HIDDEN",
+                "DELETED"
+        );
+
+        assertThat(postIds(allStates)).containsExactly(
+                hiddenAndDeletedPostId,
+                deletedPostId,
+                hiddenPostId,
+                visiblePostId
+        );
+
+        assertThat(allStates.path("totalElements").asLong())
+                .isEqualTo(4);
+
+        // 숨김 시각이 남아 있어도 삭제 상태가 우선한다.
+        assertThat(allStates.path("items").path(0)
+                .path("status").asString())
+                .isEqualTo("DELETED");
+    }
+
     private ResultActions readList(
             MockHttpSession session,
             String status,
@@ -562,5 +669,37 @@ class AdminPostReadSessionIntegrationTest {
         assertThat(updatedRows).isEqualTo(1);
 
         return saved.getId();
+    }
+
+    private JsonNode readMultipleStatusPosts(
+            MockHttpSession session,
+            int page,
+            int size,
+            String... statuses
+    ) throws Exception {
+        MvcResult result = expectOk(
+                mockMvc.perform(
+                        get(LIST_PATH)
+                                .session(session)
+                                .queryParam("statuses", statuses)
+                                .queryParam("keyword", "  " + keyword + "  ")
+                                .queryParam("page", Integer.toString(page))
+                                .queryParam("size", Integer.toString(size))
+                )
+        ).andReturn();
+
+        return objectMapper.readTree(
+                result.getResponse().getContentAsByteArray()
+        );
+    }
+
+    private List<Long> postIds(JsonNode response) {
+        List<Long> ids = new ArrayList<>();
+
+        for (JsonNode item : response.path("items")) {
+            ids.add(item.path("postId").asLong());
+        }
+
+        return ids;
     }
 }

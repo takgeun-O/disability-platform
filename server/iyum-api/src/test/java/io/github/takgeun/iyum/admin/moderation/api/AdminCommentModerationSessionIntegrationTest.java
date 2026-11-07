@@ -2,6 +2,7 @@ package io.github.takgeun.iyum.admin.moderation.api;
 
 import io.github.takgeun.iyum.admin.moderation.domain.ContentModerationLog;
 import io.github.takgeun.iyum.admin.moderation.domain.ModerationAction;
+import io.github.takgeun.iyum.admin.moderation.domain.ModerationReasonType;
 import io.github.takgeun.iyum.admin.moderation.infrastructure.ContentModerationLogRepository;
 import io.github.takgeun.iyum.community.comment.domain.Comment;
 import io.github.takgeun.iyum.community.comment.infrastructure.CommentRepository;
@@ -221,6 +222,11 @@ class AdminCommentModerationSessionIntegrationTest {
         assertThat(hideLog.getAction()).isEqualTo(ModerationAction.HIDE);
         assertThat(hideLog.getReason()).isEqualTo("댓글 개인정보 노출 확인");
         assertThat(hideLog.getCreatedAt()).isEqualTo(storedHiddenAt);
+        // hideLog 검증에 추가
+        assertThat(hideLog.getReasonType())
+                .isEqualTo(ModerationReasonType.OTHER);
+        assertThat(hideLog.getReasonDetail())
+                .isEqualTo("댓글 개인정보 노출 확인");
 
         assertParentUnchanged(parentBefore);
         assertPublicComments(parentHidden, 0);
@@ -276,6 +282,11 @@ class AdminCommentModerationSessionIntegrationTest {
         assertThat(restoreLog.getPostId()).isNull();
         assertThat(restoreLog.getReason()).isEqualTo("재검토 결과 댓글 복원");
         assertThat(restoreLog.getCreatedAt()).isNotNull();
+        // restoreLog 검증에 추가
+        assertThat(restoreLog.getReasonType())
+                .isEqualTo(ModerationReasonType.OTHER);
+        assertThat(restoreLog.getReasonDetail())
+                .isEqualTo("재검토 결과 댓글 복원");
 
         assertParentUnchanged(parentBefore);
 
@@ -402,7 +413,10 @@ class AdminCommentModerationSessionIntegrationTest {
         JsonNode csrf = getCsrf(session);
 
         String body = objectMapper.writeValueAsString(
-                Map.of("reason", "삭제 상태 검증 요청")
+                Map.of(
+                        "reasonType", "OTHER",
+                        "reasonDetail", "삭제 상태 검증 요청"
+                )
         );
 
         mockMvc.perform(
@@ -463,7 +477,10 @@ class AdminCommentModerationSessionIntegrationTest {
         JsonNode csrf = getCsrf(session);
 
         String body = objectMapper.writeValueAsString(
-                Map.of("reason", "게시글과 댓글 연결 검증")
+                Map.of(
+                        "reasonType", "OTHER",
+                        "reasonDetail", "게시글과 댓글 연결 검증"
+                )
         );
 
         mockMvc.perform(
@@ -594,7 +611,10 @@ class AdminCommentModerationSessionIntegrationTest {
                                 )
                                 .contentType(MediaType.APPLICATION_JSON)
                                 .content(objectMapper.writeValueAsString(
-                                        Map.of("reason", reason)
+                                        Map.of(
+                                                "reasonType", "OTHER",
+                                                "reasonDetail", reason
+                                        )
                                 ))
                 )
                 .andExpect(status().isOk())
@@ -718,12 +738,36 @@ class AdminCommentModerationSessionIntegrationTest {
 
     private static Stream<Arguments> invalidReasonRequests() {
         List<String> bodies = List.of(
+                // 필수 사유 유형 누락
                 "{}",
-                "{\"reason\":null}",
-                "{\"reason\":\"\"}",
-                "{\"reason\":\" \\t\\n \"}",
-                "{\"reason\":\"" + "가".repeat(501) + "\"}",
-                "{\"reason\":\"" + "😀".repeat(501) + "\"}"
+                """
+                {"reasonDetail":"사유 유형 누락 검증"}
+                """,
+
+                // 사유 유형이 명시적으로 null
+                """
+                {"reasonType":null,"reasonDetail":"사유 유형 검증"}
+                """,
+
+                // OTHER는 상세 사유 필수
+                """
+                {"reasonType":"OTHER"}
+                """,
+                """
+                {"reasonType":"OTHER","reasonDetail":null}
+                """,
+                """
+                {"reasonType":"OTHER","reasonDetail":""}
+                """,
+                "{\"reasonType\":\"OTHER\",\"reasonDetail\":\" \\t\\n \"}",
+
+                // 코드 포인트 기준 500자 초과
+                "{\"reasonType\":\"OTHER\",\"reasonDetail\":\""
+                        + "가".repeat(501)
+                        + "\"}",
+                "{\"reasonType\":\"OTHER\",\"reasonDetail\":\""
+                        + "😀".repeat(501)
+                        + "\"}"
         );
 
         return Stream.of("hide", "restore")

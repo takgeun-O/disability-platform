@@ -1,6 +1,7 @@
 package io.github.takgeun.iyum.admin.content.infrastructure;
 
 import com.querydsl.core.types.dsl.BooleanExpression;
+import com.querydsl.core.types.dsl.Expressions;
 import com.querydsl.jpa.impl.JPAQueryFactory;
 import io.github.takgeun.iyum.admin.content.application.AdminPostReadQuery;
 import io.github.takgeun.iyum.admin.content.application.AdminPostStatus;
@@ -14,6 +15,7 @@ import org.springframework.transaction.annotation.Transactional;
 import java.util.List;
 import java.util.Locale;
 import java.util.Optional;
+import java.util.Set;
 
 import static io.github.takgeun.iyum.community.post.domain.QPost.post;
 
@@ -54,7 +56,7 @@ public class AdminPostReadRepository {
         // DB에서 실행할 다음 조건을 표현한다.
         // deleted_at IS NULL
         BooleanExpression statusCondition =
-                statusCondition(query.status());
+                statusCondition(query.statuses());
 
         BooleanExpression keywordCondition =
                 titleContains(query.keyword());
@@ -63,9 +65,9 @@ public class AdminPostReadRepository {
         Long count = queryFactory
                 .select(post.count())
                 .from(post)
-                // 상태 조건과 검색어 조건 적용
-                // where에 여러 개 전달하면 AND로 결합된다. (null인 조건은 제외)
-                // 따라서 상태가 ALL이고, 검색어는 null이면 두 조건 모두 제외되어 상태·제목 제한 없이 개수를 세게 된다.
+                // 선택한 상태끼리는 OR로 결합한다.
+                // 상태 조건과 제목 검색 조건은 AND로 결합한다.
+                // 전체 상태를 선택하면 정상·숨김·삭제 게시글이 모두 포함된다.
                 .where(
                         statusCondition,
                         keywordCondition
@@ -130,21 +132,43 @@ public class AdminPostReadRepository {
     }
 
     // 상태별 조건 분기
-    @Nullable
     private BooleanExpression statusCondition(
-            AdminPostStatus status
+            Set<AdminPostStatus> statuses
     ) {
-        return switch (status) {
-            case ALL -> null;   // 상태 검색 조건을 추가하지 않는다는 의미 (오류가 아님)
+        // 선택한 상태들을 OR로 연결한다.
+        // 시작 조건은 false이므로 이후 추가한 조건만 조회 결과에 영향을 준다.
+        BooleanExpression condition = Expressions.FALSE;
 
-            case VISIBLE -> post.deletedAt.isNull()
-                    .and(post.hiddenAt.isNull());
+        /**
+         * WHERE (
+         *     (deleted_at IS NULL AND hidden_at IS NULL)
+         *     OR
+         *     (deleted_at IS NULL AND hidden_at IS NOT NULL)
+         * )
+         * AND 제목_검색_조건
+         */
+        if(statuses.contains(AdminPostStatus.VISIBLE)) {
+            condition = condition.or(
+                    post.deletedAt.isNull()
+                            .and(post.hiddenAt.isNull())
+            );
+        }
 
-            case HIDDEN -> post.deletedAt.isNull()
-                    .and(post.hiddenAt.isNotNull());
+        if(statuses.contains(AdminPostStatus.HIDDEN)) {
+            condition = condition.or(
+                    post.deletedAt.isNull()
+                            .and(post.hiddenAt.isNotNull())
+            );
+        }
 
-            case DELETED -> post.deletedAt.isNotNull();
-        };
+        if(statuses.contains(AdminPostStatus.DELETED)) {
+            // 숨김 시각이 남아 있어도 삭제된 게시글은 DELETED에만 속한다.
+            condition = condition.or(
+                    post.deletedAt.isNotNull()
+            );
+        }
+
+        return condition;
     }
 
     // 제목 부분 검색

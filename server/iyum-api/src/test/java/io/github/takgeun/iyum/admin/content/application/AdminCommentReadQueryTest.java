@@ -12,11 +12,15 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 class AdminCommentReadQueryTest {
 
     @Test
-    void 상태가_없으면_ALL을_적용한다() {
+    void 상태가_없으면_전체_상태를_적용한다() {
         AdminCommentReadQuery query =
                 new AdminCommentReadQuery(null, null, 0, 20);
 
-        assertThat(query.status()).isEqualTo(AdminCommentStatus.ALL);
+        assertThat(query.statuses()).containsExactlyInAnyOrder(
+                AdminCommentStatus.VISIBLE,
+                AdminCommentStatus.HIDDEN,
+                AdminCommentStatus.DELETED
+        );
     }
 
     @Test
@@ -29,7 +33,9 @@ class AdminCommentReadQueryTest {
                         50
                 );
 
-        assertThat(query.status()).isEqualTo(AdminCommentStatus.HIDDEN);
+        assertThat(query.statuses()).containsExactly(
+                AdminCommentStatus.HIDDEN
+        );
         assertThat(query.keyword()).isEqualTo("보청기 적응");
         assertThat(query.page()).isEqualTo(2);
         assertThat(query.size()).isEqualTo(50);

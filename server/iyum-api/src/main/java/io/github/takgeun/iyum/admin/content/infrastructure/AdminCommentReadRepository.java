@@ -1,6 +1,7 @@
 package io.github.takgeun.iyum.admin.content.infrastructure;
 
 import com.querydsl.core.types.dsl.BooleanExpression;
+import com.querydsl.core.types.dsl.Expressions;
 import com.querydsl.jpa.impl.JPAQueryFactory;
 import io.github.takgeun.iyum.admin.content.application.AdminCommentReadQuery;
 import io.github.takgeun.iyum.admin.content.application.AdminCommentStatus;
@@ -16,6 +17,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
 import java.util.Locale;
+import java.util.Set;
 
 import static io.github.takgeun.iyum.community.comment.domain.QComment.comment;
 
@@ -46,7 +48,7 @@ public class AdminCommentReadRepository {
                 comment.post.id.eq(postId);
 
         BooleanExpression statusCondition =
-                statusCondition(query.status());
+                statusCondition(query.statuses());
 
         BooleanExpression keywordCondition =
                 contentContains(query.keyword());
@@ -55,9 +57,9 @@ public class AdminCommentReadRepository {
                 .select(comment.count())
                 .from(comment)
                 .where(
-                        postCondition,
-                        statusCondition,
-                        keywordCondition
+                        postCondition,  // 선택한 게시글의 댓글만 조회
+                        statusCondition,// 선택한 댓글 상태 중 하나에 해당
+                        keywordCondition// 댓글 본문 검색
                 )
                 .fetchOne();
 
@@ -76,9 +78,9 @@ public class AdminCommentReadRepository {
                 .selectFrom(comment)
                 .join(comment.author).fetchJoin()
                 .where(
-                        postCondition,
-                        statusCondition,
-                        keywordCondition
+                        postCondition,  // 선택한 게시글의 댓글만 조회
+                        statusCondition,// 선택한 댓글 상태 중 하나에 해당
+                        keywordCondition// 댓글 본문 검색
                 )
                 .orderBy(
                         comment.createdAt.asc(),
@@ -95,23 +97,32 @@ public class AdminCommentReadRepository {
         );
     }
 
-    @Nullable
     private BooleanExpression statusCondition(
-            AdminCommentStatus status
+            Set<AdminCommentStatus> statuses
     ) {
-        return switch (status) {
-            // 관리자는 숨김·삭제된 게시글에 달린 댓글도 확인해야 하므로
-            // post.hiddenAt.isNull() 같은거 사용 X
-            case ALL -> null;
+        BooleanExpression condition = Expressions.FALSE;
 
-            case VISIBLE -> comment.deletedAt.isNull()
-                    .and(comment.hiddenAt.isNull());
+        if (statuses.contains(AdminCommentStatus.VISIBLE)) {
+            condition = condition.or(
+                    comment.deletedAt.isNull()
+                            .and(comment.hiddenAt.isNull())
+            );
+        }
 
-            case HIDDEN -> comment.deletedAt.isNull()
-                    .and(comment.hiddenAt.isNotNull());
+        if (statuses.contains(AdminCommentStatus.HIDDEN)) {
+            condition = condition.or(
+                    comment.deletedAt.isNull()
+                            .and(comment.hiddenAt.isNotNull())
+            );
+        }
 
-            case DELETED -> comment.deletedAt.isNotNull();
-        };
+        if (statuses.contains(AdminCommentStatus.DELETED)) {
+            condition = condition.or(
+                    comment.deletedAt.isNotNull()
+            );
+        }
+
+        return condition;
     }
 
     @Nullable
