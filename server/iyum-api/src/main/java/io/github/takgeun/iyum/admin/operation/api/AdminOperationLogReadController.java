@@ -9,6 +9,7 @@ import io.github.takgeun.iyum.global.error.ApiErrorResponse;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.media.Content;
+import io.swagger.v3.oas.annotations.media.ExampleObject;
 import io.swagger.v3.oas.annotations.media.Schema;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
@@ -92,18 +93,149 @@ public class AdminOperationLogReadController {
                     OLDEST는 처리 시각 오름차순, 같은 시각이면 기록 ID 오름차순입니다.
                     처리 시각은 운영 기록의 createdAt을 기준으로 합니다.
                     페이지 번호는 0부터 시작합니다.
+                    각 기록의 currentTarget에는 조회 시점의 대상 작성자 정보와
+                    게시글 제목, 본문 미리보기를 포함합니다.
+                    이는 조치 당시의 콘텐츠 스냅샷이 아닙니다.
+                    actorMemberId는 과거 처리 관리자이며 currentTarget.author는 콘텐츠 작성자입니다.
+                    관리자 로그인 세션이 필요하며 GET에는 CSRF 토큰이 필요하지 않습니다.
+                    댓글의 title은 null이며, 대상을 찾을 수 없으면 currentTarget은 null입니다.
+                    현재 요약의 변경은 기존 운영 기록의 조치·사유·처리 시각에 영향을 주지 않습니다.
                     """
     )
+    @ApiResponse(responseCode = "200", description = "운영 기록 목록. Cache-Control: no-store",
+            content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE,
+                    schema = @Schema(implementation = AdminOperationLogListResponse.class),
+                    examples = {
+                        @ExampleObject(name = "mixed", summary = "게시글·댓글 정상 목록", value = """
+                                {
+                                  "items": [
+                                    {
+                                      "logId": 102,
+                                      "actorMemberId": 7,
+                                      "targetType": "POST",
+                                      "targetId": 104,
+                                      "action": "HIDE",
+                                      "reasonType": "SPAM_ADVERTISING",
+                                      "reasonDetail": null,
+                                      "reason": "광고·홍보·스팸",
+                                      "createdAt": "2026-11-04T03:01:00Z",
+                                      "currentTarget": {
+                                        "author": {
+                                          "memberId": 42,
+                                          "nickname": "이음회원",
+                                          "withdrawn": false
+                                        },
+                                        "title": "보청기 적응 경험",
+                                        "contentPreview": "새 보청기에 적응한 경험을 공유합니다."
+                                      }
+                                    },
+                                    {
+                                      "logId": 101,
+                                      "actorMemberId": 7,
+                                      "targetType": "COMMENT",
+                                      "targetId": 144,
+                                      "action": "RESTORE",
+                                      "reasonType": "NO_VIOLATION",
+                                      "reasonDetail": "재검토 결과 복원",
+                                      "reason": "재검토 결과 복원",
+                                      "createdAt": "2026-11-04T03:00:00Z",
+                                      "currentTarget": {
+                                        "author": {
+                                          "memberId": 43,
+                                          "nickname": "햇살",
+                                          "withdrawn": false
+                                        },
+                                        "title": null,
+                                        "contentPreview": "경험을 나눠 주셔서 감사합니다."
+                                      }
+                                    }
+                                  ],
+                                  "page": 0,
+                                  "size": 20,
+                                  "totalElements": 2,
+                                  "totalPages": 1,
+                                  "hasNext": false,
+                                  "hasPrevious": false
+                                }
+                                """),
+                        @ExampleObject(name = "withdrawn", summary = "탈퇴 작성자", value = """
+                                {
+                                  "items": [
+                                    {
+                                      "logId": 101,
+                                      "actorMemberId": 7,
+                                      "targetType": "COMMENT",
+                                      "targetId": 144,
+                                      "action": "RESTORE",
+                                      "reasonType": "NO_VIOLATION",
+                                      "reasonDetail": "재검토 결과 복원",
+                                      "reason": "재검토 결과 복원",
+                                      "createdAt": "2026-11-04T03:00:00Z",
+                                      "currentTarget": {
+                                        "author": {
+                                          "memberId": 43,
+                                          "nickname": "탈퇴한 회원",
+                                          "withdrawn": true
+                                        },
+                                        "title": null,
+                                        "contentPreview": "경험을 나눠 주셔서 감사합니다."
+                                      }
+                                    }
+                                  ],
+                                  "page": 0,
+                                  "size": 20,
+                                  "totalElements": 1,
+                                  "totalPages": 1,
+                                  "hasNext": false,
+                                  "hasPrevious": false
+                                }
+                                """),
+                        @ExampleObject(name = "unavailable", summary = "대상 요약 없음 — 응답 계약 예시", value = """
+                                {
+                                  "items": [
+                                    {
+                                      "logId": 102,
+                                      "actorMemberId": 7,
+                                      "targetType": "POST",
+                                      "targetId": 104,
+                                      "action": "HIDE",
+                                      "reasonType": "SPAM_ADVERTISING",
+                                      "reasonDetail": null,
+                                      "reason": "광고·홍보·스팸",
+                                      "createdAt": "2026-11-04T03:01:00Z",
+                                      "currentTarget": null
+                                    }
+                                  ],
+                                  "page": 0,
+                                  "size": 20,
+                                  "totalElements": 1,
+                                  "totalPages": 1,
+                                  "hasNext": false,
+                                  "hasPrevious": false
+                                }
+                                """),
+                        @ExampleObject(name = "empty", summary = "검색 결과 없음", value = """
+                                {
+                                  "items": [],
+                                  "page": 0,
+                                  "size": 20,
+                                  "totalElements": 0,
+                                  "totalPages": 0,
+                                  "hasNext": false,
+                                  "hasPrevious": false
+                                }
+                                """)
+                    }))
     @GetMapping
     public ResponseEntity<AdminOperationLogListResponse> getLogs(
             @Parameter(hidden = true)
             @AuthenticationPrincipal MemberPrincipal principal,
 
-            @Parameter(description = "대상 유형, 생략하면 ALL")
+            @Parameter(description = "대상 유형, 생략하거나 빈 문자열이면 ALL")
             @RequestParam(name = "targetType", defaultValue = "ALL")
             AdminOperationLogTargetType targetType,
 
-            @Parameter(description = "조치 유형, 생략하면 전체")
+            @Parameter(description = "조치 유형, 생략하거나 빈 문자열이면 전체")
             @RequestParam(name = "action", required = false)
             ModerationAction action,
 
@@ -174,28 +306,6 @@ public class AdminOperationLogReadController {
                         query
                 );
 
-        /**
-         * 응답 예시
-         * {
-         *   "items": [
-         *     {
-         *       "logId": 101,
-         *       "actorMemberId": 7,
-         *       "targetType": "COMMENT",
-         *       "targetId": 456,
-         *       "action": "HIDE",
-         *       "reason": "운영 정책 위반",
-         *       "createdAt": "2026-11-04T03:00:00Z"
-         *     }
-         *   ],
-         *   "page": 0,
-         *   "size": 20,
-         *   "totalElements": 1,
-         *   "totalPages": 1,
-         *   "hasNext": false,
-         *   "hasPrevious": false
-         * }
-         */
         return ResponseEntity.ok()
                 .cacheControl(CacheControl.noStore())
                 .body(AdminOperationLogListResponse.from(result));

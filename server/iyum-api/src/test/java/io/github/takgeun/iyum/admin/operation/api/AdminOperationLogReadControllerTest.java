@@ -35,6 +35,7 @@ import java.time.LocalDate;
 import java.util.List;
 
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.nullValue;
 import static org.mockito.Mockito.*;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.user;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
@@ -93,7 +94,12 @@ class AdminOperationLogReadControllerTest {
                         ModerationReasonType.OTHER,
                         "운영 정책 위반",
                         "운영 정책 위반",
-                        CREATED_AT
+                        CREATED_AT,
+                        new AdminOperationLogCurrentTargetResult(
+                                new AdminOperationLogTargetAuthorResult(42L, "댓글작성자", false),
+                                null,
+                                "현재 댓글 본문 미리보기"
+                        )
                 );
 
         when(operationLogReadService.getLogs(
@@ -130,6 +136,14 @@ class AdminOperationLogReadControllerTest {
                         .value("운영 정책 위반"))
                 .andExpect(jsonPath("$.items[0].createdAt")
                         .value(CREATED_AT.toString()))
+                .andExpect(jsonPath("$.items[0].currentTarget.author.memberId").value(42))
+                .andExpect(jsonPath("$.items[0].currentTarget.author.nickname").value("댓글작성자"))
+                .andExpect(jsonPath("$.items[0].currentTarget.author.withdrawn").value(false))
+                .andExpect(jsonPath("$.items[0].currentTarget.author.email").doesNotHaveJsonPath())
+                .andExpect(jsonPath("$.items[0].currentTarget.author.passwordHash").doesNotHaveJsonPath())
+                .andExpect(jsonPath("$.items[0].currentTarget.title").hasJsonPath())
+                .andExpect(jsonPath("$.items[0].currentTarget.title").value(nullValue()))
+                .andExpect(jsonPath("$.items[0].currentTarget.contentPreview").value("현재 댓글 본문 미리보기"))
                 .andExpect(jsonPath("$.items[0].email").doesNotExist())
                 .andExpect(jsonPath("$.items[0].passwordHash")
                         .doesNotExist())
@@ -145,6 +159,90 @@ class AdminOperationLogReadControllerTest {
                 CREDENTIAL_VERSION,
                 defaultQuery()
         );
+        verifyNoMoreInteractions(operationLogReadService);
+    }
+
+    @Test
+    void 게시글_요약의_작성자와_제목과_미리보기를_반환한다() throws Exception {
+        givenValidSession(MemberRole.ADMIN);
+        // 서비스가 이미 만든 탈퇴 표시를 직렬화한다. 회원 상태 변환 자체를 검증하는 테스트가 아니다.
+        var current = new AdminOperationLogCurrentTargetResult(
+                new AdminOperationLogTargetAuthorResult(42L, "탈퇴한 회원", true),
+                "현재 저장된 게시글 제목", "현재 게시글 본문 미리보기"
+        );
+        var item = new AdminOperationLogItemResult(
+                102L, 8L, AdminOperationLogTargetType.POST, 123L,
+                ModerationAction.RESTORE, ModerationReasonType.NO_VIOLATION,
+                null, "기록 생성 당시 저장된 표시 문구", CREATED_AT, current
+        );
+        when(operationLogReadService.getLogs(MEMBER_ID, CREDENTIAL_VERSION, defaultQuery()))
+                .thenReturn(new PageImpl<>(List.of(item), PageRequest.of(0, 20), 1));
+
+        expectSuccess(mockMvc.perform(request().with(user(principal(MemberRole.ADMIN)))))
+                .andExpect(jsonPath("$.items.length()").value(1))
+                .andExpect(jsonPath("$.items[0].logId").value(102))
+                .andExpect(jsonPath("$.items[0].actorMemberId").value(8))
+                .andExpect(jsonPath("$.items[0].targetType").value("POST"))
+                .andExpect(jsonPath("$.items[0].targetId").value(123))
+                .andExpect(jsonPath("$.items[0].action").value("RESTORE"))
+                .andExpect(jsonPath("$.items[0].reasonType").value("NO_VIOLATION"))
+                .andExpect(jsonPath("$.items[0].reasonDetail").hasJsonPath())
+                .andExpect(jsonPath("$.items[0].reasonDetail").value(nullValue()))
+                .andExpect(jsonPath("$.items[0].reason").value("기록 생성 당시 저장된 표시 문구"))
+                .andExpect(jsonPath("$.items[0].createdAt").value(CREATED_AT.toString()))
+                .andExpect(jsonPath("$.items[0].currentTarget.author.memberId").value(42))
+                .andExpect(jsonPath("$.items[0].currentTarget.author.nickname").value("탈퇴한 회원"))
+                .andExpect(jsonPath("$.items[0].currentTarget.author.withdrawn").value(true))
+                .andExpect(jsonPath("$.items[0].currentTarget.author.email").doesNotHaveJsonPath())
+                .andExpect(jsonPath("$.items[0].currentTarget.author.passwordHash").doesNotHaveJsonPath())
+                .andExpect(jsonPath("$.items[0].currentTarget.title").value("현재 저장된 게시글 제목"))
+                .andExpect(jsonPath("$.items[0].currentTarget.contentPreview").value("현재 게시글 본문 미리보기"))
+                .andExpect(jsonPath("$.page").value(0))
+                .andExpect(jsonPath("$.size").value(20))
+                .andExpect(jsonPath("$.totalElements").value(1))
+                .andExpect(jsonPath("$.totalPages").value(1))
+                .andExpect(jsonPath("$.hasNext").value(false))
+                .andExpect(jsonPath("$.hasPrevious").value(false));
+
+        verify(operationLogReadService).getLogs(MEMBER_ID, CREDENTIAL_VERSION, defaultQuery());
+        verifyNoMoreInteractions(operationLogReadService);
+    }
+
+    @ParameterizedTest
+    @EnumSource(value = AdminOperationLogTargetType.class, names = {"POST", "COMMENT"})
+    void 대상_조회_불가여도_기록과_페이지를_유지하고_currentTarget을_null로_반환한다(
+            AdminOperationLogTargetType targetType
+    ) throws Exception {
+        givenValidSession(MemberRole.ADMIN);
+        var item = new AdminOperationLogItemResult(
+                103L, 8L, targetType, 789L, ModerationAction.HIDE,
+                ModerationReasonType.LEGACY, null, "기존 자유 입력 원문", CREATED_AT, null
+        );
+        when(operationLogReadService.getLogs(MEMBER_ID, CREDENTIAL_VERSION, defaultQuery()))
+                .thenReturn(new PageImpl<>(List.of(item), PageRequest.of(0, 20), 21));
+
+        expectSuccess(mockMvc.perform(request().with(user(principal(MemberRole.ADMIN)))))
+                .andExpect(jsonPath("$.items.length()").value(1))
+                .andExpect(jsonPath("$.items[0].logId").value(103))
+                .andExpect(jsonPath("$.items[0].actorMemberId").value(8))
+                .andExpect(jsonPath("$.items[0].targetType").value(targetType.name()))
+                .andExpect(jsonPath("$.items[0].targetId").value(789))
+                .andExpect(jsonPath("$.items[0].action").value("HIDE"))
+                .andExpect(jsonPath("$.items[0].reasonType").value("LEGACY"))
+                .andExpect(jsonPath("$.items[0].reasonDetail").hasJsonPath())
+                .andExpect(jsonPath("$.items[0].reasonDetail").value(nullValue()))
+                .andExpect(jsonPath("$.items[0].reason").value("기존 자유 입력 원문"))
+                .andExpect(jsonPath("$.items[0].createdAt").value(CREATED_AT.toString()))
+                .andExpect(jsonPath("$.items[0].currentTarget").hasJsonPath())
+                .andExpect(jsonPath("$.items[0].currentTarget").value(nullValue()))
+                .andExpect(jsonPath("$.page").value(0))
+                .andExpect(jsonPath("$.size").value(20))
+                .andExpect(jsonPath("$.totalElements").value(21))
+                .andExpect(jsonPath("$.totalPages").value(2))
+                .andExpect(jsonPath("$.hasNext").value(true))
+                .andExpect(jsonPath("$.hasPrevious").value(false));
+
+        verify(operationLogReadService).getLogs(MEMBER_ID, CREDENTIAL_VERSION, defaultQuery());
         verifyNoMoreInteractions(operationLogReadService);
     }
 

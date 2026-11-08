@@ -1,31 +1,36 @@
 "use client"
+import type { ModerationTarget } from "@/lib/admin-moderation"
 import { isAdminRowSelection, isAdminRowKeyboardSelection } from "@/lib/admin-row-selection"
-import { useEffect, useRef, useState } from "react"
+import { useCallback, useEffect, useRef, useState } from "react"
 import { useAuth } from "@/components/AuthProvider"
 import { useNavigationRequest } from "@/components/NavigationGuard"
 import Link from "@/components/AppLink"
 import { useAdminUrlQuery } from "@/lib/useAdminUrlQuery"
 import { adminLogQuery, adminLogHref, adminSelectionId } from "@/lib/admin-navigation"
 import AdminModeration, { useAdminModeration } from "@/components/admin/AdminModeration"
-import AdminSelectionPanel from "@/components/admin/AdminSelectionPanel"
-import AdminLogPreview from "@/components/admin/AdminLogPreview"
+import AdminContentDialog, { openAdminDialog, syncAdminListUrl, useAdminDialogReturn } from "@/components/admin/AdminContentDialog"
 import AdminDateRange from "@/components/admin/AdminDateRange"
 import AdminPagination from "@/components/admin/AdminPagination"
 import { AdminApiError } from "@/lib/admin-posts"
 import { writtenTime } from "@/lib/written-time"
-import { DEFAULT_LOG_QUERY, LOG_SORTS, LOG_TARGETS, LOG_ACTIONS, getOperationLogs, logFilterError, type LogFilters, type LogQuery, type OperationLogPage } from "@/lib/admin-operation-logs"
+import { DEFAULT_LOG_QUERY, LOG_SORTS, LOG_TARGETS, LOG_ACTIONS, getOperationLogs, logFilterError, type LogFilters, type LogQuery, type OperationLog, type OperationLogPage } from "@/lib/admin-operation-logs"
 import "@/styles/admin-operation-logs.css"
 
 import { MODERATION_REASONS, isModerationReasonType } from "@/lib/moderation-reasons"
 
 export default function AdminOperationLogs() {
   const {values,navigation}=useAdminUrlQuery()
-  return <AdminModeration key={navigation}><OperationLogResults initialQuery={adminLogQuery(values)} initialSelected={adminSelectionId(values.selected)} /></AdminModeration>
+  useAdminDialogReturn(navigation)
+  const [recovery,setRecovery]=useState<ModerationTarget|null>(null)
+  // Scoped to AdminAccess's member/session lifetime; never persisted in browser storage.
+  const [records]=useState(()=>new Map<number,OperationLog>())
+  const clearRecords=useCallback(()=>records.clear(),[records])
+  return <AdminModeration inline recovery={recovery} onRecovery={setRecovery} onDenied={clearRecords} key={navigation}><OperationLogResults records={records} initialQuery={adminLogQuery(values)} initialSelected={adminSelectionId(values.selected)} /></AdminModeration>
 }
-function OperationLogResults({initialQuery,initialSelected}:{initialQuery:LogQuery;initialSelected:number|null}) {
+function OperationLogResults({initialQuery,initialSelected,records}:{initialQuery:LogQuery;initialSelected:number|null;records:Map<number,OperationLog>}) {
+  const [initialSelection]=useState(initialSelected)
   const auth = useAuth(), scope = useNavigationRequest()
-  const {deny}=useAdminModeration()
-  const [selection,setSelection]=useState<{query:LogQuery;id:number;focus:boolean}|null>(initialSelected?{query:initialQuery,id:initialSelected,focus:false}:null)
+  const {deny,revision,readCurrent,recoveryFeedback}=useAdminModeration()
   const memberId = auth.member!.memberId, capture = auth.captureMemberRequest
   const [query, setQuery] = useState<LogQuery>(initialQuery)
   const [input, setInput] = useState<LogFilters>(initialQuery)
@@ -34,14 +39,15 @@ function OperationLogResults({initialQuery,initialSelected}:{initialQuery:LogQue
   const adjusted = useRef(false),generation=useRef(0),request=useRef<AbortController|null>(null)
   const [dateReset,setDateReset]=useState(0)
   const [lastSuccess,setLastSuccess]=useState<{data:OperationLogPage;query:LogQuery}|null>(null)
-  const [result, setResult] = useState<{ query: LogQuery; attempt: number; data?: OperationLogPage; error?: string; forbidden?: boolean } | null>(null)
-  const selectedId=selection?.query===query&&!(result?.query===query&&result.attempt===retry&&result.data&&!result.data.items.some(log=>log.logId===selection.id))?selection.id:null
-  useEffect(() => { if(scope.isActive()) window.history.replaceState(null,"",adminLogHref(query,selectedId)) },[query,scope,selectedId])
+  const [result, setResult] = useState<{ query: LogQuery; attempt: number; revision:number; data?: OperationLogPage; error?: string; forbidden?: boolean } | null>(null)
+  const selectedId=initialSelected
+  const select=(log:OperationLog)=>{records.set(log.logId,log);openAdminDialog(adminLogHref(query,log.logId))}
+  useEffect(() => { if(scope.isActive()) syncAdminListUrl(adminLogHref(query,selectedId)) },[query,scope,selectedId])
   useEffect(() => {
     const controller = new AbortController(), navigation = scope.begin(), session = capture(memberId)
     request.current=controller
     const owner=generation.current
-    const current = () => owner===generation.current && !controller.signal.aborted && navigation() && session.isCurrent()
+    const current = () => owner===generation.current && !controller.signal.aborted && navigation() && session.isCurrent() && readCurrent(revision)
     void getOperationLogs(query, controller.signal).then(data => {
       if (!current()) return
       // At most one correction per explicit search/page action, even if counts keep changing.
@@ -50,21 +56,22 @@ function OperationLogResults({initialQuery,initialSelected}:{initialQuery:LogQue
         setQuery({ ...query, page: Math.max(0, data.totalPages - 1) })
         return
       }
+      if(initialSelection){const log=data.items.find(log=>log.logId===initialSelection);if(log&&!records.has(log.logId))records.set(log.logId,log)}
       setLastSuccess({data,query})
-      setResult({ query, attempt: retry, data })
+      setResult({ query, attempt: retry, revision, data })
     }).catch(error => {
       if (!current()) return
       if (error instanceof AdminApiError && error.status === 401) { setLastSuccess(null); session.expire(); return }
       const forbidden = error instanceof AdminApiError && error.status === 403
       if(forbidden){deny();return}
       if(forbidden||error instanceof AdminApiError&&error.status===404)setLastSuccess(null)
-      setResult(previous => ({ query, attempt: retry, forbidden,
+      setResult(previous => ({ query, attempt: retry, revision, forbidden,
         data: forbidden ? undefined : previous?.data,
         error: error instanceof Error ? error.message : "운영 기록을 불러오지 못했습니다." }))
     })
     return () => controller.abort()
-  }, [query, retry, memberId, capture, scope,deny])
-  const active = result?.query === query && result.attempt === retry ? result : null
+  }, [query, retry, memberId, capture, scope,deny,revision,readCurrent,initialSelection,records])
+  const active = result?.query === query && result.attempt === retry && result.revision===revision ? result : null
   const busy = !active
   const change = (next: LogQuery) => {
     const same=(Object.keys(DEFAULT_LOG_QUERY) as (keyof LogQuery)[]).every(key=>query[key]===next[key])
@@ -75,13 +82,13 @@ function OperationLogResults({initialQuery,initialSelected}:{initialQuery:LogQue
     else setQuery({...next})
   }
   const shown=lastSuccess?.data,displayQuery=lastSuccess?.query??query,stale=busy||!!active?.error
-  const selectedLog=shown?.items.find(log=>log.logId===selectedId)
+  const selectedLog=selectedId?(records.get(selectedId)??shown?.items.find(log=>log.logId===selectedId)):undefined
   const edit = (next: LogFilters) => { setInput(next); setValidation("") }
   const filtered = !!displayQuery.reasonType || displayQuery.targetType !== "ALL" || displayQuery.action !== "ALL" || !!displayQuery.startDate || !!displayQuery.endDate
   const sortControl = <div className="admin-sort-control"><label htmlFor="admin-log-sort">처리 시각 정렬</label><select id="admin-log-sort" value={query.sort} onChange={e=>{const sort=e.target.value;if(sort==="LATEST"||sort==="OLDEST")change({...query,sort,page:0})}}>{Object.entries(LOG_SORTS).map(([value,label])=><option key={value} value={value}>{label}</option>)}</select></div>
   return <div className="admin-operation-view">
-    <header className="admin-heading"><h1>운영 기록</h1><p>게시글과 댓글의 숨김·복원 처리 내역을 확인하세요.</p></header>
-    <section className="admin-panel admin-workspace" aria-label="운영 기록 조회">
+    <header className="admin-heading"><h1 tabIndex={-1} data-admin-list-heading>운영 기록</h1><p>게시글과 댓글의 숨김·복원 처리 내역을 확인하세요.</p></header>
+    {!selectedId&&recoveryFeedback}<section className="admin-panel admin-workspace" aria-label="운영 기록 조회">
       <div className="admin-compact-toolbar"><form className="admin-filters admin-log-filters" noValidate onSubmit={event => {
         event.preventDefault()
         const next={...query,targetType:input.targetType,action:input.action,reasonType:input.reasonType,page:0}
@@ -118,10 +125,10 @@ function OperationLogResults({initialQuery,initialSelected}:{initialQuery:LogQue
             <table className="admin-log-table" role="table">
               <caption className="sr-only">운영 기록 목록 (처리 시각 {LOG_SORTS[displayQuery.sort]})</caption>
               <thead role="rowgroup"><tr role="row">{["처리 시각", "처리 관리자", "대상", "조치", "처리 사유"].map(label => <th role="columnheader" scope="col" key={label}>{label}</th>)}</tr></thead>
-              <tbody role="rowgroup">{shown.items.map(log => <tr role="row" id={`log-select-${log.logId}`} tabIndex={stale?-1:0} aria-label={`기록 #${log.logId} 상세`} aria-selected={selectedId===log.logId} onKeyDown={event=>{if(!stale&&isAdminRowKeyboardSelection(event))setSelection({query,id:log.logId,focus:true})}} key={log.logId} data-log-id={log.logId} data-selected={selectedId===log.logId} data-selectable={!stale} onClick={event=>{if(!stale&&isAdminRowSelection(event))setSelection({query,id:log.logId,focus:true})}}>
+              <tbody role="rowgroup">{shown.items.map(log => <tr role="row" id={`log-select-${log.logId}`} tabIndex={stale?-1:0} aria-label={`기록 #${log.logId} 상세`} aria-selected={selectedId===log.logId} onKeyDown={event=>{if(!stale&&isAdminRowKeyboardSelection(event))select(log)}} key={log.logId} data-log-id={log.logId} data-selected={selectedId===log.logId} data-selectable={!stale} onClick={event=>{if(!stale&&isAdminRowSelection(event))select(log)}}>
                 <td role="cell" data-label="처리 시각"><time dateTime={log.createdAt}>{writtenTime(log.createdAt).exact.replace(" (한국 시간)", "")}</time></td>
                 <td role="cell" data-label="처리 관리자">회원 #{log.actorMemberId}</td>
-                <td role="cell" data-label="대상">{log.targetType === "POST" ? <Link href={`/admin/posts/${log.targetId}?from=${encodeURIComponent(adminLogHref(query,log.logId))}`} onNavigate={event=>{event.preventDefault();if(!stale&&!window.getSelection()?.toString())setSelection({query,id:log.logId,focus:true})}}>게시글 #{log.targetId}</Link> : `댓글 #${log.targetId}`}</td>
+                <td role="cell" data-label="대상">{log.targetType === "POST" ? <Link href={`/admin/posts/${log.targetId}?from=${encodeURIComponent(adminLogHref(query,log.logId))}`} onNavigate={event=>{event.preventDefault();if(!stale&&!window.getSelection()?.toString())select(log)}}>게시글 #{log.targetId}</Link> : `댓글 #${log.targetId}`}</td>
                 <td role="cell" data-label="조치"><span className={`admin-badge ${log.action === "HIDE" ? "is-hidden" : "is-visible"}`}>{LOG_ACTIONS[log.action]}</span></td>
                 <td role="cell" data-label="처리 사유" className="admin-log-reason"><div><strong>{MODERATION_REASONS[log.reasonType]}</strong><div className="admin-log-inline-reason">
                   {!(log.reasonType !== "LEGACY" && log.reasonDetail === null && log.reason === MODERATION_REASONS[log.reasonType]) && <p>{log.reason}</p>}{log.reasonDetail !== null && log.reasonDetail !== log.reason && <p>상세: {log.reasonDetail}</p>}
@@ -133,7 +140,9 @@ function OperationLogResults({initialQuery,initialSelected}:{initialQuery:LogQue
       {shown && !active?.forbidden && <AdminPagination label="운영 기록 페이지" data={shown} busy={busy} failed={!!active?.error}
         onPage={page => { if (!busy && !active?.error) change({ ...query, page }) }} />}
       </div>
-      {selectedLog?<AdminSelectionPanel key={selectedLog.logId} id={selectedLog.logId} title="운영 기록 상세" focusOnOpen={selection?.focus??false} onClose={()=>{setSelection(null);document.getElementById(`log-select-${selectedLog.logId}`)?.focus({preventScroll:true})}}><AdminLogPreview log={selectedLog} returnHref={adminLogHref(query,selectedLog.logId)}/></AdminSelectionPanel>:<aside className="admin-preview admin-preview-empty"><h2>운영 기록 상세</h2><p>기록을 선택하면 처리 내용을 확인할 수 있습니다.</p></aside>}
+      {selectedId&&!selectedLog&&!busy&&<p role="status">현재 조회 결과에서 선택한 운영 기록을 찾을 수 없습니다. <button onClick={()=>syncAdminListUrl(adminLogHref(query))}>선택 해제</button></p>}
+      {selectedLog&&<AdminContentDialog key={selectedLog.logId} id={selectedLog.logId} log={selectedLog} listHref={adminLogHref(query)}/>}
+
       </div>
     </section>
   </div>

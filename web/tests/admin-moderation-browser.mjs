@@ -225,14 +225,14 @@ await run('pre-mutation delayed GET ignoring abort cannot overwrite refreshed pa
  assert.equal(await p.locator('.admin-parent-status').textContent(),'게시글이 숨겨져 있어 댓글도 일반 사용자에게 표시되지 않습니다.');await context.close()
 })
 for(const stage of ['csrf','write'])await run(`approved navigation during ${stage} ignores late work`,async()=>{
- const {context,p,state}=await moderation();await p.goto(base+'/admin/posts',{waitUntil:'domcontentloaded'});await ready(p);await p.getByRole('link',{name:'검증 게시글 1',exact:true}).click();await p.getByRole('link',{name:'상세 관리로 이동',exact:true}).click();await settled(p)
- const g=gate()
- if(stage==='csrf')await context.route('**/api/v1/auth/csrf',async r=>{g.arrive();await g.response;await r.fulfill({json:{headerName:'X-CSRF-TOKEN',token:'mock-only'}})})
- else state.write=async r=>{g.arrive();await g.response;await r.fulfill({json:{postId:1,hidden:true,hiddenAt:stamp,changed:true}})}
+ const {context,p,state}=await moderation();await p.goto(base+'/admin/posts',{waitUntil:'domcontentloaded'});await ready(p);await p.goto(base+(await p.getByRole('link',{name:'검증 게시글 1',exact:true}).getAttribute('href')));await settled(p)
+ const g=gate(),delivered=gate()
+ if(stage==='csrf')await context.route('**/api/v1/auth/csrf',async r=>{g.arrive();await g.response;await r.fulfill({json:{headerName:'X-CSRF-TOKEN',token:'mock-only'}});delivered.arrive()})
+ else state.write=async r=>{g.arrive();await g.response;await r.fulfill({json:{postId:1,hidden:true,hiddenAt:stamp,changed:true}});delivered.arrive()}
  await execute(p,'게시글 숨김 처리');await g.arrived
  // Actual browser back is allowed even while the modal blocks UI controls.
  await p.goBack();await p.waitForURL(u=>u.pathname!='/admin/posts/1')
- const done=p.waitForEvent('requestfinished',{predicate:r=>stage==='csrf'?r.url().endsWith('/csrf'):r.url().endsWith('/hide')});g.release();await done;await flush(p)
+ g.release();await delivered.arrived;await flush(p)
  assert.equal(writes(state).length,stage==='csrf'?0:1);assert.equal(await p.locator('.comment-success-toast').count(),0)
  await context.close()
 })
@@ -246,8 +246,8 @@ for(const width of [1440,390,320])await run(`modal keyboard and layout ${width}`
  assert(await p.evaluate(()=>document.documentElement.scrollWidth<=innerWidth));await context.close()
 })
 for(const next of ['anonymous','same','other'])await run(`late mutation after auth transition ${next}`,async()=>{
- const {context,p,state}=await moderation();await p.goto(base+'/admin/posts',{waitUntil:'domcontentloaded'});await ready(p);await p.getByRole('link',{name:'검증 게시글 1',exact:true}).click();await p.getByRole('link',{name:'상세 관리로 이동',exact:true}).click();await settled(p)
- const g=gate();state.write=async r=>{g.arrive();await g.response;await r.fulfill({json:{postId:1,hidden:true,hiddenAt:stamp,changed:true}})}
+ const {context,p,state}=await moderation();await p.goto(base+'/admin/posts',{waitUntil:'domcontentloaded'});await ready(p);await p.goto(base+(await p.getByRole('link',{name:'검증 게시글 1',exact:true}).getAttribute('href')));await settled(p)
+ const g=gate(),delivered=gate();state.write=async r=>{g.arrive();await g.response;await r.fulfill({json:{postId:1,hidden:true,hiddenAt:stamp,changed:true}});delivered.arrive()}
  await execute(p,'게시글 숨김 처리');await g.arrived
  await p.goBack();await ready(p);await button(p,'로그아웃').click();await p.getByRole('heading',{name:'로그인이 필요합니다',exact:true}).waitFor()
  if(next!=='anonymous'){
@@ -256,7 +256,7 @@ for(const next of ['anonymous','same','other'])await run(`late mutation after au
   await p.locator('input[name=email]').fill('mock@example.test');await p.locator('input[name=password]').fill('Synthetic-password1!');await button(p,'로그인').click()
   if(next==='same')await ready(p);else await p.getByRole('heading',{name:'관리자 권한이 없습니다',exact:true}).waitFor()
  }
- const done=p.waitForEvent('requestfinished',{predicate:r=>r.url().endsWith('/1/hide')});g.release();await done;await flush(p)
+ g.release();await delivered.arrived;await flush(p)
  assert.equal(await p.locator('.comment-success-toast').count(),0);assert.equal(await dialog(p).count(),0);assert.equal(writes(state).length,1)
  await context.close()
 })
@@ -271,7 +271,7 @@ await run('CSRF preparation failure sends no mutation; network failure offers GE
 await run('success screenshot and long reason validation',async()=>{
  const {context,p,state}=await moderation();await p.goto(base+'/admin/posts/1',{waitUntil:'domcontentloaded'});await settled(p)
  await button(p,'게시글 숨김 처리').click();await p.getByLabel('처리 사유 (필수)').selectOption('OTHER');await p.getByLabel('상세 사유 (필수)').fill('😀'.repeat(501));await button(p,'숨김 처리 실행').click()
- await dialog(p).getByText('처리 사유는 500자 이하여야 합니다.',{exact:true}).waitFor();assert.equal(writes(state).length,0)
+ await dialog(p).getByText('상세 사유는 앞뒤 공백을 제외하고 500자 이하여야 합니다.',{exact:true}).waitFor();assert.equal(writes(state).length,0)
  await p.getByLabel('처리 사유 (필수)').selectOption('OTHER');await p.getByLabel('상세 사유 (필수)').fill('검토용 사유');await button(p,'숨김 처리 실행').click();await settled(p)
  await p.locator('.comment-success-toast').waitFor();await p.screenshot({path:`${out}/success-1440.png`,fullPage:true});await context.close()
 })
@@ -330,7 +330,7 @@ for(const width of [1440,320])await run(`reason-specific INVALID_REASON and reta
  await p.screenshot({path:`${out}/ordinary-error-${width}.png`})
  await select.selectOption('OTHER');assert.equal(await detailInput.inputValue(),'보존할 상세');await button(p,'숨김 처리 실행').click()
  await dialog(p).getByText('상세 사유를 확인해 주세요. 앞뒤 공백을 제외하고 1~500자로 입력해 주세요.',{exact:true}).waitFor()
- assert.equal(await select.getAttribute('aria-invalid'),'false');assert.equal(await detailInput.getAttribute('aria-invalid'),'true');assert.equal(await detailInput.getAttribute('aria-describedby'),await dialog(p).getByRole('alert').getAttribute('id'));assert.equal(await detailInput.inputValue(),'보존할 상세')
+ assert.equal(await select.getAttribute('aria-invalid'),'false');assert.equal(await detailInput.getAttribute('aria-invalid'),'true');assert.deepEqual((await detailInput.getAttribute('aria-describedby')).split(' '),[await dialog(p).getByRole('alert').getAttribute('id'),await dialog(p).locator('[id$="-hint"]').getAttribute('id')]);assert.equal(await detailInput.inputValue(),'보존할 상세')
  assert.deepEqual(requests[1].body,{reasonType:'OTHER',reasonDetail:'보존할 상세'});assert(await p.evaluate(()=>document.documentElement.scrollWidth<=innerWidth))
  await p.screenshot({path:`${out}/other-error-${width}.png`});await context.close()
 })

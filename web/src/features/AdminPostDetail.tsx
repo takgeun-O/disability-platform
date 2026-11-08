@@ -8,7 +8,7 @@ import { getAdminPost, type AdminPostDetail as Detail } from "@/lib/admin-detail
 import { POST_TYPES, POST_TOPICS } from "@/lib/community-posts"
 import AdminComments from "@/components/admin/AdminComments"
 import AdminContentMeta, { AdminAuthor, AdminStatusBadge } from "@/components/admin/AdminContentMeta"
-import AdminModeration, { useAdminModeration } from "@/components/admin/AdminModeration"
+import AdminModeration, { AdminActionLabel, useAdminModeration } from "@/components/admin/AdminModeration"
 export default function AdminPostDetail(props: {postId:number;returnHref:string}) {
   return <AdminModeration><DetailContent {...props}/></AdminModeration>
 }
@@ -46,7 +46,7 @@ function DetailContent({postId,returnHref}: {postId:number;returnHref:string}) {
         <h2>{data.title}</h2><AdminAuthor author={data.author}/>
         <div className="admin-full-content">{data.content}</div>
         <footer className="admin-post-footer"><div><AdminContentMeta item={data}/><p className="admin-timezone">한국 시간 (KST)</p></div><div className="admin-item-action">
-        {data.status === "DELETED" ? <p>삭제된 게시글은 숨김 또는 숨김 해제할 수 없습니다.</p> : <button className="admin-moderation-primary" disabled={busy || locked || !!active?.error} onClick={()=>open({postId,label:data.title,action:data.status === "HIDDEN" ? "restore" : "hide"})}>게시글 {data.status === "HIDDEN" ? "숨김 해제" : "숨김 처리"}</button>}
+        {data.status === "DELETED" ? <p>삭제된 게시글은 숨김 또는 숨김 해제할 수 없습니다.</p> : <button className="admin-moderation-primary" disabled={busy || locked || !!active?.error} onClick={()=>open({postId,content:data,label:data.title,action:data.status === "HIDDEN" ? "restore" : "hide"})}><AdminActionLabel postId={postId}>게시글 {data.status === "HIDDEN" ? "숨김 해제" : "숨김 처리"}</AdminActionLabel></button>}
         </div></footer>
       </article>
       <AdminComments key={postId} postId={postId} parentStatus={active?.data?.status} onForbidden={onForbidden} parentUnavailable={busy || !!active?.error}/>

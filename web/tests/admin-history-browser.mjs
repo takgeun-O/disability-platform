@@ -51,10 +51,8 @@ for(const kind of ['posts','logs'])for(const width of [1440,320])await run(`${ki
   if(kind==='posts')await label(p,'게시글 제목 검색').fill('미제출');else await label(p,'대상').selectOption('COMMENT')
   assert.equal(p.url(),expected.url)
   await btn(p,'기간 설정 닫기').click()
-  const detail=()=>p.getByRole('link',{name:'상세 관리로 이동',exact:true})
   await p.locator('tbody').getByRole('link').first().click();await p.locator('.admin-preview-post[aria-busy="false"]').waitFor()
-  expected.url=p.url()
-  await detail().click();await p.waitForURL(url=>/^\/admin\/posts\/\d+$/.test(url.pathname));await p.getByRole('heading',{name:'게시글 상세',exact:true}).waitFor()
+  const modalUrl=p.url()
   async function restored(stage,count){
    await ready(p);const got=await snapshot(stage)
    assert.equal(got.url,expected.url);assert.equal(got.start,expected.start);assert.equal(got.end,expected.end);assert.equal(got.sort,'OLDEST');assert.equal(got.page,'2');assert.equal(got.rows,expected.rows)
@@ -64,10 +62,19 @@ for(const kind of ['posts','logs'])for(const width of [1440,320])await run(`${ki
   }
   let n=reads().length;await p.goBack();await restored('back',n)
   await p.screenshot({path:`${out}/${kind}-${width}-back.png`,fullPage:true})
-  await p.goForward();await p.waitForURL(url=>/^\/admin\/posts\/\d+$/.test(url.pathname));await p.getByRole('heading',{name:'게시글 상세',exact:true}).waitFor();n=reads().length;await p.goBack();await restored('forward-back',n)
+  await p.goForward();await p.locator('.admin-preview-post[aria-busy="false"]').waitFor();assert.equal(p.url(),modalUrl);n=reads().length;await p.goBack();await restored('forward-back',n)
   n=reads().length;await p.reload();await restored('reload',n)
   n=reads().length;await p.goto(expected.url);await restored('direct',n)
-  {await detail().click();await p.waitForURL(url=>/^\/admin\/posts\/\d+$/.test(url.pathname));await p.getByRole('heading',{name:'게시글 상세',exact:true}).waitFor();const back=p.getByRole('link',{name:kind==='posts'?'← 목록으로':'← 운영 기록으로',exact:true});assert.equal(await back.getAttribute('href'),expected.url.replace(base,''));assert.equal(await p.locator('.admin-breadcrumb').getByRole('link').innerText(),kind==='posts'?'게시글 관리':'운영 기록');snapshots.push({stage:'detail-return',url:p.url(),returnHref:await back.getAttribute('href')});await p.screenshot({path:`${out}/${kind}-${width}-detail-return.png`,fullPage:true});n=reads().length;await back.click();await restored('return-link',n);await p.screenshot({path:`${out}/${kind}-${width}-return-link.png`,fullPage:true})}
+  // A genuine middle-click retains the canonical full-detail page and safe return URL.
+  const opened=context.waitForEvent('page');await p.locator('tbody a').first().click({button:'middle'});const tab=await opened
+  await tab.getByRole('heading',{name:'게시글 상세',exact:true}).waitFor()
+  const back=tab.getByRole('link',{name:kind==='posts'?'← 목록으로':'← 운영 기록으로',exact:true})
+  assert.equal(await back.getAttribute('href'),modalUrl.replace(base,''));assert.equal(await tab.locator('.admin-breadcrumb').getByRole('link').innerText(),kind==='posts'?'게시글 관리':'운영 기록')
+  snapshots.push({stage:'detail-return',url:tab.url(),returnHref:await back.getAttribute('href')})
+  await back.click();await ready(tab);await tab.getByRole('dialog').waitFor();assert.equal(tab.url(),modalUrl)
+  await btn(tab,'닫기').click();assert.equal(tab.url(),expected.url)
+  assert.equal(await label(tab,`${prefix} 시작일`).inputValue(),expected.start);assert.equal(await label(tab,`${prefix} 종료일`).inputValue(),expected.end);assert.equal(await label(tab,`${prefix} 시각 정렬`).inputValue(),'OLDEST');assert.equal(await label(tab,'페이지 바로 이동').inputValue(),'2');assert.equal(await tab.locator('tbody').innerText(),expected.rows);assert.equal(reads().at(-1).search,request)
+  await tab.screenshot({path:`${out}/${kind}-${width}-return-link.png`,fullPage:true});await tab.close()
   await openDates(p);await label(p,`${prefix} 시작일`).fill('2026-11-09');await openDates(p);await btn(p,'기간 적용').click();await p.locator('.admin-date-range [role=alert]').waitFor();assert.equal(reads().at(-1).search,request)
   await p.screenshot({path:`${out}/${kind}-${width}-error.png`,fullPage:true})
   await btn(p,`${prefix} 시작일 달력 열기`).click();await p.getByRole('dialog').waitFor();await p.screenshot({path:`${out}/${kind}-${width}-calendar.png`});await p.keyboard.press('Escape')

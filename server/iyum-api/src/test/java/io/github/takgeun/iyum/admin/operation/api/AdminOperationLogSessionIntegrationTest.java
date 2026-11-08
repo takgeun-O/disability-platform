@@ -1123,6 +1123,117 @@ class AdminOperationLogSessionIntegrationTest {
                 .andExpect(jsonPath("$.changed").value(true));
     }
 
+    @Autowired
+    org.springframework.transaction.support.TransactionTemplate transactions;
+
+    @Autowired
+    jakarta.persistence.EntityManager entityManager;
+
+    @Test
+    void 실제_세션의_현재_요약은_변경되지만_과거_기록은_유지된다() throws Exception {
+        Member requester = saveMember("reader-" + UUID.randomUUID() + "@example.com",
+                "별도조회관리자", passwordEncoder.encode(PASSWORD));
+        jdbcTemplate.update("UPDATE members SET role = 'ADMIN' WHERE id = ?", requester.getId());
+        assertThat(requester.getId()).isNotEqualTo(admin.getId()).isNotEqualTo(author.getId());
+        assertThat(admin.getId()).isNotEqualTo(author.getId());
+        Instant at = Instant.parse("2026-11-04T03:00:00Z");
+        Long postLogId = logRepository.saveAndFlush(ContentModerationLog.forPost(
+                admin.getId(), postId, ModerationAction.HIDE,
+                ModerationReasonType.SPAM_ADVERTISING, "기록된 게시글 사유", at)).getId();
+        Long commentLogId = logRepository.saveAndFlush(ContentModerationLog.forComment(
+                admin.getId(), commentId, ModerationAction.RESTORE,
+                ModerationReasonType.NO_VIOLATION, "기록된 댓글 사유", at.plusSeconds(1))).getId();
+        MockHttpSession session = login(requester.getEmail());
+        JsonNode before = readCurrentTargets(session);
+        assertThat(before.path("totalElements").asLong()).isEqualTo(2);
+        assertThat(before.path("items").get(0).path("logId").asLong()).isEqualTo(commentLogId);
+        assertThat(before.path("items").get(1).path("logId").asLong()).isEqualTo(postLogId);
+        assertThat(before.path("items").get(0).path("currentTarget").path("contentPreview").asString())
+                .isEqualTo("댓글 본문");
+        assertThat(before.path("items").get(1).path("currentTarget").path("title").asString())
+                .isEqualTo("운영 기록 통합 테스트");
+
+        assertThat(before.path("items").get(0).path("targetType").asString()).isEqualTo("COMMENT");
+        assertThat(before.path("items").get(0).path("targetId").asLong()).isEqualTo(commentId);
+        assertThat(before.path("items").get(1).path("targetType").asString()).isEqualTo("POST");
+        assertThat(before.path("items").get(1).path("targetId").asLong()).isEqualTo(postId);
+        for (JsonNode item : before.path("items")) {
+            assertThat(item.path("currentTarget").path("author").path("memberId").asLong()).isEqualTo(author.getId());
+            assertThat(item.path("currentTarget").path("author").path("nickname").asString()).isEqualTo(author.getNickname());
+            assertThat(item.path("currentTarget").path("author").path("withdrawn").asBoolean()).isFalse();
+        }
+
+        // Commit changes in a separate persistence context before the next HTTP request.
+        transactions.executeWithoutResult(status -> {
+            Post targetPost = entityManager.find(Post.class, postId);
+            Comment targetComment = entityManager.find(Comment.class, commentId);
+            targetPost.update(PostType.GENERAL, PostTopic.DAILY, "변경된 현재 제목", "현재 게시글\n본문 😀");
+            targetComment.update("현재 댓글\n본문 😀", at.plusSeconds(10));
+            targetPost.hide(at);
+            targetComment.hide(at);
+            targetComment.delete(at.plusSeconds(20));
+            entityManager.find(Member.class, author.getId()).withdraw(at.plusSeconds(30));
+            entityManager.flush();
+            entityManager.clear();
+        });
+        JsonNode after = readCurrentTargets(session);
+        assertThat(after.path("totalElements")).isEqualTo(before.path("totalElements"));
+        for (int i = 0; i < 2; i++) {
+            JsonNode oldItem = before.path("items").get(i);
+            JsonNode item = after.path("items").get(i);
+            for (String field : List.of("logId", "actorMemberId", "targetType", "targetId", "action",
+                    "reasonType", "reasonDetail", "reason", "createdAt")) {
+                assertThat(item.has(field)).as(field).isTrue();
+                assertThat(item.path(field)).as(field).isEqualTo(oldItem.path(field));
+            }
+            assertThat(item.path("actorMemberId").asLong()).isEqualTo(admin.getId());
+            JsonNode targetAuthor = item.path("currentTarget").path("author");
+            assertThat(targetAuthor.path("memberId").asLong()).isEqualTo(author.getId());
+            assertThat(targetAuthor.path("nickname").asString()).isEqualTo("탈퇴한 회원");
+            assertThat(targetAuthor.path("withdrawn").asBoolean()).isTrue();
+            assertThat(targetAuthor.has("email")).isFalse();
+            assertThat(targetAuthor.has("passwordHash")).isFalse();
+        }
+        assertThat(after.path("items").get(0).path("currentTarget").path("contentPreview").asString())
+                .isEqualTo("현재 댓글 본문 😀");
+        assertThat(after.path("items").get(1).path("currentTarget").path("contentPreview").asString())
+                .isEqualTo("현재 게시글 본문 😀");
+        assertThat(after.path("items").get(1).path("currentTarget").path("title").asString())
+                .isEqualTo("변경된 현재 제목");
+    }
+
+    @Test
+    void 소프트삭제_게시글과_숨김_댓글의_요약도_실제_세션에서_조회된다() throws Exception {
+        Instant at = Instant.parse("2026-11-04T03:00:00Z");
+        savePostLog(ModerationAction.HIDE, at);
+        logRepository.saveAndFlush(ContentModerationLog.forComment(
+                admin.getId(), commentId, ModerationAction.HIDE, "댓글 기록", at.plusSeconds(1)));
+        transactions.executeWithoutResult(status -> {
+            Post target = entityManager.find(Post.class, postId);
+            target.hide(at);
+            target.delete(at.plusSeconds(1));
+            entityManager.find(Comment.class, commentId).hide(at);
+            entityManager.flush();
+            entityManager.clear();
+        });
+        JsonNode result = readCurrentTargets(login(admin.getEmail()));
+        assertThat(result.path("totalElements").asLong()).isEqualTo(2);
+        assertThat(result.path("items").get(0).path("currentTarget").path("contentPreview").asString())
+                .isEqualTo("댓글 본문");
+        assertThat(result.path("items").get(1).path("currentTarget").path("title").asString())
+                .isEqualTo("운영 기록 통합 테스트");
+    }
+
+    private JsonNode readCurrentTargets(MockHttpSession session) throws Exception {
+        // GET intentionally has no CSRF header; the login helper uses a real issued token.
+        return readJson(expectOk(mockMvc.perform(get(PATH).session(session).param("sort", "LATEST")))
+                .andExpect(jsonPath("$.items[0].currentTarget.title").hasJsonPath())
+                .andExpect(jsonPath("$.items[0].currentTarget.title").value(org.hamcrest.Matchers.nullValue()))
+                .andExpect(jsonPath("$.items[*].currentTarget.author.email").doesNotExist())
+                .andExpect(jsonPath("$.items[*].currentTarget.author.passwordHash").doesNotExist())
+                .andReturn());
+    }
+
     private Long savePostLog(ModerationAction action, Instant at) {
         return logRepository.saveAndFlush(
                 ContentModerationLog.forPost(

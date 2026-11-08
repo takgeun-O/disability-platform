@@ -1,4 +1,5 @@
 "use client"
+import type { ModerationTarget } from "@/lib/admin-moderation"
 import { isAdminRowSelection, isAdminRowKeyboardSelection } from "@/lib/admin-row-selection"
 import { useEffect, useRef, useState } from "react"
 import { useAuth } from "@/components/AuthProvider"
@@ -8,13 +9,12 @@ import { adminListHref, adminListQuery, adminSelectionId } from "@/lib/admin-nav
 import { useAdminContentFilters } from "@/lib/useAdminContentFilters"
 import { useAdminUrlQuery } from "@/lib/useAdminUrlQuery"
 import AdminModeration, { useAdminModeration } from "@/components/admin/AdminModeration"
-import AdminSelectionPanel from "@/components/admin/AdminSelectionPanel"
-import AdminPostPreview from "@/components/admin/AdminPostPreview"
+import AdminContentDialog, { openAdminDialog, syncAdminListUrl, useAdminDialogReturn } from "@/components/admin/AdminContentDialog"
 import AdminDateRange from "@/components/admin/AdminDateRange"
 import { ADMIN_SORTS } from "@/lib/admin-dates"
 import AdminStatusFilter from "@/components/admin/AdminStatusFilter"
 import AdminPagination from "@/components/admin/AdminPagination"
-import WrittenTime from "@/components/WrittenTime"
+import { writtenTime } from "@/lib/written-time"
 import { POST_TYPES, POST_TOPICS } from "@/lib/community-posts"
 import {
   ADMIN_STATUSES,
@@ -26,11 +26,12 @@ import {
 } from "@/lib/admin-posts"
 export default function AdminPosts() {
   const {values,navigation}=useAdminUrlQuery()
-  return <AdminModeration key={navigation}><AdminPostResults initialQuery={adminListQuery(values)} initialSelected={adminSelectionId(values.selected)} /></AdminModeration>
+  useAdminDialogReturn(navigation)
+  const [recovery,setRecovery]=useState<ModerationTarget|null>(null)
+  return <AdminModeration inline recovery={recovery} onRecovery={setRecovery} key={navigation}><AdminPostResults initialQuery={adminListQuery(values)} initialSelected={adminSelectionId(values.selected)} /></AdminModeration>
 }
 function AdminPostResults({ initialSelected = null, initialQuery = {statuses: ADMIN_CONTENT_STATUSES, keyword: "", page: 0,startDate:"",endDate:"",sort:"LATEST"} }: {initialQuery?: AdminQuery;initialSelected?:number|null}) {
-  const {revision,readCurrent,locked,deny}=useAdminModeration()
-  const [selection,setSelection]=useState<{query:AdminQuery;id:number;focus:boolean}|null>(initialSelected?{query:initialQuery,id:initialSelected,focus:false}:null)
+  const {revision,readCurrent,readLocked:locked,deny,recoveryFeedback}=useAdminModeration()
   const [dateReset,setDateReset]=useState(0)
   const adjusted = useRef(false)
   const auth = useAuth(),
@@ -47,8 +48,9 @@ function AdminPostResults({ initialSelected = null, initialQuery = {statuses: AD
     error?: string
     forbidden?: boolean
   } | null>(null)
-  const selectedId=selection?.query===query&&!empty&&!pending&&!(result?.query===query&&result.attempt===retry&&result.revision===revision&&result.data&&!result.data.items.some(p=>p.postId===selection.id))?selection.id:null
-  useEffect(() => { if (scope.isActive()) window.history.replaceState(null, "", adminListHref(query,selectedId)) }, [query, empty, scope,selectedId])
+  const selectedId=initialSelected
+  const select=(id:number)=>{openAdminDialog(adminListHref(query,id))}
+  useEffect(() => { if (scope.isActive()) syncAdminListUrl(adminListHref(query,selectedId)) }, [query, empty, scope,selectedId])
   const memberId = auth.member!.memberId,
     capture = auth.captureMemberRequest
   useEffect(() => {
@@ -103,9 +105,10 @@ function AdminPostResults({ initialSelected = null, initialQuery = {statuses: AD
     <>
       <header className="admin-heading">
 
-        <h1>게시글 관리</h1>
+        <h1 tabIndex={-1} data-admin-list-heading>게시글 관리</h1>
         <p>게시글의 제목과 공개 상태를 확인합니다.</p>
       </header>
+      {!selectedId&&recoveryFeedback}
       <section className="admin-panel admin-workspace admin-posts-panel" aria-label="게시글 목록 관리">
         <div className="admin-compact-toolbar"><form className="admin-filters admin-post-filters" onSubmit={event => {event.preventDefault(); adjusted.current = false; search(!!active?.error)}}>
           <div className="admin-filter-search-row">
@@ -171,9 +174,9 @@ function AdminPostResults({ initialSelected = null, initialQuery = {statuses: AD
                       </thead>
                       <tbody>
                         {data.items.map((post) => (
-                          <tr id={`post-select-${post.postId}`} tabIndex={stale||locked?-1:0} aria-label={`게시글 #${post.postId} 미리보기`} aria-selected={selectedId===post.postId} onKeyDown={event=>{if(!stale&&!locked&&isAdminRowKeyboardSelection(event))setSelection({query,id:post.postId,focus:true})}} key={post.postId} data-selected={selectedId===post.postId} data-selectable={!stale&&!locked} onClick={event=>{if(!stale&&!locked&&isAdminRowSelection(event))setSelection({query,id:post.postId,focus:true})}}>
+                          <tr id={`post-select-${post.postId}`} tabIndex={stale||locked?-1:0} aria-label={`게시글 #${post.postId} 미리보기`} aria-selected={selectedId===post.postId} onKeyDown={event=>{if(!stale&&!locked&&isAdminRowKeyboardSelection(event))select(post.postId)}} key={post.postId} data-selected={selectedId===post.postId} data-selectable={!stale&&!locked} onClick={event=>{if(!stale&&!locked&&isAdminRowSelection(event))select(post.postId)}}>
                             <td>{post.postId}</td>
-                            <td className="admin-post-title"><Link href={`/admin/posts/${post.postId}?from=${encodeURIComponent(adminListHref(displayQuery,post.postId))}`} onNavigate={event=>{event.preventDefault();if(!stale&&!locked&&!window.getSelection()?.toString())setSelection({query,id:post.postId,focus:true})}}>{post.title}</Link><span className="admin-post-secondary">{post.author.nickname} · {POST_TYPES[post.type]} · {POST_TOPICS[post.topic]}</span></td>
+                            <td className="admin-post-title"><Link href={`/admin/posts/${post.postId}?from=${encodeURIComponent(adminListHref(displayQuery,post.postId))}`} onNavigate={event=>{event.preventDefault();if(!stale&&!locked&&!window.getSelection()?.toString())select(post.postId)}}>{post.title}</Link><span className="admin-post-secondary">{post.author.nickname} · {POST_TYPES[post.type]} · {POST_TOPICS[post.topic]}</span></td>
                             <td>{post.author.nickname}</td>
                             <td>
                               {POST_TYPES[post.type]}
@@ -188,7 +191,7 @@ function AdminPostResults({ initialSelected = null, initialQuery = {statuses: AD
                               </span>
                             </td>
                             <td>
-                              <WrittenTime value={post.createdAt} anchored />
+                              <time dateTime={post.createdAt}>{writtenTime(post.createdAt).exact.replace(" (한국 시간)", "")}</time>
                             </td>
                           </tr>
                         ))}
@@ -203,7 +206,8 @@ function AdminPostResults({ initialSelected = null, initialQuery = {statuses: AD
         {data && data.totalPages > 1 && !active?.forbidden && <AdminPagination data={data} busy={busy} failed={!!active?.error}
           onPage={page => { if (!busy && !active?.error) change({ ...query, page }) }} />}
         </div>
-        {selectedId&&data?.items.some(p=>p.postId===selectedId)?<AdminSelectionPanel key={selectedId} id={selectedId} title="게시글 상세 미리보기" focusOnOpen={selection?.focus??false} onClose={()=>{if(locked)return;setSelection(null);document.getElementById(`post-select-${selectedId}`)?.focus({preventScroll:true})}}><AdminPostPreview key={selectedId} postId={selectedId} returnHref={adminListHref(query,selectedId)} blocked={stale}/></AdminSelectionPanel>:<aside className="admin-preview admin-preview-empty"><h2>게시글 미리보기</h2><p>게시글을 선택하면 상세 내용을 확인할 수 있습니다.</p></aside>}
+        {selectedId&&<AdminContentDialog key={selectedId} id={selectedId} listHref={adminListHref(query)}/>}
+
         </div>
       </section>
     </>

@@ -4,9 +4,9 @@ import { useLayoutEffect, useRef, type ReactNode } from "react";
 import { useNavigationGuard } from "./NavigationGuard";
 
 /** Native modal/inert behaviour; one form, one focus scope, one scroll lock. */
-export default function OverlayDialog({ children, titleId, descriptionId, className, onClose, initialFocus, returnFocus, mobileOnly = false, closeOnBackdropClick = true }: {
+export default function OverlayDialog({ children, titleId, descriptionId, className, onClose, initialFocus, returnFocus, mobileOnly = false, closeOnBackdropClick = true, closeOnNavigation = true, fallbackFocus }: {
   children: ReactNode; titleId: string; descriptionId?: string; className: string; onClose: () => void;
-  initialFocus?: string; returnFocus?: string; mobileOnly?: boolean; closeOnBackdropClick?: boolean;
+  initialFocus?: string; returnFocus?: string; mobileOnly?: boolean; closeOnBackdropClick?: boolean; closeOnNavigation?: boolean; fallbackFocus?: string;
 }) {
   const dialogRef = useRef<HTMLDialogElement>(null);
   const closeRef = useRef(onClose);
@@ -33,7 +33,7 @@ export default function OverlayDialog({ children, titleId, descriptionId, classN
       root.style.overflow = overflow;
       // Release synchronously BEFORE an approved route/history action runs.
       window.scrollTo({ left: scroll.x, top: scroll.y, behavior: "instant" });
-      if (restoreFocus && previous?.isConnected && previous.getClientRects().length) previous.focus({ preventScroll: true });
+      if (restoreFocus) { const destination = previous?.isConnected && previous.getClientRects().length ? previous : fallbackFocus ? document.querySelector<HTMLElement>(fallbackFocus) : null; destination?.focus({ preventScroll: true }); }
     }
     function viewport() {
       const view = window.visualViewport;
@@ -43,7 +43,7 @@ export default function OverlayDialog({ children, titleId, descriptionId, classN
     viewport();
     dialog.showModal();
     dialog.querySelector<HTMLElement>(initialFocus ?? "[data-initial-focus]")?.focus({ preventScroll: true });
-    const unsubscribe = subscribeNavigation(() => { release(false); closeRef.current(); });
+    const unsubscribe = subscribeNavigation(() => { release(false); if (closeOnNavigation) closeRef.current(); });
     const media = window.matchMedia("(min-width: 901px)");
     const resize = () => { if (mobileOnly && media.matches) { release(false); closeRef.current(); } };
     media.addEventListener("change", resize);
@@ -55,7 +55,7 @@ export default function OverlayDialog({ children, titleId, descriptionId, classN
       window.visualViewport?.removeEventListener("scroll", viewport);
       release(true);
     };
-  }, [subscribeNavigation, initialFocus, returnFocus, mobileOnly]);
+  }, [subscribeNavigation, initialFocus, returnFocus, mobileOnly, closeOnNavigation, fallbackFocus]);
   return <dialog ref={dialogRef} className={`iyum-overlay ${className}`} aria-labelledby={titleId} aria-describedby={descriptionId}
     onCancel={event => { event.preventDefault(); onClose(); }}
     onClick={event => {

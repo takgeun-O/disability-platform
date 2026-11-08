@@ -80,7 +80,7 @@ await run('log identity, LEGACY, target failure, retry and comment has no fabric
   await selectRow(p,'기록 #201 상세').locator('.admin-badge').click();await p.locator('.admin-preview [role=alert]').waitFor();assert((await p.locator('.admin-log-fields').innerText()).includes('저장 원문 201'));assert((await p.locator('.admin-log-fields').innerText()).includes('기존 자유입력 사유'))
   s.detail=null;await btn(p,'게시글 다시 시도').click();await preview(p);assert((await p.locator('.admin-preview').innerText()).includes('현재 본문 101'))
   await selectRow(p,'기록 #202 상세').locator('.admin-badge').click();await preview(p);assert((await p.locator('.admin-log-fields').innerText()).includes('저장 원문 202'));assert(!(await p.locator('.admin-log-fields').innerText()).includes('저장 원문 201'))
-  const n=details(s).length;await selectRow(p,'기록 #203 상세').locator('.admin-badge').click();assert.equal(await p.locator('.admin-preview a').count(),0);assert.equal(details(s).length,n);assert((await p.locator('.admin-log-fields').innerText()).includes('댓글 #900'))
+  const n=details(s).length;await selectRow(p,'기록 #203 상세').locator('.admin-badge').click();await p.locator('.admin-preview-comment[aria-busy="false"]').waitFor();assert((await p.locator('.admin-preview-comment').innerText()).includes('현재 댓글 정보를 찾을 수 없습니다.'));assert.equal(s.calls.filter(c=>c.path==='/api/v1/admin/comments/900').length,1);assert.equal(await p.locator('.admin-preview a').count(),0);assert.equal(details(s).length,n);assert((await p.locator('.admin-log-fields').innerText()).includes('댓글 #900'))
  }finally{await context.close()}
 })
 await run('post retry and hide/restore refresh shared list, then remove filtered selection',async()=>{

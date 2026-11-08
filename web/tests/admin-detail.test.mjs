@@ -42,3 +42,21 @@ test("multi-status return URL preserves repeated values and accepts legacy singl
  assert.deepEqual(nav.adminListQuery({statuses:['HIDDEN','VISIBLE','HIDDEN'],keyword:'보청기',page:'2'}),q)
  assert.deepEqual(nav.adminListQuery({status:'HIDDEN'}).statuses,['HIDDEN'])
 })
+
+test("single admin comment validates nullable fields, current parent status and identity",async t=>{
+ const detail={...page.items[0],postId:104,postStatus:'DELETED'}
+ assert(api.isAdminCommentDetail(detail))
+ for(const status of ['VISIBLE','HIDDEN','DELETED'])assert(api.isAdminCommentDetail({...detail,status,contentUpdatedAt:stamp}))
+ for(const field of ['commentId','postId','postStatus','content','author','createdAt','updatedAt','contentUpdatedAt','hiddenAt','deletedAt']){
+  const bad={...detail};delete bad[field];assert(!api.isAdminCommentDetail(bad),field)
+ }
+ for(const bad of [{...detail,postId:0},{...detail,postStatus:'ALL'},{...detail,contentUpdatedAt:'invalid'},{...detail,contentUpdatedAt:42},{...detail,content:null}])assert(!api.isAdminCommentDetail(bad))
+ let body=detail;const calls=[]
+ process.env.NEXT_PUBLIC_API_BASE_URL='http://127.0.0.1:8082'
+ t.mock.method(globalThis,'fetch',async(u,o)=>{calls.push({u,o});return new Response(JSON.stringify(body),{headers:{'Content-Type':'application/json'}})})
+ const signal=new AbortController().signal
+ assert.deepEqual(await api.getAdminComment(3,signal),detail)
+ assert.equal(new URL(calls[0].u).pathname,'/api/v1/admin/comments/3')
+ assert.equal(calls[0].o.credentials,'include');assert.equal(calls[0].o.cache,'no-store');assert.equal(calls[0].o.method,'GET')
+ body={...detail,commentId:4};await assert.rejects(api.getAdminComment(3,signal))
+})

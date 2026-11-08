@@ -3,6 +3,7 @@ package io.github.takgeun.iyum.admin.operation.application;
 import io.github.takgeun.iyum.admin.moderation.domain.ContentModerationLog;
 import io.github.takgeun.iyum.admin.moderation.domain.ModerationAction;
 import io.github.takgeun.iyum.admin.moderation.domain.ModerationReasonType;
+import jakarta.annotation.Nullable;
 
 import java.time.Instant;
 
@@ -19,11 +20,13 @@ public record AdminOperationLogItemResult(
         ModerationReasonType reasonType,
         String reasonDetail,
         String reason,
-        Instant createdAt
+        Instant createdAt,  // 운영 조치 시각임. 대상 콘텐츠의 작성 시각이 아님을 주의
+        @Nullable AdminOperationLogCurrentTargetResult currentTarget
 ) {
 
     public static AdminOperationLogItemResult from(
-            ContentModerationLog log
+            ContentModerationLog log,
+            @Nullable AdminOperationLogCurrentTargetResult currentTarget
     ) {
         // 엔티티와 DB 제약조건에 의해
         // postId와 commentId 중 정확히 하나만 존재한다.
@@ -46,7 +49,8 @@ public record AdminOperationLogItemResult(
                 // 과거 기록의 표시 문구를 그대로 반환한다.
                 // 현재 enum 표시명으로 다시 계산하지 않는다.
                 log.getReason(),
-                log.getCreatedAt()
+                log.getCreatedAt(),
+                currentTarget
         );
     }
 }

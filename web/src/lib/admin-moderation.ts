@@ -1,15 +1,16 @@
+import type { AdminPostDetail, AdminComment } from "./admin-detail"
 import { ACTION_REASONS, type ModerationReasonType } from "./moderation-reasons"
 import { getCsrfContext, SignupApiError } from "./signup-api"
 import { normalizeTitle, characterCount } from "./community-posts"
 import { adminObject } from "./admin-posts"
 import { writtenInstant } from "./written-time"
-export type ModerationTarget = { postId: number; commentId?: number; label: string; action: "hide" | "restore" }
+export type ModerationTarget = { postId: number; commentId?: number; postStatus?: "VISIBLE" | "HIDDEN" | "DELETED"; label: string; content?: AdminPostDetail | AdminComment; action: "hide" | "restore" }
 export type ModerationResult = { postId: number; commentId?: number; hidden: boolean; hiddenAt: string | null; changed: boolean }
 export function moderationReasonError(value: string, reasonType: ModerationReasonType | "", action: ModerationTarget["action"]) {
   if (!reasonType || !ACTION_REASONS[action].includes(reasonType)) return "처리 사유를 선택해 주세요."
   if (reasonType !== "OTHER") return ""
   const reason = normalizeTitle(value)
-  return !reason ? "처리 사유는 필수입니다." : characterCount(reason) > 500 ? "처리 사유는 500자 이하여야 합니다." : ""
+  return !reason ? "상세 사유를 입력해 주세요." : characterCount(reason) > 500 ? "상세 사유는 앞뒤 공백을 제외하고 500자 이하여야 합니다." : ""
 }
 export class ModerationError extends Error {
   constructor(public status: number, public code: string, message: string, public uncertain = false, public refresh = false) { super(message) }

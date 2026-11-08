@@ -49,7 +49,7 @@ const focus=e=>e.evaluate(n=>n===document.activeElement)
 const frames=p=>p.evaluate(()=>new Promise(r=>requestAnimationFrame(()=>requestAnimationFrame(r))))
 async function releaseHandled(p,g,predicate){const count=await p.evaluate(()=>window.__logHandled.length);g.release();await p.waitForFunction(n=>window.__logHandled.length>n,count);await frames(p);if(predicate)await predicate()}
 async function run(name,fn){if(testFilter&&!testFilter.test(name))return;try{await fn();results.push({name,passed:true});console.log('PASS',name)}catch(e){results.push({name,passed:false,error:e.stack});console.log('FAIL',name,e.message)}}
-await run('ADMIN default GET, exact KST seconds, past actor and target semantics; no extra APIs',async()=>{
+await run('ADMIN default GET, exact KST seconds, past actor and target semantics; only selected target API',async()=>{
  const{context,p,s}=await setup();await p.goto(base+'/admin/operation-logs',{waitUntil:'domcontentloaded'});await ready(p)
  assert.equal(reads(s).length,1);assert.equal(reads(s)[0].search,'?targetType=ALL&page=0&size=20&sort=LATEST')
  assert.equal(await p.getByRole('link',{name:'운영 기록',exact:true}).getAttribute('aria-current'),'page')
@@ -62,8 +62,8 @@ await run('ADMIN default GET, exact KST seconds, past actor and target semantics
  assert.equal(await p.locator('.admin-log-reason p').first().textContent(),'검증 처리 사유 45\n원문  공백 유지')
  assert.equal(s.calls.filter(c=>c.path.includes('/csrf')).length,0)
  assert.equal(s.calls.filter(c=>c.path.startsWith('/api/v1/admin/')).length,1)
- await p.locator('[data-log-id="44"] .admin-badge').click();assert(await p.locator('.admin-log-fields').getByText('회원 #88',{exact:true}).isVisible());assert.equal(s.calls.filter(c=>c.path.startsWith('/api/v1/admin/')).length,1)
- await p.getByRole('link',{name:'운영 기록',exact:true}).click();assert.equal(reads(s).length,1)
+ await p.locator('[data-log-id="44"] .admin-badge').click();await p.locator('.admin-preview-comment[aria-busy="false"]').waitFor();assert(await p.locator('.admin-log-fields').getByText('회원 #88',{exact:true}).isVisible());assert.deepEqual(s.calls.filter(c=>c.path.startsWith('/api/v1/admin/')).map(c=>c.path),[path,'/api/v1/admin/comments/144']);assert.equal(await p.locator('.admin-content-dialog a').count(),0);assert((await p.locator('.admin-preview-comment').innerText()).includes('현재 댓글 정보를 찾을 수 없습니다.'))
+ await p.getByRole('button',{name:'닫기',exact:true}).click();await p.getByRole('dialog').waitFor({state:'detached'});await ready(p);assert.equal(reads(s).length,2,'whole-flow close returns to the list and refreshes once');await p.getByRole('link',{name:'운영 기록',exact:true}).click();assert.equal(reads(s).length,2)
  await p.getByRole('link',{name:'게시글 관리',exact:true}).click();await p.waitForURL(/\/admin\/posts/);await ready(p)
  assert.equal(await p.getByRole('link',{name:'게시글 관리',exact:true}).getAttribute('aria-current'),'page')
  await context.close()
@@ -120,7 +120,7 @@ for(const [status,code] of [[401,'AUTHENTICATION_REQUIRED'],[403,'ACCESS_DENIED'
  const{context,p,s}=await setup();await p.goto(base+'/admin/operation-logs',{waitUntil:'domcontentloaded'});await ready(p)
  s.read=r=>r.fulfill(failure(status,code));await label(p,'조치').selectOption('RESTORE');await button(p,'검색').click()
  if(status===401){await p.getByRole('heading',{name:'로그인이 필요합니다',exact:true}).waitFor();assert.equal(await p.locator('.admin-operation-view').count(),0)}
- else if(status===403){await p.getByRole('heading',{name:'관리자 권한이 없습니다',exact:true}).waitFor();assert.equal(await p.locator('tbody tr,.admin-preview').count(),0);assert(await button(p,'로그아웃').isVisible());assert.equal(await button(p,'다시 시도').count(),0)}
+ else if(status===403){await p.getByRole('heading',{name:'관리자 권한이 없습니다',exact:true}).waitFor();assert.equal(await p.locator('tbody tr,.admin-content-dialog').count(),0);assert(await button(p,'로그아웃').isVisible());assert.equal(await button(p,'다시 시도').count(),0)}
  else {await ready(p);await p.locator('.admin-operation-view').getByRole('alert').waitFor();assert.equal(await p.locator('tbody tr').count(),status===403?0:20);if(status===400){assert(await p.getByText('갱신에 실패했습니다. 이전 결과를 표시하고 있습니다.',{exact:true}).isVisible());assert.equal(await button(p,'다음').getAttribute('aria-disabled'),'true')}assert(await button(p,'로그아웃').isVisible());if(status===403)assert.equal(await button(p,'다시 시도').count(),0);else assert(await button(p,'다시 시도').isVisible())}
  assert.equal(s.calls.filter(c=>c.path.endsWith('/logout')).length,0);await context.close()
 })

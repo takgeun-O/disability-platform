@@ -145,9 +145,9 @@ await run('list conditions survive title navigation, direct detail and reload',a
  const {context,p}=await setup()
  await p.goto(base+'/admin/posts?statuses=VISIBLE&statuses=HIDDEN&keyword=검색&page=1&startDate=2026-11-01&endDate=2026-11-08&sort=OLDEST');await ready(p)
  assert.equal(await p.getByRole('navigation',{name:'관리자 메뉴'}).getByRole('link',{name:'게시글 관리',exact:true}).getAttribute('aria-current'),'page')
- await p.getByRole('link',{name:'검증 게시글 4',exact:true}).click();await p.getByRole('link',{name:'상세 관리로 이동',exact:true}).click();await commentReady(p)
+ await p.goto(base+(await p.getByRole('link',{name:'검증 게시글 4',exact:true}).getAttribute('href')));await commentReady(p)
  assert(await p.locator('.admin-post-detail').getByText('검증 게시글 4',{exact:true}).isVisible())
- await p.getByRole('link',{name:'← 목록으로'}).click();await ready(p)
+ await p.getByRole('link',{name:'← 목록으로'}).click();await ready(p);await p.getByRole('dialog').waitFor();await p.getByRole('button',{name:'닫기',exact:true}).click()
  assert.deepEqual(await p.getByRole('group',{name:'게시글 상태'}).locator('input:checked').evaluateAll(es=>es.map(e=>e.nextSibling.textContent)),['정상','숨김'])
  assert.equal(await p.getByLabel('게시글 제목 검색',{exact:true}).inputValue(),'검색')
  assert.equal(await p.getByLabel('페이지 바로 이동',{exact:true}).inputValue(),'2')
@@ -247,11 +247,11 @@ await run('late post A cannot replace B after real list navigation',async()=>{
  const g=gate();state.detail=async(r,u)=>{const id=Number(u.pathname.split('/').at(-1));if(id===1){g.arrive();await g.response}await r.fulfill({json:detail(id)})}
  await p.goto(base+'/admin/posts/1');await g.arrived
  await p.getByRole('link',{name:'← 목록으로'}).click();await ready(p)
- await p.getByRole('link',{name:'검증 게시글 2',exact:true}).click();await p.getByRole('link',{name:'상세 관리로 이동',exact:true}).click();await commentReady(p)
+ await p.getByRole('link',{name:'검증 게시글 2',exact:true}).click();await p.locator('.admin-preview-post[aria-busy="false"]').waitFor()
  const done=p.waitForEvent('requestfinished',{predicate:r=>new URL(r.url()).pathname==='/api/v1/admin/posts/1'})
  g.release();await done;await flush(p)
- assert(await p.locator('.admin-post-detail h2').getByText('검증 게시글 2',{exact:true}).isVisible())
- assert.equal(await p.locator('.admin-post-detail').getByText('검증 게시글 1',{exact:true}).count(),0)
+ assert(await p.locator('.admin-preview-post h3').getByText('검증 게시글 2',{exact:true}).isVisible())
+ assert.equal(await p.locator('.admin-preview-post').getByText('검증 게시글 1',{exact:true}).count(),0)
  await context.close()
 })
 for(const same of [true,false])await run(`detail late response after login transition same=${same}`,async()=>{
