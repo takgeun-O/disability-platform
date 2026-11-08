@@ -1,3 +1,4 @@
+import { validAdminDate, dateRangeError } from "./admin-dates"
 import { isModerationReasonType, type ModerationReasonType } from "./moderation-reasons"
 import { adminCount, adminGet, adminObject, AdminApiError, isAdminPageInfo, type AdminPageInfo } from "./admin-posts"
 import { writtenInstant } from "./written-time"
@@ -14,20 +15,11 @@ export type OperationLog = {
 }
 export type OperationLogPage = AdminPageInfo & { items: OperationLog[] }
 // Calendar-only validation: never round-trip filter values through Date/UTC.
-export function validLogDate(value: string) {
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) return false
-  const [year, month, day] = value.split("-").map(Number)
-  const leap = year % 4 === 0 && (year % 100 !== 0 || year % 400 === 0)
-  const days = [31, leap ? 29 : 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31]
-  return year >= 1 && year <= 9999 && month >= 1 && month <= 12 && day >= 1 && day <= days[month - 1]
-}
+export const validLogDate = validAdminDate
 export function logFilterError(filters: LogFilters): string {
   if (!Object.prototype.hasOwnProperty.call(LOG_TARGETS, filters.targetType) || !Object.prototype.hasOwnProperty.call(LOG_ACTIONS, filters.action)) return "대상과 조치를 다시 선택해 주세요."
   if ((filters.reasonType !== "" && !isModerationReasonType(filters.reasonType)) || !Object.prototype.hasOwnProperty.call(LOG_SORTS, filters.sort)) return "사유와 정렬을 다시 선택해 주세요."
-  if ((filters.startDate && !validLogDate(filters.startDate)) || (filters.endDate && !validLogDate(filters.endDate)))
-    return "날짜는 0001-01-01부터 9999-12-31까지 YYYY-MM-DD 형식으로 입력해 주세요."
-  if (filters.startDate && filters.endDate && filters.startDate > filters.endDate) return "시작일은 종료일보다 늦을 수 없습니다."
-  return ""
+  return dateRangeError(filters)
 }
 export function logQueryParams(query: LogQuery) {
   const error = logFilterError(query)

@@ -1,6 +1,6 @@
 "use client"
 import { useCallback, useEffect, useRef, useState, type KeyboardEvent } from "react"
-import { ADMIN_CONTENT_STATUSES, adminKeywordError, normalizeAdminKeyword, normalizeAdminStatuses, type AdminQuery, type AdminContentStatus } from "./admin-posts"
+import { ADMIN_CONTENT_STATUSES, adminKeywordError, normalizeAdminKeyword, normalizeAdminStatuses, sameAdminStatuses, type AdminQuery, type AdminContentStatus } from "./admin-posts"
 
 // Post/comment reads only: moderation writes keep their independent ownership.
 export function useAdminContentFilters(initial: AdminQuery) {
@@ -25,7 +25,8 @@ export function useAdminContentFilters(initial: AdminQuery) {
     const owner = generation.current
     return () => owner === generation.current && !controller.signal.aborted
   }, [])
-  const change = (next: AdminQuery) => {
+  const change = (next: AdminQuery, force = true) => {
+    if(!force&&!pending&&statuses.length&&sameAdminStatuses(query.statuses,next.statuses)&&query.keyword===next.keyword&&query.page===next.page&&(query.sort??"LATEST")===(next.sort??"LATEST")&&(query.startDate??"")===(next.startDate??"")&&(query.endDate??"")===(next.endDate??""))return
     invalidate()
     setPending(false)
     setQuery({...next, statuses: [...next.statuses]})
@@ -44,16 +45,16 @@ export function useAdminContentFilters(initial: AdminQuery) {
       setPending(false)
     }, 200)
   }
-  const search = () => {
+  const search = (force = true) => {
     if (composing.current || !statuses.length) return
     const error = adminKeywordError(input)
     setValidation(error)
     if (error) return
-    change({statuses, keyword: normalizeAdminKeyword(input), page: 0})
+    change({...query,statuses, keyword: normalizeAdminKeyword(input), page: 0},force)
   }
-  const reset = () => {
+  const reset = (force = true) => {
     setStatuses([...ADMIN_CONTENT_STATUSES]); setInput(""); setValidation("")
-    change({statuses: ADMIN_CONTENT_STATUSES, keyword: "", page: 0})
+    change({...initial, ...(initial.sort?{sort:"LATEST",startDate:"",endDate:""}:{}), statuses: ADMIN_CONTENT_STATUSES, keyword: "", page: 0},force)
   }
   const composition = {
     onCompositionStart: () => { composing.current = true },

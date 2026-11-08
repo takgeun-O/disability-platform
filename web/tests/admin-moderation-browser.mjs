@@ -225,7 +225,7 @@ await run('pre-mutation delayed GET ignoring abort cannot overwrite refreshed pa
  assert.equal(await p.locator('.admin-parent-status').textContent(),'게시글이 숨겨져 있어 댓글도 일반 사용자에게 표시되지 않습니다.');await context.close()
 })
 for(const stage of ['csrf','write'])await run(`approved navigation during ${stage} ignores late work`,async()=>{
- const {context,p,state}=await moderation();await p.goto(base+'/admin/posts',{waitUntil:'domcontentloaded'});await ready(p);await p.getByRole('link',{name:'검증 게시글 1',exact:true}).click();await settled(p)
+ const {context,p,state}=await moderation();await p.goto(base+'/admin/posts',{waitUntil:'domcontentloaded'});await ready(p);await p.getByRole('link',{name:'검증 게시글 1',exact:true}).click();await p.getByRole('link',{name:'상세 관리로 이동',exact:true}).click();await settled(p)
  const g=gate()
  if(stage==='csrf')await context.route('**/api/v1/auth/csrf',async r=>{g.arrive();await g.response;await r.fulfill({json:{headerName:'X-CSRF-TOKEN',token:'mock-only'}})})
  else state.write=async r=>{g.arrive();await g.response;await r.fulfill({json:{postId:1,hidden:true,hiddenAt:stamp,changed:true}})}
@@ -246,7 +246,7 @@ for(const width of [1440,390,320])await run(`modal keyboard and layout ${width}`
  assert(await p.evaluate(()=>document.documentElement.scrollWidth<=innerWidth));await context.close()
 })
 for(const next of ['anonymous','same','other'])await run(`late mutation after auth transition ${next}`,async()=>{
- const {context,p,state}=await moderation();await p.goto(base+'/admin/posts',{waitUntil:'domcontentloaded'});await ready(p);await p.getByRole('link',{name:'검증 게시글 1',exact:true}).click();await settled(p)
+ const {context,p,state}=await moderation();await p.goto(base+'/admin/posts',{waitUntil:'domcontentloaded'});await ready(p);await p.getByRole('link',{name:'검증 게시글 1',exact:true}).click();await p.getByRole('link',{name:'상세 관리로 이동',exact:true}).click();await settled(p)
  const g=gate();state.write=async r=>{g.arrive();await g.response;await r.fulfill({json:{postId:1,hidden:true,hiddenAt:stamp,changed:true}})}
  await execute(p,'게시글 숨김 처리');await g.arrived
  await p.goBack();await ready(p);await button(p,'로그아웃').click();await p.getByRole('heading',{name:'로그인이 필요합니다',exact:true}).waitFor()

@@ -29,14 +29,14 @@ test("admin reads validate requested identity/page/size and use only private GET
  body={...post,postId:2};await assert.rejects(api.getAdminPost(1,signal))
 })
 test("list return carries only safe filter/search/page state",()=>{
- const q={statuses:['HIDDEN'],keyword:'검색  내부',page:2}
+ const q={statuses:['HIDDEN'],keyword:'검색  내부',page:2,startDate:'',endDate:'',sort:'LATEST'}
  assert.deepEqual(nav.adminListQuery(Object.fromEntries(new URL(nav.adminListHref(q),'https://local').searchParams)),q)
  for(const bad of ['https://evil.test','//evil.test','/admin/posts/2','/mypage',null])assert.equal(nav.adminReturnHref(bad),'/admin/posts')
  assert.equal(nav.adminListQuery({page:'-1',status:'bad'}).page,0)
 })
 
 test("multi-status return URL preserves repeated values and accepts legacy single status",()=>{
- const q={statuses:['VISIBLE','HIDDEN'],keyword:'보청기',page:2}
+ const q={statuses:['VISIBLE','HIDDEN'],keyword:'보청기',page:2,startDate:'',endDate:'',sort:'LATEST'}
  const href=nav.adminListHref(q)
  assert.equal(nav.adminReturnHref(href),href)
  assert.deepEqual(nav.adminListQuery({statuses:['HIDDEN','VISIBLE','HIDDEN'],keyword:'보청기',page:'2'}),q)

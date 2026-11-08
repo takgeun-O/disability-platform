@@ -9,7 +9,7 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
     <main className="admin-shell">
       <aside className="admin-sidebar">
         <p className="admin-brand">
-          IYUM <span>관리자</span>
+          관리자 메뉴
         </p>
         <nav aria-label="관리자 메뉴">
           <AdminPostsLink />

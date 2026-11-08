@@ -1,6 +1,5 @@
+import { Suspense } from "react"
 import AdminPosts from "@/features/AdminPosts"
-import { adminListQuery } from "@/lib/admin-navigation"
-export default async function Page({searchParams}: {searchParams: Promise<Record<string,string|string[]|undefined>>}) {
-  const query=adminListQuery(await searchParams)
-  return <AdminPosts key={JSON.stringify(query)} initialQuery={query} />
+export default function Page() {
+  return <Suspense fallback={<p role="status">조회 조건을 확인하고 있습니다…</p>}><AdminPosts /></Suspense>
 }

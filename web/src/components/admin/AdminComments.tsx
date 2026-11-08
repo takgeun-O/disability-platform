@@ -56,7 +56,7 @@ export default function AdminComments({postId,onForbidden,parentUnavailable=fals
         <label className="admin-search" htmlFor={`${uid}-keyword`}>댓글 본문 검색<input id={`${uid}-keyword`} value={input} {...composition} onChange={e=>{setInput(e.target.value);setValidation("")}} placeholder="댓글 본문 검색" aria-invalid={!!validation} aria-describedby={validation?`${uid}-error`:undefined}/></label>
         <button type="submit" aria-label="댓글 검색">검색</button>
       </div>
-      <button type="button" className="admin-filter-reset" aria-label="댓글 검색 초기화" onClick={reset}>초기화</button>
+      <button type="button" className="admin-filter-reset" aria-label="댓글 검색 초기화" onClick={()=>reset()}>초기화</button>
     </form>
     {validation&&<p id={`${uid}-error`} role="alert">{validation}</p>}
     <div className="admin-comment-results" aria-busy={busy}>

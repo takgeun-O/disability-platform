@@ -143,14 +143,15 @@ await run('comment body edit date and entity update date are separate',async()=>
 })
 await run('list conditions survive title navigation, direct detail and reload',async()=>{
  const {context,p}=await setup()
- await p.goto(base+'/admin/posts?statuses=VISIBLE&statuses=HIDDEN&keyword=검색&page=1');await ready(p)
+ await p.goto(base+'/admin/posts?statuses=VISIBLE&statuses=HIDDEN&keyword=검색&page=1&startDate=2026-11-01&endDate=2026-11-08&sort=OLDEST');await ready(p)
  assert.equal(await p.getByRole('navigation',{name:'관리자 메뉴'}).getByRole('link',{name:'게시글 관리',exact:true}).getAttribute('aria-current'),'page')
- await p.getByRole('link',{name:'검증 게시글 4',exact:true}).click();await commentReady(p)
+ await p.getByRole('link',{name:'검증 게시글 4',exact:true}).click();await p.getByRole('link',{name:'상세 관리로 이동',exact:true}).click();await commentReady(p)
  assert(await p.locator('.admin-post-detail').getByText('검증 게시글 4',{exact:true}).isVisible())
  await p.getByRole('link',{name:'← 목록으로'}).click();await ready(p)
  assert.deepEqual(await p.getByRole('group',{name:'게시글 상태'}).locator('input:checked').evaluateAll(es=>es.map(e=>e.nextSibling.textContent)),['정상','숨김'])
  assert.equal(await p.getByLabel('게시글 제목 검색',{exact:true}).inputValue(),'검색')
  assert.equal(await p.getByLabel('페이지 바로 이동',{exact:true}).inputValue(),'2')
+ assert.equal(await p.getByLabel('작성 시작일',{exact:true}).inputValue(),'2026-11-01');assert.equal(await p.getByLabel('작성 종료일',{exact:true}).inputValue(),'2026-11-08');assert.equal(await p.getByLabel('작성 시각 정렬',{exact:true}).inputValue(),'OLDEST')
  for(const id of [1,2,3]){await p.goto(base+'/admin/posts/'+id);await commentReady(p);assert(await p.locator('.admin-post-detail').getByText('<script>',{exact:false}).isVisible());assert.equal(await p.locator('.admin-post-detail script').count(),0)}
  await p.reload();await commentReady(p);assert(await p.locator('.admin-post-detail').getByText('탈퇴한 회원',{exact:false}).isVisible())
  assert.equal(await p.getByRole('link',{name:'← 목록으로'}).getAttribute('href'),'/admin/posts')
@@ -246,7 +247,7 @@ await run('late post A cannot replace B after real list navigation',async()=>{
  const g=gate();state.detail=async(r,u)=>{const id=Number(u.pathname.split('/').at(-1));if(id===1){g.arrive();await g.response}await r.fulfill({json:detail(id)})}
  await p.goto(base+'/admin/posts/1');await g.arrived
  await p.getByRole('link',{name:'← 목록으로'}).click();await ready(p)
- await p.getByRole('link',{name:'검증 게시글 2',exact:true}).click();await commentReady(p)
+ await p.getByRole('link',{name:'검증 게시글 2',exact:true}).click();await p.getByRole('link',{name:'상세 관리로 이동',exact:true}).click();await commentReady(p)
  const done=p.waitForEvent('requestfinished',{predicate:r=>new URL(r.url()).pathname==='/api/v1/admin/posts/1'})
  g.release();await done;await flush(p)
  assert(await p.locator('.admin-post-detail h2').getByText('검증 게시글 2',{exact:true}).isVisible())

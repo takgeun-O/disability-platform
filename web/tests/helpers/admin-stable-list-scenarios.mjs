@@ -19,7 +19,7 @@ export async function adminStableListScenarios({run,setup,base,out,kind,ready,re
   }
   state[slot]=(r,u)=>r.fulfill({json:body(u)})
   try {
-   await p.goto(base+url);await ready(p);await p.evaluate(()=>document.fonts.ready)
+   await p.goto(base+url,{waitUntil:"domcontentloaded"});await ready(p);await p.evaluate(()=>document.fonts.ready)
    await p.clock.install({time:new Date('2030-01-01T00:00:00Z')});await p.clock.pauseAt(new Date('2030-01-01T00:00:01Z'))
    const field=p.getByRole('group',{name:group,exact:true}),chip=field.getByRole('checkbox',{name:'삭제',exact:true})
    await chip.scrollIntoViewIfNeeded();await chip.focus();await p.clock.runFor(32)
@@ -70,6 +70,7 @@ export async function adminStableListScenarios({run,setup,base,out,kind,ready,re
    assert.equal(await p.locator(rows).count(),0);release();await ready(p)
    // Confirmed 404 clears old results, and a new search cannot resurrect them.
    state[slot]=r=>r.fulfill({status:404,json:{code:'POST_NOT_FOUND'}})
+   await p.locator(form).locator('input:not([type=checkbox])').fill('대상 확인')
    await p.locator(form).locator('button[type=submit]').click();await ready(p)
    assert.equal(await p.locator(rows).count(),0);assert.equal(await p.locator('.admin-pagination').count(),0)
   } finally {release?.();await context.close()}
@@ -77,12 +78,12 @@ export async function adminStableListScenarios({run,setup,base,out,kind,ready,re
  for(const status of [401,403])await run(`retained ${kind} snapshot is removed on ${status}`,async()=>{
   const {context,p,state}=await setup()
   try{
-   await p.goto(base+url);await ready(p);assert((await p.locator(rows).count())>0)
+   await p.goto(base+url,{waitUntil:"domcontentloaded"});await ready(p);assert((await p.locator(rows).count())>0)
    state[slot]=r=>r.fulfill({status,json:{code:status===401?'AUTHENTICATION_REQUIRED':'ACCESS_DENIED'}})
+   await p.locator(form).locator('input:not([type=checkbox])').fill('권한 확인')
    await p.locator(form).locator('button[type=submit]').click()
    if(status===401)await p.getByRole('heading',{name:'로그인이 필요합니다',exact:true}).waitFor()
-   else if(comments)await p.getByRole('heading',{name:'관리자 권한이 없습니다',exact:true}).waitFor()
-   else await ready(p)
+   else await p.getByRole('heading',{name:'관리자 권한이 없습니다',exact:true}).waitFor()
    assert.equal(await p.locator(rows).count(),0);assert.equal(await p.locator('.admin-pagination').count(),0)
    if(status===403)assert(await p.getByRole('button',{name:'로그아웃',exact:true}).isVisible())
   }finally{await context.close()}
@@ -91,7 +92,7 @@ export async function adminStableListScenarios({run,setup,base,out,kind,ready,re
   const {context,p,state}=await setup();let release
   try{
    state.comments=(r,u)=>r.fulfill({json:{...template(Number(u.searchParams.get('page'))),postStatus:'DELETED'}})
-   await p.goto(base+url);await ready(p)
+   await p.goto(base+url,{waitUntil:"domcontentloaded"});await ready(p)
    await p.clock.install();await p.clock.pauseAt(new Date(Date.now()+1000))
    const before=await p.locator('.admin-parent-status').textContent()
    state.comments=async(r,u)=>{await new Promise(resolve=>release=resolve);await r.fulfill({json:{...template(Number(u.searchParams.get('page'))),postStatus:'DELETED'}})}

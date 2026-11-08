@@ -1,3 +1,5 @@
+const openDates=async p=>{if(!await p.locator('.admin-date-range').evaluate(e=>e.open))await p.locator('.admin-date-range summary').click()}
+import {adminDateScenarios} from "./helpers/admin-date-scenarios.mjs"
 import assert from 'node:assert/strict'
 import fs from 'node:fs/promises'
 const {chromium}=await import(process.env.PLAYWRIGHT_MODULE??'playwright')
@@ -55,12 +57,12 @@ await run('ADMIN default GET, exact KST seconds, past actor and target semantics
  assert.equal(await p.locator('tbody tr').count(),20)
  assert.equal(await p.locator('time').first().textContent(),'2026.11.04. 03:04:05')
  assert.equal(await p.locator('time').first().getAttribute('datetime'),stamp)
- assert(await p.getByText('회원 #88',{exact:true}).first().isVisible())
- assert.equal(await p.getByRole('link',{name:'게시글 #145',exact:true}).getAttribute('href'),'/admin/posts/145')
+ assert.equal(await p.getByRole('link',{name:'게시글 #145',exact:true}).getAttribute('href'),'/admin/posts/145?from='+encodeURIComponent('/admin/operation-logs?targetType=ALL&page=0&sort=LATEST&selected=45'))
  assert.equal(await p.getByRole('link',{name:'댓글 #144',exact:true}).count(),0)
  assert.equal(await p.locator('.admin-log-reason p').first().textContent(),'검증 처리 사유 45\n원문  공백 유지')
  assert.equal(s.calls.filter(c=>c.path.includes('/csrf')).length,0)
  assert.equal(s.calls.filter(c=>c.path.startsWith('/api/v1/admin/')).length,1)
+ await p.locator('[data-log-id="44"] .admin-badge').click();assert(await p.locator('.admin-log-fields').getByText('회원 #88',{exact:true}).isVisible());assert.equal(s.calls.filter(c=>c.path.startsWith('/api/v1/admin/')).length,1)
  await p.getByRole('link',{name:'운영 기록',exact:true}).click();assert.equal(reads(s).length,1)
  await p.getByRole('link',{name:'게시글 관리',exact:true}).click();await p.waitForURL(/\/admin\/posts/);await ready(p)
  assert.equal(await p.getByRole('link',{name:'게시글 관리',exact:true}).getAttribute('aria-current'),'page')
@@ -78,29 +80,29 @@ for(const role of [null,'USER'])await run(`checking and ${role} access without l
 })
 await run('draft filters apply on submit only, page uses applied conditions, reset omits action',async()=>{
  const{context,p,s}=await setup();await p.goto(base+'/admin/operation-logs',{waitUntil:'domcontentloaded'});await ready(p)
- await label(p,'대상').selectOption('COMMENT');await label(p,'조치').selectOption('HIDE');await label(p,'시작일').fill('2026-11-01');await label(p,'종료일').fill('2026-11-04')
- assert.equal(reads(s).length,1);await label(p,'종료일').press('Enter');await ready(p)
+ await label(p,'대상').selectOption('COMMENT');await label(p,'조치').selectOption('HIDE');await openDates(p);await label(p,'처리 시작일').fill('2026-11-01');await openDates(p);await label(p,'처리 종료일').fill('2026-11-04')
+ assert.equal(reads(s).length,1);await openDates(p);await button(p,'기간 적용').click();await ready(p);assert.equal(new URLSearchParams(reads(s).at(-1).search).get('targetType'),'ALL');await search(p)
  const q=new URLSearchParams(reads(s).at(-1).search)
  assert.equal(q.get('targetType'),'COMMENT');assert.equal(q.get('action'),'HIDE');assert.equal(q.get('startDate'),'2026-11-01');assert.equal(q.get('endDate'),'2026-11-04');assert.equal(q.get('page'),'0')
- await label(p,'대상').selectOption('POST');await label(p,'시작일').fill('2026-10-01')
+ await label(p,'대상').selectOption('POST');await openDates(p);await label(p,'처리 시작일').fill('2026-10-01')
  await button(p,'다음').click();await ready(p)
  const next=new URLSearchParams(reads(s).at(-1).search);assert.equal(next.get('page'),'1');assert.equal(next.get('targetType'),'COMMENT');assert.equal(next.get('startDate'),'2026-11-01')
  await search(p);assert.equal(new URLSearchParams(reads(s).at(-1).search).get('page'),'0')
- await button(p,'초기화').click();await ready(p);assert.equal(reads(s).at(-1).search,'?targetType=ALL&page=0&size=20&sort=LATEST')
- for(const name of ['시작일','종료일'])assert.equal(await label(p,name).inputValue(),'')
+ await button(p,'전체 초기화').click();await ready(p);assert.equal(reads(s).at(-1).search,'?targetType=ALL&page=0&size=20&sort=LATEST')
+ for(const name of ['처리 시작일','처리 종료일'])assert.equal(await label(p,name).inputValue(),'')
  await context.close()
 })
 await run('single dates, minimum maximum, invalid dates and reversed range never sent',async()=>{
  const{context,p,s}=await setup();await p.goto(base+'/admin/operation-logs',{waitUntil:'domcontentloaded'});await ready(p)
- for(const [name,value,missing] of [['시작일','0001-01-01','endDate'],['종료일','9999-12-31','startDate']]){
-  await button(p,'초기화').click();await ready(p);await label(p,name).fill(value);await search(p)
-  const q=new URLSearchParams(reads(s).at(-1).search);assert.equal(q.get(name==='시작일'?'startDate':'endDate'),value);assert(!q.has(missing))
+ for(const [name,value,missing] of [['처리 시작일','0001-01-01','endDate'],['처리 종료일','9999-12-31','startDate']]){
+  await button(p,'전체 초기화').click();await ready(p);await openDates(p);await label(p,name).fill(value);await openDates(p);await button(p,'기간 적용').click();await ready(p)
+  const q=new URLSearchParams(reads(s).at(-1).search);assert.equal(q.get(name==='처리 시작일'?'startDate':'endDate'),value);assert(!q.has(missing))
  }
  for(const value of ['0000-01-01','2026-02-29','2026-04-31','10000-01-01','abc']){
-  const n=reads(s).length;await label(p,'시작일').fill(value);await button(p,'검색').click();await p.locator('#admin-log-date-error').waitFor();assert.equal(reads(s).length,n)
+  const n=reads(s).length;await openDates(p);await label(p,'처리 시작일').fill(value);await openDates(p);await button(p,'기간 적용').click();await p.locator('.admin-date-range [role=alert]').waitFor();assert.equal(reads(s).length,n)
  }
- await label(p,'시작일').fill('2026-11-05');await label(p,'종료일').fill('2026-11-04');const n=reads(s).length;await button(p,'검색').click()
- await p.getByText('시작일은 종료일보다 늦을 수 없습니다.',{exact:true}).waitFor();assert.equal(reads(s).length,n)
+ await openDates(p);await label(p,'처리 시작일').fill('2026-11-05');await openDates(p);await label(p,'처리 종료일').fill('2026-11-04');const n=reads(s).length;await openDates(p);await button(p,'기간 적용').click()
+ await p.locator('.admin-date-error').waitFor();assert.equal(await p.locator('.admin-date-error').evaluate(e=>{const copy=e.cloneNode(true);copy.querySelectorAll('[aria-hidden]').forEach(n=>n.remove());return copy.textContent}),'종료일을 시작일과 같거나 이후로 선택해 주세요.');assert.equal(reads(s).length,n)
  await context.close()
 })
 await run('server failure, malformed result, empty/no-results and same applied retry',async()=>{
@@ -118,7 +120,8 @@ for(const [status,code] of [[401,'AUTHENTICATION_REQUIRED'],[403,'ACCESS_DENIED'
  const{context,p,s}=await setup();await p.goto(base+'/admin/operation-logs',{waitUntil:'domcontentloaded'});await ready(p)
  s.read=r=>r.fulfill(failure(status,code));await label(p,'조치').selectOption('RESTORE');await button(p,'검색').click()
  if(status===401){await p.getByRole('heading',{name:'로그인이 필요합니다',exact:true}).waitFor();assert.equal(await p.locator('.admin-operation-view').count(),0)}
- else {await ready(p);await p.locator('.admin-operation-view').getByRole('alert').waitFor();assert.equal(await p.locator('tbody tr').count(),0);assert(await button(p,'로그아웃').isVisible());if(status===403)assert.equal(await button(p,'다시 시도').count(),0);else assert(await button(p,'다시 시도').isVisible())}
+ else if(status===403){await p.getByRole('heading',{name:'관리자 권한이 없습니다',exact:true}).waitFor();assert.equal(await p.locator('tbody tr,.admin-preview').count(),0);assert(await button(p,'로그아웃').isVisible());assert.equal(await button(p,'다시 시도').count(),0)}
+ else {await ready(p);await p.locator('.admin-operation-view').getByRole('alert').waitFor();assert.equal(await p.locator('tbody tr').count(),status===403?0:20);if(status===400){assert(await p.getByText('갱신에 실패했습니다. 이전 결과를 표시하고 있습니다.',{exact:true}).isVisible());assert.equal(await button(p,'다음').getAttribute('aria-disabled'),'true')}assert(await button(p,'로그아웃').isVisible());if(status===403)assert.equal(await button(p,'다시 시도').count(),0);else assert(await button(p,'다시 시도').isVisible())}
  assert.equal(s.calls.filter(c=>c.path.endsWith('/logout')).length,0);await context.close()
 })
 await run('page focus, duplicate submit, boundary focus, diversion and error recovery',async()=>{
@@ -132,7 +135,7 @@ await run('page focus, duplicate submit, boundary focus, diversion and error rec
  await button(p,'다음').focus();await p.keyboard.press('Enter');await ready(p);assert(await focus(button(p,'다음')))
  await button(p,'이전').focus();await p.keyboard.press('Enter');await ready(p);assert(await focus(p.locator('.admin-page-buttons [role=status]')))
  const g2=gate();s.read=async r=>{g2.arrive();await g2.promise;return r.fulfill({json:payload(1)})}
- await input.fill('2');await input.press('Enter');await g2.arrived;await label(p,'시작일').focus();g2.release();await ready(p);assert(await focus(label(p,'시작일')))
+ await input.fill('2');await input.press('Enter');await g2.arrived;await openDates(p);await label(p,'처리 시작일').focus();g2.release();await ready(p);assert(await focus(label(p,'처리 시작일')))
  s.read=r=>r.fulfill(failure(503,'INTERNAL_SERVER_ERROR'));await input.fill('3');await input.press('Enter');await button(p,'다시 시도').waitFor();assert(await focus(input))
  s.read=r=>r.fulfill({json:payload(2)});await button(p,'다시 시도').focus();await p.keyboard.press('Enter');await ready(p);assert.equal(await input.inputValue(),'3')
  await input.fill('0');await input.press('Enter');await p.getByRole('alert').filter({hasText:'페이지 번호'}).waitFor()
@@ -231,19 +234,19 @@ for(const width of [1440,1024,390,320])await run(`layout ${width}: long reason/I
  await p.goto(base+'/admin/operation-logs',{waitUntil:'domcontentloaded'});await ready(p)
  assert(await p.evaluate(()=>document.documentElement.scrollWidth<=innerWidth))
  assert.equal(await p.locator('.admin-log-reason script').count(),0)
- assert.equal(await p.getByRole('columnheader').count(),5)
- await label(p,'시작일').focus();await p.keyboard.press('Tab');assert(await focus(label(p,'종료일')))
- await p.keyboard.press('Tab');assert(await focus(button(p,'검색')))
+ assert.equal(await p.getByRole('columnheader').count(),width>1100?4:5)
+ await openDates(p);await label(p,'처리 시작일').focus();await p.keyboard.press('Tab');assert(await focus(button(p,'처리 시작일 달력 열기')))
+ await p.keyboard.press('Tab');assert(await focus(label(p,'처리 종료일')))
  for(const control of await p.locator('.admin-log-filters input,.admin-log-filters select,.admin-log-filters button').all()){
   const b=await control.boundingBox();assert(b.x>=0&&b.x+b.width<=width)
  }
  assert.deepEqual(s.errors,[])
  await p.screenshot({path:`${out}/operation-${width}.png`,fullPage:true});await context.close()
 })
-await run('reason filter and sort apply together, preserve page conditions and reject late old results',async()=>{
+await run('sort and dates preserve draft reason filters, explicit search applies them; reject late old results',async()=>{
  const {context,p,s}=await setup();await p.goto(base+'/admin/operation-logs',{waitUntil:'domcontentloaded'});await ready(p)
  await label(p,'조치').selectOption('RESTORE');await label(p,'사유 유형').selectOption('SPAM_ADVERTISING');await label(p,'처리 시각 정렬').selectOption('OLDEST')
- await label(p,'시작일').fill('0001-01-01');await search(p)
+ await ready(p);assert(!new URLSearchParams(reads(s).at(-1).search).has('reasonType'));await openDates(p);await label(p,'처리 시작일').fill('0001-01-01');await openDates(p);await button(p,'기간 적용').click();await ready(p);await search(p)
  let params=new URLSearchParams(reads(s).at(-1).search)
  for(const [key,value] of Object.entries({action:'RESTORE',reasonType:'SPAM_ADVERTISING',sort:'OLDEST',page:'0',startDate:'0001-01-01'}))assert.equal(params.get(key),value)
  await button(p,'다음').click();await ready(p);params=new URLSearchParams(reads(s).at(-1).search);assert.equal(params.get('page'),'1');assert.equal(params.get('reasonType'),'SPAM_ADVERTISING');assert.equal(params.get('sort'),'OLDEST')
@@ -251,7 +254,7 @@ await run('reason filter and sort apply together, preserve page conditions and r
  await label(p,'사유 유형').selectOption('LEGACY');await button(p,'검색').click();await g.arrived
  await label(p,'사유 유형').selectOption('OTHER');await search(p);await p.locator('[data-log-id="888"]').waitFor()
  await releaseHandled(p,g);assert.equal(await p.locator('[data-log-id="999"]').count(),0);assert.equal(await p.locator('.admin-log-reason p').textContent(),'상세 원문')
- s.read=null;await button(p,'초기화').click();await ready(p);params=new URLSearchParams(reads(s).at(-1).search);assert(!params.has('reasonType'));assert(!params.has('action'));assert.equal(params.get('sort'),'LATEST')
+ s.read=null;await button(p,'전체 초기화').click();await ready(p);params=new URLSearchParams(reads(s).at(-1).search);assert(!params.has('reasonType'));assert(!params.has('action'));assert.equal(params.get('sort'),'LATEST')
  await context.close()
 })
 for(const width of [1440,320])await run(`stored reason exact-match display policy ${width}`,async()=>{
@@ -265,11 +268,12 @@ for(const width of [1440,320])await run(`stored reason exact-match display polic
  item(1,{reasonType:'SPAM_ADVERTISING',reasonDetail:null,reason:'광고·홍보·스팸 '})]})})
  await p.goto(base+'/admin/operation-logs',{waitUntil:'domcontentloaded'});await ready(p)
  const reason=id=>p.locator(`[data-log-id="${id}"] .admin-log-reason`)
- assert.equal(await reason(6).locator('p').count(),0);assert.equal(await reason(6).textContent(),'광고·홍보·스팸')
+ assert.equal(await reason(6).locator('p').count(),0);assert.equal(await reason(6).locator('strong').textContent(),'광고·홍보·스팸');assert.equal(await reason(6).locator('.admin-log-inline-reason').textContent(),'')
  assert.equal(await reason(5).locator('p').textContent(),'  과거 광고 사유\n원문  ')
  assert.equal(await reason(4).locator('strong').textContent(),'기존 자유입력 사유');assert.equal(await reason(4).locator('p').textContent(),'기존 자유입력 사유')
  assert.equal(await reason(3).locator('p').count(),1);assert.equal(await reason(3).locator('p').textContent(),'동일 상세')
  assert.deepEqual(await reason(2).locator('p').allTextContents(),['저장된 문구','상세: 다른 상세']);assert.equal(await reason(1).locator('p').textContent(),'광고·홍보·스팸 ')
  assert(await p.evaluate(()=>document.documentElement.scrollWidth<=innerWidth));await p.screenshot({path:`${out}/reason-display-${width}.png`,fullPage:true});await context.close()
 })
+await adminDateScenarios({run,setup,base,out,kind:'logs',ready,reads,template:payload})
 await browser.close();await fs.writeFile(`${out}/results.json`,JSON.stringify(results,null,2));if(!results.length)throw new Error('TEST_FILTER matched no tests');if(results.some(r=>!r.passed))process.exitCode=1

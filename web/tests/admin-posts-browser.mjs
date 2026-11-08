@@ -1,3 +1,4 @@
+import {adminDateScenarios} from "./helpers/admin-date-scenarios.mjs"
 import { adminStableListScenarios } from "./helpers/admin-stable-list-scenarios.mjs"
 import { adminChipScenarios } from "./helpers/admin-chip-scenarios.mjs"
 import assert from "node:assert/strict"
@@ -112,6 +113,7 @@ async function setup(role = "ADMIN", width = 1440) {
 const reads = (s) => s.calls.filter((c) => c.path === "/api/v1/admin/posts")
 const ready = (p) => p.locator('.admin-results[aria-busy="false"]').waitFor()
 async function run(name, fn) {
+  if (process.env.TEST_FILTER && !new RegExp(process.env.TEST_FILTER).test(name)) return
   try {
     await fn()
     results.push({ name, passed: true })
@@ -171,9 +173,9 @@ await run(
     await ready(p)
     assert.equal(new URL(p.url()).pathname, "/admin/posts")
     assert.equal(reads(state).length, 1)
-    assert.equal(reads(state)[0].search, "?statuses=VISIBLE&statuses=HIDDEN&statuses=DELETED&page=0&size=20")
+    assert.equal(reads(state)[0].search, "?statuses=VISIBLE&statuses=HIDDEN&statuses=DELETED&page=0&size=20&sort=LATEST")
     await p.getByRole("link", { name: "관리자", exact: true }).waitFor()
-    await p.getByText("탈퇴한 회원", { exact: true }).waitFor()
+    await p.locator(".admin-post-secondary").filter({hasText:"탈퇴한 회원"}).waitFor()
     await p.getByRole("button", { name: "다음", exact: true }).click()
     await ready(p)
     assert.equal(
@@ -192,7 +194,7 @@ await run(
     q = new URLSearchParams(reads(state).at(-1).search)
     assert.equal(q.getAll("statuses").join(), "HIDDEN")
     assert.equal(q.get("page"), "0")
-    await p.getByRole("button", { name: "초기화", exact: true }).click()
+    await p.getByRole("button", { name: "전체 초기화", exact: true }).click()
     await ready(p)
     assert.equal(
       new URLSearchParams(reads(state).at(-1).search).has("keyword"),
@@ -227,7 +229,7 @@ await run(
     await p.getByText("검색 결과가 없습니다.", { exact: true }).waitFor()
     state.read = (r) => r.fulfill({ status: 403, json: fail("ACCESS_DENIED") })
     await selectStatuses(p, '게시글 상태', ['HIDDEN'])
-    await p.getByText("관리자 권한이 없습니다.", { exact: true }).waitFor()
+    await p.getByRole("heading", { name: "관리자 권한이 없습니다", exact: true }).waitFor()
     assert(
       await p
         .getByRole("button", { name: "로그아웃", exact: true })
@@ -236,7 +238,8 @@ await run(
     assert.equal(await p.locator("tbody tr").count(), 0)
     state.read = (r) =>
       r.fulfill({ status: 401, json: fail("AUTHENTICATION_REQUIRED") })
-    await selectStatuses(p, '게시글 상태', ['VISIBLE','HIDDEN','DELETED'])
+    // Access denial removes both the list and preview. Re-enter to check 401 separately.
+    await p.reload()
     await p
       .getByRole("heading", { name: "로그인이 필요합니다", exact: true })
       .waitFor()
@@ -469,6 +472,7 @@ await adminChipScenarios({run,setup,base,out,kind:'posts',ready:ready,reads:read
 
 await adminStableListScenarios({run,setup,base,out,kind:'posts',ready:ready,reads:reads,template:payload})
 
+await adminDateScenarios({run,setup,base,out,kind:'posts',ready,reads,template:payload})
 await browser.close()
 await fs.writeFile(`${out}/results.json`, JSON.stringify(results, null, 2))
 if (results.some((r) => !r.passed)) process.exitCode = 1

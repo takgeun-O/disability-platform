@@ -3,7 +3,7 @@ import assert from "node:assert/strict"
 export async function adminChipScenarios({run,setup,base,out,kind,ready,reads,template}) {
   const comments=kind==='comments',groupName=comments?'댓글 상태':'게시글 상태'
   const searchName=comments?'댓글 본문 검색':'게시글 제목 검색'
-  const submitName=comments?'댓글 검색':'검색', resetName=comments?'댓글 검색 초기화':'초기화'
+  const submitName=comments?'댓글 검색':'검색', resetName=comments?'댓글 검색 초기화':'전체 초기화'
   const area=comments?'.admin-comment-results':'.admin-results'
   const slot=comments?'comments':'read',url=comments?'/admin/posts/2':'/admin/posts'
   const statuses=['VISIBLE','HIDDEN','DELETED'],labels=['정상','숨김','삭제']
