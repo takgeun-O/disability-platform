@@ -851,7 +851,7 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
                  INVALID_DATE_RANGE ->
                     HttpStatus.BAD_REQUEST;
 
-            case POST_NOT_FOUND ->
+            case POST_NOT_FOUND, COMMENT_NOT_FOUND ->
                     HttpStatus.NOT_FOUND;
         };
 

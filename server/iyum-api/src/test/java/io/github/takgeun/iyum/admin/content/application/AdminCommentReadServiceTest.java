@@ -90,23 +90,6 @@ class AdminCommentReadServiceTest {
         }
     }
 
-    static Stream<Arguments> contentStates() {
-        return Arrays.stream(ContentState.values())
-                .flatMap(postState ->
-                        Arrays.stream(ContentState.values())
-                                .flatMap(commentState ->
-                                        Stream.of(false, true)
-                                                .map(edited ->
-                                                        Arguments.of(
-                                                                postState,
-                                                                commentState,
-                                                                edited
-                                                        )
-                                                )
-                                )
-                );
-    }
-
     @ParameterizedTest
     @MethodSource("contentStates")
     void 부모와_댓글의_상태를_구분하고_원문과_페이지_정보를_유지한다(
@@ -478,6 +461,307 @@ class AdminCommentReadServiceTest {
         verifyNoInteractions(commentReadRepository);
     }
 
+    @ParameterizedTest
+    @MethodSource("contentStates")
+    void 단건_조회는_부모와_댓글_상태를_구분하고_본문과_시각을_유지한다(
+            ContentState postState,
+            ContentState commentState,
+            boolean edited
+    ) {
+        givenAdmin();
+
+        Member author = activeAuthor();
+        Post post = createPost(author);
+        Comment comment = createComment(post, author);
+
+        Instant contentUpdatedAt = edited ? CONTENT_UPDATED_AT : null;
+
+        ReflectionTestUtils.setField(
+                comment,
+                "contentUpdatedAt",
+                contentUpdatedAt
+        );
+
+        applyState(post, postState);
+        applyState(comment, commentState);
+
+        when(commentReadRepository.findCommentById(COMMENT_ID))
+                .thenReturn(Optional.of(comment));
+
+        AdminCommentDetailResult result = service.getComment(
+                ADMIN_ID,
+                CREDENTIAL_VERSION,
+                COMMENT_ID
+        );
+
+        AdminPostStatus expectedPostStatus = switch (postState) {
+            case VISIBLE -> AdminPostStatus.VISIBLE;
+            case HIDDEN -> AdminPostStatus.HIDDEN;
+            case DELETED, HIDDEN_AND_DELETED -> AdminPostStatus.DELETED;
+        };
+
+        AdminCommentStatus expectedCommentStatus = switch (commentState) {
+            case VISIBLE -> AdminCommentStatus.VISIBLE;
+            case HIDDEN -> AdminCommentStatus.HIDDEN;
+            case DELETED, HIDDEN_AND_DELETED -> AdminCommentStatus.DELETED;
+        };
+
+        assertThat(result.commentId()).isEqualTo(COMMENT_ID);
+        assertThat(result.postId()).isEqualTo(POST_ID);
+        assertThat(result.postStatus()).isEqualTo(expectedPostStatus);
+        assertThat(result.status()).isEqualTo(expectedCommentStatus);
+
+        // 줄바꿈과 긴 본문이 잘리거나 변형되지 않아야 한다.
+        assertThat(result.content()).isEqualTo(ORIGINAL_CONTENT);
+
+        assertThat(result.createdAt()).isEqualTo(CREATED_AT);
+        assertThat(result.updatedAt()).isEqualTo(UPDATED_AT);
+        assertThat(result.contentUpdatedAt()).isEqualTo(contentUpdatedAt);
+
+        assertThat(result.hiddenAt())
+                .isEqualTo(commentState.hidden() ? HIDDEN_AT : null);
+        assertThat(result.deletedAt())
+                .isEqualTo(commentState.deleted() ? DELETED_AT : null);
+
+        assertThat(result.author()).isEqualTo(
+                new AdminCommentAuthorResult(
+                        8L,
+                        "댓글조회검증회원",
+                        false
+                )
+        );
+
+        // 관리자 자격을 확인한 다음 댓글을 조회해야 한다.
+        var order = inOrder(memberRepository, commentReadRepository);
+        order.verify(memberRepository).findById(ADMIN_ID);
+        order.verify(commentReadRepository).findCommentById(COMMENT_ID);
+
+        // 부모 게시글은 댓글과 함께 조회하므로 별도 조회가 필요 없다.
+        verifyNoInteractions(postReadRepository);
+        verifyNoMoreInteractions(memberRepository, commentReadRepository);
+    }
+
+    @Test
+    void 단건_조회에서_탈퇴한_작성자는_탈퇴한_회원으로_표시한다() {
+        givenAdmin();
+
+        Member author = activeAuthor();
+        Post post = createPost(author);
+        Comment comment = createComment(post, author);
+
+        author.withdraw(DELETED_AT);
+
+        when(commentReadRepository.findCommentById(COMMENT_ID))
+                .thenReturn(Optional.of(comment));
+
+        AdminCommentDetailResult result = service.getComment(
+                ADMIN_ID,
+                CREDENTIAL_VERSION,
+                COMMENT_ID
+        );
+
+        assertThat(result.content()).isEqualTo(ORIGINAL_CONTENT);
+        assertThat(result.author()).isEqualTo(
+                new AdminCommentAuthorResult(
+                        8L,
+                        "탈퇴한 회원",
+                        true
+                )
+        );
+    }
+
+    @ParameterizedTest
+    @NullSource
+    @ValueSource(longs = {0L, -1L})
+    void 단건_조회에서_댓글_ID가_유효하지_않으면_콘텐츠를_조회하지_않는다(
+            Long commentId
+    ) {
+        givenAdmin();
+
+        assertThatThrownBy(() ->
+                service.getComment(
+                        ADMIN_ID,
+                        CREDENTIAL_VERSION,
+                        commentId
+                )
+        ).isInstanceOfSatisfying(
+                AdminContentReadException.class,
+                exception -> assertThat(exception.getCode())
+                        .isEqualTo(
+                                AdminContentReadException.Code.COMMENT_NOT_FOUND
+                        )
+        );
+
+        verify(memberRepository).findById(ADMIN_ID);
+        verifyNoInteractions(postReadRepository, commentReadRepository);
+    }
+
+    @Test
+    void 단건_조회에서_댓글이_없으면_댓글_미존재_오류를_반환한다() {
+        givenAdmin();
+
+        when(commentReadRepository.findCommentById(COMMENT_ID))
+                .thenReturn(Optional.empty());
+
+        assertThatThrownBy(() ->
+                service.getComment(
+                        ADMIN_ID,
+                        CREDENTIAL_VERSION,
+                        COMMENT_ID
+                )
+        ).isInstanceOfSatisfying(
+                AdminContentReadException.class,
+                exception -> assertThat(exception.getCode())
+                        .isEqualTo(
+                                AdminContentReadException.Code.COMMENT_NOT_FOUND
+                        )
+        );
+
+        var order = inOrder(memberRepository, commentReadRepository);
+        order.verify(memberRepository).findById(ADMIN_ID);
+        order.verify(commentReadRepository).findCommentById(COMMENT_ID);
+
+        verifyNoInteractions(postReadRepository);
+    }
+
+    @ParameterizedTest
+    @NullSource
+    @ValueSource(longs = {0L, -1L})
+    void 단건_조회에서_회원_ID가_유효하지_않으면_조회하지_않는다(
+            Long memberId
+    ) {
+        assertDetailAccessRejected(
+                memberId,
+                CREDENTIAL_VERSION,
+                AdminContentReadException.Code.AUTHENTICATION_REQUIRED
+        );
+
+        verifyNoInteractions(memberRepository);
+    }
+
+    @Test
+    void 단건_조회에서_인증_버전이_음수이면_조회하지_않는다() {
+        assertDetailAccessRejected(
+                ADMIN_ID,
+                -1L,
+                AdminContentReadException.Code.AUTHENTICATION_REQUIRED
+        );
+
+        verifyNoInteractions(memberRepository);
+    }
+
+    @Test
+    void 단건_조회에서_회원이_없으면_인증_실패다() {
+        when(memberRepository.findById(ADMIN_ID))
+                .thenReturn(Optional.empty());
+
+        assertDetailAccessRejected(
+                ADMIN_ID,
+                CREDENTIAL_VERSION,
+                AdminContentReadException.Code.AUTHENTICATION_REQUIRED
+        );
+    }
+
+    @ParameterizedTest
+    @EnumSource(
+            value = MemberStatus.class,
+            names = {"PENDING", "DELETED"}
+    )
+    void 단건_조회에서_활성_회원이_아니면_인증_실패다(
+            MemberStatus status
+    ) {
+        Member actor = createMember(
+                ADMIN_ID,
+                status,
+                MemberRole.ADMIN,
+                CREDENTIAL_VERSION
+        );
+
+        when(memberRepository.findById(ADMIN_ID))
+                .thenReturn(Optional.of(actor));
+
+        assertDetailAccessRejected(
+                ADMIN_ID,
+                CREDENTIAL_VERSION,
+                AdminContentReadException.Code.AUTHENTICATION_REQUIRED
+        );
+    }
+
+    @ParameterizedTest
+    @ValueSource(longs = {2L, 4L})
+    void 단건_조회에서_인증_버전이_다르면_인증_실패다(
+            long requestedVersion
+    ) {
+        givenAdmin();
+
+        assertDetailAccessRejected(
+                ADMIN_ID,
+                requestedVersion,
+                AdminContentReadException.Code.AUTHENTICATION_REQUIRED
+        );
+    }
+
+    @Test
+    void 단건_조회에서_일반_회원은_관리자_권한_부족이다() {
+        Member actor = createMember(
+                ADMIN_ID,
+                MemberStatus.ACTIVE,
+                MemberRole.USER,
+                CREDENTIAL_VERSION
+        );
+
+        when(memberRepository.findById(ADMIN_ID))
+                .thenReturn(Optional.of(actor));
+
+        assertDetailAccessRejected(
+                ADMIN_ID,
+                CREDENTIAL_VERSION,
+                AdminContentReadException.Code.ADMIN_REQUIRED
+        );
+    }
+
+    @Test
+    void 단건_조회에서도_관리자_권한보다_인증_버전_검증을_우선한다() {
+        Member actor = createMember(
+                ADMIN_ID,
+                MemberStatus.ACTIVE,
+                MemberRole.USER,
+                CREDENTIAL_VERSION
+        );
+
+        when(memberRepository.findById(ADMIN_ID))
+                .thenReturn(Optional.of(actor));
+
+        assertDetailAccessRejected(
+                ADMIN_ID,
+                CREDENTIAL_VERSION - 1,
+                AdminContentReadException.Code.AUTHENTICATION_REQUIRED
+        );
+    }
+
+    @Test
+    void 단건_조회는_잘못된_댓글_ID보다_인증_실패를_우선한다() {
+        assertThatThrownBy(() ->
+                service.getComment(
+                        null,
+                        CREDENTIAL_VERSION,
+                        null
+                )
+        ).isInstanceOfSatisfying(
+                AdminContentReadException.class,
+                exception -> assertThat(exception.getCode())
+                        .isEqualTo(
+                                AdminContentReadException.Code.AUTHENTICATION_REQUIRED
+                        )
+        );
+
+        verifyNoInteractions(
+                memberRepository,
+                postReadRepository,
+                commentReadRepository
+        );
+    }
+
     private void assertAccessRejected(
             Long memberId,
             long credentialVersion,
@@ -617,5 +901,46 @@ class AdminCommentReadServiceTest {
                 0,
                 20
         );
+    }
+
+    private void assertDetailAccessRejected(
+            Long memberId,
+            long credentialVersion,
+            AdminContentReadException.Code expectedCode
+    ) {
+        assertThatThrownBy(() ->
+                service.getComment(
+                        memberId,
+                        credentialVersion,
+                        COMMENT_ID
+                )
+        ).isInstanceOfSatisfying(
+                AdminContentReadException.class,
+                exception -> assertThat(exception.getCode())
+                        .isEqualTo(expectedCode)
+        );
+
+        // 인증·권한 검증 실패 시 콘텐츠 존재 여부도 조회하지 않는다.
+        verifyNoInteractions(postReadRepository, commentReadRepository);
+    }
+
+    /**
+     * 부모 상태, 댓글 상태, 본문 수정 여부 조합 제공
+     */
+    static Stream<Arguments> contentStates() {
+        return Arrays.stream(ContentState.values())
+                .flatMap(postState ->
+                        Arrays.stream(ContentState.values())
+                                .flatMap(commentState ->
+                                        Stream.of(false, true)
+                                                .map(edited ->
+                                                        Arguments.of(
+                                                                postState,
+                                                                commentState,
+                                                                edited
+                                                        )
+                                                )
+                                )
+                );
     }
 }

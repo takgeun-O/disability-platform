@@ -802,4 +802,112 @@ class AdminCommentReadRepositoryTest {
         assertThat(result.getTotalPages()).isEqualTo(1);
         assertThat(result.hasNext()).isFalse();
     }
+
+    @ParameterizedTest
+    @MethodSource("parentAndCommentDetailStates")
+    void 부모와_댓글_상태에_관계없이_ID로_댓글을_조회한다(
+            ContentState parentState,
+            ContentState commentState
+    ) {
+        Comment saved = createComment(
+                "관리자가 확인할 댓글 본문",
+                commentState
+        );
+
+        // 다른 댓글이 섞여 조회되지 않는지도 확인한다.
+        createComment(
+                otherPost,
+                "다른 게시글의 댓글",
+                ContentState.VISIBLE,
+                CREATED_AT
+        );
+
+        applyParentState(parentState);
+
+        Long commentId = saved.getId();
+        Long postId = targetPost.getId();
+        Instant expectedHiddenAt = saved.getHiddenAt();
+        Instant expectedDeletedAt = saved.getDeletedAt();
+        Instant expectedPostHiddenAt = targetPost.getHiddenAt();
+        Instant expectedPostDeletedAt = targetPost.getDeletedAt();
+
+        flushAndClear();
+
+        Comment found = repository.findCommentById(commentId)
+                .orElseThrow();
+
+        assertThat(found.getId()).isEqualTo(commentId);
+        assertThat(found.getContent())
+                .isEqualTo("관리자가 확인할 댓글 본문");
+
+        assertThat(found.getHiddenAt()).isEqualTo(expectedHiddenAt);
+        assertThat(found.getDeletedAt()).isEqualTo(expectedDeletedAt);
+
+        assertThat(found.getPost().getId()).isEqualTo(postId);
+        assertThat(found.getPost().getHiddenAt())
+                .isEqualTo(expectedPostHiddenAt);
+        assertThat(found.getPost().getDeletedAt())
+                .isEqualTo(expectedPostDeletedAt);
+    }
+
+    @Test
+    void 댓글_단건_조회는_작성자와_부모_게시글을_함께_로딩한다() {
+        Comment saved = createComment(
+                "연관 객체 조회 확인",
+                ContentState.VISIBLE
+        );
+
+        Long commentId = saved.getId();
+        Long authorId = author.getId();
+        Long postId = targetPost.getId();
+
+        flushAndClear();
+
+        Comment found = repository.findCommentById(commentId)
+                .orElseThrow();
+
+        var persistenceUnitUtil = entityManager
+                .getEntityManagerFactory()
+                .getPersistenceUnitUtil();
+
+        // 필드 접근으로 지연 로딩이 발생하기 전에 확인한다.
+        assertThat(persistenceUnitUtil.isLoaded(found, "author"))
+                .isTrue();
+        assertThat(persistenceUnitUtil.isLoaded(found, "post"))
+                .isTrue();
+
+        // 영속성 컨텍스트에서 분리해도 필요한 정보를 읽을 수 있어야 한다.
+        entityManager.clear();
+
+        assertThat(found.getAuthor().getId()).isEqualTo(authorId);
+        assertThat(found.getAuthor().getNickname())
+                .isEqualTo("IYUM작성회원");
+
+        assertThat(found.getPost().getId()).isEqualTo(postId);
+        assertThat(found.getPost().getTitle())
+                .isEqualTo("IYUM 부모 게시글");
+    }
+
+    @Test
+    void 존재하지_않는_댓글_ID는_빈_Optional을_반환한다() {
+        createComment("존재하는 댓글", ContentState.VISIBLE);
+
+        flushAndClear();
+
+        assertThat(repository.findCommentById(Long.MAX_VALUE))
+                .isEmpty();
+    }
+
+    static Stream<Arguments> parentAndCommentDetailStates() {
+        return Arrays.stream(ContentState.values())
+                .flatMap(parentState ->
+                        Arrays.stream(ContentState.values())
+                                .map(commentState ->
+                                        Arguments.of(
+                                                parentState,
+                                                commentState
+                                        )
+                                )
+                );
+    }
 }
