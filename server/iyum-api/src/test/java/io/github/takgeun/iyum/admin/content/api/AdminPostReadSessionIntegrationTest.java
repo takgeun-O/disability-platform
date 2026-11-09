@@ -32,6 +32,8 @@ import tools.jackson.databind.ObjectMapper;
 
 import java.sql.Timestamp;
 import java.time.Instant;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 
@@ -414,6 +416,221 @@ class AdminPostReadSessionIntegrationTest {
         }
     }
 
+    @Test
+    void 실제_관리자_세션으로_다중_상태와_검색어를_적용해_페이징한다()
+            throws Exception {
+        // 상태는 일치하지만 검색어가 다른 게시글을 추가한다.
+        // 상태 조건과 검색어 조건이 AND로 적용되는지 확인한다.
+        Post unrelatedVisible = Post.create(
+                author,
+                PostType.GENERAL,
+                PostTopic.DAILY,
+                "검색 대상이 아닌 정상 게시글",
+                ORIGINAL_CONTENT
+        );
+        postRepository.saveAndFlush(unrelatedVisible);
+
+        Post unrelatedHidden = Post.create(
+                author,
+                PostType.GENERAL,
+                PostTopic.DAILY,
+                "검색 대상이 아닌 숨김 게시글",
+                ORIGINAL_CONTENT
+        );
+        unrelatedHidden.hide(HIDDEN_AT);
+        postRepository.saveAndFlush(unrelatedHidden);
+
+        // 실제 CSRF 발급 및 로그인 API를 호출해 얻은 세션이다.
+        MockHttpSession session = login(admin.getEmail());
+
+        // 선택 순서를 바꾸거나 값을 반복해도 결과는 같아야 한다.
+        String[] statuses = {"HIDDEN", "VISIBLE", "HIDDEN"};
+
+        JsonNode firstPage = readMultipleStatusPosts(
+                session, 0, 1, statuses
+        );
+        JsonNode secondPage = readMultipleStatusPosts(
+                session, 1, 1, statuses
+        );
+        JsonNode outOfRange = readMultipleStatusPosts(
+                session, 2, 1, statuses
+        );
+
+        // 작성 시각이 같으므로 ID 내림차순이다.
+        assertThat(postIds(firstPage))
+                .containsExactly(hiddenPostId);
+        assertThat(postIds(secondPage))
+                .containsExactly(visiblePostId);
+        assertThat(postIds(outOfRange)).isEmpty();
+
+        assertThat(firstPage.path("items").path(0)
+                .path("status").asString())
+                .isEqualTo("HIDDEN");
+
+        assertThat(secondPage.path("items").path(0)
+                .path("status").asString())
+                .isEqualTo("VISIBLE");
+
+        for (JsonNode page : List.of(
+                firstPage,
+                secondPage,
+                outOfRange
+        )) {
+            assertThat(page.path("totalElements").asLong())
+                    .isEqualTo(2);
+            assertThat(page.path("totalPages").asInt())
+                    .isEqualTo(2);
+            assertThat(page.path("size").asInt())
+                    .isEqualTo(1);
+        }
+
+        assertThat(firstPage.path("page").asInt()).isZero();
+        assertThat(firstPage.path("hasNext").asBoolean()).isTrue();
+        assertThat(firstPage.path("hasPrevious").asBoolean()).isFalse();
+
+        assertThat(secondPage.path("page").asInt()).isEqualTo(1);
+        assertThat(secondPage.path("hasNext").asBoolean()).isFalse();
+        assertThat(secondPage.path("hasPrevious").asBoolean()).isTrue();
+
+        assertThat(outOfRange.path("page").asInt()).isEqualTo(2);
+        assertThat(outOfRange.path("hasNext").asBoolean()).isFalse();
+
+        // 세 상태를 모두 선택하면 삭제된 게시글까지 포함한다.
+        JsonNode allStates = readMultipleStatusPosts(
+                session,
+                0,
+                20,
+                "VISIBLE",
+                "HIDDEN",
+                "DELETED"
+        );
+
+        assertThat(postIds(allStates)).containsExactly(
+                hiddenAndDeletedPostId,
+                deletedPostId,
+                hiddenPostId,
+                visiblePostId
+        );
+
+        assertThat(allStates.path("totalElements").asLong())
+                .isEqualTo(4);
+
+        // 숨김 시각이 남아 있어도 삭제 상태가 우선한다.
+        assertThat(allStates.path("items").path(0)
+                .path("status").asString())
+                .isEqualTo("DELETED");
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"LATEST", "OLDEST"})
+    void 실제_관리자_세션으로_작성일과_정렬을_적용해_페이징한다(
+            String sort
+    ) throws Exception {
+        // 한국 시간 2026-10-30의 시작과 다음 날 시작이다.
+        Instant from = Instant.parse("2026-10-29T15:00:00Z");
+        Instant to = Instant.parse("2026-10-30T15:00:00Z");
+
+        // 기존 visiblePostId와 hiddenPostId는
+        // CREATED_AT(2026-10-30T10:00:00Z)에 작성되어 범위 안에 있다.
+        //
+        // 아래 게시글은 ID가 더 크지만 작성 시각은 더 오래되게 만든다.
+        // ID만으로 정렬하는 오류도 검출할 수 있다.
+        Long atStartId = savePost("시작 경계", false, false);
+        setPostCreatedAt(atStartId, from);
+
+        // 검색어와 상태가 일치해도 시작일 이전이면 제외한다.
+        Long beforeStartId = savePost("시작 직전", false, false);
+        setPostCreatedAt(
+                beforeStartId,
+                from.minusNanos(1_000)
+        );
+
+        // 종료일 다음 날 00:00은 포함하지 않는다.
+        Long atEndId = savePost("종료 경계", true, false);
+        setPostCreatedAt(atEndId, to);
+
+        // 상태와 작성일이 일치해도 검색어가 다르면 제외한다.
+        Post unrelated = Post.create(
+                author,
+                PostType.GENERAL,
+                PostTopic.DAILY,
+                "검색어가 다른 게시글",
+                ORIGINAL_CONTENT
+        );
+
+        Post savedUnrelated = postRepository.saveAndFlush(unrelated);
+        setPostCreatedAt(savedUnrelated.getId(), CREATED_AT);
+
+        // 기존 deletedPostId와 hiddenAndDeletedPostId는
+        // 검색어와 작성일이 일치하지만 선택한 상태에 없으므로 제외한다.
+
+        MockHttpSession session = login(admin.getEmail());
+
+        JsonNode firstPage = readDateSortedPosts(
+                session, sort, 0, 2
+        );
+
+        JsonNode secondPage = readDateSortedPosts(
+                session, sort, 1, 2
+        );
+
+        JsonNode outsidePage = readDateSortedPosts(
+                session, sort, 2, 2
+        );
+
+        List<Long> expectedIds = switch (sort) {
+            case "LATEST" -> List.of(
+                    hiddenPostId,
+                    visiblePostId,
+                    atStartId
+            );
+            case "OLDEST" -> List.of(
+                    atStartId,
+                    visiblePostId,
+                    hiddenPostId
+            );
+            default -> throw new IllegalArgumentException(
+                    "지원하지 않는 정렬: " + sort
+            );
+        };
+
+        assertThat(postIds(firstPage))
+                .containsExactlyElementsOf(expectedIds.subList(0, 2));
+
+        assertThat(postIds(secondPage))
+                .containsExactly(expectedIds.get(2));
+
+        assertThat(postIds(outsidePage)).isEmpty();
+
+        // 범위 밖 페이지에서도 같은 검색 조건의 전체 개수를 유지한다.
+        for (JsonNode page : List.of(
+                firstPage,
+                secondPage,
+                outsidePage
+        )) {
+            assertThat(page.path("totalElements").asLong())
+                    .isEqualTo(3);
+
+            assertThat(page.path("totalPages").asInt())
+                    .isEqualTo(2);
+
+            assertThat(page.path("size").asInt())
+                    .isEqualTo(2);
+        }
+
+        assertThat(firstPage.path("page").asInt()).isZero();
+        assertThat(firstPage.path("hasNext").asBoolean()).isTrue();
+        assertThat(firstPage.path("hasPrevious").asBoolean()).isFalse();
+
+        assertThat(secondPage.path("page").asInt()).isEqualTo(1);
+        assertThat(secondPage.path("hasNext").asBoolean()).isFalse();
+        assertThat(secondPage.path("hasPrevious").asBoolean()).isTrue();
+
+        assertThat(outsidePage.path("page").asInt()).isEqualTo(2);
+        assertThat(outsidePage.path("hasNext").asBoolean()).isFalse();
+        assertThat(outsidePage.path("hasPrevious").asBoolean()).isTrue();
+    }
+
     private ResultActions readList(
             MockHttpSession session,
             String status,
@@ -562,5 +779,101 @@ class AdminPostReadSessionIntegrationTest {
         assertThat(updatedRows).isEqualTo(1);
 
         return saved.getId();
+    }
+
+    private JsonNode readMultipleStatusPosts(
+            MockHttpSession session,
+            int page,
+            int size,
+            String... statuses
+    ) throws Exception {
+        MvcResult result = expectOk(
+                mockMvc.perform(
+                        get(LIST_PATH)
+                                .session(session)
+                                .queryParam("statuses", statuses)
+                                .queryParam("keyword", "  " + keyword + "  ")
+                                .queryParam("page", Integer.toString(page))
+                                .queryParam("size", Integer.toString(size))
+                )
+        ).andReturn();
+
+        return objectMapper.readTree(
+                result.getResponse().getContentAsByteArray()
+        );
+    }
+
+    private List<Long> postIds(JsonNode response) {
+        List<Long> ids = new ArrayList<>();
+
+        for (JsonNode item : response.path("items")) {
+            ids.add(item.path("postId").asLong());
+        }
+
+        return ids;
+    }
+
+    /**
+     * 테스트 데이터의 작성 시각을 고정한다.
+     * JPA Auditing의 현재 시각과 무관하게 날짜 경계와 정렬을 검증한다.
+     */
+    private void setPostCreatedAt(
+            Long postId,
+            Instant createdAt
+    ) {
+        int updatedRows = jdbcTemplate.update("""
+            UPDATE community_posts
+            SET created_at = ?
+            WHERE id = ?
+            """,
+                Timestamp.from(createdAt),
+                postId
+        );
+
+        assertThat(updatedRows).isEqualTo(1);
+    }
+
+    private JsonNode readDateSortedPosts(
+            MockHttpSession session,
+            String sort,
+            int page,
+            int size
+    ) throws Exception {
+        MvcResult result = expectOk(
+                mockMvc.perform(
+                        get(LIST_PATH)
+                                .session(session)
+                                .queryParam(
+                                        "statuses",
+                                        "VISIBLE",
+                                        "HIDDEN"
+                                )
+                                .queryParam(
+                                        "keyword",
+                                        "  " + keyword + "  "
+                                )
+                                .queryParam(
+                                        "startDate",
+                                        "2026-10-30"
+                                )
+                                .queryParam(
+                                        "endDate",
+                                        "2026-10-30"
+                                )
+                                .queryParam("sort", sort)
+                                .queryParam(
+                                        "page",
+                                        Integer.toString(page)
+                                )
+                                .queryParam(
+                                        "size",
+                                        Integer.toString(size)
+                                )
+                )
+        ).andReturn();
+
+        return objectMapper.readTree(
+                result.getResponse().getContentAsByteArray()
+        );
     }
 }

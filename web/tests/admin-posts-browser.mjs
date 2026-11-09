@@ -1,3 +1,6 @@
+import {adminDateScenarios} from "./helpers/admin-date-scenarios.mjs"
+import { adminStableListScenarios } from "./helpers/admin-stable-list-scenarios.mjs"
+import { adminChipScenarios } from "./helpers/admin-chip-scenarios.mjs"
 import assert from "node:assert/strict"
 import fs from "node:fs/promises"
 const { chromium } = await import(process.env.PLAYWRIGHT_MODULE ?? "playwright")
@@ -50,6 +53,14 @@ const gate = () => {
     arrive: () => arrive(),
   }
 }
+
+async function selectStatuses(p, group, statuses) {
+  const field = p.getByRole('group', {name: group, exact: true})
+  for (const [value,label] of [['VISIBLE','정상'],['HIDDEN','숨김'],['DELETED','삭제']])
+    await field.getByRole('checkbox',{name:label,exact:true}).setChecked(statuses.includes(value))
+  // State chips apply automatically; callers wait for the resulting read.
+}
+
 async function setup(role = "ADMIN", width = 1440) {
   const context = await browser.newContext({
       viewport: { width, height: 900 },
@@ -102,6 +113,7 @@ async function setup(role = "ADMIN", width = 1440) {
 const reads = (s) => s.calls.filter((c) => c.path === "/api/v1/admin/posts")
 const ready = (p) => p.locator('.admin-results[aria-busy="false"]').waitFor()
 async function run(name, fn) {
+  if (process.env.TEST_FILTER && !new RegExp(process.env.TEST_FILTER).test(name)) return
   try {
     await fn()
     results.push({ name, passed: true })
@@ -161,9 +173,9 @@ await run(
     await ready(p)
     assert.equal(new URL(p.url()).pathname, "/admin/posts")
     assert.equal(reads(state).length, 1)
-    assert.equal(reads(state)[0].search, "?status=ALL&page=0&size=20")
+    assert.equal(reads(state)[0].search, "?statuses=VISIBLE&statuses=HIDDEN&statuses=DELETED&page=0&size=20&sort=LATEST")
     await p.getByRole("link", { name: "관리자", exact: true }).waitFor()
-    await p.getByText("탈퇴한 회원", { exact: true }).waitFor()
+    await p.locator(".admin-post-secondary").filter({hasText:"탈퇴한 회원"}).waitFor()
     await p.getByRole("button", { name: "다음", exact: true }).click()
     await ready(p)
     assert.equal(
@@ -177,12 +189,12 @@ await run(
     let q = new URLSearchParams(reads(state).at(-1).search)
     assert.equal(q.get("keyword"), "검색")
     assert.equal(q.get("page"), "0")
-    await p.getByLabel("처리 상태", { exact: true }).selectOption("HIDDEN")
+    await selectStatuses(p, '게시글 상태', ['HIDDEN'])
     await ready(p)
     q = new URLSearchParams(reads(state).at(-1).search)
-    assert.equal(q.get("status"), "HIDDEN")
+    assert.equal(q.getAll("statuses").join(), "HIDDEN")
     assert.equal(q.get("page"), "0")
-    await p.getByRole("button", { name: "초기화", exact: true }).click()
+    await p.getByRole("button", { name: "전체 초기화", exact: true }).click()
     await ready(p)
     assert.equal(
       new URLSearchParams(reads(state).at(-1).search).has("keyword"),
@@ -216,8 +228,8 @@ await run(
     await p.getByRole("button", { name: "검색", exact: true }).click()
     await p.getByText("검색 결과가 없습니다.", { exact: true }).waitFor()
     state.read = (r) => r.fulfill({ status: 403, json: fail("ACCESS_DENIED") })
-    await p.getByLabel("처리 상태", { exact: true }).selectOption("HIDDEN")
-    await p.getByText("관리자 권한이 없습니다.", { exact: true }).waitFor()
+    await selectStatuses(p, '게시글 상태', ['HIDDEN'])
+    await p.getByRole("heading", { name: "관리자 권한이 없습니다", exact: true }).waitFor()
     assert(
       await p
         .getByRole("button", { name: "로그아웃", exact: true })
@@ -226,7 +238,8 @@ await run(
     assert.equal(await p.locator("tbody tr").count(), 0)
     state.read = (r) =>
       r.fulfill({ status: 401, json: fail("AUTHENTICATION_REQUIRED") })
-    await p.getByLabel("처리 상태", { exact: true }).selectOption("ALL")
+    // Access denial removes both the list and preview. Re-enter to check 401 separately.
+    await p.reload()
     await p
       .getByRole("heading", { name: "로그인이 필요합니다", exact: true })
       .waitFor()
@@ -251,7 +264,7 @@ for (const logout of [false, true])
       })
       const g = gate()
       state.read = async (r, u) => {
-        if (u.searchParams.get("status") === "ALL") {
+        if (u.searchParams.getAll("statuses").length === 3) {
           g.arrive()
           await g.response
           await r.fulfill({ json: payload() })
@@ -268,11 +281,11 @@ for (const logout of [false, true])
           .getByRole("heading", { name: "로그인이 필요합니다", exact: true })
           .waitFor()
       } else {
-        await p.getByLabel("처리 상태", { exact: true }).selectOption("HIDDEN")
+        await selectStatuses(p, '게시글 상태', ['HIDDEN'])
         await p.getByText("검증 게시글 9", { exact: true }).waitFor()
       }
       const done = p.waitForEvent("requestfinished", {
-        predicate: (q) => q.url().includes("/admin/posts?status=ALL"),
+        predicate: (q) => q.url().includes("/admin/posts?statuses=VISIBLE&statuses=HIDDEN&statuses=DELETED"),
       })
       g.release()
       await done
@@ -318,7 +331,7 @@ for (const sameMember of [true, false])
     if (sameMember) await p.getByText('검증 게시글 90', { exact: true }).waitFor()
     else await p.getByRole('heading', { name: '관리자 권한이 없습니다', exact: true }).waitFor()
     const before = reads(state).length
-    const finished = p.waitForEvent('requestfinished', { predicate: r => r.url().includes('/admin/posts?status=ALL') })
+    const finished = p.waitForEvent('requestfinished', { predicate: r => r.url().includes('/admin/posts?statuses=VISIBLE&statuses=HIDDEN&statuses=DELETED') })
     g.release()
     await finished
     await p.evaluate(() => new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r))))
@@ -328,7 +341,7 @@ for (const sameMember of [true, false])
     else { assert.equal(await p.locator('tbody tr').count(), 0); assert.equal(await p.getByRole('link', { name: '관리자', exact: true }).count(), 0) }
     await context.close()
   })
-await run("page jump validation, first/last and anchored time", async () => {
+await run("page jump validation, first/last and exact non-interactive time", async () => {
   const { context, p, state } = await setup()
   await p.goto(base + '/admin/posts'); await ready(p)
   const jump = p.getByLabel('페이지 바로 이동', { exact: true })
@@ -342,13 +355,10 @@ await run("page jump validation, first/last and anchored time", async () => {
   assert.equal(new URLSearchParams(reads(state).at(-1).search).get('page'), '0')
   await p.getByRole('button', { name: '맨 마지막', exact: true }).click(); await ready(p)
   assert.equal(new URLSearchParams(reads(state).at(-1).search).get('page'), '1')
-  const time = p.locator('.written-time-trigger').first()
-  await time.click()
-  const panel = p.locator('.written-time-exact:popover-open')
-  await panel.waitFor({state:'visible'})
-  const a = await time.boundingBox(), b = await panel.boundingBox()
-  assert(Math.abs(b.y - (a.y+a.height)) < 12 || Math.abs(b.y+b.height-a.y) < 12)
-  await p.keyboard.press('Escape'); assert.equal(await p.locator(':popover-open').count(),0)
+  const time = p.locator('tbody time').first()
+  assert.equal(await time.getAttribute('datetime'),item(1).createdAt)
+  assert.match(await time.textContent(),/2026\.11\.01\. 09:00:00/)
+  assert.equal(await time.locator('xpath=ancestor::a|ancestor::button').count(),0)
   await context.close()
 })
 for (const entry of ['sidebar', 'header', 'mobile'])
@@ -366,7 +376,7 @@ for (const entry of ['sidebar', 'header', 'mobile'])
   await clickMenu()
   await p.getByLabel('게시글 제목 검색',{exact:true}).fill('메뉴 유지')
   await p.getByRole('button',{name:'검색',exact:true}).click();await ready(p)
-  await p.getByLabel('처리 상태',{exact:true}).selectOption('HIDDEN');await ready(p)
+  await selectStatuses(p, '게시글 상태', ['HIDDEN']);await ready(p)
   await p.getByRole('button',{name:'다음',exact:true}).click();await ready(p)
   assert.equal(new URLSearchParams(reads(state).at(-1).search).get('page'),'1')
   await context.close()
@@ -424,7 +434,7 @@ await run('real navigation discards late admin response; modified click preserve
  assert.equal(new URL(p.url()).pathname,'/admin/posts')
  await p.getByRole('link',{name:'서비스로 돌아가기',exact:true}).click()
  await p.waitForURL(base+'/')
- const done=p.waitForEvent('requestfinished',{predicate:r=>r.url().includes('/admin/posts?status=ALL')})
+ const done=p.waitForEvent('requestfinished',{predicate:r=>r.url().includes('/admin/posts?statuses=VISIBLE&statuses=HIDDEN&statuses=DELETED')})
  g.release();await done
  await p.evaluate(()=>new Promise(r=>requestAnimationFrame(()=>requestAnimationFrame(r))))
  assert.equal(await p.locator('.admin-panel').count(),0)
@@ -454,6 +464,12 @@ for (const width of [1440, 390, 320])
     await p.screenshot({ path: `${out}/admin-${width}.png`, fullPage: true })
     await context.close()
   })
+
+await adminChipScenarios({run,setup,base,out,kind:'posts',ready:ready,reads:reads,template:payload})
+
+await adminStableListScenarios({run,setup,base,out,kind:'posts',ready:ready,reads:reads,template:payload})
+
+await adminDateScenarios({run,setup,base,out,kind:'posts',ready,reads,template:payload})
 await browser.close()
 await fs.writeFile(`${out}/results.json`, JSON.stringify(results, null, 2))
 if (results.some((r) => !r.passed)) process.exitCode = 1

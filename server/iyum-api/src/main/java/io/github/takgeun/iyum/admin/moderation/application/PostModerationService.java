@@ -3,6 +3,7 @@ package io.github.takgeun.iyum.admin.moderation.application;
 import io.github.takgeun.iyum.admin.moderation.domain.ContentModerationLog;
 import io.github.takgeun.iyum.admin.moderation.domain.ModerationAction;
 import io.github.takgeun.iyum.admin.moderation.domain.ModerationInputPolicy;
+import io.github.takgeun.iyum.admin.moderation.domain.ModerationReasonType;
 import io.github.takgeun.iyum.admin.moderation.infrastructure.ContentModerationLogRepository;
 import io.github.takgeun.iyum.community.post.domain.Post;
 import io.github.takgeun.iyum.community.post.infrastructure.PostRepository;
@@ -50,6 +51,25 @@ public class PostModerationService {
     }
 
     @Transactional
+    public PostModerationResult hide(
+            Long actorMemberId,
+            long credentialVersion,
+            Long postId,
+            ModerationReasonType reasonType,
+            String reasonDetail
+    ) {
+        return changeState(
+                actorMemberId,
+                credentialVersion,
+                postId,
+                reasonType,
+                reasonDetail,
+                ModerationAction.HIDE,
+                false   // 새 유형 입력 방식이라는 뜻. (서비스 내부 전환용이며 요청 파라미터로 노출하지 않음.)
+        );
+    }
+
+    @Transactional
     public PostModerationResult restore(
             Long actorMemberId,
             long credentialVersion,
@@ -65,12 +85,55 @@ public class PostModerationService {
         );
     }
 
+    @Transactional
+    public PostModerationResult restore(
+            Long actorMemberId,
+            long credentialVersion,
+            Long postId,
+            ModerationReasonType reasonType,
+            String reasonDetail
+    ) {
+        return changeState(
+                actorMemberId,
+                credentialVersion,
+                postId,
+                reasonType,
+                reasonDetail,
+                ModerationAction.RESTORE,
+                false   // 새 유형 입력 방식이라는 뜻. (서비스 내부 전환용이며 요청 파라미터로 노출하지 않음.)
+        );
+    }
+
+    /**
+     * 기존 자유 입력 API를 위한 임시 호환 경로.
+     * 컨트롤러 전환이 끝나면 기존 공개 메서드와 함께 제거한다.
+     */
     private PostModerationResult changeState(
             Long actorMemberId,
             long credentialVersion,
             Long postId,
             String reason,
             ModerationAction action
+    ) {
+        return changeState(
+                actorMemberId,
+                credentialVersion,
+                postId,
+                null,
+                reason,
+                action,
+                true
+        );
+    }
+
+    private PostModerationResult changeState(
+            Long actorMemberId,
+            long credentialVersion,
+            Long postId,
+            ModerationReasonType reasonType,
+            String reasonDetail,
+            ModerationAction action,
+            boolean legacyInput
     ) {
 
         // 1. 요청 관리자 회원을 먼저 잠근다.
@@ -79,8 +142,11 @@ public class PostModerationService {
                 credentialVersion
         );
 
-        // 중복 요청이어도 사유 검증은 동일하게 수행한다.
-        String normalizedReason = validateReason(reason);
+        // 관리자 자격을 확인한 뒤 사유를 검증한다.
+        // 중복 요청도 콘텐츠 상태 확인 전에 동일한 검증을 거친다.
+        String normalizedReason = legacyInput
+                ? validateReason(reasonDetail)
+                : validateReasonDetail(action, reasonType, reasonDetail);
 
         if (postId == null || postId <= 0) {
             throw new ContentModerationException(
@@ -99,7 +165,7 @@ public class PostModerationService {
                 );
 
         // 관리자용 조회는 삭제된 게시글도 가져오므로 여기서 거절한다.
-        if(post.getDeletedAt() != null) {
+        if (post.getDeletedAt() != null) {
             throw new ContentModerationException(
                     ContentModerationException.Code.POST_DELETED
             );
@@ -114,16 +180,25 @@ public class PostModerationService {
         };
 
         // 3. 실제 상태 변경이 있을 때만 이력을 저장한다.
-        if(changed) {
-            logRepository.save(
-                    ContentModerationLog.forPost(
-                            actor.getId(),
-                            post.getId(),
-                            action,
-                            normalizedReason,
-                            now
-                    )
+        if (changed) {
+            ContentModerationLog log = legacyInput
+                    ? ContentModerationLog.forPost(
+                    actor.getId(),
+                    post.getId(),
+                    action,
+                    normalizedReason,
+                    now
+            )
+                    : ContentModerationLog.forPost(
+                    actor.getId(),
+                    post.getId(),
+                    action,
+                    reasonType,
+                    normalizedReason,
+                    now
             );
+
+            logRepository.save(log);
         }
 
         // post는 관리 상태이므로 변경 감지로 저장된다.
@@ -174,6 +249,24 @@ public class PostModerationService {
     private String validateReason(String reason) {
         try {
             return ModerationInputPolicy.normalizeReason(reason);
+        } catch (IllegalArgumentException exception) {
+            throw new ContentModerationException(
+                    ContentModerationException.Code.INVALID_REASON
+            );
+        }
+    }
+
+    private String validateReasonDetail(
+            ModerationAction action,
+            ModerationReasonType reasonType,
+            String reasonDetail
+    ) {
+        try {
+            return ModerationInputPolicy.normalizeReasonDetail(
+                    action,
+                    reasonType,
+                    reasonDetail
+            );
         } catch (IllegalArgumentException exception) {
             throw new ContentModerationException(
                     ContentModerationException.Code.INVALID_REASON

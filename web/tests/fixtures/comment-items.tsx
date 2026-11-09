@@ -5,7 +5,7 @@ import { useAuth } from "@/components/AuthProvider"
 import CommentLikeButton from "@/components/community/CommentLikeButton"
 import "@/styles/community.css"
 import CommentItem from "@/components/community/CommentItem"
-const comment = { commentId: 42, content: "공통 댓글 본문\n공백  유지", author: { memberId: 1, nickname: "검증 작성자" }, createdAt: "2026-10-27T04:00:00.123456Z", updatedAt: "2026-10-27T05:00:00Z", likeCount: 3, liked: false }
+const comment = { contentUpdatedAt: "2026-10-27T05:00:00Z", commentId: 42, content: "공통 댓글 본문\n공백  유지", author: { memberId: 1, nickname: "검증 작성자" }, createdAt: "2026-10-27T04:00:00.123456Z", updatedAt: "2026-10-27T05:00:00Z", likeCount: 3, liked: false }
 function Region({ name }: { name: string }) {
   const auth = useAuth()
   useEffect(() => {

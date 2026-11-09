@@ -1,3 +1,4 @@
+import { checkCommentAuthTypography } from './helpers/comment-auth-typography.mjs'
 // Production Next + controllable mock API; no real Spring or user data.
 import http from 'node:http'
 import fs from 'node:fs/promises'
@@ -10,7 +11,7 @@ await fs.mkdir(out,{recursive:true})
 const stamp='2026-10-28T00:00:00.123456Z',member={memberId:321,nickname:'검증회원',email:'fixture@example.test',role:'USER'}
 const failure=code=>({code,message:'mock error',fieldErrors:[]})
 const post=id=>({visibility:"VISIBLE",id,type:'QUESTION',topic:'HEARING_AID',title:`검증 게시글 ${id}`,content:'전체 본문\n'.repeat(20),contentPreview:'목록 미리보기',author:member,createdAt:stamp,updatedAt:stamp,commentCount:id===998?0:id===999?1:45,likeCount:0,liked:false})
-const comment=(pid,id)=>({commentId:pid*100+id,content:`게시글 ${pid} 댓글 ${id}\n줄바꿈과 긴 문자열 ${'가'.repeat(50)}`,author:member,createdAt:stamp,updatedAt:stamp,likeCount:id%3,liked:false})
+const comment=(pid,id)=>({ contentUpdatedAt: null,commentId:pid*100+id,content:`게시글 ${pid} 댓글 ${id}\n줄바꿈과 긴 문자열 ${'가'.repeat(50)}`,author:member,createdAt:stamp,updatedAt:stamp,likeCount:id%3,liked:false})
 let posts=[],comments=new Map()
 const cp=(id,u)=>{
  const sort=u.searchParams.get('sort')??'OLDEST',after=Number(u.searchParams.get('afterId')),likes=Number(u.searchParams.get('afterLikeCount'))
@@ -53,7 +54,7 @@ async function fixture(width=1440){
   if(u.pathname.endsWith('/like')){c.liked=method==='PUT';c.likeCount=c.liked?9:8;return r.fulfill({json:{postId:id,commentId:cid,liked:c.liked,likeCount:c.likeCount}})}
   return r.fulfill({status:500,json:failure('UNEXPECTED')})
  })
- await p.goto(base+'/mypage');await p.locator('[data-member-post-id="1000"]').waitFor()
+ await p.goto(base+'/mypage',{waitUntil:'domcontentloaded'});await p.locator('[data-member-post-id="1000"]').waitFor()
  return {ctx,p,state}
 }
 const row=(p,id)=>p.locator(`[data-member-post-id="${id}"]`),area=(p,id)=>row(p,id).locator('.mypage-inline-comments'),items=(p,id)=>area(p,id).locator('.community-comment-list > li')
@@ -61,8 +62,62 @@ const reads=(s,id)=>s.calls.filter(c=>c.method==='GET'&&c.path===`/api/v1/commun
 async function count(p,id,n){await p.waitForFunction(({id,n})=>document.querySelectorAll(`[data-member-post-id="${id}"] .community-comment-list > li`).length===n,{id,n})}
 async function open(p,id,n){await row(p,id).getByRole('button',{name:/^댓글 \d/}).click();await count(p,id,n);await p.waitForFunction(id=>document.querySelector(`[data-member-post-id="${id}"] .mypage-inline-comments`).getAttribute('aria-busy')==='false',id)}
 function gate(s,pid){let release,held;const reached=new Promise(resolve=>{s.get=async(r,u)=>{if(u.pathname===`/api/v1/community/posts/${pid}/comments`){held=r.request();s.get=null;await new Promise(done=>{release=async(data)=>{try{await r.fulfill(data??read(u))}finally{done()}};resolve()})}else await r.fulfill(read(u))}});return{reached,get request(){return held},release:data=>release(data)}}
-async function check(name,fn,width){const f=await fixture(width);try{await fn(f);results.push({name,pass:true});console.log('PASS',name)}catch(e){results.push({name,pass:false,error:String(e)});console.error('FAIL',name,e);process.exitCode=1;await f.p.screenshot({path:`${out}/failure-${results.length}.png`,fullPage:true})}finally{await f.ctx.close()}}
+async function check(name,fn,width){
+ let f
+ try{f=await fixture(width);await fn(f);results.push({name,pass:true});console.log('PASS',name)}
+ catch(e){results.push({name,pass:false,error:String(e)});console.error('FAIL',name,e);process.exitCode=1;if(f)await f.p.screenshot({path:`${out}/failure-${results.length}.png`,fullPage:true}).catch(()=>{})}
+ finally{await Promise.all(browser.contexts().map(c=>c.close()));await fs.writeFile(out+'/results.json',JSON.stringify({kind:'mock',results},null,2))}
+}
 try{
+ for(const width of [1440,390,320])await check(`inline creation expiry survives private subtree cleanup ${width}`,async({p,state})=>{
+  await open(p,1000,20)
+  await area(p,1000).getByRole('textbox',{name:'댓글 작성'}).fill('인증 사용자 초안')
+  state.write=r=>{state.member=null;return r.fulfill({status:401,json:failure('AUTHENTICATION_REQUIRED')})}
+  await area(p,1000).getByRole('button',{name:'등록',exact:true}).click()
+  const modal=p.getByRole('dialog',{name:'다시 로그인이 필요해요',exact:true})
+  await modal.waitFor()
+  assert.equal(await p.getByRole('dialog').count(),1)
+  assert.equal(await p.locator('[data-member-post-id],.iyum-auth-notice').count(),0)
+  assert.equal(await modal.getByText(/입력 내용은 유지돼요/).count(),0)
+  assert(await p.evaluate(()=>document.documentElement.scrollWidth<=innerWidth))
+  await checkCommentAuthTypography(p,out,`mypage-create-${width}`)
+  await p.screenshot({path:`${out}/inline-expired-${width}.png`})
+  await p.keyboard.press('Escape')
+  await p.waitForFunction(()=>document.activeElement?.id==='mypage-title')
+  assert.equal(state.calls.filter(c=>c.method==='POST'&&c.path.endsWith('/comments')).length,1)
+ },width)
+ await check('two inline expiry responses show one notice and closed notice stays closed',async({p,state})=>{
+  await open(p,1000,20);await open(p,999,1)
+  const held=new Map(), arrivals=new Map(), reached=new Map()
+  for(const id of [1000,999])reached.set(id,new Promise(resolve=>arrivals.set(id,resolve)))
+  await p.evaluate(()=>{window.expiredWrites=0;const f=window.fetch;window.fetch=async(...args)=>{const r=await f(...args);if(args[1]?.method==='POST'){const json=r.json.bind(r);r.json=async()=>{try{return await json()}finally{window.expiredWrites++}}}return r}})
+  state.write=async(r,u)=>{await new Promise(done=>{held.set(u.pathname,async()=>{await r.fulfill({status:401,json:failure('AUTHENTICATION_REQUIRED')});done()});arrivals.get(Number(u.pathname.split('/')[5]))()})}
+  for(const id of [1000,999]){
+    await area(p,id).getByRole('textbox',{name:'댓글 작성'}).fill('독립 입력 '+id)
+    const sent=p.waitForRequest(r=>r.method()==='POST'&&r.url().includes(`/posts/${id}/comments`))
+    await area(p,id).getByRole('button',{name:'등록',exact:true}).click();await sent;await reached.get(id)
+  }
+  // Both POSTs reached the controlled transport before expiry.
+  state.member=null
+  const first=held.get('/api/v1/community/posts/1000/comments')
+  assert(first);await first()
+  await p.getByRole('dialog',{name:'다시 로그인이 필요해요'}).waitFor()
+  await p.keyboard.press('Escape')
+  await p.waitForFunction(()=>!document.querySelector('dialog[open]'))
+  const second=held.get('/api/v1/community/posts/999/comments');assert(second);await second()
+  await p.waitForFunction(()=>window.expiredWrites===2)
+  await p.evaluate(()=>new Promise(r=>requestAnimationFrame(()=>requestAnimationFrame(r))))
+  assert.equal(await p.getByRole('dialog').count(),0)
+  assert.equal(await p.locator('.iyum-auth-notice').count(),0)
+ })
+ await check('inline body edit marker uses contentUpdatedAt only',async({p})=>{
+  comments.get(1000)[0].updatedAt='2026-11-05T04:00:00Z'
+  comments.get(1000)[1].contentUpdatedAt='2026-10-29T01:02:03.123456Z'
+  await open(p,1000,20)
+  const rows=area(p,1000).locator('.community-comment-list > li')
+  assert.equal(await rows.nth(0).getByText('수정됨',{exact:true}).count(),0)
+  assert.equal(await rows.nth(1).getByText('수정됨',{exact:true}).count(),1)
+ })
  for(const width of [1440,390,320])await check(`panel hierarchy bottom collapse draft focus and errors ${width}`,async({p,state})=>{
   comments.get(1000)[0].author={...member,nickname:'긴닉네임'.repeat(20)}
   await open(p,998,0);await open(p,999,1);await open(p,1000,20)
@@ -456,6 +511,8 @@ try{
   await detail.locator('#comment-100045').waitFor()
   assert.equal(await detail.locator('#comment-draft').inputValue(),'새 댓글 초안')
   assert.equal(await detail.locator('textarea[id^="comment-edit-"]').inputValue(),'수정 초안')
+  assert.equal(await p.getByRole('dialog').count(),0)
+  assert.equal(await detail.locator('#comment-draft').inputValue(),'새 댓글 초안')
   assert.equal(state.calls.filter(c=>['POST','PUT','DELETE'].includes(c.method)).length,0)
  })
 

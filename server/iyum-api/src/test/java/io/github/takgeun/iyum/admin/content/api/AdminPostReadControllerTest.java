@@ -1,12 +1,6 @@
 package io.github.takgeun.iyum.admin.content.api;
 
-import io.github.takgeun.iyum.admin.content.application.AdminContentReadException;
-import io.github.takgeun.iyum.admin.content.application.AdminPostAuthorResult;
-import io.github.takgeun.iyum.admin.content.application.AdminPostDetailResult;
-import io.github.takgeun.iyum.admin.content.application.AdminPostItemResult;
-import io.github.takgeun.iyum.admin.content.application.AdminPostReadQuery;
-import io.github.takgeun.iyum.admin.content.application.AdminPostReadService;
-import io.github.takgeun.iyum.admin.content.application.AdminPostStatus;
+import io.github.takgeun.iyum.admin.content.application.*;
 import io.github.takgeun.iyum.auth.security.MemberPrincipal;
 import io.github.takgeun.iyum.community.post.domain.PostTopic;
 import io.github.takgeun.iyum.community.post.domain.PostType;
@@ -18,6 +12,8 @@ import io.github.takgeun.iyum.member.domain.MemberStatus;
 import io.github.takgeun.iyum.member.infrastructure.MemberRepository;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.Arguments;
+import org.junit.jupiter.params.provider.MethodSource;
 import org.junit.jupiter.params.provider.CsvSource;
 import org.junit.jupiter.params.provider.EnumSource;
 import org.junit.jupiter.params.provider.ValueSource;
@@ -36,7 +32,10 @@ import org.springframework.test.web.servlet.ResultActions;
 import org.springframework.test.web.servlet.request.MockHttpServletRequestBuilder;
 
 import java.time.Instant;
+import java.time.LocalDate;
 import java.util.List;
+import java.util.Set;
+import java.util.stream.Stream;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.nullValue;
@@ -94,6 +93,141 @@ class AdminPostReadControllerTest {
 
     @MockitoBean
     MemberRepository memberRepository;
+
+
+    @ParameterizedTest
+    @MethodSource("multipleStatusSelections")
+    void 다중_상태와_정규화한_검색어를_정확히_전달한다(
+            String[] statuses, Set<AdminPostStatus> expectedStatuses
+    ) throws Exception {
+        givenValidSession(MemberRole.ADMIN);
+        AdminPostReadQuery expectedQuery = AdminPostReadQuery.ofStatuses(
+                expectedStatuses, "보청기 적응", 2, 10
+        );
+        when(adminPostReadService.getPosts(MEMBER_ID, CREDENTIAL_VERSION, expectedQuery)).thenReturn(new PageImpl<>(List.of(), PageRequest.of(2, 10), 15));
+
+        // 반복 쿼리 파라미터를 실제 컨트롤러에서 해석한다. GET에는 CSRF가 필요 없다.
+        expectSuccess(mockMvc.perform(
+                request(LIST_PATH)
+                        .with(user(principal(MemberRole.ADMIN)))
+                        .queryParam("statuses", statuses)
+                        .queryParam("keyword", "  보청기 적응  ")
+                        .queryParam("page", "2")
+                        .queryParam("size", "10")
+        ))
+                .andExpect(jsonPath("$.items").isArray())
+                .andExpect(jsonPath("$.items").isEmpty())
+                .andExpect(jsonPath("$.page").value(2))
+                .andExpect(jsonPath("$.size").value(10))
+                .andExpect(jsonPath("$.totalElements").value(15))
+                .andExpect(jsonPath("$.totalPages").value(2))
+                .andExpect(jsonPath("$.hasNext").value(false))
+                .andExpect(jsonPath("$.hasPrevious").value(true));
+
+        verify(adminPostReadService).getPosts(MEMBER_ID, CREDENTIAL_VERSION, expectedQuery);
+        verifyNoMoreInteractions(adminPostReadService);
+    }
+
+    static Stream<Arguments> multipleStatusSelections() {
+        return Stream.of(
+                Arguments.of(new String[]{"VISIBLE"}, Set.of(AdminPostStatus.VISIBLE)),
+                Arguments.of(new String[]{"HIDDEN"}, Set.of(AdminPostStatus.HIDDEN)),
+                Arguments.of(new String[]{"DELETED"}, Set.of(AdminPostStatus.DELETED)),
+                Arguments.of(new String[]{"VISIBLE", "HIDDEN"}, Set.of(AdminPostStatus.VISIBLE, AdminPostStatus.HIDDEN)),
+                Arguments.of(new String[]{"VISIBLE", "DELETED"}, Set.of(AdminPostStatus.VISIBLE, AdminPostStatus.DELETED)),
+                Arguments.of(new String[]{"HIDDEN", "DELETED"}, Set.of(AdminPostStatus.HIDDEN, AdminPostStatus.DELETED)),
+                Arguments.of(new String[]{"VISIBLE", "HIDDEN", "DELETED"}, Set.of(AdminPostStatus.VISIBLE, AdminPostStatus.HIDDEN, AdminPostStatus.DELETED)),
+                Arguments.of(new String[]{"HIDDEN", "VISIBLE", "HIDDEN"}, Set.of(AdminPostStatus.HIDDEN, AdminPostStatus.VISIBLE))
+        );
+    }
+
+    @Test
+    void 빈_단일_상태는_전체_조회와_호환된다() throws Exception {
+        givenValidSession(MemberRole.ADMIN);
+        AdminPostReadQuery expectedQuery = AdminPostReadQuery.ofStatuses(
+                Set.of(AdminPostStatus.VISIBLE, AdminPostStatus.HIDDEN, AdminPostStatus.DELETED),
+                "보청기 적응", 2, 10
+        );
+        when(adminPostReadService.getPosts(MEMBER_ID, CREDENTIAL_VERSION, expectedQuery)).thenReturn(new PageImpl<>(List.of(), PageRequest.of(2, 10), 15));
+
+        expectSuccess(mockMvc.perform(
+                request(LIST_PATH)
+                        .with(user(principal(MemberRole.ADMIN)))
+                        .queryParam("status", "")
+                        .queryParam("keyword", "  보청기 적응  ")
+                        .queryParam("page", "2")
+                        .queryParam("size", "10")
+        ))
+                .andExpect(jsonPath("$.items").isEmpty())
+                .andExpect(jsonPath("$.page").value(2))
+                .andExpect(jsonPath("$.size").value(10))
+                .andExpect(jsonPath("$.totalElements").value(15))
+                .andExpect(jsonPath("$.totalPages").value(2))
+                .andExpect(jsonPath("$.hasNext").value(false))
+                .andExpect(jsonPath("$.hasPrevious").value(true));
+        verify(adminPostReadService).getPosts(MEMBER_ID, CREDENTIAL_VERSION, expectedQuery);
+        verifyNoMoreInteractions(adminPostReadService);
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"", " ", "ALL", "hidden", "UNKNOWN", " HIDDEN ", "VISIBLE,HIDDEN"})
+    void 잘못된_다중_상태를_거부한다(String value) throws Exception {
+        givenValidSession(MemberRole.ADMIN);
+        mockMvc.perform(
+                request(LIST_PATH)
+                        .with(user(principal(MemberRole.ADMIN)))
+                        .queryParam("statuses", value)
+        )
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("INVALID_REQUEST_PARAMETER"))
+                .andExpect(header().string(HttpHeaders.CACHE_CONTROL, containsString("no-store")));
+        verifyNoInteractions(adminPostReadService);
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"", "UNKNOWN", "ALL"})
+    void 유효한_다중_상태에_잘못된_값이_섞이면_거부한다(String value) throws Exception {
+        givenValidSession(MemberRole.ADMIN);
+        mockMvc.perform(
+                request(LIST_PATH)
+                        .with(user(principal(MemberRole.ADMIN)))
+                        .queryParam("statuses", "VISIBLE", value)
+        )
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("INVALID_REQUEST_PARAMETER"))
+                .andExpect(header().string(HttpHeaders.CACHE_CONTROL, containsString("no-store")));
+        verifyNoInteractions(adminPostReadService);
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"", "ALL", "HIDDEN"})
+    void 단일과_다중_상태를_함께_보내면_거부한다(String value) throws Exception {
+        givenValidSession(MemberRole.ADMIN);
+        mockMvc.perform(
+                request(LIST_PATH)
+                        .with(user(principal(MemberRole.ADMIN)))
+                        .queryParam("status", value)
+                        .queryParam("statuses", "VISIBLE", "HIDDEN")
+        )
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("INVALID_REQUEST_PARAMETER"))
+                .andExpect(header().string(HttpHeaders.CACHE_CONTROL, containsString("no-store")));
+        verifyNoInteractions(adminPostReadService);
+    }
+
+    @Test
+    void 단일_상태를_반복하면_거부한다() throws Exception {
+        givenValidSession(MemberRole.ADMIN);
+        mockMvc.perform(
+                request(LIST_PATH)
+                        .with(user(principal(MemberRole.ADMIN)))
+                        .queryParam("status", "VISIBLE", "HIDDEN")
+        )
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("INVALID_REQUEST_PARAMETER"))
+                .andExpect(header().string(HttpHeaders.CACHE_CONTROL, containsString("no-store")));
+        verifyNoInteractions(adminPostReadService);
+    }
 
     @Test
     void 기본_조건으로_목록을_조회하고_인증된_회원_정보를_사용한다()
@@ -613,6 +747,318 @@ class AdminPostReadControllerTest {
                 ));
 
         verifyNoInteractions(memberRepository, adminPostReadService);
+    }
+
+    @ParameterizedTest
+    @EnumSource(AdminPostSort.class)
+    void 다중_상태와_검색어와_작성일과_정렬을_전달한다(
+            AdminPostSort sort
+    ) throws Exception {
+        givenValidSession(MemberRole.ADMIN);
+
+        AdminPostReadQuery expectedQuery = AdminPostReadQuery.ofStatuses(
+                Set.of(
+                        AdminPostStatus.VISIBLE,
+                        AdminPostStatus.HIDDEN
+                ),
+                "보청기",
+                0,
+                10,
+                LocalDate.of(2026, 11, 1),
+                LocalDate.of(2026, 11, 7),
+                sort
+        );
+
+        when(adminPostReadService.getPosts(
+                MEMBER_ID,
+                CREDENTIAL_VERSION,
+                expectedQuery
+        )).thenReturn(Page.empty(PageRequest.of(0, 10)));
+
+        expectSuccess(mockMvc.perform(
+                request(LIST_PATH)
+                        .with(user(principal(MemberRole.ADMIN)))
+                        .queryParam("statuses", "VISIBLE", "HIDDEN")
+                        .queryParam("keyword", "  보청기  ")
+                        .queryParam("startDate", "2026-11-01")
+                        .queryParam("endDate", "2026-11-07")
+                        .queryParam("sort", sort.name())
+                        .queryParam("page", "0")
+                        .queryParam("size", "10")
+        ))
+                .andExpect(jsonPath("$.items").isEmpty())
+                .andExpect(jsonPath("$.page").value(0))
+                .andExpect(jsonPath("$.size").value(10));
+
+        verify(adminPostReadService).getPosts(
+                MEMBER_ID,
+                CREDENTIAL_VERSION,
+                expectedQuery
+        );
+
+        verifyNoMoreInteractions(adminPostReadService);
+    }
+
+    @Test
+    void 정렬이_빈_문자열이면_최신순으로_조회한다() throws Exception {
+        givenValidSession(MemberRole.ADMIN);
+
+        AdminPostReadQuery expectedQuery = AdminPostReadQuery.ofStatuses(
+                Set.of(
+                        AdminPostStatus.VISIBLE,
+                        AdminPostStatus.HIDDEN,
+                        AdminPostStatus.DELETED
+                ),
+                null,
+                0,
+                20,
+                null,
+                null,
+                AdminPostSort.LATEST
+        );
+
+        when(adminPostReadService.getPosts(
+                MEMBER_ID,
+                CREDENTIAL_VERSION,
+                expectedQuery
+        )).thenReturn(Page.empty(PageRequest.of(0, 20)));
+
+        expectSuccess(mockMvc.perform(
+                request(LIST_PATH)
+                        .with(user(principal(MemberRole.ADMIN)))
+                        .queryParam("sort", "")
+        ));
+
+        verify(adminPostReadService).getPosts(
+                MEMBER_ID,
+                CREDENTIAL_VERSION,
+                expectedQuery
+        );
+
+        verifyNoMoreInteractions(adminPostReadService);
+    }
+
+    @ParameterizedTest
+    @CsvSource({
+            "sort, latest",
+            "sort, oldest",
+            "sort, UNKNOWN",
+            "startDate, not-a-date",
+            "endDate, not-a-date",
+            "startDate, 2026-02-30",
+            "endDate, 2026-13-01"
+    })
+    void 작성일이나_정렬_형식이_잘못되면_서비스를_호출하지_않는다(
+            String name,
+            String value
+    ) throws Exception {
+        givenValidSession(MemberRole.ADMIN);
+
+        mockMvc.perform(
+                        request(LIST_PATH)
+                                .with(user(principal(MemberRole.ADMIN)))
+                                .queryParam(name, value)
+                )
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code")
+                        .value("INVALID_REQUEST_PARAMETER"))
+                .andExpect(header().string(
+                        HttpHeaders.CACHE_CONTROL,
+                        containsString("no-store")
+                ));
+
+        verifyNoInteractions(adminPostReadService);
+    }
+
+    @ParameterizedTest
+    @CsvSource({
+            "2026-11-08, 2026-11-07",
+            "0000-01-01, 2026-11-07",
+            "2026-11-01, 0000-12-31"
+    })
+    void 작성일_범위가_잘못되면_서비스를_호출하지_않는다(
+            String startDate,
+            String endDate
+    ) throws Exception {
+        givenValidSession(MemberRole.ADMIN);
+
+        mockMvc.perform(
+                        request(LIST_PATH)
+                                .with(user(principal(MemberRole.ADMIN)))
+                                .queryParam("startDate", startDate)
+                                .queryParam("endDate", endDate)
+                )
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code")
+                        .value("INVALID_DATE_RANGE"))
+                .andExpect(header().string(
+                        HttpHeaders.CACHE_CONTROL,
+                        containsString("no-store")
+                ));
+
+        verifyNoInteractions(adminPostReadService);
+    }
+
+    @ParameterizedTest
+    @MethodSource("validCreatedDateRanges")
+    void 작성일_생략과_유효한_경계_날짜를_조회_조건으로_전달한다(
+            String startDate,
+            String endDate
+    ) throws Exception {
+        givenValidSession(MemberRole.ADMIN);
+
+        LocalDate expectedStartDate = startDate == null
+                ? null
+                : LocalDate.parse(startDate);
+
+        LocalDate expectedEndDate = endDate == null
+                ? null
+                : LocalDate.parse(endDate);
+
+        AdminPostReadQuery expectedQuery = AdminPostReadQuery.ofStatuses(
+                Set.of(
+                        AdminPostStatus.VISIBLE,
+                        AdminPostStatus.HIDDEN,
+                        AdminPostStatus.DELETED
+                ),
+                null,
+                0,
+                20,
+                expectedStartDate,
+                expectedEndDate,
+                AdminPostSort.LATEST
+        );
+
+        when(adminPostReadService.getPosts(
+                MEMBER_ID,
+                CREDENTIAL_VERSION,
+                expectedQuery
+        )).thenReturn(Page.empty(PageRequest.of(0, 20)));
+
+        MockHttpServletRequestBuilder httpRequest = request(LIST_PATH)
+                .with(user(principal(MemberRole.ADMIN)));
+
+        // null은 빈 문자열 전송이 아니라 파라미터 자체를 생략한다.
+        if (startDate != null) {
+            httpRequest.queryParam("startDate", startDate);
+        }
+
+        if (endDate != null) {
+            httpRequest.queryParam("endDate", endDate);
+        }
+
+        expectSuccess(mockMvc.perform(httpRequest))
+                .andExpect(jsonPath("$.items").isEmpty())
+                .andExpect(jsonPath("$.totalElements").value(0));
+
+        verify(adminPostReadService).getPosts(
+                MEMBER_ID,
+                CREDENTIAL_VERSION,
+                expectedQuery
+        );
+
+        verifyNoMoreInteractions(adminPostReadService);
+    }
+
+    @Test
+    void 기존_단일_상태에도_작성일과_정렬을_함께_적용한다()
+            throws Exception {
+        givenValidSession(MemberRole.ADMIN);
+
+        AdminPostReadQuery expectedQuery = AdminPostReadQuery.ofStatuses(
+                Set.of(AdminPostStatus.HIDDEN),
+                "보청기",
+                1,
+                10,
+                LocalDate.of(2026, 11, 1),
+                LocalDate.of(2026, 11, 7),
+                AdminPostSort.OLDEST
+        );
+
+        // 범위 밖 페이지라도 서비스가 반환한 전체 개수는 유지한다.
+        when(adminPostReadService.getPosts(
+                MEMBER_ID,
+                CREDENTIAL_VERSION,
+                expectedQuery
+        )).thenReturn(new PageImpl<>(
+                List.of(),
+                PageRequest.of(1, 10),
+                3
+        ));
+
+        expectSuccess(mockMvc.perform(
+                request(LIST_PATH)
+                        .with(user(principal(MemberRole.ADMIN)))
+                        .queryParam("status", "HIDDEN")
+                        .queryParam("keyword", "  보청기  ")
+                        .queryParam("startDate", "2026-11-01")
+                        .queryParam("endDate", "2026-11-07")
+                        .queryParam("sort", "OLDEST")
+                        .queryParam("page", "1")
+                        .queryParam("size", "10")
+        ))
+                .andExpect(jsonPath("$.items").isEmpty())
+                .andExpect(jsonPath("$.page").value(1))
+                .andExpect(jsonPath("$.size").value(10))
+                .andExpect(jsonPath("$.totalElements").value(3))
+                .andExpect(jsonPath("$.totalPages").value(1))
+                .andExpect(jsonPath("$.hasNext").value(false))
+                .andExpect(jsonPath("$.hasPrevious").value(true));
+
+        verify(adminPostReadService).getPosts(
+                MEMBER_ID,
+                CREDENTIAL_VERSION,
+                expectedQuery
+        );
+
+        verifyNoMoreInteractions(adminPostReadService);
+    }
+
+    @Test
+    void 날짜와_정렬이_있어도_단일과_다중_상태를_동시에_전달할_수_없다()
+            throws Exception {
+        givenValidSession(MemberRole.ADMIN);
+
+        mockMvc.perform(
+                        request(LIST_PATH)
+                                .with(user(principal(MemberRole.ADMIN)))
+                                .queryParam("status", "HIDDEN")
+                                .queryParam("statuses", "VISIBLE", "HIDDEN")
+                                .queryParam("startDate", "2026-11-01")
+                                .queryParam("endDate", "2026-11-07")
+                                .queryParam("sort", "OLDEST")
+                )
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code")
+                        .value("INVALID_REQUEST_PARAMETER"))
+                .andExpect(header().string(
+                        HttpHeaders.CACHE_CONTROL,
+                        containsString("no-store")
+                ));
+
+        verifyNoInteractions(adminPostReadService);
+    }
+
+    static Stream<Arguments> validCreatedDateRanges() {
+        return Stream.of(
+                // 날짜 조건 전체 생략
+                Arguments.of(null, null),
+
+                // 시작일 또는 종료일만 지정
+                Arguments.of("2026-11-01", null),
+                Arguments.of(null, "2026-11-07"),
+
+                // 같은 날짜를 지정하면 해당 날짜 전체 조회
+                Arguments.of("2026-11-07", "2026-11-07"),
+
+                // 윤년의 유효한 날짜
+                Arguments.of("2024-02-29", "2024-02-29"),
+
+                // 허용되는 최소·최대 날짜
+                Arguments.of("0001-01-01", null),
+                Arguments.of(null, "9999-12-31"),
+                Arguments.of("0001-01-01", "9999-12-31")
+        );
     }
 
     private ResultActions expectSuccess(

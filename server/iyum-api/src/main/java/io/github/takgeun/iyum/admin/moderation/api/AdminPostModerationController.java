@@ -51,7 +51,8 @@ public class AdminPostModerationController {
                 principal.getMemberId(),
                 principal.getCredentialVersion(),
                 postId,
-                request.reason()
+                request.reasonType(),
+                request.reasonDetail()
         );
 
         return ResponseEntity.ok()
@@ -86,7 +87,8 @@ public class AdminPostModerationController {
                 principal.getMemberId(),
                 principal.getCredentialVersion(),
                 postId,
-                request.reason()
+                request.reasonType(),
+                request.reasonDetail()
         );
 
         return ResponseEntity.ok()

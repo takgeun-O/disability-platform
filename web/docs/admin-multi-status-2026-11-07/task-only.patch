@@ -1,0 +1,627 @@
+diff --git a/web/src/components/admin/AdminComments.tsx b/web/src/components/admin/AdminComments.tsx
+index 68b2afd..c10aa51 100644
+--- a/web/src/components/admin/AdminComments.tsx
++++ b/web/src/components/admin/AdminComments.tsx
+@@ -2,8 +2,9 @@
+ import { useEffect, useId, useRef, useState } from "react"
+ import { useAuth } from "@/components/AuthProvider"
+ import { useNavigationRequest } from "@/components/NavigationGuard"
+-import { ADMIN_STATUSES, AdminApiError, adminKeywordError, normalizeAdminKeyword, type AdminQuery } from "@/lib/admin-posts"
++import { ADMIN_CONTENT_STATUSES, sameAdminStatuses, AdminApiError, adminKeywordError, normalizeAdminKeyword, type AdminQuery } from "@/lib/admin-posts"
+ import { getAdminComments, type AdminCommentPage } from "@/lib/admin-detail"
++import AdminStatusFilter from "./AdminStatusFilter"
+ import AdminPagination from "./AdminPagination"
+ import { AdminCommentMeta, AdminAuthor, AdminStatusBadge } from "./AdminContentMeta"
+ import { useAdminModeration } from "./AdminModeration"
+@@ -12,7 +13,8 @@ export default function AdminComments({postId,onForbidden,parentUnavailable=fals
+   const adjusted=useRef(0)
+   const auth=useAuth(),scope=useNavigationRequest(),uid=useId()
+   const capture=auth.captureMemberRequest,memberId=auth.member!.memberId
+-  const [query,setQuery]=useState<AdminQuery>({status:"ALL",keyword:"",page:0})
++  const [query,setQuery]=useState<AdminQuery>({statuses:ADMIN_CONTENT_STATUSES,keyword:"",page:0})
++  const [statuses,setStatuses]=useState(ADMIN_CONTENT_STATUSES),[statusError,setStatusError]=useState("")
+   const [input,setInput]=useState(""),[validation,setValidation]=useState(""),[retry,setRetry]=useState(0)
+   const [result,setResult]=useState<{query:AdminQuery;attempt:number;revision:number;data?:AdminCommentPage;error?:string;notFound?:boolean}|null>(null)
+   useEffect(()=>{
+@@ -34,21 +36,21 @@ export default function AdminComments({postId,onForbidden,parentUnavailable=fals
+     return()=>controller.abort()
+   },[postId,query,retry,capture,memberId,scope,onForbidden,revision,readCurrent])
+   const active=result?.query===query && result.attempt===retry && result.revision===revision?result:null,busy=!active
+-  const change=(next:AdminQuery)=>setQuery(old=>old.status===next.status&&old.keyword===next.keyword&&old.page===next.page?old:next)
++  const change=(next:AdminQuery)=>setQuery(old=>sameAdminStatuses(old.statuses,next.statuses)&&old.keyword===next.keyword&&old.page===next.page?old:next)
+   const data=active?.data
+   return <section className="admin-panel admin-comments" aria-labelledby={`${uid}-heading`}>
+     <div className="admin-comments-heading"><h2 id={`${uid}-heading`}>댓글 관리</h2><span>등록순</span></div>
+     {data && data.postStatus !== "VISIBLE" && <p className="admin-parent-status">{data.postStatus === "HIDDEN" ? "게시글이 숨겨져 있어 댓글도 일반 사용자에게 표시되지 않습니다." : "게시글이 삭제되어 댓글도 일반 사용자에게 표시되지 않습니다."}</p>}
+-    <form className="admin-filters" onSubmit={e=>{e.preventDefault();const error=adminKeywordError(input);setValidation(error);if(!error)change({...query,keyword:normalizeAdminKeyword(input),page:0})}}>
+-      <div className="admin-filter-status"><label htmlFor={`${uid}-status`}>댓글 상태</label><select id={`${uid}-status`} value={query.status} onChange={e=>change({...query,status:e.target.value as AdminQuery["status"],page:0})}>{Object.entries(ADMIN_STATUSES).map(([value,label])=><option key={value} value={value}>{label}</option>)}</select></div>
++    <form className="admin-filters" onSubmit={e=>{e.preventDefault();const error=adminKeywordError(input);setValidation(error);setStatusError(statuses.length?"":"조회할 상태를 하나 이상 선택해 주세요.");if(!error&&statuses.length)change({...query,statuses:[...statuses],keyword:normalizeAdminKeyword(input),page:0})}}>
++      <AdminStatusFilter label="댓글 상태" value={statuses} error={statusError} onChange={next=>{setStatuses(next);if(next.length)setStatusError("")}}/>
+       <label className="admin-search" htmlFor={`${uid}-keyword`}>댓글 본문 검색<input id={`${uid}-keyword`} value={input} onChange={e=>{setInput(e.target.value);setValidation("")}} placeholder="댓글 본문 검색" aria-invalid={!!validation} aria-describedby={validation?`${uid}-error`:undefined}/></label>
+-      <button type="submit" aria-label="댓글 검색">검색</button><button type="button" aria-label="댓글 검색 초기화" onClick={()=>{setInput("");setValidation("");change({status:"ALL",keyword:"",page:0})}}>초기화</button>
++      <button type="submit" aria-label="댓글 검색">검색</button><button type="button" aria-label="댓글 검색 초기화" onClick={()=>{setInput("");setValidation("");setStatuses([...ADMIN_CONTENT_STATUSES]);setStatusError("");if(query.statuses.length===3&&!query.keyword&&query.page===0)setRetry(n=>n+1);change({statuses:[...ADMIN_CONTENT_STATUSES],keyword:"",page:0})}}>초기화</button>
+     </form>
+     {validation&&<p id={`${uid}-error`} role="alert">{validation}</p>}
+     <div className="admin-comment-results" aria-busy={busy}>
+       {busy?<p role="status">댓글을 불러오고 있습니다…</p>:active?.error?<div role="alert"><p>{completed && "변경 결과는 확인됐지만 최신 댓글을 불러오지 못했습니다. "}{active.error}</p><button onClick={()=>setRetry(n=>n+1)}>댓글 다시 시도</button></div>:data&&<>
+         <div className="admin-comment-summary"><p>검색 결과 <strong>{data.totalElements.toLocaleString("ko-KR")}</strong>개</p><p className="admin-timezone">한국 시간 (KST)</p></div>
+-        {!data.items.length ? query.page>0 && query.page>=data.totalPages ? <p>현재 페이지가 조회 범위를 벗어났습니다. <button onClick={()=>change({...query,page:0})}>댓글 첫 페이지로</button></p> : <p>{query.keyword||query.status!=="ALL"?"검색 조건에 맞는 댓글이 없습니다.":"아직 댓글이 없습니다."}</p> :
++        {!data.items.length ? query.page>0 && query.page>=data.totalPages ? <p>현재 페이지가 조회 범위를 벗어났습니다. <button onClick={()=>change({...query,page:0})}>댓글 첫 페이지로</button></p> : <p>{query.keyword||query.statuses.length!==3?"검색 조건에 맞는 댓글이 없습니다.":"아직 댓글이 없습니다."}</p> :
+           <ol className="admin-comment-list">{data.items.map(item=><li key={item.commentId} data-admin-comment-id={item.commentId}>
+             <div className="admin-comment-copy"><div className="admin-comment-heading"><h3><AdminAuthor author={item.author}/></h3><span className="admin-comment-id">#{item.commentId}</span><AdminStatusBadge status={item.status}/></div>
+             <p className="admin-full-content">{item.content}</p><AdminCommentMeta item={item}/></div>
+diff --git a/web/src/features/AdminPosts.tsx b/web/src/features/AdminPosts.tsx
+index 91eaa70..4d99d85 100644
+--- a/web/src/features/AdminPosts.tsx
++++ b/web/src/features/AdminPosts.tsx
+@@ -4,6 +4,7 @@ import { useAuth } from "@/components/AuthProvider"
+ import { useNavigationRequest } from "@/components/NavigationGuard"
+ import Link from "@/components/AppLink"
+ import { adminListHref } from "@/lib/admin-navigation"
++import AdminStatusFilter from "@/components/admin/AdminStatusFilter"
+ import AdminPagination from "@/components/admin/AdminPagination"
+ import WrittenTime from "@/components/WrittenTime"
+ import { POST_TYPES, POST_TOPICS } from "@/lib/community-posts"
+@@ -15,13 +16,16 @@ import {
+   normalizeAdminKeyword,
+   type AdminQuery,
+   type AdminPage,
+-  type AdminStatus,
++  ADMIN_CONTENT_STATUSES,
++  sameAdminStatuses,
+ } from "@/lib/admin-posts"
+-export default function AdminPosts({ initialQuery = {status: "ALL", keyword: "", page: 0} }: {initialQuery?: AdminQuery}) {
++export default function AdminPosts({ initialQuery = {statuses: ADMIN_CONTENT_STATUSES, keyword: "", page: 0} }: {initialQuery?: AdminQuery}) {
+   const adjusted = useRef(false)
+   const auth = useAuth(),
+     scope = useNavigationRequest()
+   const [query, setQuery] = useState<AdminQuery>(initialQuery)
++  const [statuses, setStatuses] = useState(initialQuery.statuses)
++  const [statusError, setStatusError] = useState("")
+   const [input, setInput] = useState(initialQuery.keyword),
+     [validation, setValidation] = useState(""),
+     [retry, setRetry] = useState(0)
+@@ -72,7 +76,7 @@ export default function AdminPosts({ initialQuery = {status: "ALL", keyword: "",
+   const change = (next: AdminQuery) => {
+     adjusted.current = false
+     setQuery((old) =>
+-      old.status === next.status &&
++      sameAdminStatuses(old.statuses, next.statuses) &&
+       old.keyword === next.keyword &&
+       old.page === next.page
+         ? old
+@@ -93,34 +97,17 @@ export default function AdminPosts({ initialQuery = {status: "ALL", keyword: "",
+             event.preventDefault()
+             const error = adminKeywordError(input)
+             setValidation(error)
+-            if (!error)
++            setStatusError(statuses.length ? "" : "조회할 상태를 하나 이상 선택해 주세요.")
++            if (!error && statuses.length)
+               change({
+                 ...query,
++                statuses: [...statuses],
+                 keyword: normalizeAdminKeyword(input),
+                 page: 0,
+               })
+           }}
+         >
+-          <div className="admin-filter-status">
+-            <label htmlFor="admin-status">처리 상태</label>
+-            <select
+-              id="admin-status"
+-              value={query.status}
+-              onChange={(e) =>
+-                change({
+-                  ...query,
+-                  status: e.target.value as AdminStatus,
+-                  page: 0,
+-                })
+-              }
+-            >
+-              {Object.entries(ADMIN_STATUSES).map(([value, label]) => (
+-                <option key={value} value={value}>
+-                  {label}
+-                </option>
+-              ))}
+-            </select>
+-          </div>
++          <AdminStatusFilter label="게시글 상태" value={statuses} error={statusError} onChange={next => {setStatuses(next); if(next.length) setStatusError("")}} />
+           <label className="admin-search">
+             게시글 제목 검색
+             <input
+@@ -141,7 +128,10 @@ export default function AdminPosts({ initialQuery = {status: "ALL", keyword: "",
+             onClick={() => {
+               setInput("")
+               setValidation("")
+-              change({ status: "ALL", keyword: "", page: 0 })
++              setStatuses([...ADMIN_CONTENT_STATUSES])
++              setStatusError("")
++              if (query.statuses.length === 3 && !query.keyword && query.page === 0) setRetry(n => n + 1)
++              change({ statuses: [...ADMIN_CONTENT_STATUSES], keyword: "", page: 0 })
+             }}
+           >
+             초기화
+@@ -180,7 +170,7 @@ export default function AdminPosts({ initialQuery = {status: "ALL", keyword: "",
+                 </p>
+                 {!active.data.items.length ? (
+                   <p>
+-                    {query.keyword || query.status !== "ALL"
++                    {query.keyword || query.statuses.length !== 3
+                       ? "검색 결과가 없습니다."
+                       : "게시글이 없습니다."}
+                   </p>
+diff --git a/web/src/lib/admin-navigation.ts b/web/src/lib/admin-navigation.ts
+index ae96fb9..c6d8529 100644
+--- a/web/src/lib/admin-navigation.ts
++++ b/web/src/lib/admin-navigation.ts
+@@ -1,12 +1,16 @@
+-import { ADMIN_STATUSES, adminKeywordError, normalizeAdminKeyword, type AdminQuery } from "./admin-posts"
++import { ADMIN_CONTENT_STATUSES, adminKeywordError, normalizeAdminKeyword, normalizeAdminStatuses, type AdminContentStatus, type AdminQuery } from "./admin-posts"
+ export function adminListQuery(params: Record<string, string | string[] | undefined>): AdminQuery {
+-  const status = typeof params.status === "string" && Object.prototype.hasOwnProperty.call(ADMIN_STATUSES,params.status) ? params.status as AdminQuery["status"] : "ALL"
++  const values = params.statuses === undefined ? (params.status && params.status !== "ALL" ? [params.status].flat() : ADMIN_CONTENT_STATUSES) : [params.statuses].flat()
++  const valid = values.filter((value): value is AdminContentStatus => ADMIN_CONTENT_STATUSES.some(status => status === value))
++  const statuses = normalizeAdminStatuses(valid.length === values.length ? valid : ADMIN_CONTENT_STATUSES)
+   const keyword = typeof params.keyword === "string" && !adminKeywordError(params.keyword) ? normalizeAdminKeyword(params.keyword) : ""
+   const page = typeof params.page === "string" && /^\d+$/.test(params.page) ? Number(params.page) : 0
+-  return {status,keyword,page: Number.isSafeInteger(page) && page * 20 <= 2147483647 ? page : 0}
++  return {statuses,keyword,page: Number.isSafeInteger(page) && page * 20 <= 2147483647 ? page : 0}
+ }
+ export function adminListHref(query: AdminQuery) {
+-  const params=new URLSearchParams({status:query.status,page:String(query.page)})
++  const params=new URLSearchParams()
++  for (const status of normalizeAdminStatuses(query.statuses)) params.append("statuses", status)
++  params.set("page",String(query.page))
+   if(query.keyword) params.set("keyword",query.keyword)
+   return `/admin/posts?${params}`
+ }
+@@ -14,5 +18,7 @@ export function adminReturnHref(value: unknown) {
+   if(typeof value !== "string" || !value.startsWith("/admin/posts?"))return "/admin/posts"
+   const url=new URL(value,"http://internal.invalid")
+   if(url.pathname !== "/admin/posts")return "/admin/posts"
+-  return adminListHref(adminListQuery(Object.fromEntries(url.searchParams)))
++  const params: Record<string,string|string[]> = Object.fromEntries(url.searchParams)
++  if (url.searchParams.has("statuses")) params.statuses = url.searchParams.getAll("statuses")
++  return adminListHref(adminListQuery(params))
+ }
+diff --git a/web/src/lib/admin-posts.ts b/web/src/lib/admin-posts.ts
+index 196b4b9..2831371 100644
+--- a/web/src/lib/admin-posts.ts
++++ b/web/src/lib/admin-posts.ts
+@@ -14,8 +14,14 @@ export const ADMIN_STATUSES = {
+   DELETED: "삭제",
+ } as const
+ export type AdminStatus = keyof typeof ADMIN_STATUSES
++export type AdminContentStatus = Exclude<AdminStatus, "ALL">
++export const ADMIN_CONTENT_STATUSES: readonly AdminContentStatus[] = ["VISIBLE", "HIDDEN", "DELETED"]
++export const normalizeAdminStatuses = (values: readonly AdminContentStatus[]) =>
++  ADMIN_CONTENT_STATUSES.filter(value => values.includes(value))
++export const sameAdminStatuses = (a: readonly AdminContentStatus[], b: readonly AdminContentStatus[]) =>
++  a.length === b.length && a.every((value, index) => value === b[index])
+ export type AdminQuery = {
+-  status: AdminStatus
++  statuses: readonly AdminContentStatus[]
+   keyword: string
+   page: number
+ }
+@@ -121,7 +127,12 @@ export class AdminApiError extends Error {
+   }
+ }
+ export function adminQueryParams(query: AdminQuery) {
+-  const params = new URLSearchParams({status: query.status, page: String(query.page), size: "20"})
++  if (!query.statuses.length || query.statuses.some(value => !ADMIN_CONTENT_STATUSES.includes(value)))
++    throw new AdminApiError(400, "조회할 상태를 하나 이상 선택해 주세요.")
++  const params = new URLSearchParams()
++  for (const status of normalizeAdminStatuses(query.statuses)) params.append("statuses", status)
++  params.set("page", String(query.page))
++  params.set("size", "20")
+   const keyword = normalizeTitle(query.keyword)
+   if (adminKeywordError(keyword)) throw new AdminApiError(400, adminKeywordError(keyword))
+   if (keyword) params.set("keyword", keyword)
+diff --git a/web/src/styles/admin.css b/web/src/styles/admin.css
+index 9c5e47c..40e8124 100644
+--- a/web/src/styles/admin.css
++++ b/web/src/styles/admin.css
+@@ -104,3 +104,11 @@
+ .admin-author-avatar .feed-avatar { display: grid; place-items: center; border-radius: 50%; }
+ 
+ .admin-moderation-dialog select { display: block; width: 100%; min-width: 0; margin-top: 8px; padding: 12px; border: 1px solid #b9ccd8; border-radius: 6px; background: white; }
++
++/* Only the post/comment multi-status fieldset; operation-log filters are unchanged. */
++.admin-status-filter { border: 0; padding: 0; margin: 0; min-width: 0; max-width: 100%; }
++.admin-status-filter legend { font-weight: 600; margin-bottom: 6px; }
++.admin-status-options { display: flex; flex-wrap: wrap; gap: 4px 12px; }
++.admin-filters .admin-status-options label { display: flex; align-items: center; gap: 6px; min-height: 46px; cursor: pointer; }
++.admin-shell .admin-status-options input[type=checkbox] { width: 18px; height: 18px; min-height: 18px; flex: 0 0 18px; padding: 0; accent-color: #007d95; }
++.admin-status-filter [role=alert] { max-width: 280px; }
+diff --git a/web/tests/admin-detail-browser.mjs b/web/tests/admin-detail-browser.mjs
+index 0094a80..210ce3f 100644
+--- a/web/tests/admin-detail-browser.mjs
++++ b/web/tests/admin-detail-browser.mjs
+@@ -50,6 +50,14 @@ const gate = () => {
+     arrive: () => arrive(),
+   }
+ }
++
++async function selectStatuses(p, group, statuses) {
++  const field = p.getByRole('group', {name: group, exact: true})
++  for (const [value,label] of [['VISIBLE','정상'],['HIDDEN','숨김'],['DELETED','삭제']])
++    await field.getByRole('checkbox',{name:label,exact:true}).setChecked(statuses.includes(value))
++  await p.getByRole('button',{name:group==='게시글 상태'?'검색':'댓글 검색',exact:true}).click()
++}
++
+ async function setup(role = "ADMIN", width = 1440) {
+   const context = await browser.newContext({
+       viewport: { width, height: 900 },
+@@ -133,12 +141,12 @@ await run('comment body edit date and entity update date are separate',async()=>
+ })
+ await run('list conditions survive title navigation, direct detail and reload',async()=>{
+  const {context,p}=await setup()
+- await p.goto(base+'/admin/posts?status=HIDDEN&keyword=검색&page=1');await ready(p)
++ await p.goto(base+'/admin/posts?statuses=VISIBLE&statuses=HIDDEN&keyword=검색&page=1');await ready(p)
+  assert.equal(await p.getByRole('navigation',{name:'관리자 메뉴'}).getByRole('link',{name:'게시글 관리',exact:true}).getAttribute('aria-current'),'page')
+  await p.getByRole('link',{name:'검증 게시글 4',exact:true}).click();await commentReady(p)
+  assert(await p.locator('.admin-post-detail').getByText('검증 게시글 4',{exact:true}).isVisible())
+  await p.getByRole('link',{name:'← 목록으로'}).click();await ready(p)
+- assert.equal(await p.getByLabel('처리 상태',{exact:true}).inputValue(),'HIDDEN')
++ assert.deepEqual(await p.getByRole('group',{name:'게시글 상태'}).locator('input:checked').evaluateAll(es=>es.map(e=>e.nextSibling.textContent)),['정상','숨김'])
+  assert.equal(await p.getByLabel('게시글 제목 검색',{exact:true}).inputValue(),'검색')
+  assert.equal(await p.getByLabel('페이지 바로 이동',{exact:true}).inputValue(),'2')
+  for(const id of [1,2,3]){await p.goto(base+'/admin/posts/'+id);await commentReady(p);assert(await p.locator('.admin-post-detail').getByText('<script>',{exact:false}).isVisible());assert.equal(await p.locator('.admin-post-detail script').count(),0)}
+@@ -154,7 +162,7 @@ await run('comment filters, codepoint search, paging focus, parent vs child stat
+  assert.equal(commentReads(state).length,1)
+  await p.getByRole('button',{name:'댓글 검색',exact:true}).click();await commentReady(p)
+  assert.equal(new URLSearchParams(commentReads(state).at(-1).search).get('keyword'),'본문  내부')
+- await p.getByLabel('댓글 상태',{exact:true}).selectOption('DELETED');await commentReady(p)
++ await selectStatuses(p, '댓글 상태', ['DELETED']);await commentReady(p)
+  const g=gate();state.comments=async(r,u)=>{g.arrive();await g.response;await r.fulfill({json:commentPage(2,Number(u.searchParams.get('page')))})}
+  const input=p.getByLabel('페이지 바로 이동',{exact:true});await input.fill('2');await input.press('Enter');await g.arrived
+  const n=commentReads(state).length;await input.press('Enter');assert.equal(commentReads(state).length,n)
+@@ -191,10 +199,10 @@ for(const action of ['filter','logout','leave'])await run(`late comment response
+  const g=gate();let first=true
+  state.comments=async(r)=>{if(first){first=false;g.arrive();await g.response;await r.fulfill({json:{...commentPage(1),items:[{...commentPage(1).items[0],content:'이전 비밀 본문'}]}})}else await r.fulfill({json:commentPage(1)})}
+  await p.goto(base+'/admin/posts/1');await g.arrived
+- if(action==='filter'){await p.getByLabel('댓글 상태',{exact:true}).selectOption('HIDDEN');await commentReady(p)}
++ if(action==='filter'){await selectStatuses(p, '댓글 상태', ['HIDDEN']);await commentReady(p)}
+  else if(action==='logout'){await p.getByRole('button',{name:'로그아웃',exact:true}).click();await p.getByRole('heading',{name:'로그인이 필요합니다',exact:true}).waitFor()}
+  else{await p.getByRole('link',{name:'서비스로 돌아가기',exact:true}).click();await p.waitForURL(base+'/')}
+- const done=p.waitForEvent('requestfinished',{predicate:r=>r.url().includes('/1/comments?status=ALL')});g.release();await done;await flush(p)
++ const done=p.waitForEvent('requestfinished',{predicate:r=>r.url().includes('/1/comments?statuses=VISIBLE&statuses=HIDDEN&statuses=DELETED')});g.release();await done;await flush(p)
+  assert.equal(await p.getByText('이전 비밀 본문',{exact:true}).count(),0)
+  if(action==='filter')assert.equal(await p.locator('.admin-comment-results').getAttribute('aria-busy'),'false')
+  else assert.equal(await p.locator('.admin-post-detail').count(),0)
+@@ -292,6 +300,45 @@ for(const width of [1440,1024,390,320])await run(`representative design and read
+  await context.close()
+ })
+ 
++
++for (const width of [1440,320]) await run(`multi-status applied vs draft filters ${width}`, async()=>{
++ const {context,p,state}=await setup('ADMIN',width)
++ await p.goto(base+'/admin/posts/2');await commentReady(p)
++ const group=p.getByRole('group',{name:'댓글 상태',exact:true}), input=p.getByLabel('댓글 본문 검색',{exact:true})
++ const check=name=>group.getByRole('checkbox',{name,exact:true})
++ const params=()=>new URLSearchParams(commentReads(state).at(-1).search)
++ assert.deepEqual(params().getAll('statuses'),['VISIBLE','HIDDEN','DELETED']);assert.equal(params().has('status'),false)
++ for(const name of ['정상','숨김','삭제'])assert(await check(name).isChecked())
++ const count=commentReads(state).length
++ await check('삭제').uncheck();await input.fill('  보청기 적응  ')
++ await p.evaluate(()=>new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve))))
++ assert.equal(commentReads(state).length,count)
++ await p.getByRole('button',{name:'다음',exact:true}).click();await commentReady(p)
++ assert.deepEqual(params().getAll('statuses'),['VISIBLE','HIDDEN','DELETED']);assert.equal(params().has('keyword'),false)
++ assert.equal(params().get('page'),'1')
++ await input.press('Enter');await commentReady(p)
++ assert.deepEqual(params().getAll('statuses'),['VISIBLE','HIDDEN']);assert.equal(params().get('keyword'),'보청기 적응');assert.equal(params().get('page'),'0')
++ await check('정상').uncheck();await p.getByRole('button',{name:'댓글 검색',exact:true}).click();await commentReady(p)
++ assert.deepEqual(params().getAll('statuses'),['HIDDEN'])
++ await check('숨김').uncheck();const before=commentReads(state).length
++ await p.getByRole('button',{name:'댓글 검색',exact:true}).click()
++ await group.getByRole('alert').waitFor();assert.equal(commentReads(state).length,before)
++ assert.equal(await group.getByRole('alert').textContent(),'조회할 상태를 하나 이상 선택해 주세요.')
++ await check('삭제').check();assert.equal(await group.getByRole('alert').count(),0)
++ assert.equal(commentReads(state).length,before)
++ await p.getByRole('button',{name:'댓글 검색 초기화',exact:true}).click();await commentReady(p)
++ assert.deepEqual(params().getAll('statuses'),['VISIBLE','HIDDEN','DELETED']);assert.equal(params().has('status'),false)
++ assert.equal(params().has('keyword'),false);assert.equal(params().get('page'),'0');assert.equal(await input.inputValue(),'')
++ const resetCount=commentReads(state).length
++ await p.getByRole('button',{name:'댓글 검색 초기화',exact:true}).click();await commentReady(p)
++ assert.equal(commentReads(state).length,resetCount+1)
++ await check('정상').focus();await p.keyboard.press('Space');assert.equal(await check('정상').isChecked(),false)
++ assert(await p.evaluate(()=>document.documentElement.scrollWidth<=innerWidth))
++ for(const box of await group.getByRole('checkbox').all())assert(await box.isVisible())
++ await p.screenshot({path:`${out}/multi-status-detail-${width}.png`,fullPage:true})
++ await context.close()
++})
++
+ await browser.close()
+ await fs.writeFile(`${out}/results.json`,JSON.stringify(results,null,2))
+ if(results.some(r=>!r.passed))process.exitCode=1
+diff --git a/web/tests/admin-detail.test.mjs b/web/tests/admin-detail.test.mjs
+index 6b10b1e..3a5db22 100644
+--- a/web/tests/admin-detail.test.mjs
++++ b/web/tests/admin-detail.test.mjs
+@@ -20,7 +20,7 @@ test("admin reads validate requested identity/page/size and use only private GET
+  process.env.NEXT_PUBLIC_API_BASE_URL='http://127.0.0.1:8082'
+  let body=post;const calls=[]
+  t.mock.method(globalThis,'fetch',async(u,o)=>{calls.push({u,o});return new Response(JSON.stringify(body),{headers:{'Content-Type':'application/json'}})})
+- const signal=new AbortController().signal,q={status:'HIDDEN',keyword:'  본문  내부  ',page:0}
++ const signal=new AbortController().signal,q={statuses:['HIDDEN'],keyword:'  본문  내부  ',page:0}
+  assert.deepEqual(await api.getAdminPost(1,signal),post)
+  body=page;assert.deepEqual(await api.getAdminComments(1,q,signal),page)
+  assert.equal(new URL(calls[1].u).searchParams.get('keyword'),'본문  내부')
+@@ -29,8 +29,16 @@ test("admin reads validate requested identity/page/size and use only private GET
+  body={...post,postId:2};await assert.rejects(api.getAdminPost(1,signal))
+ })
+ test("list return carries only safe filter/search/page state",()=>{
+- const q={status:'HIDDEN',keyword:'검색  내부',page:2}
++ const q={statuses:['HIDDEN'],keyword:'검색  내부',page:2}
+  assert.deepEqual(nav.adminListQuery(Object.fromEntries(new URL(nav.adminListHref(q),'https://local').searchParams)),q)
+  for(const bad of ['https://evil.test','//evil.test','/admin/posts/2','/mypage',null])assert.equal(nav.adminReturnHref(bad),'/admin/posts')
+  assert.equal(nav.adminListQuery({page:'-1',status:'bad'}).page,0)
+ })
++
++test("multi-status return URL preserves repeated values and accepts legacy single status",()=>{
++ const q={statuses:['VISIBLE','HIDDEN'],keyword:'보청기',page:2}
++ const href=nav.adminListHref(q)
++ assert.equal(nav.adminReturnHref(href),href)
++ assert.deepEqual(nav.adminListQuery({statuses:['HIDDEN','VISIBLE','HIDDEN'],keyword:'보청기',page:'2'}),q)
++ assert.deepEqual(nav.adminListQuery({status:'HIDDEN'}).statuses,['HIDDEN'])
++})
+diff --git a/web/tests/admin-moderation-browser.mjs b/web/tests/admin-moderation-browser.mjs
+index d8ebbab..f2d746e 100644
+--- a/web/tests/admin-moderation-browser.mjs
++++ b/web/tests/admin-moderation-browser.mjs
+@@ -50,6 +50,14 @@ const gate = () => {
+     arrive: () => arrive(),
+   }
+ }
++
++async function selectStatuses(p, group, statuses) {
++  const field = p.getByRole('group', {name: group, exact: true})
++  for (const [value,label] of [['VISIBLE','정상'],['HIDDEN','숨김'],['DELETED','삭제']])
++    await field.getByRole('checkbox',{name:label,exact:true}).setChecked(statuses.includes(value))
++  await p.getByRole('button',{name:group==='게시글 상태'?'검색':'댓글 검색',exact:true}).click()
++}
++
+ async function setup(role = "ADMIN", width = 1440) {
+   const context = await browser.newContext({
+       viewport: { width, height: 900 },
+@@ -190,12 +198,23 @@ await run('successful write with failed GET preserves success and retries only G
+ })
+ await run('comment filtered out on last page adjusts once and preserves conditions',async()=>{
+  const {context,p,state}=await moderation();await p.goto(base+'/admin/posts/1',{waitUntil:'domcontentloaded'});await settled(p)
+- await p.getByLabel('댓글 상태',{exact:true}).selectOption('VISIBLE');await commentReady(p)
++ await selectStatuses(p, '댓글 상태', ['VISIBLE']);await commentReady(p)
++ await p.getByLabel('댓글 본문 검색',{exact:true}).fill('  적용 검색어  ')
++ await button(p,'댓글 검색').click();await commentReady(p)
+  await button(p,'다음').click();await commentReady(p)
++ // Pending edits must not leak into the mutation's GET or its corrective page GET.
++ await p.getByRole('group',{name:'댓글 상태'}).getByRole('checkbox',{name:'숨김',exact:true}).check()
++ await p.getByLabel('댓글 본문 검색',{exact:true}).fill('아직 적용하지 않은 검색어')
++ const before=commentReads(state).length
+  const original=state.comments;state.comments=(r,u)=>state.commentHidden?r.fulfill({json:{...commentPage(1,Number(u.searchParams.get('page'))),items:[],totalElements:0,totalPages:0,hasNext:false}}):original(r,u)
+  await execute(p,'댓글 숨김 처리');await p.getByText('검색 조건에 맞는 댓글이 없습니다.',{exact:true}).waitFor()
+- assert.equal(await p.getByLabel('댓글 상태',{exact:true}).inputValue(),'VISIBLE')
++ assert.equal(await p.getByRole('group',{name:'댓글 상태'}).getByRole('checkbox',{name:'정상',exact:true}).isChecked(),true)
+  assert.equal(new URLSearchParams(commentReads(state).at(-1).search).get('page'),'0')
++ const followups=commentReads(state).slice(before).map(c=>new URLSearchParams(c.search))
++ assert.equal(followups.length,2)
++ assert.deepEqual(followups.map(q=>q.get('page')),['1','0'])
++ for(const q of followups){assert.deepEqual(q.getAll('statuses'),['VISIBLE']);assert.equal(q.get('keyword'),'적용 검색어');assert.equal(q.has('status'),false)}
++ assert.equal(await p.getByLabel('댓글 본문 검색',{exact:true}).inputValue(),'아직 적용하지 않은 검색어')
+  assert.equal(writes(state).length,1);await context.close()
+ })
+ await run('pre-mutation delayed GET ignoring abort cannot overwrite refreshed parent',async()=>{
+diff --git a/web/tests/admin-posts-browser.mjs b/web/tests/admin-posts-browser.mjs
+index 4f93839..c650182 100644
+--- a/web/tests/admin-posts-browser.mjs
++++ b/web/tests/admin-posts-browser.mjs
+@@ -50,6 +50,14 @@ const gate = () => {
+     arrive: () => arrive(),
+   }
+ }
++
++async function selectStatuses(p, group, statuses) {
++  const field = p.getByRole('group', {name: group, exact: true})
++  for (const [value,label] of [['VISIBLE','정상'],['HIDDEN','숨김'],['DELETED','삭제']])
++    await field.getByRole('checkbox',{name:label,exact:true}).setChecked(statuses.includes(value))
++  await p.getByRole('button',{name:group==='게시글 상태'?'검색':'댓글 검색',exact:true}).click()
++}
++
+ async function setup(role = "ADMIN", width = 1440) {
+   const context = await browser.newContext({
+       viewport: { width, height: 900 },
+@@ -161,7 +169,7 @@ await run(
+     await ready(p)
+     assert.equal(new URL(p.url()).pathname, "/admin/posts")
+     assert.equal(reads(state).length, 1)
+-    assert.equal(reads(state)[0].search, "?status=ALL&page=0&size=20")
++    assert.equal(reads(state)[0].search, "?statuses=VISIBLE&statuses=HIDDEN&statuses=DELETED&page=0&size=20")
+     await p.getByRole("link", { name: "관리자", exact: true }).waitFor()
+     await p.getByText("탈퇴한 회원", { exact: true }).waitFor()
+     await p.getByRole("button", { name: "다음", exact: true }).click()
+@@ -177,10 +185,10 @@ await run(
+     let q = new URLSearchParams(reads(state).at(-1).search)
+     assert.equal(q.get("keyword"), "검색")
+     assert.equal(q.get("page"), "0")
+-    await p.getByLabel("처리 상태", { exact: true }).selectOption("HIDDEN")
++    await selectStatuses(p, '게시글 상태', ['HIDDEN'])
+     await ready(p)
+     q = new URLSearchParams(reads(state).at(-1).search)
+-    assert.equal(q.get("status"), "HIDDEN")
++    assert.equal(q.getAll("statuses").join(), "HIDDEN")
+     assert.equal(q.get("page"), "0")
+     await p.getByRole("button", { name: "초기화", exact: true }).click()
+     await ready(p)
+@@ -216,7 +224,7 @@ await run(
+     await p.getByRole("button", { name: "검색", exact: true }).click()
+     await p.getByText("검색 결과가 없습니다.", { exact: true }).waitFor()
+     state.read = (r) => r.fulfill({ status: 403, json: fail("ACCESS_DENIED") })
+-    await p.getByLabel("처리 상태", { exact: true }).selectOption("HIDDEN")
++    await selectStatuses(p, '게시글 상태', ['HIDDEN'])
+     await p.getByText("관리자 권한이 없습니다.", { exact: true }).waitFor()
+     assert(
+       await p
+@@ -226,7 +234,7 @@ await run(
+     assert.equal(await p.locator("tbody tr").count(), 0)
+     state.read = (r) =>
+       r.fulfill({ status: 401, json: fail("AUTHENTICATION_REQUIRED") })
+-    await p.getByLabel("처리 상태", { exact: true }).selectOption("ALL")
++    await selectStatuses(p, '게시글 상태', ['VISIBLE','HIDDEN','DELETED'])
+     await p
+       .getByRole("heading", { name: "로그인이 필요합니다", exact: true })
+       .waitFor()
+@@ -251,7 +259,7 @@ for (const logout of [false, true])
+       })
+       const g = gate()
+       state.read = async (r, u) => {
+-        if (u.searchParams.get("status") === "ALL") {
++        if (u.searchParams.getAll("statuses").length === 3) {
+           g.arrive()
+           await g.response
+           await r.fulfill({ json: payload() })
+@@ -268,11 +276,11 @@ for (const logout of [false, true])
+           .getByRole("heading", { name: "로그인이 필요합니다", exact: true })
+           .waitFor()
+       } else {
+-        await p.getByLabel("처리 상태", { exact: true }).selectOption("HIDDEN")
++        await selectStatuses(p, '게시글 상태', ['HIDDEN'])
+         await p.getByText("검증 게시글 9", { exact: true }).waitFor()
+       }
+       const done = p.waitForEvent("requestfinished", {
+-        predicate: (q) => q.url().includes("/admin/posts?status=ALL"),
++        predicate: (q) => q.url().includes("/admin/posts?statuses=VISIBLE&statuses=HIDDEN&statuses=DELETED"),
+       })
+       g.release()
+       await done
+@@ -318,7 +326,7 @@ for (const sameMember of [true, false])
+     if (sameMember) await p.getByText('검증 게시글 90', { exact: true }).waitFor()
+     else await p.getByRole('heading', { name: '관리자 권한이 없습니다', exact: true }).waitFor()
+     const before = reads(state).length
+-    const finished = p.waitForEvent('requestfinished', { predicate: r => r.url().includes('/admin/posts?status=ALL') })
++    const finished = p.waitForEvent('requestfinished', { predicate: r => r.url().includes('/admin/posts?statuses=VISIBLE&statuses=HIDDEN&statuses=DELETED') })
+     g.release()
+     await finished
+     await p.evaluate(() => new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r))))
+@@ -366,7 +374,7 @@ for (const entry of ['sidebar', 'header', 'mobile'])
+   await clickMenu()
+   await p.getByLabel('게시글 제목 검색',{exact:true}).fill('메뉴 유지')
+   await p.getByRole('button',{name:'검색',exact:true}).click();await ready(p)
+-  await p.getByLabel('처리 상태',{exact:true}).selectOption('HIDDEN');await ready(p)
++  await selectStatuses(p, '게시글 상태', ['HIDDEN']);await ready(p)
+   await p.getByRole('button',{name:'다음',exact:true}).click();await ready(p)
+   assert.equal(new URLSearchParams(reads(state).at(-1).search).get('page'),'1')
+   await context.close()
+@@ -424,7 +432,7 @@ await run('real navigation discards late admin response; modified click preserve
+  assert.equal(new URL(p.url()).pathname,'/admin/posts')
+  await p.getByRole('link',{name:'서비스로 돌아가기',exact:true}).click()
+  await p.waitForURL(base+'/')
+- const done=p.waitForEvent('requestfinished',{predicate:r=>r.url().includes('/admin/posts?status=ALL')})
++ const done=p.waitForEvent('requestfinished',{predicate:r=>r.url().includes('/admin/posts?statuses=VISIBLE&statuses=HIDDEN&statuses=DELETED')})
+  g.release();await done
+  await p.evaluate(()=>new Promise(r=>requestAnimationFrame(()=>requestAnimationFrame(r))))
+  assert.equal(await p.locator('.admin-panel').count(),0)
+@@ -454,6 +462,45 @@ for (const width of [1440, 390, 320])
+     await p.screenshot({ path: `${out}/admin-${width}.png`, fullPage: true })
+     await context.close()
+   })
++
++for (const width of [1440,320]) await run(`multi-status applied vs draft filters ${width}`, async()=>{
++ const {context,p,state}=await setup('ADMIN',width)
++ await p.goto(base+'/admin/posts');await ready(p)
++ const group=p.getByRole('group',{name:'게시글 상태',exact:true}), input=p.getByLabel('게시글 제목 검색',{exact:true})
++ const check=name=>group.getByRole('checkbox',{name,exact:true})
++ const params=()=>new URLSearchParams(reads(state).at(-1).search)
++ assert.deepEqual(params().getAll('statuses'),['VISIBLE','HIDDEN','DELETED']);assert.equal(params().has('status'),false)
++ for(const name of ['정상','숨김','삭제'])assert(await check(name).isChecked())
++ const count=reads(state).length
++ await check('삭제').uncheck();await input.fill('  보청기 적응  ')
++ await p.evaluate(()=>new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve))))
++ assert.equal(reads(state).length,count)
++ await p.getByRole('button',{name:'다음',exact:true}).click();await ready(p)
++ assert.deepEqual(params().getAll('statuses'),['VISIBLE','HIDDEN','DELETED']);assert.equal(params().has('keyword'),false)
++ assert.equal(params().get('page'),'1')
++ await input.press('Enter');await ready(p)
++ assert.deepEqual(params().getAll('statuses'),['VISIBLE','HIDDEN']);assert.equal(params().get('keyword'),'보청기 적응');assert.equal(params().get('page'),'0')
++ await check('정상').uncheck();await p.getByRole('button',{name:'검색',exact:true}).click();await ready(p)
++ assert.deepEqual(params().getAll('statuses'),['HIDDEN'])
++ await check('숨김').uncheck();const before=reads(state).length
++ await p.getByRole('button',{name:'검색',exact:true}).click()
++ await group.getByRole('alert').waitFor();assert.equal(reads(state).length,before)
++ assert.equal(await group.getByRole('alert').textContent(),'조회할 상태를 하나 이상 선택해 주세요.')
++ await check('삭제').check();assert.equal(await group.getByRole('alert').count(),0)
++ assert.equal(reads(state).length,before)
++ await p.getByRole('button',{name:'초기화',exact:true}).click();await ready(p)
++ assert.deepEqual(params().getAll('statuses'),['VISIBLE','HIDDEN','DELETED']);assert.equal(params().has('status'),false)
++ assert.equal(params().has('keyword'),false);assert.equal(params().get('page'),'0');assert.equal(await input.inputValue(),'')
++ const resetCount=reads(state).length
++ await p.getByRole('button',{name:'초기화',exact:true}).click();await ready(p)
++ assert.equal(reads(state).length,resetCount+1)
++ await check('정상').focus();await p.keyboard.press('Space');assert.equal(await check('정상').isChecked(),false)
++ assert(await p.evaluate(()=>document.documentElement.scrollWidth<=innerWidth))
++ for(const box of await group.getByRole('checkbox').all())assert(await box.isVisible())
++ await p.screenshot({path:`${out}/multi-status-posts-${width}.png`,fullPage:true})
++ await context.close()
++})
++
+ await browser.close()
+ await fs.writeFile(`${out}/results.json`, JSON.stringify(results, null, 2))
+ if (results.some((r) => !r.passed)) process.exitCode = 1
+diff --git a/web/tests/admin-posts.test.mjs b/web/tests/admin-posts.test.mjs
+index 4fc5b1d..d6e708b 100644
+--- a/web/tests/admin-posts.test.mjs
++++ b/web/tests/admin-posts.test.mjs
+@@ -59,7 +59,7 @@ test("private admin GET uses precise query/session/no-store and no CSRF or retry
+   })
+   assert.deepEqual(
+     await api.getAdminPosts(
+-      { status: "ALL", keyword: "　검색　", page: 0 },
++      { statuses: ["VISIBLE","HIDDEN","DELETED"], keyword: "　검색　", page: 0 },
+       new AbortController().signal,
+     ),
+     page,
+@@ -86,10 +86,21 @@ test("401 and 403 remain distinguishable; broken response is not empty success",
+     )
+     await assert.rejects(
+       api.getAdminPosts(
+-        { status: "ALL", keyword: "", page: 0 },
++        { statuses: ["VISIBLE","HIDDEN","DELETED"], keyword: "", page: 0 },
+         new AbortController().signal,
+       ),
+       (e) => e.status === (status === 200 ? 0 : status),
+     )
+   }
+ })
++
++test("multi-status request is canonical, copied, explicit and rejects empty/invalid selections", () => {
++  const values = ["HIDDEN", "VISIBLE", "HIDDEN"]
++  const params = api.adminQueryParams({statuses:values,keyword:"  검색  ",page:2})
++  values.push("DELETED")
++  assert.deepEqual(params.getAll("statuses"),["VISIBLE","HIDDEN"])
++  assert.equal(params.has("status"),false)
++  assert.equal(params.get("page"),"2")
++  assert.deepEqual(api.adminQueryParams({statuses:api.ADMIN_CONTENT_STATUSES,keyword:"",page:0}).getAll("statuses"),["VISIBLE","HIDDEN","DELETED"])
++  for(const statuses of [[],["ALL"],["hidden"],["VISIBLE,HIDDEN"]]) assert.throws(()=>api.adminQueryParams({statuses,keyword:"",page:0}))
++})
+diff --git a/web/src/components/admin/AdminStatusFilter.tsx b/web/src/components/admin/AdminStatusFilter.tsx
+new file mode 100644
+index 0000000..9a52354
+--- /dev/null
++++ b/web/src/components/admin/AdminStatusFilter.tsx
+@@ -0,0 +1,16 @@
++"use client"
++import { useId } from "react"
++import { ADMIN_CONTENT_STATUSES, ADMIN_STATUSES, normalizeAdminStatuses, type AdminContentStatus } from "@/lib/admin-posts"
++export default function AdminStatusFilter({label, value, onChange, error}: {
++  label: string; value: readonly AdminContentStatus[]; onChange: (value: AdminContentStatus[]) => void; error: string
++}) {
++  const id = useId()
++  return <fieldset className="admin-status-filter" aria-describedby={error ? `${id}-error` : undefined} aria-invalid={!!error}>
++    <legend>{label}</legend>
++    <div className="admin-status-options">{ADMIN_CONTENT_STATUSES.map(status => <label key={status} htmlFor={`${id}-${status}`}>
++      <input id={`${id}-${status}`} type="checkbox" checked={value.includes(status)} onChange={event => onChange(normalizeAdminStatuses(event.target.checked ? [...value,status] : value.filter(v => v !== status)))}/>
++      {ADMIN_STATUSES[status]}
++    </label>)}</div>
++    {error && <p id={`${id}-error`} role="alert">{error}</p>}
++  </fieldset>
++}

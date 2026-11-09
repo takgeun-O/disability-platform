@@ -46,7 +46,7 @@ async function fixture({count=90,auto=false,path='/community',js=true,width=1440
   assert.equal(r.request().headers()['x-csrf-token'],'test-only')
   if(u.pathname.endsWith('/comments')&&method==='POST'){
    const post=posts.find(p=>p.id===Number(u.pathname.split('/').at(-2)));post.commentCount++
-   comments.push({likeCount:0,liked:false,commentId:1,content:r.request().postDataJSON().content,author:post.author,createdAt:stamp,updatedAt:stamp})
+   comments.push({ contentUpdatedAt: null,likeCount:0,liked:false,commentId:1,content:r.request().postDataJSON().content,author:post.author,createdAt:stamp,updatedAt:stamp})
    return r.fulfill({status:201,json:{commentId:1}})
   }
   if(u.pathname.includes('/comments/')){if(method==='DELETE'){comments=[];posts.find(p=>p.id===Number(u.pathname.split('/').at(-3))).commentCount--}else comments[0].content=r.request().postDataJSON().content;return r.fulfill({status:204})}

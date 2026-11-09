@@ -12,6 +12,7 @@ public record MemberCommentItemResult(
         @Nullable String content,
         Instant createdAt,
         @Nullable Instant updatedAt,
+        @Nullable Instant contentUpdatedAt,
         MemberCommentPostResult post,
         @Nullable Long likeCount,
         @Nullable Boolean liked,
@@ -49,6 +50,7 @@ public record MemberCommentItemResult(
                     null,
                     comment.getCreatedAt(),
                     null,
+                    null,
                     MemberCommentPostResult.idOnly(post.getId()),
                     null,
                     null,
@@ -56,11 +58,13 @@ public record MemberCommentItemResult(
             );
         }
 
+        // 공개 항목 반환
         return new MemberCommentItemResult(
                 comment.getId(),
                 comment.getContent(),
                 comment.getCreatedAt(),
                 comment.getUpdatedAt(),
+                comment.getContentUpdatedAt(),
                 MemberCommentPostResult.from(post),
                 likeCount,
                 liked,

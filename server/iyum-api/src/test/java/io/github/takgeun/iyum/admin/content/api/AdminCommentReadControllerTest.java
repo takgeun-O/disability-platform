@@ -17,6 +17,8 @@ import io.github.takgeun.iyum.member.domain.MemberStatus;
 import io.github.takgeun.iyum.member.infrastructure.MemberRepository;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.Arguments;
+import org.junit.jupiter.params.provider.MethodSource;
 import org.junit.jupiter.params.provider.CsvSource;
 import org.junit.jupiter.params.provider.EnumSource;
 import org.junit.jupiter.params.provider.ValueSource;
@@ -36,8 +38,11 @@ import org.springframework.test.web.servlet.request.MockHttpServletRequestBuilde
 
 import java.time.Instant;
 import java.util.List;
+import java.util.Set;
+import java.util.stream.Stream;
 
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.nullValue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.verify;
@@ -102,6 +107,145 @@ class AdminCommentReadControllerTest {
 
     @MockitoBean
     private MemberRepository memberRepository;
+
+
+    @ParameterizedTest
+    @MethodSource("multipleStatusSelections")
+    void 다중_상태와_정규화한_검색어를_정확히_전달한다(
+            String[] statuses, Set<AdminCommentStatus> expectedStatuses
+    ) throws Exception {
+        givenValidSession(MemberRole.ADMIN);
+        AdminCommentReadQuery expectedQuery = AdminCommentReadQuery.ofStatuses(
+                expectedStatuses, "보청기 적응", 2, 10
+        );
+        when(commentReadService.getComments(ADMIN_ID, CREDENTIAL_VERSION, POST_ID, expectedQuery)).thenReturn(result(AdminPostStatus.HIDDEN, List.of(), 2, 10, 15));
+
+        // 반복 쿼리 파라미터를 실제 컨트롤러에서 해석한다. GET에는 CSRF가 필요 없다.
+        expectSuccess(mockMvc.perform(
+                request(POST_ID)
+                        .with(user(principal(MemberRole.ADMIN)))
+                        .queryParam("statuses", statuses)
+                        .queryParam("keyword", "  보청기 적응  ")
+                        .queryParam("page", "2")
+                        .queryParam("size", "10")
+        ))
+                .andExpect(jsonPath("$.postId").value(POST_ID))
+                .andExpect(jsonPath("$.postStatus").value("HIDDEN"))
+                .andExpect(jsonPath("$.items").isArray())
+                .andExpect(jsonPath("$.items").isEmpty())
+                .andExpect(jsonPath("$.page").value(2))
+                .andExpect(jsonPath("$.size").value(10))
+                .andExpect(jsonPath("$.totalElements").value(15))
+                .andExpect(jsonPath("$.totalPages").value(2))
+                .andExpect(jsonPath("$.hasNext").value(false))
+                .andExpect(jsonPath("$.hasPrevious").value(true));
+
+        verify(commentReadService).getComments(ADMIN_ID, CREDENTIAL_VERSION, POST_ID, expectedQuery);
+        verifyNoMoreInteractions(commentReadService);
+    }
+
+    static Stream<Arguments> multipleStatusSelections() {
+        return Stream.of(
+                Arguments.of(new String[]{"VISIBLE"}, Set.of(AdminCommentStatus.VISIBLE)),
+                Arguments.of(new String[]{"HIDDEN"}, Set.of(AdminCommentStatus.HIDDEN)),
+                Arguments.of(new String[]{"DELETED"}, Set.of(AdminCommentStatus.DELETED)),
+                Arguments.of(new String[]{"VISIBLE", "HIDDEN"}, Set.of(AdminCommentStatus.VISIBLE, AdminCommentStatus.HIDDEN)),
+                Arguments.of(new String[]{"VISIBLE", "DELETED"}, Set.of(AdminCommentStatus.VISIBLE, AdminCommentStatus.DELETED)),
+                Arguments.of(new String[]{"HIDDEN", "DELETED"}, Set.of(AdminCommentStatus.HIDDEN, AdminCommentStatus.DELETED)),
+                Arguments.of(new String[]{"VISIBLE", "HIDDEN", "DELETED"}, Set.of(AdminCommentStatus.VISIBLE, AdminCommentStatus.HIDDEN, AdminCommentStatus.DELETED)),
+                Arguments.of(new String[]{"HIDDEN", "VISIBLE", "HIDDEN"}, Set.of(AdminCommentStatus.HIDDEN, AdminCommentStatus.VISIBLE))
+        );
+    }
+
+    @Test
+    void 빈_단일_상태는_전체_조회와_호환된다() throws Exception {
+        givenValidSession(MemberRole.ADMIN);
+        AdminCommentReadQuery expectedQuery = AdminCommentReadQuery.ofStatuses(
+                Set.of(AdminCommentStatus.VISIBLE, AdminCommentStatus.HIDDEN, AdminCommentStatus.DELETED),
+                "보청기 적응", 2, 10
+        );
+        when(commentReadService.getComments(ADMIN_ID, CREDENTIAL_VERSION, POST_ID, expectedQuery)).thenReturn(result(AdminPostStatus.HIDDEN, List.of(), 2, 10, 15));
+
+        expectSuccess(mockMvc.perform(
+                request(POST_ID)
+                        .with(user(principal(MemberRole.ADMIN)))
+                        .queryParam("status", "")
+                        .queryParam("keyword", "  보청기 적응  ")
+                        .queryParam("page", "2")
+                        .queryParam("size", "10")
+        ))
+                .andExpect(jsonPath("$.postId").value(POST_ID))
+                .andExpect(jsonPath("$.postStatus").value("HIDDEN"))
+                .andExpect(jsonPath("$.items").isEmpty())
+                .andExpect(jsonPath("$.page").value(2))
+                .andExpect(jsonPath("$.size").value(10))
+                .andExpect(jsonPath("$.totalElements").value(15))
+                .andExpect(jsonPath("$.totalPages").value(2))
+                .andExpect(jsonPath("$.hasNext").value(false))
+                .andExpect(jsonPath("$.hasPrevious").value(true));
+        verify(commentReadService).getComments(ADMIN_ID, CREDENTIAL_VERSION, POST_ID, expectedQuery);
+        verifyNoMoreInteractions(commentReadService);
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"", " ", "ALL", "hidden", "UNKNOWN", " HIDDEN ", "VISIBLE,HIDDEN"})
+    void 잘못된_다중_상태를_거부한다(String value) throws Exception {
+        givenValidSession(MemberRole.ADMIN);
+        mockMvc.perform(
+                request(POST_ID)
+                        .with(user(principal(MemberRole.ADMIN)))
+                        .queryParam("statuses", value)
+        )
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("INVALID_REQUEST_PARAMETER"))
+                .andExpect(header().string(HttpHeaders.CACHE_CONTROL, containsString("no-store")));
+        verifyNoInteractions(commentReadService);
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"", "UNKNOWN", "ALL"})
+    void 유효한_다중_상태에_잘못된_값이_섞이면_거부한다(String value) throws Exception {
+        givenValidSession(MemberRole.ADMIN);
+        mockMvc.perform(
+                request(POST_ID)
+                        .with(user(principal(MemberRole.ADMIN)))
+                        .queryParam("statuses", "VISIBLE", value)
+        )
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("INVALID_REQUEST_PARAMETER"))
+                .andExpect(header().string(HttpHeaders.CACHE_CONTROL, containsString("no-store")));
+        verifyNoInteractions(commentReadService);
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"", "ALL", "HIDDEN"})
+    void 단일과_다중_상태를_함께_보내면_거부한다(String value) throws Exception {
+        givenValidSession(MemberRole.ADMIN);
+        mockMvc.perform(
+                request(POST_ID)
+                        .with(user(principal(MemberRole.ADMIN)))
+                        .queryParam("status", value)
+                        .queryParam("statuses", "VISIBLE", "HIDDEN")
+        )
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("INVALID_REQUEST_PARAMETER"))
+                .andExpect(header().string(HttpHeaders.CACHE_CONTROL, containsString("no-store")));
+        verifyNoInteractions(commentReadService);
+    }
+
+    @Test
+    void 단일_상태를_반복하면_거부한다() throws Exception {
+        givenValidSession(MemberRole.ADMIN);
+        mockMvc.perform(
+                request(POST_ID)
+                        .with(user(principal(MemberRole.ADMIN)))
+                        .queryParam("status", "VISIBLE", "HIDDEN")
+        )
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("INVALID_REQUEST_PARAMETER"))
+                .andExpect(header().string(HttpHeaders.CACHE_CONTROL, containsString("no-store")));
+        verifyNoInteractions(commentReadService);
+    }
 
     @Test
     void 기본_조건과_인증된_관리자_정보로_조회한다() throws Exception {
@@ -644,6 +788,108 @@ class AdminCommentReadControllerTest {
         ).thenReturn(true);
     }
 
+    @ParameterizedTest
+    @CsvSource({
+            "VISIBLE, false",
+            "VISIBLE, true",
+            "HIDDEN, false",
+            "HIDDEN, true",
+            "DELETED, false",
+            "DELETED, true"
+    })
+    void 관리자는_댓글_상태와_관계없이_기록된_본문_수정_시각을_조회한다(
+            AdminCommentStatus commentStatus,
+            boolean edited
+    ) throws Exception {
+        givenValidSession(MemberRole.ADMIN);
+
+        Instant contentUpdatedAt = edited
+                ? CREATED_AT.plusSeconds(60)
+                : null;
+
+        AdminCommentItemResult original =
+                commentItem(commentStatus, false);
+
+        AdminCommentItemResult comment =
+                new AdminCommentItemResult(
+                        original.commentId(),
+                        original.content(),
+                        original.author(),
+                        original.status(),
+                        original.createdAt(),
+                        original.updatedAt(),
+                        contentUpdatedAt,
+                        original.hiddenAt(),
+                        original.deletedAt()
+                );
+
+        AdminCommentReadQuery query =
+                new AdminCommentReadQuery(
+                        AdminCommentStatus.ALL,
+                        null,
+                        0,
+                        20
+                );
+
+        when(commentReadService.getComments(
+                ADMIN_ID,
+                CREDENTIAL_VERSION,
+                POST_ID,
+                query
+        )).thenReturn(
+                result(
+                        AdminPostStatus.HIDDEN,
+                        List.of(comment),
+                        0,
+                        20,
+                        1
+                )
+        );
+
+        var response = expectSuccess(
+                mockMvc.perform(
+                        request(POST_ID)
+                                .with(user(principal(MemberRole.ADMIN)))
+                )
+        )
+                .andExpect(jsonPath("$.postId").value(POST_ID))
+                .andExpect(jsonPath("$.postStatus").value("HIDDEN"))
+                .andExpect(jsonPath("$.items.length()").value(1))
+                .andExpect(jsonPath("$.items[0].commentId")
+                        .value(COMMENT_ID))
+                .andExpect(jsonPath("$.items[0].status")
+                        .value(commentStatus.name()))
+                .andExpect(jsonPath("$.items[0].content")
+                        .value(FULL_CONTENT))
+                .andExpect(jsonPath("$.items[0].createdAt")
+                        .value(CREATED_AT.toString()))
+                .andExpect(jsonPath("$.items[0].updatedAt")
+                        .value(UPDATED_AT.toString()))
+                .andExpect(jsonPath("$.items[0].contentUpdatedAt")
+                        .hasJsonPath());
+
+        if (edited) {
+            response.andExpect(
+                    jsonPath("$.items[0].contentUpdatedAt")
+                            .value(contentUpdatedAt.toString())
+            );
+        } else {
+            response.andExpect(
+                    jsonPath("$.items[0].contentUpdatedAt")
+                            .value(nullValue())
+            );
+        }
+
+        verify(commentReadService).getComments(
+                ADMIN_ID,
+                CREDENTIAL_VERSION,
+                POST_ID,
+                query
+        );
+
+        verifyNoMoreInteractions(commentReadService);
+    }
+
     private void givenResult(AdminCommentListResult result) {
         when(commentReadService.getComments(
                 eq(ADMIN_ID),
@@ -725,6 +971,7 @@ class AdminCommentReadControllerTest {
                 status,
                 CREATED_AT,
                 UPDATED_AT,
+                null,
                 hiddenAt,
                 deletedAt
         );

@@ -267,7 +267,7 @@ public interface CommentRepository
      * 3. 좋아요 수와 작성 시각이 모두 같고 ID가 더 크거나
      */
     @Query("""
-            select 
+            select
                 c.id as commentId,
                 c.createdAt as createdAt,
                 count(cl.id) as likeCount
@@ -280,7 +280,7 @@ public interface CommentRepository
                 and c.deletedAt is null
                 and c.hiddenAt is null
             group by c.id, c.createdAt
-            having 
+            having
                 count(cl.id) < :afterLikeCount
                 or (
                     count(cl.id) = :afterLikeCount

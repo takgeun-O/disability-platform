@@ -9,9 +9,9 @@ const stamp='2026-10-20T00:00:00.123456Z',member={memberId:321,nickname:'검토�
 const fail=code=>({code,message:'test error',fieldErrors:[]})
 const makePost=id=>({visibility:"VISIBLE",id,type:'QUESTION',topic:'HEARING_AID',title:`[검토 예시] 원본 게시글 ${id}`,content:'상세 본문\n'.repeat(30),contentPreview:'본문 미리보기',likeCount: 0, liked: false, author:{memberId:321,nickname:'검토회원'},createdAt:stamp,updatedAt:stamp,commentCount:0})
 let posts=[],comments=[],publicPageSize=Infinity
-const makeComment=(id,index)=>({liked:index%4===1,likeCount:index%4,commentId:id,content:`[검토 예시] 내가 나눈 경험 ${id}\n도움이 되었던 경험을 함께 나눠요.`,createdAt:stamp,updatedAt:stamp,postId:1000-Math.floor(index/3)})
+const makeComment=(id,index)=>({ contentUpdatedAt: null,liked:index%4===1,likeCount:index%4,commentId:id,content:`[검토 예시] 내가 나눈 경험 ${id}\n도움이 되었던 경험을 함께 나눠요.`,createdAt:stamp,updatedAt:stamp,postId:1000-Math.floor(index/3)})
 const owned=()=>comments.filter(c=>posts.some(p=>p.id===c.postId))
-const dto=c=>{const p=posts.find(p=>p.id===c.postId);return{visibility:"VISIBLE",liked:c.liked,likeCount:c.likeCount,commentId:c.commentId,content:c.content,createdAt:c.createdAt,updatedAt:c.updatedAt,post:{postId:p.id,title:p.title,type:p.type,topic:p.topic}}}
+const dto=c=>{const p=posts.find(p=>p.id===c.postId);return{ contentUpdatedAt: c.contentUpdatedAt,visibility:"VISIBLE",liked:c.liked,likeCount:c.likeCount,commentId:c.commentId,content:c.content,createdAt:c.createdAt,updatedAt:c.updatedAt,post:{postId:p.id,title:p.title,type:p.type,topic:p.topic}}}
 function listing(u){let items=owned().filter(c=>!u.searchParams.has('afterId')||c.commentId<Number(u.searchParams.get('afterId')));const hasNext=items.length>10;items=items.slice(0,10).map(dto);return{items,hasNext,nextCursor:hasNext?{createdAt:items.at(-1).createdAt,commentId:items.at(-1).commentId}:null}}
 function publicRead(u){
  const id=Number(u.pathname.split('/')[5]),post=posts.find(p=>p.id===id)
@@ -20,7 +20,7 @@ function publicRead(u){
  if(u.pathname.endsWith('/comments')) {
   const all=owned().filter(c=>c.postId===id),start=u.searchParams.has('afterId')?all.findIndex(c=>String(c.commentId)===u.searchParams.get('afterId'))+1:0
   const slice=all.slice(start,start+publicPageSize),hasNext=start+slice.length<all.length
-  return{json:{items:slice.map(c=>({commentId:c.commentId,content:c.content,createdAt:c.createdAt,updatedAt:c.updatedAt,likeCount:c.likeCount,liked:!!c.liked,author:post.author})),hasNext,nextCursor:hasNext?{createdAt:slice.at(-1).createdAt,commentId:slice.at(-1).commentId,sort:'OLDEST',likeCount:null}:null}}
+  return{json:{items:slice.map(c=>({ contentUpdatedAt: c.contentUpdatedAt,commentId:c.commentId,content:c.content,createdAt:c.createdAt,updatedAt:c.updatedAt,likeCount:c.likeCount,liked:!!c.liked,author:post.author})),hasNext,nextCursor:hasNext?{createdAt:slice.at(-1).createdAt,commentId:slice.at(-1).commentId,sort:'OLDEST',likeCount:null}:null}}
  }
  const detail={...post};delete detail.commentCount;delete detail.contentPreview;return{json:detail}
 }
@@ -54,7 +54,7 @@ async function fixture({width=1440,count=27,...options}={}){
   const id=Number(u.pathname.split('/')[5]),post=posts.find(p=>p.id===id)
   if(u.pathname.endsWith('/comments')&&method==='POST'){comments.unshift({...makeComment(3000,0),postId:id,content:req.postDataJSON().content});return r.fulfill({status:201,json:{commentId:3000}})}
   if(u.pathname.endsWith('/like')){const c=comments.find(c=>c.commentId===Number(u.pathname.split('/').at(-2)));c.liked=method==='PUT';c.likeCount=c.liked?7:6;return r.fulfill({json:{postId:id,commentId:c.commentId,likeCount:c.likeCount,liked:c.liked}})}
-  if(u.pathname.includes('/comments/')){const cid=Number(u.pathname.split('/').at(-1));if(method==='DELETE')comments=comments.filter(c=>c.commentId!==cid);else{const c=comments.find(c=>c.commentId===cid);c.content=req.postDataJSON().content;c.updatedAt='2026-10-20T01:00:00.123456Z'}return r.fulfill({status:204})}
+  if(u.pathname.includes('/comments/')){const cid=Number(u.pathname.split('/').at(-1));if(method==='DELETE')comments=comments.filter(c=>c.commentId!==cid);else{const c=comments.find(c=>c.commentId===cid);if(c.content!==req.postDataJSON().content)c.contentUpdatedAt='2026-10-20T01:00:00.123456Z';c.content=req.postDataJSON().content;c.updatedAt='2026-10-20T01:00:00.123456Z'}return r.fulfill({status:204})}
   if(method==='DELETE'){posts=posts.filter(p=>p.id!==id);return r.fulfill({status:204})}
   Object.assign(post,req.postDataJSON());return r.fulfill({status:204})
  })
@@ -70,6 +70,14 @@ async function detail(p,index=0){const link=rows(p).nth(index).locator('a');awai
 async function back(p,kind='back'){if(kind==='back')await p.goBack();else {const link=p.getByRole('link',{name:'← 마이페이지로 돌아가기',exact:true});assert.equal(await link.getAttribute('href'),'/mypage');await link.click()}await p.waitForURL(u=>u.pathname==='/mypage');await until(async()=>await p.getByRole('tab',{name:/내 댓글/}).getAttribute('aria-selected')==='true')}
 async function check(name,fn){if(process.env.CASE_FILTER&&!name.includes(process.env.CASE_FILTER))return;try{await fn();results.push({name,pass:true});console.log('PASS',name)}catch(e){results.push({name,pass:false,error:e.stack});console.log('FAIL',name,e.message);process.exitCode=1;const p=browser.contexts().at(-1)?.pages()[0];if(p)await p.screenshot({path:`${out}/failure-${results.length}.png`}).catch(()=>{})}finally{for(const c of browser.contexts())await c.close()}}
 try{
+ await check('member content edit marker uses nullable body timestamp',async()=>{
+  const {p}=await fixture()
+  comments[0].updatedAt='2026-11-05T03:00:00Z'
+  comments[1].contentUpdatedAt='2026-10-28T01:02:03.123456Z'
+  await open(p)
+  assert.equal(await rows(p).nth(0).getByText('· 수정됨',{exact:true}).count(),0)
+  assert.equal(await rows(p).nth(1).getByText('· 수정됨',{exact:true}).count(),1)
+ })
 
  for(const width of [1440,390,320])for(const way of ['back','link'])await check(`settings nickname round trip retains three comment pages/anchor ${width} ${way}`,async()=>{
   const{p,state}=await fixture({width});await open(p);await all(p)

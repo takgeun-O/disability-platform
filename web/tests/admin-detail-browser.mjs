@@ -1,3 +1,5 @@
+import { adminStableListScenarios } from "./helpers/admin-stable-list-scenarios.mjs"
+import { adminChipScenarios } from "./helpers/admin-chip-scenarios.mjs"
 import assert from "node:assert/strict"
 import fs from "node:fs/promises"
 const { chromium } = await import(process.env.PLAYWRIGHT_MODULE ?? "playwright")
@@ -50,6 +52,14 @@ const gate = () => {
     arrive: () => arrive(),
   }
 }
+
+async function selectStatuses(p, group, statuses) {
+  const field = p.getByRole('group', {name: group, exact: true})
+  for (const [value,label] of [['VISIBLE','정상'],['HIDDEN','숨김'],['DELETED','삭제']])
+    await field.getByRole('checkbox',{name:label,exact:true}).setChecked(statuses.includes(value))
+  // State chips apply automatically; callers wait for the resulting read.
+}
+
 async function setup(role = "ADMIN", width = 1440) {
   const context = await browser.newContext({
       viewport: { width, height: 900 },
@@ -116,20 +126,32 @@ async function run(name, fn) {
 }
 
 const detail=id=>({...item(id,id===2?'HIDDEN':id===3?'DELETED':'VISIBLE'),content:'전체 본문\n<script>안전한 일반 텍스트</script>\n'+'긴본문'.repeat(100)})
-const commentPage=(postId,page=0)=>({postId,postStatus:postId===2?'HIDDEN':'VISIBLE',items:[{...item(1),commentId:page*20+1,content:'댓글 전체 본문 '+ '긴문자'.repeat(100)}],page,size:20,totalElements:21,totalPages:2,hasNext:page===0,hasPrevious:page>0})
+const commentPage=(postId,page=0)=>({postId,postStatus:postId===2?'HIDDEN':'VISIBLE',items:[{ contentUpdatedAt: null,...item(1),commentId:page*20+1,content:'댓글 전체 본문 '+ '긴문자'.repeat(100)}],page,size:20,totalElements:21,totalPages:2,hasNext:page===0,hasPrevious:page>0})
 const commentReady=p=>p.locator('.admin-comment-results[aria-busy="false"]').waitFor()
 const commentReads=s=>s.calls.filter(c=>c.path.endsWith('/comments'))
 const flush=p=>p.evaluate(()=>new Promise(r=>requestAnimationFrame(()=>requestAnimationFrame(r))))
+await run('comment body edit date and entity update date are separate',async()=>{
+ const {context,p,state}=await setup()
+ state.comments=r=>{const body=commentPage(2);body.items.push({...body.items[0],commentId:2,contentUpdatedAt:'2026-11-02T01:02:03.123456Z',updatedAt:'2026-11-05T03:00:00Z'});return r.fulfill({json:body})}
+ await p.goto(base+'/admin/posts/2');await commentReady(p)
+ const rows=p.locator('.admin-comment-list > li')
+ assert.equal(await rows.first().getByText('기록 없음',{exact:true}).count(),1)
+ const meta=rows.nth(1).locator('.admin-content-meta')
+ assert.match(await meta.textContent(),/본문 수정.*2026.11.02. 10:02:03/)
+ assert.match(await meta.textContent(),/최종 변경.*2026.11.05. 12:00:00/)
+ await p.screenshot({path:out+'/content-time-admin.png',fullPage:true});await context.close()
+})
 await run('list conditions survive title navigation, direct detail and reload',async()=>{
  const {context,p}=await setup()
- await p.goto(base+'/admin/posts?status=HIDDEN&keyword=검색&page=1');await ready(p)
+ await p.goto(base+'/admin/posts?statuses=VISIBLE&statuses=HIDDEN&keyword=검색&page=1&startDate=2026-11-01&endDate=2026-11-08&sort=OLDEST');await ready(p)
  assert.equal(await p.getByRole('navigation',{name:'관리자 메뉴'}).getByRole('link',{name:'게시글 관리',exact:true}).getAttribute('aria-current'),'page')
- await p.getByRole('link',{name:'검증 게시글 4',exact:true}).click();await commentReady(p)
+ await p.goto(base+(await p.getByRole('link',{name:'검증 게시글 4',exact:true}).getAttribute('href')));await commentReady(p)
  assert(await p.locator('.admin-post-detail').getByText('검증 게시글 4',{exact:true}).isVisible())
- await p.getByRole('link',{name:'← 목록으로'}).click();await ready(p)
- assert.equal(await p.getByLabel('처리 상태',{exact:true}).inputValue(),'HIDDEN')
+ await p.getByRole('link',{name:'← 목록으로'}).click();await ready(p);await p.getByRole('dialog').waitFor();await p.getByRole('button',{name:'닫기',exact:true}).click()
+ assert.deepEqual(await p.getByRole('group',{name:'게시글 상태'}).locator('input:checked').evaluateAll(es=>es.map(e=>e.nextSibling.textContent)),['정상','숨김'])
  assert.equal(await p.getByLabel('게시글 제목 검색',{exact:true}).inputValue(),'검색')
  assert.equal(await p.getByLabel('페이지 바로 이동',{exact:true}).inputValue(),'2')
+ assert.equal(await p.getByLabel('작성 시작일',{exact:true}).inputValue(),'2026-11-01');assert.equal(await p.getByLabel('작성 종료일',{exact:true}).inputValue(),'2026-11-08');assert.equal(await p.getByLabel('작성 시각 정렬',{exact:true}).inputValue(),'OLDEST')
  for(const id of [1,2,3]){await p.goto(base+'/admin/posts/'+id);await commentReady(p);assert(await p.locator('.admin-post-detail').getByText('<script>',{exact:false}).isVisible());assert.equal(await p.locator('.admin-post-detail script').count(),0)}
  await p.reload();await commentReady(p);assert(await p.locator('.admin-post-detail').getByText('탈퇴한 회원',{exact:false}).isVisible())
  assert.equal(await p.getByRole('link',{name:'← 목록으로'}).getAttribute('href'),'/admin/posts')
@@ -143,7 +165,7 @@ await run('comment filters, codepoint search, paging focus, parent vs child stat
  assert.equal(commentReads(state).length,1)
  await p.getByRole('button',{name:'댓글 검색',exact:true}).click();await commentReady(p)
  assert.equal(new URLSearchParams(commentReads(state).at(-1).search).get('keyword'),'본문  내부')
- await p.getByLabel('댓글 상태',{exact:true}).selectOption('DELETED');await commentReady(p)
+ await selectStatuses(p, '댓글 상태', ['DELETED']);await commentReady(p)
  const g=gate();state.comments=async(r,u)=>{g.arrive();await g.response;await r.fulfill({json:commentPage(2,Number(u.searchParams.get('page')))})}
  const input=p.getByLabel('페이지 바로 이동',{exact:true});await input.fill('2');await input.press('Enter');await g.arrived
  const n=commentReads(state).length;await input.press('Enter');assert.equal(commentReads(state).length,n)
@@ -180,10 +202,10 @@ for(const action of ['filter','logout','leave'])await run(`late comment response
  const g=gate();let first=true
  state.comments=async(r)=>{if(first){first=false;g.arrive();await g.response;await r.fulfill({json:{...commentPage(1),items:[{...commentPage(1).items[0],content:'이전 비밀 본문'}]}})}else await r.fulfill({json:commentPage(1)})}
  await p.goto(base+'/admin/posts/1');await g.arrived
- if(action==='filter'){await p.getByLabel('댓글 상태',{exact:true}).selectOption('HIDDEN');await commentReady(p)}
+ if(action==='filter'){await selectStatuses(p, '댓글 상태', ['HIDDEN']);await commentReady(p)}
  else if(action==='logout'){await p.getByRole('button',{name:'로그아웃',exact:true}).click();await p.getByRole('heading',{name:'로그인이 필요합니다',exact:true}).waitFor()}
  else{await p.getByRole('link',{name:'서비스로 돌아가기',exact:true}).click();await p.waitForURL(base+'/')}
- const done=p.waitForEvent('requestfinished',{predicate:r=>r.url().includes('/1/comments?status=ALL')});g.release();await done;await flush(p)
+ const done=p.waitForEvent('requestfinished',{predicate:r=>r.url().includes('/1/comments?statuses=VISIBLE&statuses=HIDDEN&statuses=DELETED')});g.release();await done;await flush(p)
  assert.equal(await p.getByText('이전 비밀 본문',{exact:true}).count(),0)
  if(action==='filter')assert.equal(await p.locator('.admin-comment-results').getAttribute('aria-busy'),'false')
  else assert.equal(await p.locator('.admin-post-detail').count(),0)
@@ -191,7 +213,7 @@ for(const action of ['filter','logout','leave'])await run(`late comment response
 })
 for(const width of [1440,1024,390,320])for(const [id,status] of [[1,'VISIBLE'],[2,'HIDDEN'],[3,'DELETED']])await run(`detail design ${width} ${status}`,async()=>{
  const {context,p,state}=await setup('ADMIN',width)
- state.comments=r=>r.fulfill({json:{...commentPage(id),postStatus:status,items:['VISIBLE','HIDDEN','DELETED'].map((v,i)=>({...item(i+1,v),commentId:i+1,content:'댓글 본문\n'+'긴댓글'.repeat(40)}))}})
+ state.comments=r=>r.fulfill({json:{...commentPage(id),postStatus:status,items:['VISIBLE','HIDDEN','DELETED'].map((v,i)=>({ contentUpdatedAt: null,...item(i+1,v),commentId:i+1,content:'댓글 본문\n'+'긴댓글'.repeat(40)}))}})
  state.detail=r=>r.fulfill({json:{...detail(id),title:'긴게시글제목'.repeat(12),author:{memberId:8,nickname:'긴작성자이름'.repeat(12),withdrawn:status==='DELETED'}}})
  await p.goto(base+'/admin/posts/'+id);await commentReady(p)
  const post=p.locator('.admin-post-detail'),comments=p.locator('.admin-comments')
@@ -225,11 +247,11 @@ await run('late post A cannot replace B after real list navigation',async()=>{
  const g=gate();state.detail=async(r,u)=>{const id=Number(u.pathname.split('/').at(-1));if(id===1){g.arrive();await g.response}await r.fulfill({json:detail(id)})}
  await p.goto(base+'/admin/posts/1');await g.arrived
  await p.getByRole('link',{name:'← 목록으로'}).click();await ready(p)
- await p.getByRole('link',{name:'검증 게시글 2',exact:true}).click();await commentReady(p)
+ await p.getByRole('link',{name:'검증 게시글 2',exact:true}).click();await p.locator('.admin-preview-post[aria-busy="false"]').waitFor()
  const done=p.waitForEvent('requestfinished',{predicate:r=>new URL(r.url()).pathname==='/api/v1/admin/posts/1'})
  g.release();await done;await flush(p)
- assert(await p.locator('.admin-post-detail h2').getByText('검증 게시글 2',{exact:true}).isVisible())
- assert.equal(await p.locator('.admin-post-detail').getByText('검증 게시글 1',{exact:true}).count(),0)
+ assert(await p.locator('.admin-preview-post h3').getByText('검증 게시글 2',{exact:true}).isVisible())
+ assert.equal(await p.locator('.admin-preview-post').getByText('검증 게시글 1',{exact:true}).count(),0)
  await context.close()
 })
 for(const same of [true,false])await run(`detail late response after login transition same=${same}`,async()=>{
@@ -267,7 +289,7 @@ await run('comment pagination preserves diverted focus and retry without duplica
 for(const width of [1440,1024,390,320])await run(`representative design and readable controls ${width}`,async()=>{
  const {context,p,state}=await setup('ADMIN',width)
  state.detail=r=>r.fulfill({json:{...detail(2),title:'보청기 적응 경험을 나눕니다',content:'새 보청기를 사용한 지 한 달이 되었습니다. 처음에는 주변 소리가 낯설었지만 조금씩 적응하고 있어요.\n\n비슷한 경험이 있으신 분들의 적응 방법이 궁금합니다.'}})
- state.comments=r=>r.fulfill({json:{...commentPage(2),items:['DELETED','VISIBLE','HIDDEN'].map((status,i)=>({...item(i+1,status),commentId:i+1,content:['처음 적응할 때는 조용한 곳에서 조금씩 사용 시간을 늘렸어요.','저도 비슷한 경험이 있어요. 꾸준히 착용하는 게 도움이 됐어요.','센터에서 조절받은 경험도 함께 공유해 주세요.'][i]}))}})
+ state.comments=r=>r.fulfill({json:{...commentPage(2),items:['DELETED','VISIBLE','HIDDEN'].map((status,i)=>({ contentUpdatedAt: null,...item(i+1,status),commentId:i+1,content:['처음 적응할 때는 조용한 곳에서 조금씩 사용 시간을 늘렸어요.','저도 비슷한 경험이 있어요. 꾸준히 착용하는 게 도움이 됐어요.','센터에서 조절받은 경험도 함께 공유해 주세요.'][i]}))}})
  await p.goto(base+'/admin/posts/2');await commentReady(p)
  await p.screenshot({path:`${out}/representative-${width}.png`,fullPage:true})
  if(width===1440){
@@ -280,6 +302,11 @@ for(const width of [1440,1024,390,320])await run(`representative design and read
  }
  await context.close()
 })
+
+
+await adminChipScenarios({run,setup,base,out,kind:'comments',ready:commentReady,reads:commentReads,template:page=>commentPage(2,page)})
+
+await adminStableListScenarios({run,setup,base,out,kind:'comments',ready:commentReady,reads:commentReads,template:page=>commentPage(2,page)})
 
 await browser.close()
 await fs.writeFile(`${out}/results.json`,JSON.stringify(results,null,2))

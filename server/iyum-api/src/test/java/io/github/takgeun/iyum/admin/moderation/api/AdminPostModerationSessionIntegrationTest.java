@@ -2,6 +2,7 @@ package io.github.takgeun.iyum.admin.moderation.api;
 
 import io.github.takgeun.iyum.admin.moderation.domain.ContentModerationLog;
 import io.github.takgeun.iyum.admin.moderation.domain.ModerationAction;
+import io.github.takgeun.iyum.admin.moderation.domain.ModerationReasonType;
 import io.github.takgeun.iyum.admin.moderation.infrastructure.ContentModerationLogRepository;
 import io.github.takgeun.iyum.community.post.domain.Post;
 import io.github.takgeun.iyum.community.post.domain.PostTopic;
@@ -198,6 +199,11 @@ class AdminPostModerationSessionIntegrationTest {
         assertThat(hideLog.getAction()).isEqualTo(ModerationAction.HIDE);
         assertThat(hideLog.getReason()).isEqualTo("개인정보 노출 확인");
         assertThat(hideLog.getCreatedAt()).isEqualTo(storedHiddenAt);
+        assertThat(hideLog.getReasonType())
+                .isEqualTo(ModerationReasonType.OTHER);
+
+        assertThat(hideLog.getReasonDetail())
+                .isEqualTo("개인정보 노출 확인");
 
         // 공개 상세 조회에서는 숨김 게시글이 보이지 않는다.
         mockMvc.perform(get("/api/v1/community/posts/{postId}", postId))
@@ -251,6 +257,11 @@ class AdminPostModerationSessionIntegrationTest {
         assertThat(restoreLog.getCommentId()).isNull();
         assertThat(restoreLog.getReason()).isEqualTo("재검토 결과 공개 가능");
         assertThat(restoreLog.getCreatedAt()).isNotNull();
+        assertThat(restoreLog.getReasonType())
+                .isEqualTo(ModerationReasonType.OTHER);
+
+        assertThat(restoreLog.getReasonDetail())
+                .isEqualTo("재검토 결과 공개 가능");
 
         // 복원 후 공개 상세 조회가 다시 가능하다.
         mockMvc.perform(get("/api/v1/community/posts/{postId}", postId))
@@ -358,7 +369,10 @@ class AdminPostModerationSessionIntegrationTest {
         JsonNode csrf = getCsrf(session);
 
         String body = objectMapper.writeValueAsString(
-                Map.of("reason", "삭제된 게시글 처리 요청")
+                Map.of(
+                        "reasonType", "OTHER",
+                        "reasonDetail", "삭제된 게시글 처리 요청"
+                )
         );
 
         mockMvc.perform(
@@ -494,7 +508,10 @@ class AdminPostModerationSessionIntegrationTest {
                                 )
                                 .contentType(MediaType.APPLICATION_JSON)
                                 .content(objectMapper.writeValueAsString(
-                                        Map.of("reason", reason)
+                                        Map.of(
+                                                "reasonType", "OTHER",
+                                                "reasonDetail", reason
+                                        )
                                 ))
                 )
                 .andExpect(status().isOk())

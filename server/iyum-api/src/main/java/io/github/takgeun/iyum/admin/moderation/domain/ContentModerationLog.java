@@ -41,6 +41,22 @@ public class ContentModerationLog {
     )
     private String reason;
 
+    @Enumerated(EnumType.STRING)
+    @Column(
+            name = "reason_type",
+            nullable = false,
+            length = 40,
+            updatable = false
+    )
+    private ModerationReasonType reasonType;
+
+    @Column(
+            name = "reason_detail",
+            length = REASON_MAX_LENGTH,
+            updatable = false
+    )
+    private String reasonDetail;
+
     @Column(name = "created_at", nullable = false, updatable = false)
     private Instant createdAt;
 
@@ -52,6 +68,82 @@ public class ContentModerationLog {
             Long commentId,
             ModerationAction action,
             String reason,
+            Instant createdAt
+    ) {
+        validateCommon(
+                actorMemberId,
+                postId,
+                commentId,
+                action,
+                createdAt
+        );
+
+        String normalizedReason =
+                ModerationInputPolicy.normalizeReason(reason);
+
+        this.actorMemberId = actorMemberId;
+        this.postId = postId;
+        this.commentId = commentId;
+        this.action = action;
+        this.reason = normalizedReason;
+
+        // 기존 자유 입력 방식의 생성 경로를 잠시 유지한다.
+        // 신규 유형 방식으로 서비스 전환을 완료하면 이 생성 경로를 정리할 예정
+        this.reasonType = ModerationReasonType.LEGACY;
+        this.reasonDetail = null;
+
+        this.createdAt = createdAt;
+    }
+
+    // 사유 유형을 받는 생성자
+    private ContentModerationLog(
+            Long actorMemberId,
+            Long postId,
+            Long commentId,
+            ModerationAction action,
+            ModerationReasonType reasonType,
+            String reasonDetail,
+            Instant createdAt
+    ) {
+        validateCommon(
+                actorMemberId,
+                postId,
+                commentId,
+                action,
+                createdAt
+        );
+
+        // 유형 필수, 조치와 유형의 조합, OTHER 상세 필수
+        // 상세 사유 길이를 검증한다. LEGACY는 여기서 거부된다.
+        String normalizedDetail = ModerationInputPolicy.normalizeReasonDetail(
+                action,
+                reasonType,
+                reasonDetail
+        );
+
+        this.actorMemberId = actorMemberId;
+        this.postId = postId;
+        this.commentId = commentId;
+        this.action = action;
+        this.reasonType = reasonType;
+        this.reasonDetail = normalizedDetail;
+        this.createdAt = createdAt;
+
+        // reason: 기존 응답과 화면에 사용할 사유 문자열
+        // 기존 응답과 화면에서 사용하는 문자열도 함께 보존한다.
+        // 기존 화면과의 호환성을 유지하고, 처리 당시의 사유 문구를 기록으로 남기기 위함
+        // 생성 시점에 저장하므로 이후 표시 문구가 바뀌어도
+        // 기존 기록의 reason은 자동으로 변경되지 않는다.
+        this.reason = normalizedDetail != null
+                ? normalizedDetail
+                : reasonType.displayName();
+    }
+
+    private static void validateCommon(
+            Long actorMemberId,
+            Long postId,
+            Long commentId,
+            ModerationAction action,
             Instant createdAt
     ) {
         validatePositiveId(actorMemberId, "처리 관리자 ID");
@@ -82,16 +174,6 @@ public class ContentModerationLog {
                     "처리 시각은 필수입니다."
             );
         }
-
-        String normalizedReason =
-                ModerationInputPolicy.normalizeReason(reason);
-
-        this.actorMemberId = actorMemberId;
-        this.postId = postId;
-        this.commentId = commentId;
-        this.action = action;
-        this.reason = normalizedReason;
-        this.createdAt = createdAt;
     }
 
     public static ContentModerationLog forPost(
@@ -111,6 +193,25 @@ public class ContentModerationLog {
         );
     }
 
+    public static ContentModerationLog forPost(
+            Long actorMemberId,
+            Long postId,
+            ModerationAction action,
+            ModerationReasonType reasonType,
+            String reasonDetail,
+            Instant createdAt
+    ) {
+        return new ContentModerationLog(
+                actorMemberId,
+                postId,
+                null,
+                action,
+                reasonType,
+                reasonDetail,
+                createdAt
+        );
+    }
+
     public static ContentModerationLog forComment(
             Long actorMemberId,
             Long commentId,
@@ -124,6 +225,25 @@ public class ContentModerationLog {
                 commentId,
                 action,
                 reason,
+                createdAt
+        );
+    }
+
+    public static ContentModerationLog forComment(
+            Long actorMemberId,
+            Long commentId,
+            ModerationAction action,
+            ModerationReasonType reasonType,
+            String reasonDetail,
+            Instant createdAt
+    ) {
+        return new ContentModerationLog(
+                actorMemberId,
+                null,
+                commentId,
+                action,
+                reasonType,
+                reasonDetail,
                 createdAt
         );
     }

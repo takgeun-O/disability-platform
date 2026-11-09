@@ -1,186 +1,154 @@
 "use client"
+import type { ModerationTarget } from "@/lib/admin-moderation"
+import { isAdminRowSelection, isAdminRowKeyboardSelection } from "@/lib/admin-row-selection"
 import { useEffect, useRef, useState } from "react"
 import { useAuth } from "@/components/AuthProvider"
 import { useNavigationRequest } from "@/components/NavigationGuard"
 import Link from "@/components/AppLink"
-import { adminListHref } from "@/lib/admin-navigation"
+import { adminListHref, adminListQuery, adminSelectionId } from "@/lib/admin-navigation"
+import { useAdminContentFilters } from "@/lib/useAdminContentFilters"
+import { useAdminUrlQuery } from "@/lib/useAdminUrlQuery"
+import AdminModeration, { useAdminModeration } from "@/components/admin/AdminModeration"
+import AdminContentDialog, { openAdminDialog, syncAdminListUrl, useAdminDialogReturn } from "@/components/admin/AdminContentDialog"
+import AdminDateRange from "@/components/admin/AdminDateRange"
+import { ADMIN_SORTS } from "@/lib/admin-dates"
+import AdminStatusFilter from "@/components/admin/AdminStatusFilter"
 import AdminPagination from "@/components/admin/AdminPagination"
-import WrittenTime from "@/components/WrittenTime"
+import { writtenTime } from "@/lib/written-time"
 import { POST_TYPES, POST_TOPICS } from "@/lib/community-posts"
 import {
   ADMIN_STATUSES,
   AdminApiError,
-  adminKeywordError,
   getAdminPosts,
-  normalizeAdminKeyword,
   type AdminQuery,
   type AdminPage,
-  type AdminStatus,
+  ADMIN_CONTENT_STATUSES,
 } from "@/lib/admin-posts"
-export default function AdminPosts({ initialQuery = {status: "ALL", keyword: "", page: 0} }: {initialQuery?: AdminQuery}) {
+export default function AdminPosts() {
+  const {values,navigation}=useAdminUrlQuery()
+  useAdminDialogReturn(navigation)
+  const [recovery,setRecovery]=useState<ModerationTarget|null>(null)
+  return <AdminModeration inline recovery={recovery} onRecovery={setRecovery} key={navigation}><AdminPostResults initialQuery={adminListQuery(values)} initialSelected={adminSelectionId(values.selected)} /></AdminModeration>
+}
+function AdminPostResults({ initialSelected = null, initialQuery = {statuses: ADMIN_CONTENT_STATUSES, keyword: "", page: 0,startDate:"",endDate:"",sort:"LATEST"} }: {initialQuery?: AdminQuery;initialSelected?:number|null}) {
+  const {revision,readCurrent,readLocked:locked,deny,recoveryFeedback}=useAdminModeration()
+  const [dateReset,setDateReset]=useState(0)
   const adjusted = useRef(false)
   const auth = useAuth(),
     scope = useNavigationRequest()
-  const [query, setQuery] = useState<AdminQuery>(initialQuery)
-  const [input, setInput] = useState(initialQuery.keyword),
-    [validation, setValidation] = useState(""),
-    [retry, setRetry] = useState(0)
+  const {query, setQuery, statuses, input, setInput, validation, setValidation, pending,
+    empty, beginRead, change: apply, selectStatuses, search, reset, composition} = useAdminContentFilters(initialQuery)
+  const [lastSuccess, setLastSuccess] = useState<{data: AdminPage; query: AdminQuery} | null>(null)
+  const [retry, setRetry] = useState(0)
   const [result, setResult] = useState<{
     query: AdminQuery
     attempt: number
+    revision: number
     data?: AdminPage
     error?: string
     forbidden?: boolean
   } | null>(null)
-  useEffect(() => { window.history.replaceState(window.history.state, "", adminListHref(query)) }, [query])
+  const selectedId=initialSelected
+  const select=(id:number)=>{openAdminDialog(adminListHref(query,id))}
+  useEffect(() => { if (scope.isActive()) syncAdminListUrl(adminListHref(query,selectedId)) }, [query, empty, scope,selectedId])
   const memberId = auth.member!.memberId,
     capture = auth.captureMemberRequest
   useEffect(() => {
+    if (pending || empty || !scope.isActive()) return
     const controller = new AbortController(),
       navigation = scope.begin(),
-      session = capture(memberId)
+      session = capture(memberId),
+      ownsRead = beginRead(controller)
     const current = () =>
-      !controller.signal.aborted && navigation() && session.isCurrent()
+      ownsRead() && navigation() && session.isCurrent() && readCurrent(revision)
     void getAdminPosts(query, controller.signal)
       .then((data) => {
         if (current()) {
           if (!adjusted.current && query.page > 0 && query.page >= data.totalPages) {
             adjusted.current = true; setQuery({...query, page: Math.max(0,data.totalPages-1)}); return
           }
-          setResult({ query, attempt: retry, data })
+          setLastSuccess({data, query})
+          setResult({ query, attempt: retry, revision, data })
         }
       })
       .catch((error) => {
         if (!current()) return
         if (error instanceof AdminApiError && error.status === 401) {
+          setLastSuccess(null)
           session.expire()
           return
         }
+        if(error instanceof AdminApiError&&error.status===403){deny();return}
+        if (error instanceof AdminApiError && (error.status === 403 || error.status === 404)) setLastSuccess(null)
         setResult(previous => ({
           data: error instanceof AdminApiError && error.status === 403 ? undefined : previous?.data,
           query,
           attempt: retry,
+          revision,
           error:
             error instanceof Error ? error.message : "조회에 실패했습니다.",
           forbidden: error instanceof AdminApiError && error.status === 403,
         }))
       })
     return () => controller.abort()
-  }, [query, retry, memberId, capture, scope])
-  const active = result?.query === query && result.attempt === retry ? result : null,
-    busy = !active
+  }, [query, retry, memberId, capture, scope, pending, empty, beginRead, setQuery, revision,readCurrent,deny])
+  const active = !pending && !empty && result?.query === query && result.attempt === retry && result.revision===revision ? result : null,
+    busy = !empty && !active
+  const shown = empty ? null : lastSuccess, data = shown?.data, displayQuery = shown?.query ?? query
+  const stale = busy || !!active?.error
   const change = (next: AdminQuery) => {
     adjusted.current = false
-    setQuery((old) =>
-      old.status === next.status &&
-      old.keyword === next.keyword &&
-      old.page === next.page
-        ? old
-        : next,
-    )
+    apply(next)
   }
+  const sortControl = <div className="admin-sort-control"><label htmlFor="admin-post-sort">작성 시각 정렬</label><select id="admin-post-sort" value={query.sort??"LATEST"} onChange={e=>{const sort=e.target.value;if(sort==="LATEST"||sort==="OLDEST"){adjusted.current=false;apply({...query,statuses,sort,page:0},!!active?.error)}}}>{Object.entries(ADMIN_SORTS).map(([value,label])=><option key={value} value={value}>{label}</option>)}</select></div>
   return (
     <>
       <header className="admin-heading">
-        <p>관리자</p>
-        <h1>게시글 관리</h1>
+
+        <h1 tabIndex={-1} data-admin-list-heading>게시글 관리</h1>
         <p>게시글의 제목과 공개 상태를 확인합니다.</p>
       </header>
-      <section className="admin-panel" aria-label="게시글 목록 관리">
-        <form
-          className="admin-filters"
-          onSubmit={(event) => {
-            event.preventDefault()
-            const error = adminKeywordError(input)
-            setValidation(error)
-            if (!error)
-              change({
-                ...query,
-                keyword: normalizeAdminKeyword(input),
-                page: 0,
-              })
-          }}
-        >
-          <div className="admin-filter-status">
-            <label htmlFor="admin-status">처리 상태</label>
-            <select
-              id="admin-status"
-              value={query.status}
-              onChange={(e) =>
-                change({
-                  ...query,
-                  status: e.target.value as AdminStatus,
-                  page: 0,
-                })
-              }
-            >
-              {Object.entries(ADMIN_STATUSES).map(([value, label]) => (
-                <option key={value} value={value}>
-                  {label}
-                </option>
-              ))}
-            </select>
+      {!selectedId&&recoveryFeedback}
+      <section className="admin-panel admin-workspace admin-posts-panel" aria-label="게시글 목록 관리">
+        <div className="admin-compact-toolbar"><form className="admin-filters admin-post-filters" onSubmit={event => {event.preventDefault(); adjusted.current = false; search(!!active?.error)}}>
+          <div className="admin-filter-search-row">
+            <label className="admin-search">게시글 제목 검색
+              <input value={input} {...composition} onChange={e=>{setInput(e.target.value);setValidation("")}}
+                aria-invalid={!!validation} aria-describedby={validation ? "admin-search-error" : undefined} placeholder="게시글 제목 검색"/>
+            </label>
+            <button type="submit">검색</button>
           </div>
-          <label className="admin-search">
-            게시글 제목 검색
-            <input
-              value={input}
-              onChange={(e) => {
-                setInput(e.target.value)
-                setValidation("")
-              }}
-              aria-invalid={!!validation}
-              aria-describedby={validation ? "admin-search-error" : undefined}
-              placeholder="게시글 제목 검색"
-            />
-          </label>
-          <button type="submit">검색</button>
-          <button
-            type="button"
-            className="admin-secondary"
-            onClick={() => {
-              setInput("")
-              setValidation("")
-              change({ status: "ALL", keyword: "", page: 0 })
-            }}
-          >
-            초기화
-          </button>
+          <div className="admin-filter-state-row">
+            <AdminStatusFilter label="게시글 상태" value={statuses} onChange={next=>{adjusted.current=false;if (!next.length) {setLastSuccess(null);setResult(null)};selectStatuses(next)}}/>
+          </div>
         </form>
+        <AdminDateRange key={dateReset} label="작성" applied={{startDate:query.startDate??"",endDate:query.endDate??""}} onApply={range=>{adjusted.current=false;apply({...query,...range,statuses,page:0},!!active?.error)}}/>
+        <div className="admin-filter-footer"><button type="button" className="admin-filter-clear" title="모든 검색 조건 초기화" onClick={()=>{adjusted.current=false;setDateReset(n=>n+1);reset(!!active?.error)}}><span aria-hidden="true">↻</span> 전체 초기화</button></div>
         {validation && (
           <p id="admin-search-error" role="alert">
             {validation}
           </p>
         )}
-        <div className="admin-results" aria-busy={busy}>
-          {busy ? (
-            <p role="status">게시글을 불러오고 있습니다…</p>
-          ) : active?.error ? (
-            <div role="alert">
-              <p>{active.error}</p>
-              {!active.forbidden && (
-                <button
-                  onClick={() => {
-                    setRetry((n) => n + 1)
-                  }}
-                >
-                  다시 시도
-                </button>
-              )}
-            </div>
-          ) : (
-            active?.data && (
-              <>
-                <p className="admin-total">
-                  검색 결과{" "}
+        </div><div className="admin-master-detail"><div className="admin-master-list"><div className="admin-results" aria-busy={busy}>
+          {empty ? <p className="admin-empty-selection">표시할 상태를 선택해 주세요.</p> : <>
+            <div className="admin-result-toolbar">{data && (<p className="admin-total">
+                  {stale ? "이전 결과" : "검색 결과"}{" "}
                   <strong>
-                    {active.data.totalElements.toLocaleString("ko-KR")}
+                    {data.totalElements.toLocaleString("ko-KR")}
                   </strong>
                   개
-                </p>
-                {!active.data.items.length ? (
+                </p>)} {sortControl}</div>
+            {data && <p className="admin-refresh-notice" role="status" style={{visibility:busy?"visible":"hidden"}}>목록을 갱신하고 있습니다…</p>}
+            {busy && !data && <p role="status">게시글을 불러오고 있습니다…</p>}
+            {active?.error && <div role="alert">
+              {data && <p>갱신에 실패했습니다. 이전 결과를 표시하고 있습니다.</p>}
+              <p>{active.error}</p>
+              {!active.forbidden && <button onClick={()=>setRetry(n=>n+1)}>다시 시도</button>}
+            </div>}
+            {data && <>
+                {!data.items.length ? (
                   <p>
-                    {query.keyword || query.status !== "ALL"
+                    {displayQuery.keyword || displayQuery.startDate || displayQuery.endDate || displayQuery.statuses.length !== 3
                       ? "검색 결과가 없습니다."
                       : "게시글이 없습니다."}
                   </p>
@@ -205,10 +173,10 @@ export default function AdminPosts({ initialQuery = {status: "ALL", keyword: "",
                         </tr>
                       </thead>
                       <tbody>
-                        {active.data.items.map((post) => (
-                          <tr key={post.postId}>
+                        {data.items.map((post) => (
+                          <tr id={`post-select-${post.postId}`} tabIndex={stale||locked?-1:0} aria-label={`게시글 #${post.postId} 미리보기`} aria-selected={selectedId===post.postId} onKeyDown={event=>{if(!stale&&!locked&&isAdminRowKeyboardSelection(event))select(post.postId)}} key={post.postId} data-selected={selectedId===post.postId} data-selectable={!stale&&!locked} onClick={event=>{if(!stale&&!locked&&isAdminRowSelection(event))select(post.postId)}}>
                             <td>{post.postId}</td>
-                            <td className="admin-post-title"><Link href={`/admin/posts/${post.postId}?from=${encodeURIComponent(adminListHref(query))}`}>{post.title}</Link></td>
+                            <td className="admin-post-title"><Link href={`/admin/posts/${post.postId}?from=${encodeURIComponent(adminListHref(displayQuery,post.postId))}`} onNavigate={event=>{event.preventDefault();if(!stale&&!locked&&!window.getSelection()?.toString())select(post.postId)}}>{post.title}</Link><span className="admin-post-secondary">{post.author.nickname} · {POST_TYPES[post.type]} · {POST_TOPICS[post.topic]}</span></td>
                             <td>{post.author.nickname}</td>
                             <td>
                               {POST_TYPES[post.type]}
@@ -223,7 +191,7 @@ export default function AdminPosts({ initialQuery = {status: "ALL", keyword: "",
                               </span>
                             </td>
                             <td>
-                              <WrittenTime value={post.createdAt} anchored />
+                              <time dateTime={post.createdAt}>{writtenTime(post.createdAt).exact.replace(" (한국 시간)", "")}</time>
                             </td>
                           </tr>
                         ))}
@@ -232,12 +200,15 @@ export default function AdminPosts({ initialQuery = {status: "ALL", keyword: "",
                   </div>
                 )}
 
-              </>
-            )
-          )}
+              </>}
+          </>}
         </div>
-        {result?.data && !active?.forbidden && <AdminPagination data={result.data} busy={busy} failed={!!active?.error}
+        {data && data.totalPages > 1 && !active?.forbidden && <AdminPagination data={data} busy={busy} failed={!!active?.error}
           onPage={page => { if (!busy && !active?.error) change({ ...query, page }) }} />}
+        </div>
+        {selectedId&&<AdminContentDialog key={selectedId} id={selectedId} listHref={adminListHref(query)}/>}
+
+        </div>
       </section>
     </>
   )

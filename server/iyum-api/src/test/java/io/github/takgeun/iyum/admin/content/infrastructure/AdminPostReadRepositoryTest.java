@@ -1,6 +1,7 @@
 package io.github.takgeun.iyum.admin.content.infrastructure;
 
 import io.github.takgeun.iyum.admin.content.application.AdminPostReadQuery;
+import io.github.takgeun.iyum.admin.content.application.AdminPostSort;
 import io.github.takgeun.iyum.admin.content.application.AdminPostStatus;
 import io.github.takgeun.iyum.community.post.domain.Post;
 import io.github.takgeun.iyum.community.post.domain.PostTopic;
@@ -10,7 +11,9 @@ import jakarta.persistence.EntityManager;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.Arguments;
 import org.junit.jupiter.params.provider.EnumSource;
+import org.junit.jupiter.params.provider.MethodSource;
 import org.junit.jupiter.params.provider.ValueSource;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -25,9 +28,11 @@ import org.testcontainers.junit.jupiter.Testcontainers;
 import org.testcontainers.postgresql.PostgreSQLContainer;
 
 import java.time.Instant;
+import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
+import java.util.stream.Stream;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.when;
@@ -461,6 +466,88 @@ class AdminPostReadRepositoryTest {
                 .isEqualTo("조회검증회원");
     }
 
+    @Test
+    void 다중_상태와_검색어를_적용한_뒤_페이지를_나눈다() {
+        Post visible = createPost(
+                "보청기 정상",
+                ContentState.VISIBLE
+        );
+        Post hiddenFirst = createPost(
+                "보청기 숨김 첫 번째",
+                ContentState.HIDDEN
+        );
+        Post hiddenSecond = createPost(
+                "보청기 숨김 두 번째",
+                ContentState.HIDDEN
+        );
+
+        // 검색어는 일치하지만 선택하지 않은 상태다.
+        createPost("보청기 삭제", ContentState.DELETED);
+        createPost(
+                "보청기 숨김 후 삭제",
+                ContentState.HIDDEN_AND_DELETED
+        );
+
+        // 상태는 일치하지만 검색어는 일치하지 않는다.
+        createPost("인공와우 정상", ContentState.VISIBLE);
+        createPost("인공와우 숨김", ContentState.HIDDEN);
+
+        List<AdminPostStatus> statuses = List.of(
+                AdminPostStatus.VISIBLE,
+                AdminPostStatus.HIDDEN
+        );
+
+        flushAndClear();
+
+        Page<Post> firstPage = repository.findPosts(
+                AdminPostReadQuery.ofStatuses(
+                        statuses, "보청기", 0, 2
+                )
+        );
+
+        Page<Post> secondPage = repository.findPosts(
+                AdminPostReadQuery.ofStatuses(
+                        statuses, "보청기", 1, 2
+                )
+        );
+
+        Page<Post> outOfRangePage = repository.findPosts(
+                AdminPostReadQuery.ofStatuses(
+                        statuses, "보청기", 2, 2
+                )
+        );
+
+        // 게시글은 작성 시각 내림차순 → ID 내림차순이다.
+        assertThat(firstPage.getContent())
+                .extracting(Post::getId)
+                .containsExactly(
+                        hiddenSecond.getId(),
+                        hiddenFirst.getId()
+                );
+
+        assertThat(secondPage.getContent())
+                .extracting(Post::getId)
+                .containsExactly(visible.getId());
+
+        assertThat(outOfRangePage.getContent()).isEmpty();
+
+        // 범위 밖 페이지에서도 전체 검색 결과 개수를 유지해야 한다.
+        for (Page<Post> page : List.of(
+                firstPage,
+                secondPage,
+                outOfRangePage
+        )) {
+            assertThat(page.getTotalElements()).isEqualTo(3);
+            assertThat(page.getTotalPages()).isEqualTo(2);
+        }
+
+        assertThat(firstPage.hasNext()).isTrue();
+        assertThat(firstPage.hasPrevious()).isFalse();
+
+        assertThat(secondPage.hasNext()).isFalse();
+        assertThat(secondPage.hasPrevious()).isTrue();
+    }
+
     private Page<Post> readPage(int page, int size) {
         return repository.findPosts(
                 new AdminPostReadQuery(
@@ -532,5 +619,399 @@ class AdminPostReadRepositoryTest {
     private void flushAndClear() {
         entityManager.flush();
         entityManager.clear();
+    }
+
+    static Stream<Arguments> multiplePostStatusCases() {
+        // 데이터 생성 순서:
+        // 0 = 정상, 1 = 숨김, 2 = 삭제, 3 = 숨김 후 삭제
+        // 작성 시각이 같으므로 조회 결과는 ID 내림차순이다.
+        return Stream.of(
+                Arguments.of(
+                        List.of(
+                                AdminPostStatus.VISIBLE,
+                                AdminPostStatus.HIDDEN
+                        ),
+                        List.of(1, 0)
+                ),
+                Arguments.of(
+                        List.of(
+                                AdminPostStatus.VISIBLE,
+                                AdminPostStatus.DELETED
+                        ),
+                        List.of(3, 2, 0)
+                ),
+                Arguments.of(
+                        List.of(
+                                AdminPostStatus.HIDDEN,
+                                AdminPostStatus.DELETED
+                        ),
+                        List.of(3, 2, 1)
+                ),
+                Arguments.of(
+                        List.of(
+                                AdminPostStatus.VISIBLE,
+                                AdminPostStatus.HIDDEN,
+                                AdminPostStatus.DELETED
+                        ),
+                        List.of(3, 2, 1, 0)
+                ),
+                Arguments.of(
+                        List.of(
+                                AdminPostStatus.HIDDEN,
+                                AdminPostStatus.VISIBLE,
+                                AdminPostStatus.HIDDEN
+                        ),
+                        List.of(1, 0)
+                )
+        );
+    }
+
+    @ParameterizedTest
+    @MethodSource("multiplePostStatusCases")
+    void 다중_상태에_해당하는_게시글을_중복_없이_조회한다(
+            List<AdminPostStatus> statuses,
+            List<Integer> expectedIndexes
+    ) {
+        List<Post> posts = List.of(
+                createPost("정상 게시글", ContentState.VISIBLE),
+                createPost("숨김 게시글", ContentState.HIDDEN),
+                createPost("삭제 게시글", ContentState.DELETED),
+                createPost(
+                        "숨김 후 삭제 게시글",
+                        ContentState.HIDDEN_AND_DELETED
+                )
+        );
+
+        List<Long> expectedIds = expectedIndexes.stream()
+                .map(index -> posts.get(index).getId())
+                .toList();
+
+        flushAndClear();
+
+        Page<Post> result = repository.findPosts(
+                AdminPostReadQuery.ofStatuses(
+                        statuses,
+                        null,
+                        0,
+                        20
+                )
+        );
+
+        assertThat(result.getContent())
+                .extracting(Post::getId)
+                .containsExactlyElementsOf(expectedIds);
+
+        assertThat(result.getTotalElements())
+                .isEqualTo(expectedIds.size());
+
+        assertThat(result.getTotalPages()).isEqualTo(1);
+        assertThat(result.hasNext()).isFalse();
+    }
+
+    @Test
+    void 작성일_범위는_한국_날짜의_시작을_포함하고_종료일_다음날은_제외한다() {
+        LocalDate date = LocalDate.of(2026, 10, 30);
+
+        Instant from = Instant.parse("2026-10-29T15:00:00Z");
+        Instant to = Instant.parse("2026-10-30T15:00:00Z");
+
+        createPost(
+                "시작 직전",
+                "본문",
+                ContentState.VISIBLE,
+                from.minusNanos(1_000)
+        );
+
+        Post atStart = createPost(
+                "시작 시각",
+                "본문",
+                ContentState.VISIBLE,
+                from
+        );
+
+        Post beforeEnd = createPost(
+                "종료 직전",
+                "본문",
+                ContentState.VISIBLE,
+                to.minusNanos(1_000)
+        );
+
+        createPost(
+                "다음 날 시작",
+                "본문",
+                ContentState.VISIBLE,
+                to
+        );
+
+        flushAndClear();
+
+        Page<Post> result = repository.findPosts(
+                AdminPostReadQuery.ofStatuses(
+                        List.of(AdminPostStatus.VISIBLE),
+                        null,
+                        0,
+                        20,
+                        date,
+                        date,
+                        AdminPostSort.OLDEST
+                )
+        );
+
+        assertThat(result.getContent())
+                .extracting(Post::getId)
+                .containsExactly(
+                        atStart.getId(),
+                        beforeEnd.getId()
+                );
+
+        assertThat(result.getTotalElements()).isEqualTo(2);
+    }
+
+    @Test
+    void 작성일_시작일과_종료일은_각각_단독으로_적용할_수_있다() {
+        Post previousDay = createPost(
+                "전날 게시글",
+                "본문",
+                ContentState.VISIBLE,
+                Instant.parse("2026-10-29T14:59:59Z")
+        );
+
+        Post onDate = createPost(
+                "당일 게시글",
+                "본문",
+                ContentState.VISIBLE,
+                Instant.parse("2026-10-30T01:00:00Z")
+        );
+
+        Post nextDay = createPost(
+                "다음 날 게시글",
+                "본문",
+                ContentState.VISIBLE,
+                Instant.parse("2026-10-30T15:00:00Z")
+        );
+
+        flushAndClear();
+
+        LocalDate date = LocalDate.of(2026, 10, 30);
+
+        Page<Post> startOnly = repository.findPosts(
+                AdminPostReadQuery.ofStatuses(
+                        List.of(AdminPostStatus.VISIBLE),
+                        null,
+                        0,
+                        20,
+                        date,
+                        null,
+                        AdminPostSort.OLDEST
+                )
+        );
+
+        Page<Post> endOnly = repository.findPosts(
+                AdminPostReadQuery.ofStatuses(
+                        List.of(AdminPostStatus.VISIBLE),
+                        null,
+                        0,
+                        20,
+                        null,
+                        date,
+                        AdminPostSort.OLDEST
+                )
+        );
+
+        assertThat(startOnly.getContent())
+                .extracting(Post::getId)
+                .containsExactly(onDate.getId(), nextDay.getId());
+
+        assertThat(endOnly.getContent())
+                .extracting(Post::getId)
+                .containsExactly(previousDay.getId(), onDate.getId());
+
+        assertThat(startOnly.getTotalElements()).isEqualTo(2);
+        assertThat(endOnly.getTotalElements()).isEqualTo(2);
+    }
+
+    @ParameterizedTest
+    @EnumSource(AdminPostSort.class)
+    void 작성_시각과_ID로_정렬한_뒤_페이지를_적용한다(
+            AdminPostSort sort
+    ) {
+        Instant olderTime = Instant.parse("2026-10-29T01:00:00Z");
+        Instant newerTime = Instant.parse("2026-10-30T01:00:00Z");
+
+        Post newerFirst = createPost(
+                "최근 첫 번째",
+                "본문",
+                ContentState.VISIBLE,
+                newerTime
+        );
+
+        Post newerSecond = createPost(
+                "최근 두 번째",
+                "본문",
+                ContentState.VISIBLE,
+                newerTime
+        );
+
+        // ID는 가장 크지만 작성 시각은 가장 오래된 게시글이다.
+        Post older = createPost(
+                "오래된 게시글",
+                "본문",
+                ContentState.VISIBLE,
+                olderTime
+        );
+
+        flushAndClear();
+
+        Page<Post> firstPage = repository.findPosts(
+                AdminPostReadQuery.ofStatuses(
+                        List.of(AdminPostStatus.VISIBLE),
+                        null,
+                        0,
+                        2,
+                        null,
+                        null,
+                        sort
+                )
+        );
+
+        Page<Post> secondPage = repository.findPosts(
+                AdminPostReadQuery.ofStatuses(
+                        List.of(AdminPostStatus.VISIBLE),
+                        null,
+                        1,
+                        2,
+                        null,
+                        null,
+                        sort
+                )
+        );
+
+        List<Long> expected = switch (sort) {
+            case LATEST -> List.of(
+                    newerSecond.getId(),
+                    newerFirst.getId(),
+                    older.getId()
+            );
+            case OLDEST -> List.of(
+                    older.getId(),
+                    newerFirst.getId(),
+                    newerSecond.getId()
+            );
+        };
+
+        assertThat(firstPage.getContent())
+                .extracting(Post::getId)
+                .containsExactlyElementsOf(expected.subList(0, 2));
+
+        assertThat(secondPage.getContent())
+                .extracting(Post::getId)
+                .containsExactly(expected.get(2));
+
+        assertThat(firstPage.getTotalElements()).isEqualTo(3);
+        assertThat(secondPage.getTotalElements()).isEqualTo(3);
+        assertThat(firstPage.getTotalPages()).isEqualTo(2);
+
+        var createdAtOrder = firstPage.getSort().getOrderFor("createdAt");
+        var idOrder = firstPage.getSort().getOrderFor("id");
+
+        assertThat(createdAtOrder).isNotNull();
+        assertThat(idOrder).isNotNull();
+
+        assertThat(createdAtOrder.isAscending())
+                .isEqualTo(sort == AdminPostSort.OLDEST);
+
+        assertThat(idOrder.isAscending())
+                .isEqualTo(sort == AdminPostSort.OLDEST);
+    }
+
+    @Test
+    void 다중_상태와_검색어와_작성일을_함께_적용하고_전체_개수에도_반영한다() {
+        Instant inRange = Instant.parse("2026-10-30T01:00:00Z");
+        Instant outOfRange = Instant.parse("2026-10-29T01:00:00Z");
+
+        Post visible = createPost(
+                "보청기 공개",
+                "본문",
+                ContentState.VISIBLE,
+                inRange
+        );
+
+        Post hidden = createPost(
+                "보청기 숨김",
+                "본문",
+                ContentState.HIDDEN,
+                inRange
+        );
+
+        // 상태가 다르므로 제외한다.
+        createPost(
+                "보청기 삭제",
+                "본문",
+                ContentState.DELETED,
+                inRange
+        );
+
+        // 검색어가 다르므로 제외한다.
+        createPost(
+                "인공와우 후기",
+                "본문",
+                ContentState.VISIBLE,
+                inRange
+        );
+
+        // 작성일이 범위 밖이므로 제외한다.
+        createPost(
+                "보청기 이전 글",
+                "본문",
+                ContentState.HIDDEN,
+                outOfRange
+        );
+
+        flushAndClear();
+
+        LocalDate date = LocalDate.of(2026, 10, 30);
+
+        List<AdminPostStatus> statuses = List.of(
+                AdminPostStatus.VISIBLE,
+                AdminPostStatus.HIDDEN
+        );
+
+        Page<Post> firstPage = repository.findPosts(
+                AdminPostReadQuery.ofStatuses(
+                        statuses, "보청기", 0, 1,
+                        date, date, AdminPostSort.LATEST
+                )
+        );
+
+        Page<Post> secondPage = repository.findPosts(
+                AdminPostReadQuery.ofStatuses(
+                        statuses, "보청기", 1, 1,
+                        date, date, AdminPostSort.LATEST
+                )
+        );
+
+        Page<Post> outsidePage = repository.findPosts(
+                AdminPostReadQuery.ofStatuses(
+                        statuses, "보청기", 2, 1,
+                        date, date, AdminPostSort.LATEST
+                )
+        );
+
+        assertThat(firstPage.getContent())
+                .extracting(Post::getId)
+                .containsExactly(hidden.getId());
+
+        assertThat(secondPage.getContent())
+                .extracting(Post::getId)
+                .containsExactly(visible.getId());
+
+        assertThat(outsidePage.getContent()).isEmpty();
+
+        for (Page<Post> page : List.of(
+                firstPage, secondPage, outsidePage
+        )) {
+            assertThat(page.getTotalElements()).isEqualTo(2);
+            assertThat(page.getTotalPages()).isEqualTo(2);
+        }
     }
 }

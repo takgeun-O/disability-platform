@@ -44,7 +44,7 @@ async function fixture({width=1440,count=27,...options}={}){
   assert.equal(req.headers()['x-csrf-token'],'test-only')
   if(state.write)return state.write(r,u)
   const id=Number(u.pathname.split('/')[5]),post=posts.find(p=>p.id===id)
-  if(u.pathname.endsWith('/comments')&&method==='POST'){post.commentCount++;comments.push({likeCount:0,liked:false,commentId:1,content:req.postDataJSON().content,author:post.author,createdAt:stamp,updatedAt:stamp});return r.fulfill({status:201,json:{commentId:1}})}
+  if(u.pathname.endsWith('/comments')&&method==='POST'){post.commentCount++;comments.push({ contentUpdatedAt: null,likeCount:0,liked:false,commentId:1,content:req.postDataJSON().content,author:post.author,createdAt:stamp,updatedAt:stamp});return r.fulfill({status:201,json:{commentId:1}})}
   if(u.pathname.includes('/comments/')){if(method==='DELETE'){post.commentCount--;comments=[]}else comments[0].content=req.postDataJSON().content;return r.fulfill({status:204})}
   if(method==='DELETE'){posts=posts.filter(p=>p.id!==id);return r.fulfill({status:204})}
   if(method==='PUT'){Object.assign(post,req.postDataJSON());post.contentPreview=post.content.slice(0,200);return r.fulfill({status:204})}
@@ -84,7 +84,7 @@ try{
  })
  await check('management: deletion refresh failure preserves range; retry and related comments refresh',async()=>{
   const{p,state}=await fixture();await ready(p);await more(p,3)
-  state.ownedComments=()=>posts.some(x=>x.id===978)?[{visibility:"VISIBLE",commentId:12,content:'내 댓글',createdAt:stamp,updatedAt:stamp,likeCount:2,liked:true,post:{postId:978,title:'원문',topic:'HEARING_AID',type:'QUESTION'}}]:[]
+  state.ownedComments=()=>posts.some(x=>x.id===978)?[{ contentUpdatedAt: null,visibility:"VISIBLE",commentId:12,content:'내 댓글',createdAt:stamp,updatedAt:stamp,likeCount:2,liked:true,post:{postId:978,title:'원문',topic:'HEARING_AID',type:'QUESTION'}}]:[]
   await p.getByRole('tab',{name:/내 댓글/}).click();await p.locator('[data-member-comment-id="12"]').waitFor();await p.getByRole('tab',{name:/내 게시글/}).click();state.get=r=>r.fulfill({status:503,json:failure('SERVICE_UNAVAILABLE')})
   await p.locator('[data-member-post-id="978"]').getByRole('button',{name:'게시글 관리'}).click();await p.getByRole('menuitem',{name:'삭제',exact:true}).click();await p.getByRole('button',{name:'삭제하기',exact:true}).click();await retry(p).waitFor();assert.equal(await rows(p).count(),27);assert.equal(state.calls.filter(c=>c.method==='DELETE').length,1)
   state.get=null;await retry(p).click();await ready(p,26);await p.getByRole('tab',{name:/내 댓글/}).click();await p.getByText('아직 작성한 댓글이 없어요.').waitFor();assert.equal(await p.locator('[data-member-comment-id]').count(),0);assert.equal(state.calls.filter(c=>c.path==='/api/v1/members/me/comments').length,2)

@@ -20,7 +20,7 @@ export default function CommentItem({ comment, anchorId, body, reactions, action
     <div className="community-comment-meta">
       <strong>{comment.author.nickname}</strong>
       <WrittenTime value={comment.createdAt} />
-      {comment.updatedAt !== comment.createdAt && <span>수정됨</span>}
+      {comment.contentUpdatedAt !== null && <span>수정됨</span>}
     </div>
     {body ?? <p className="community-comment-body">{comment.content}</p>}
     {(reactions || actions) && <div className="community-comment-toolbar">

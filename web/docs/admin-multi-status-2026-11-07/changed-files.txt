@@ -1,0 +1,12 @@
+web/src/components/admin/AdminComments.tsx
+web/src/features/AdminPosts.tsx
+web/src/lib/admin-navigation.ts
+web/src/lib/admin-posts.ts
+web/src/styles/admin.css
+web/tests/admin-detail-browser.mjs
+web/tests/admin-detail.test.mjs
+web/tests/admin-moderation-browser.mjs
+web/tests/admin-posts-browser.mjs
+web/tests/admin-posts.test.mjs
+web/src/components/admin/AdminStatusFilter.tsx
+web/docs/admin-multi-status-2026-11-07/ (검토 문서·검증 로그·캡처)

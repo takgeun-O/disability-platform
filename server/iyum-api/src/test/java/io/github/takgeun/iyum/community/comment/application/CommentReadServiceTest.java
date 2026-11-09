@@ -34,6 +34,7 @@ import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
 import org.testcontainers.postgresql.PostgreSQLContainer;
 
+import java.sql.Timestamp;
 import java.time.Instant;
 import java.util.List;
 import java.util.Optional;
@@ -820,6 +821,84 @@ class CommentReadServiceTest {
                         0L
                 )
         );
+    }
+
+    @ParameterizedTest
+    @EnumSource(CommentSort.class)
+    void 모든_정렬에서_본문_수정_시각을_별도로_반환한다(
+            CommentSort sort
+    ) {
+        Instant contentUpdatedAt =
+                CREATED_TIME.plusSeconds(60);
+
+        Instant entityUpdatedAt =
+                CREATED_TIME.plusSeconds(120);
+
+        // 조회 매핑 검증을 위해 DB 상태를 직접 준비한다.
+        // 실제 본문 수정의 저장 동작은 CommentUpdateServiceTest에서 검증한다.
+        jdbcTemplate.update(
+                """
+                UPDATE community_comments
+                SET updated_at = ?,
+                    content_updated_at = ?
+                WHERE id = ?
+                """,
+                Timestamp.from(entityUpdatedAt),
+                Timestamp.from(contentUpdatedAt),
+                firstCommentId
+        );
+
+        // 엔티티 변경 시각만 있고 본문 수정 시각은 없는 댓글도 준비한다.
+        // updatedAt을 contentUpdatedAt의 대체 값으로 사용하면 안 된다.
+        jdbcTemplate.update(
+                """
+                UPDATE community_comments
+                SET updated_at = ?,
+                    content_updated_at = NULL
+                WHERE id = ?
+                """,
+                Timestamp.from(entityUpdatedAt),
+                secondCommentId
+        );
+
+        CommentListResult result =
+                commentReadService.getComments(
+                        postId,
+                        new CommentReadQuery(sort, null, 20),
+                        null
+                );
+
+        assertThat(result.items()).hasSize(3);
+
+        CommentResult edited = result.items().stream()
+                .filter(item ->
+                        item.commentId().equals(firstCommentId)
+                )
+                .findFirst()
+                .orElseThrow();
+
+        assertThat(edited.createdAt())
+                .isEqualTo(CREATED_TIME);
+
+        assertThat(edited.updatedAt())
+                .isEqualTo(entityUpdatedAt);
+
+        assertThat(edited.contentUpdatedAt())
+                .isEqualTo(contentUpdatedAt);
+
+        CommentResult withoutContentEditTime =
+                result.items().stream()
+                        .filter(item ->
+                                item.commentId().equals(secondCommentId)
+                        )
+                        .findFirst()
+                        .orElseThrow();
+
+        assertThat(withoutContentEditTime.updatedAt())
+                .isEqualTo(entityUpdatedAt);
+
+        assertThat(withoutContentEditTime.contentUpdatedAt())
+                .isNull();
     }
 
     private Member saveMember(String email, String nickname) {

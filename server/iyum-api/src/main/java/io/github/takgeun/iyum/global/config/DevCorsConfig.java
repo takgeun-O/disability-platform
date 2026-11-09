@@ -293,6 +293,26 @@ public class DevCorsConfig {
                 adminCommentReadCors
         );
 
+        // 관리자 댓글 단건 조회에도 기존 댓글 조회 CORS 정책을 적용한다.
+        // 허용된 개발 Origin에서 쿠키를 포함한 GET 요청을 허용한다.
+        source.registerCorsConfiguration(
+                "/api/v1/admin/comments/*",
+                adminCommentReadCors
+        );
+
+        // 관리자 운영 기록 조회
+        CorsConfiguration adminOperationLogReadCors =
+                new CorsConfiguration(cors);
+
+        adminOperationLogReadCors.setAllowedMethods(
+                List.of("GET", "OPTIONS")
+        );
+
+        source.registerCorsConfiguration(
+                "/api/v1/admin/operation-logs",
+                adminOperationLogReadCors
+        );
+
         return source;
     }
 }

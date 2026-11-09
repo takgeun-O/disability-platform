@@ -200,8 +200,7 @@
 
 .community-comments-refresh { display: inline-flex; align-items: center; gap: 6px; flex-shrink: 0; }
 .community-comment-field-error { color: var(--iyum-danger); font-size: 14px; margin: 0; }
-.community-comment-detached { margin-block: 20px; padding: 16px; border: 1px solid var(--iyum-border); border-radius: 8px; background: var(--iyum-surface, #f5f9fc); }
-.community-comment-detached h3 { font-size: 18px; }
+
 
 .community-comment-count { white-space: nowrap; font-variant-numeric: tabular-nums; }
 
@@ -366,3 +365,18 @@
 
 /* The saved-text preview is visual; the polite region announces success once. */
 .comment-toast-preview { display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; max-width: min(360px, calc(100vw - 108px)); margin-top: 4px; font-weight: 400; white-space: pre-wrap; overflow-wrap: anywhere; word-break: normal; }
+
+
+/* An unchanged draft is unavailable, not an in-flight request. */
+.community-comment-save:disabled:not([aria-busy="true"]) { cursor: default; }
+
+/* Shared login/expiry presentation, scoped to comment actions. */
+.community-dialog.comment-auth-dialog { width:min(420px,calc(100vw - 32px)); overflow-wrap:anywhere; }
+.community-dialog.comment-auth-dialog h2 { font-size:22px; font-weight:700; line-height:1.5; margin:0 0 12px; word-break:keep-all; overflow-wrap:anywhere; padding:0 16px 0 0; }
+.comment-auth-dialog .comment-auth-description > p { font-size:16px; font-weight:400; line-height:1.7; margin:0; }
+.comment-auth-icon { color:var(--iyum-primary); margin-bottom:12px; }
+.comment-auth-dialog .comment-auth-description > .comment-auth-draft-note { color:var(--iyum-muted); font-size:14px; font-weight:400; line-height:1.7; margin:12px 0 0; }
+.comment-auth-dialog .comment-auth-description > [role="status"] { margin-top:12px; }
+.comment-auth-close { position:absolute; top:8px; right:8px; display:grid; place-items:center; min-width:44px; min-height:44px; border:0; border-radius:8px; background:transparent; color:var(--iyum-muted); cursor:pointer; }
+.comment-auth-close:focus-visible { outline:2px solid var(--iyum-primary); outline-offset:2px; }
+.comment-auth-dialog .community-dialog-actions { flex-wrap:wrap; gap:8px; }

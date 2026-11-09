@@ -31,6 +31,9 @@ class ContentModerationLogTest {
         assertThat(log.getAction()).isEqualTo(ModerationAction.HIDE);
         assertThat(log.getReason()).isEqualTo("운영 정책 위반");
         assertThat(log.getCreatedAt()).isEqualTo(NOW);
+        assertThat(log.getReasonType())
+                .isEqualTo(ModerationReasonType.LEGACY);
+        assertThat(log.getReasonDetail()).isNull();
     }
 
     @Test
@@ -49,6 +52,9 @@ class ContentModerationLogTest {
         assertThat(log.getAction()).isEqualTo(ModerationAction.RESTORE);
         assertThat(log.getReason()).isEqualTo("검토 결과 복원");
         assertThat(log.getCreatedAt()).isEqualTo(NOW);
+        assertThat(log.getReasonType())
+                .isEqualTo(ModerationReasonType.LEGACY);
+        assertThat(log.getReasonDetail()).isNull();
     }
 
     @ParameterizedTest
@@ -172,5 +178,120 @@ class ContentModerationLogTest {
                 "처리 사유",
                 null
         )).isInstanceOf(IllegalArgumentException.class);
+    }
+
+    @Test
+    void 게시글_기록은_유형과_정리한_상세_사유를_보존한다() {
+        ContentModerationLog log = ContentModerationLog.forPost(
+                7L,
+                123L,
+                ModerationAction.HIDE,
+                ModerationReasonType.SPAM_ADVERTISING,
+                "  동일한 광고 링크 반복 게시  ",
+                NOW
+        );
+
+        assertThat(log.getActorMemberId()).isEqualTo(7L);
+        assertThat(log.getPostId()).isEqualTo(123L);
+        assertThat(log.getCommentId()).isNull();
+        assertThat(log.getAction()).isEqualTo(ModerationAction.HIDE);
+        assertThat(log.getReasonType())
+                .isEqualTo(ModerationReasonType.SPAM_ADVERTISING);
+        assertThat(log.getReasonDetail())
+                .isEqualTo("동일한 광고 링크 반복 게시");
+        assertThat(log.getReason())
+                .isEqualTo("동일한 광고 링크 반복 게시");
+        assertThat(log.getCreatedAt()).isEqualTo(NOW);
+    }
+
+    @Test
+    void 댓글_복원에서_상세가_없으면_유형의_표시문구를_보존한다() {
+        ContentModerationLog log = ContentModerationLog.forComment(
+                7L,
+                456L,
+                ModerationAction.RESTORE,
+                ModerationReasonType.NO_VIOLATION,
+                null,
+                NOW
+        );
+
+        assertThat(log.getPostId()).isNull();
+        assertThat(log.getCommentId()).isEqualTo(456L);
+        assertThat(log.getAction()).isEqualTo(ModerationAction.RESTORE);
+        assertThat(log.getReasonType())
+                .isEqualTo(ModerationReasonType.NO_VIOLATION);
+        assertThat(log.getReasonDetail()).isNull();
+        assertThat(log.getReason()).isEqualTo("재검토 결과 위반 없음");
+    }
+
+    @Test
+    void 기타_사유의_상세_내용을_보존한다() {
+        ContentModerationLog log = ContentModerationLog.forComment(
+                7L,
+                456L,
+                ModerationAction.HIDE,
+                ModerationReasonType.OTHER,
+                "  개별 검토한 처리 사유  ",
+                NOW
+        );
+
+        assertThat(log.getReasonType())
+                .isEqualTo(ModerationReasonType.OTHER);
+        assertThat(log.getReasonDetail())
+                .isEqualTo("개별 검토한 처리 사유");
+        assertThat(log.getReason())
+                .isEqualTo("개별 검토한 처리 사유");
+    }
+
+    @Test
+    void 신규_기록에서_기타_상세가_없으면_거부한다() {
+        assertThatThrownBy(() ->
+                ContentModerationLog.forPost(
+                        7L,
+                        123L,
+                        ModerationAction.HIDE,
+                        ModerationReasonType.OTHER,
+                        " ",
+                        NOW
+                )
+        )
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessage("기타 사유는 상세 내용을 입력해야 합니다.");
+    }
+
+    @Test
+    void 신규_기록에서_조치에_맞지_않는_유형은_거부한다() {
+        assertThatThrownBy(() ->
+                ContentModerationLog.forComment(
+                        7L,
+                        456L,
+                        ModerationAction.RESTORE,
+                        ModerationReasonType.SPAM_ADVERTISING,
+                        "상세 설명",
+                        NOW
+                )
+        )
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessage(
+                        "해당 조치에 사용할 수 없는 처리 사유 유형입니다."
+                );
+    }
+
+    @Test
+    void 신규_기록에서_LEGACY_유형은_거부한다() {
+        assertThatThrownBy(() ->
+                ContentModerationLog.forPost(
+                        7L,
+                        123L,
+                        ModerationAction.HIDE,
+                        ModerationReasonType.LEGACY,
+                        "기존 기록으로 위장한 사유",
+                        NOW
+                )
+        )
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessage(
+                        "해당 조치에 사용할 수 없는 처리 사유 유형입니다."
+                );
     }
 }

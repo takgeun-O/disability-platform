@@ -5,7 +5,7 @@ const api=await loadTypeScript('../src/lib/member-api.ts',import.meta.url)
 process.env.NEXT_PUBLIC_API_BASE_URL='http://127.0.0.1:8082'
 const stamp='2026-10-27T04:23:41.115818Z'
 const post={id:10,createdAt:stamp,visibility:'HIDDEN',type:null,topic:null,title:null,contentPreview:null,author:null,commentCount:null,likeCount:null,liked:null}
-const comment={commentId:10,createdAt:stamp,visibility:'PARENT_HIDDEN',content:null,updatedAt:null,likeCount:null,liked:null,post:{postId:10,title:null,type:null,topic:null}}
+const comment={ contentUpdatedAt: null,commentId:10,createdAt:stamp,visibility:'PARENT_HIDDEN',content:null,updatedAt:null,likeCount:null,liked:null,post:{postId:10,title:null,type:null,topic:null}}
 const page=item=>({items:[item],hasNext:false,nextCursor:null})
 for(const [name,item,read] of [['post',post,()=>api.getMemberPosts(1)],['comment',comment,()=>api.getMemberComments()]]){
  test(`redacted ${name} is a valid private response`,async t=>{t.mock.method(globalThis,'fetch',async()=>Response.json(page(item)));assert.deepEqual((await read()).items,[item])})

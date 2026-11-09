@@ -12,6 +12,7 @@ import io.github.takgeun.iyum.member.infrastructure.MemberRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.CsvSource;
 import org.junit.jupiter.params.provider.EnumSource;
 import org.junit.jupiter.params.provider.ValueSource;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -40,9 +41,10 @@ import java.util.Map;
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.*;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.result.MockMvcResultHandlers.print;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
@@ -61,6 +63,9 @@ class AdminCommentReadSessionIntegrationTest {
 
     private static final String PATH =
             "/api/v1/admin/posts/{postId}/comments";
+
+    private static final String DETAIL_PATH =
+            "/api/v1/admin/comments/{commentId}";
 
     private static final String PASSWORD =
             "Test-password123!";
@@ -134,11 +139,11 @@ class AdminCommentReadSessionIntegrationTest {
         // 관리자 계정 준비: 실제 로그인 전에 DB에 권한과 인증 버전을 설정.
         jdbcTemplate.update(
                 """
-                update members
-                   set role = 'ADMIN',
-                       credential_version = 3
-                 where id = ?
-                """,
+                        update members
+                           set role = 'ADMIN',
+                               credential_version = 3
+                         where id = ?
+                        """,
                 admin.getId()
         );
 
@@ -452,19 +457,19 @@ class AdminCommentReadSessionIntegrationTest {
         switch (change) {
             case "ROLE" -> jdbcTemplate.update(
                     """
-                    update members
-                       set role = 'USER'
-                     where id = ?
-                    """,
+                            update members
+                               set role = 'USER'
+                             where id = ?
+                            """,
                     admin.getId()
             );
 
             case "VERSION" -> jdbcTemplate.update(
                     """
-                    update members
-                       set credential_version = credential_version + 1
-                     where id = ?
-                    """,
+                            update members
+                               set credential_version = credential_version + 1
+                             where id = ?
+                            """,
                     admin.getId()
             );
 
@@ -496,6 +501,516 @@ class AdminCommentReadSessionIntegrationTest {
 
             mockMvc.perform(
                             get(PATH, targetPost.getId())
+                                    .session(userSession)
+                    )
+                    .andExpect(status().isForbidden())
+                    .andExpect(jsonPath("$.code").value("ACCESS_DENIED"));
+        }
+    }
+
+    @ParameterizedTest
+    @EnumSource(
+            value = AdminPostStatus.class,
+            names = {"VISIBLE", "HIDDEN", "DELETED"}
+    )
+    void 실제_관리자_세션으로_부모_상태와_관계없이_다중_댓글_상태를_조회한다(
+            AdminPostStatus parentStatus
+    ) throws Exception {
+        String searchKeyword = "다중상태검증";
+
+        Long visibleId = saveComment(
+                targetPost,
+                author,
+                searchKeyword + " 정상 첫 번째",
+                BASE_TIME
+        );
+
+        Long hiddenId = saveComment(
+                targetPost,
+                author,
+                searchKeyword + " 숨김",
+                BASE_TIME
+        );
+        hideComment(hiddenId);
+
+        Long laterVisibleId = saveComment(
+                targetPost,
+                author,
+                searchKeyword + " 정상 두 번째",
+                BASE_TIME.plusSeconds(60)
+        );
+
+        // 검색어가 같아도 선택하지 않은 삭제 상태는 제외한다.
+        Long deletedId = saveComment(
+                targetPost,
+                author,
+                searchKeyword + " 삭제",
+                BASE_TIME
+        );
+        deleteComment(deletedId);
+
+        Long hiddenAndDeletedId = saveComment(
+                targetPost,
+                author,
+                searchKeyword + " 숨김 후 삭제",
+                BASE_TIME
+        );
+        hideComment(hiddenAndDeletedId);
+        deleteComment(hiddenAndDeletedId);
+
+        // 상태가 같아도 검색어가 다르면 제외한다.
+        saveComment(
+                targetPost,
+                author,
+                "검색 대상이 아닌 정상 댓글",
+                BASE_TIME
+        );
+
+        Long unrelatedHiddenId = saveComment(
+                targetPost,
+                author,
+                "검색 대상이 아닌 숨김 댓글",
+                BASE_TIME
+        );
+        hideComment(unrelatedHiddenId);
+
+        // 상태와 검색어가 모두 일치해도 다른 게시글의 댓글은 제외한다.
+        Post otherPost = savePost(author);
+
+        saveComment(
+                otherPost,
+                author,
+                searchKeyword + " 다른 게시글 정상",
+                BASE_TIME.minusSeconds(60)
+        );
+
+        Long otherHiddenId = saveComment(
+                otherPost,
+                author,
+                searchKeyword + " 다른 게시글 숨김",
+                BASE_TIME.minusSeconds(60)
+        );
+        hideComment(otherHiddenId);
+
+        changePostStatus(targetPost.getId(), parentStatus);
+
+        MockHttpSession session = login(admin.getEmail());
+
+        String[] statuses = {"HIDDEN", "VISIBLE", "HIDDEN"};
+
+        JsonNode firstPage = readMultipleStatusComments(
+                session, searchKeyword, 0, 2, statuses
+        );
+        JsonNode secondPage = readMultipleStatusComments(
+                session, searchKeyword, 1, 2, statuses
+        );
+        JsonNode outOfRange = readMultipleStatusComments(
+                session, searchKeyword, 2, 2, statuses
+        );
+
+        // コメントは作成時刻の昇順、同時刻ならIDの昇順。
+        assertThat(commentIds(firstPage))
+                .containsExactly(visibleId, hiddenId);
+
+        assertThat(commentIds(secondPage))
+                .containsExactly(laterVisibleId);
+
+        assertThat(commentIds(outOfRange)).isEmpty();
+
+        assertThat(firstPage.path("items").path(0)
+                .path("status").asString())
+                .isEqualTo("VISIBLE");
+
+        assertThat(firstPage.path("items").path(1)
+                .path("status").asString())
+                .isEqualTo("HIDDEN");
+
+        for (JsonNode page : List.of(
+                firstPage,
+                secondPage,
+                outOfRange
+        )) {
+            assertThat(page.path("postId").asLong())
+                    .isEqualTo(targetPost.getId());
+
+            // 부모 상태는 댓글 상태 필터와 별도로 응답한다.
+            assertThat(page.path("postStatus").asString())
+                    .isEqualTo(parentStatus.name());
+
+            assertThat(page.path("totalElements").asLong())
+                    .isEqualTo(3);
+            assertThat(page.path("totalPages").asInt())
+                    .isEqualTo(2);
+            assertThat(page.path("size").asInt())
+                    .isEqualTo(2);
+        }
+
+        assertThat(firstPage.path("page").asInt()).isZero();
+        assertThat(firstPage.path("hasNext").asBoolean()).isTrue();
+        assertThat(firstPage.path("hasPrevious").asBoolean()).isFalse();
+
+        assertThat(secondPage.path("page").asInt()).isEqualTo(1);
+        assertThat(secondPage.path("hasNext").asBoolean()).isFalse();
+        assertThat(secondPage.path("hasPrevious").asBoolean()).isTrue();
+
+        assertThat(outOfRange.path("page").asInt()).isEqualTo(2);
+        assertThat(outOfRange.path("hasNext").asBoolean()).isFalse();
+    }
+
+    @ParameterizedTest
+    @CsvSource({
+            "VISIBLE, false, false",
+            "VISIBLE, true,  false",
+            "VISIBLE, false, true",
+            "VISIBLE, true,  true",
+            "HIDDEN,  false, false",
+            "HIDDEN,  true,  true",
+            "DELETED, false, false",
+            "DELETED, true,  true"
+    })
+    void 실제_관리자는_부모와_댓글의_상태에_관계없이_댓글_단건을_조회한다(
+            AdminPostStatus parentStatus,
+            boolean hidden,
+            boolean deleted
+    ) throws Exception {
+        Long commentId = saveComment(
+                targetPost,
+                author,
+                FULL_CONTENT,
+                BASE_TIME
+        );
+
+        if (hidden) {
+            hideComment(commentId);
+        }
+
+        if (deleted) {
+            deleteComment(commentId);
+        }
+
+        changePostStatus(targetPost.getId(), parentStatus);
+
+        // 댓글 상태는 부모 게시글 상태와 별도로 판단한다.
+        // 숨김과 삭제 시각이 모두 있으면 삭제 상태가 우선한다.
+        String expectedStatus = deleted
+                ? "DELETED"
+                : hidden ? "HIDDEN" : "VISIBLE";
+
+        Instant expectedUpdatedAt = deleted
+                ? DELETED_AT
+                : hidden ? HIDDEN_AT : BASE_TIME;
+
+        // 기존 hideComment/deleteComment 도우미는 상태 시각만 변경한다.
+        // 이 테스트에서는 최종 변경 시각도 명시적으로 설정한다.
+        jdbcTemplate.update(
+                """
+                        update community_comments
+                           set updated_at = ?
+                         where id = ?
+                        """,
+                Timestamp.from(expectedUpdatedAt),
+                commentId
+        );
+
+        MockHttpSession session = login(admin.getEmail());
+
+        // 실제 로그인 세션을 사용한다.
+        // GET 조회에는 별도의 CSRF 토큰을 전달하지 않는다.
+        mockMvc.perform(
+                        get(DETAIL_PATH, commentId)
+                                .session(session)
+                )
+                .andExpect(status().isOk())
+                .andExpect(content().contentTypeCompatibleWith(
+                        MediaType.APPLICATION_JSON
+                ))
+                .andExpect(header().string(
+                        HttpHeaders.CACHE_CONTROL,
+                        "no-store"
+                ))
+                .andExpect(jsonPath("$.commentId")
+                        .value(is(commentId), Long.class))
+                .andExpect(jsonPath("$.postId")
+                        .value(is(targetPost.getId()), Long.class))
+                .andExpect(jsonPath("$.postStatus")
+                        .value(parentStatus.name()))
+                .andExpect(jsonPath("$.status")
+                        .value(expectedStatus))
+                .andExpect(jsonPath("$.content")
+                        .value(FULL_CONTENT))
+                .andExpect(jsonPath("$.author.memberId")
+                        .value(is(author.getId()), Long.class))
+                .andExpect(jsonPath("$.author.nickname")
+                        .value(author.getNickname()))
+                .andExpect(jsonPath("$.author.withdrawn")
+                        .value(false))
+                .andExpect(jsonPath("$.author.email")
+                        .doesNotHaveJsonPath())
+                .andExpect(jsonPath("$.author.passwordHash")
+                        .doesNotHaveJsonPath())
+                .andExpect(jsonPath("$.createdAt")
+                        .value(BASE_TIME.toString()))
+                .andExpect(jsonPath("$.updatedAt")
+                        .value(expectedUpdatedAt.toString()))
+
+                // 본문을 수정하지 않았으므로 명시적 null이어야 한다.
+                .andExpect(jsonPath("$.contentUpdatedAt").hasJsonPath())
+                .andExpect(jsonPath("$.contentUpdatedAt")
+                        .value(nullValue()))
+
+                // null인 필드도 응답에서 생략하지 않는지 함께 확인한다.
+                // 값은 두 분기 모두 Matcher를 사용해서 검증한다.
+                .andExpect(jsonPath("$.hiddenAt").hasJsonPath())
+                .andExpect(jsonPath("$.hiddenAt").value(
+                        hidden
+                                ? is(HIDDEN_AT.toString())
+                                : nullValue()
+                ))
+                .andExpect(jsonPath("$.deletedAt").hasJsonPath())
+                .andExpect(jsonPath("$.deletedAt").value(
+                        deleted
+                                ? is(DELETED_AT.toString())
+                                : nullValue()
+                ));
+
+        // 관리자 단건 조회를 추가해도 공개 조회 정책은 바뀌면 안 된다.
+        if (parentStatus != AdminPostStatus.VISIBLE) {
+            mockMvc.perform(
+                            get(
+                                    "/api/v1/community/posts/{postId}/comments",
+                                    targetPost.getId()
+                            )
+                    )
+                    .andExpect(status().isNotFound());
+        }
+    }
+
+    @Test
+    void 댓글_단건_조회는_현재_본문과_본문_수정_시각을_반환한다()
+            throws Exception {
+        Long commentId = saveComment(
+                targetPost,
+                author,
+                "수정 전 본문",
+                BASE_TIME
+        );
+
+        Instant editedAt = BASE_TIME.plusSeconds(900);
+
+        Comment editingComment = commentRepository
+                .findById(commentId)
+                .orElseThrow();
+
+        editingComment.update(FULL_CONTENT, editedAt);
+        commentRepository.saveAndFlush(editingComment);
+
+        // 본문 수정 이후 숨김 처리된 상황을 구성한다.
+        hideComment(commentId);
+
+        jdbcTemplate.update(
+                """
+                        update community_comments
+                           set updated_at = ?
+                         where id = ?
+                        """,
+                Timestamp.from(HIDDEN_AT),
+                commentId
+        );
+
+        MockHttpSession session = login(admin.getEmail());
+
+        mockMvc.perform(
+                        get(DETAIL_PATH, commentId)
+                                .session(session)
+                )
+                .andExpect(status().isOk())
+                .andExpect(header().string(
+                        HttpHeaders.CACHE_CONTROL,
+                        "no-store"
+                ))
+                .andExpect(jsonPath("$.content")
+                        .value(FULL_CONTENT))
+                .andExpect(jsonPath("$.status")
+                        .value("HIDDEN"))
+                .andExpect(jsonPath("$.createdAt")
+                        .value(BASE_TIME.toString()))
+                .andExpect(jsonPath("$.contentUpdatedAt")
+                        .value(editedAt.toString()))
+                .andExpect(jsonPath("$.hiddenAt")
+                        .value(HIDDEN_AT.toString()))
+                .andExpect(jsonPath("$.updatedAt")
+                        .value(HIDDEN_AT.toString()));
+    }
+
+    @Test
+    void 댓글_단건_조회에서도_탈퇴한_작성자는_마스킹한다()
+            throws Exception {
+        Long commentId = saveComment(
+                targetPost,
+                author,
+                FULL_CONTENT,
+                BASE_TIME
+        );
+
+        Member withdrawingAuthor = memberRepository
+                .findById(author.getId())
+                .orElseThrow();
+
+        withdrawingAuthor.withdraw(DELETED_AT);
+        memberRepository.saveAndFlush(withdrawingAuthor);
+
+        MockHttpSession session = login(admin.getEmail());
+
+        mockMvc.perform(
+                        get(DETAIL_PATH, commentId)
+                                .session(session)
+                )
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.commentId")
+                        .value(is(commentId), Long.class))
+                .andExpect(jsonPath("$.content")
+                        .value(FULL_CONTENT))
+                .andExpect(jsonPath("$.author.memberId")
+                        .value(is(author.getId()), Long.class))
+                .andExpect(jsonPath("$.author.nickname")
+                        .value("탈퇴한 회원"))
+                .andExpect(jsonPath("$.author.withdrawn")
+                        .value(true))
+                .andExpect(jsonPath("$.author.email")
+                        .doesNotHaveJsonPath())
+                .andExpect(jsonPath("$.author.passwordHash")
+                        .doesNotHaveJsonPath());
+    }
+
+    @Test
+    void 실제_관리자가_존재하지_않는_댓글을_조회하면_404를_반환한다()
+            throws Exception {
+        MockHttpSession session = login(admin.getEmail());
+
+        mockMvc.perform(
+                        get(DETAIL_PATH, Long.MAX_VALUE)
+                                .session(session)
+                )
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.code")
+                        .value("COMMENT_NOT_FOUND"))
+                .andExpect(header().string(
+                        HttpHeaders.CACHE_CONTROL,
+                        containsString("no-store")
+                ));
+    }
+
+    @Test
+    void 비로그인과_일반_회원은_댓글_단건을_조회할_수_없다()
+            throws Exception {
+        Long commentId = saveComment(
+                targetPost,
+                author,
+                FULL_CONTENT,
+                BASE_TIME
+        );
+
+        mockMvc.perform(get(DETAIL_PATH, commentId))
+                .andExpect(status().isUnauthorized())
+                .andExpect(jsonPath("$.code")
+                        .value("AUTHENTICATION_REQUIRED"))
+                .andExpect(jsonPath("$.content").doesNotHaveJsonPath())
+                .andExpect(header().string(
+                        HttpHeaders.CACHE_CONTROL,
+                        containsString("no-store")
+                ));
+
+        MockHttpSession userSession = login(author.getEmail());
+
+        mockMvc.perform(
+                        get(DETAIL_PATH, commentId)
+                                .session(userSession)
+                )
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.code")
+                        .value("ACCESS_DENIED"))
+                .andExpect(jsonPath("$.content").doesNotHaveJsonPath())
+                .andExpect(header().string(
+                        HttpHeaders.CACHE_CONTROL,
+                        containsString("no-store")
+                ));
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"ROLE", "VERSION", "WITHDRAW"})
+    void 관리자_인증_정보가_변경되면_기존_세션의_댓글_단건_조회를_차단한다(
+            String change
+    ) throws Exception {
+        Long commentId = saveComment(
+                targetPost,
+                author,
+                FULL_CONTENT,
+                BASE_TIME
+        );
+
+        MockHttpSession session = login(admin.getEmail());
+
+        // 같은 세션이 변경 전에는 정상적으로 동작하는지 먼저 확인한다.
+        mockMvc.perform(
+                        get(DETAIL_PATH, commentId)
+                                .session(session)
+                )
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.content").value(FULL_CONTENT));
+
+        switch (change) {
+            case "ROLE" -> jdbcTemplate.update(
+                    """
+                            update members
+                               set role = 'USER'
+                             where id = ?
+                            """,
+                    admin.getId()
+            );
+
+            case "VERSION" -> jdbcTemplate.update(
+                    """
+                            update members
+                               set credential_version = credential_version + 1
+                             where id = ?
+                            """,
+                    admin.getId()
+            );
+
+            case "WITHDRAW" -> {
+                Member withdrawingAdmin = memberRepository
+                        .findById(admin.getId())
+                        .orElseThrow();
+
+                withdrawingAdmin.withdraw(DELETED_AT);
+                memberRepository.saveAndFlush(withdrawingAdmin);
+            }
+
+            default -> throw new IllegalArgumentException(change);
+        }
+
+        mockMvc.perform(
+                        get(DETAIL_PATH, commentId)
+                                .session(session)
+                )
+                .andExpect(status().isUnauthorized())
+                .andExpect(jsonPath("$.code")
+                        .value("AUTHENTICATION_REQUIRED"))
+                .andExpect(jsonPath("$.content").doesNotHaveJsonPath())
+                .andExpect(header().string(
+                        HttpHeaders.CACHE_CONTROL,
+                        containsString("no-store")
+                ));
+
+        assertThat(session.isInvalid()).isTrue();
+
+        if ("ROLE".equals(change)) {
+            // 권한 변경 후 다시 로그인하면 유효한 일반 회원 세션이다.
+            // 이 경우에는 인증 실패 401이 아니라 권한 부족 403이다.
+            MockHttpSession userSession = login(admin.getEmail());
+
+            mockMvc.perform(
+                            get(DETAIL_PATH, commentId)
                                     .session(userSession)
                     )
                     .andExpect(status().isForbidden())
@@ -613,11 +1128,11 @@ class AdminCommentReadSessionIntegrationTest {
         // 실행 속도와 무관하게 정렬 순서를 검증하기 위한 고정 시각.
         jdbcTemplate.update(
                 """
-                update community_comments
-                   set created_at = ?,
-                       updated_at = ?
-                 where id = ?
-                """,
+                        update community_comments
+                           set created_at = ?,
+                               updated_at = ?
+                         where id = ?
+                        """,
                 Timestamp.from(createdAt),
                 Timestamp.from(createdAt),
                 comment.getId()
@@ -629,10 +1144,10 @@ class AdminCommentReadSessionIntegrationTest {
     private void hideComment(Long commentId) {
         jdbcTemplate.update(
                 """
-                update community_comments
-                   set hidden_at = ?
-                 where id = ?
-                """,
+                        update community_comments
+                           set hidden_at = ?
+                         where id = ?
+                        """,
                 Timestamp.from(HIDDEN_AT),
                 commentId
         );
@@ -641,10 +1156,10 @@ class AdminCommentReadSessionIntegrationTest {
     private void deleteComment(Long commentId) {
         jdbcTemplate.update(
                 """
-                update community_comments
-                   set deleted_at = ?
-                 where id = ?
-                """,
+                        update community_comments
+                           set deleted_at = ?
+                         where id = ?
+                        """,
                 Timestamp.from(DELETED_AT),
                 commentId
         );
@@ -661,21 +1176,21 @@ class AdminCommentReadSessionIntegrationTest {
 
             case HIDDEN -> jdbcTemplate.update(
                     """
-                    update community_posts
-                       set hidden_at = ?
-                     where id = ?
-                    """,
+                            update community_posts
+                               set hidden_at = ?
+                             where id = ?
+                            """,
                     Timestamp.from(HIDDEN_AT),
                     postId
             );
 
             case DELETED -> jdbcTemplate.update(
                     """
-                    update community_posts
-                       set hidden_at = ?,
-                           deleted_at = ?
-                     where id = ?
-                    """,
+                            update community_posts
+                               set hidden_at = ?,
+                                   deleted_at = ?
+                             where id = ?
+                            """,
                     Timestamp.from(HIDDEN_AT),
                     Timestamp.from(DELETED_AT),
                     postId
@@ -701,5 +1216,33 @@ class AdminCommentReadSessionIntegrationTest {
         }
 
         return ids;
+    }
+
+    private JsonNode readMultipleStatusComments(
+            MockHttpSession session,
+            String keyword,
+            int page,
+            int size,
+            String... statuses
+    ) throws Exception {
+        MvcResult result = mockMvc.perform(
+                        get(PATH, targetPost.getId())
+                                .session(session)
+                                .queryParam("statuses", statuses)
+                                .queryParam("keyword", "  " + keyword + "  ")
+                                .queryParam("page", Integer.toString(page))
+                                .queryParam("size", Integer.toString(size))
+                )
+                .andExpect(status().isOk())
+                .andExpect(content().contentTypeCompatibleWith(
+                        MediaType.APPLICATION_JSON
+                ))
+                .andExpect(header().string(
+                        HttpHeaders.CACHE_CONTROL,
+                        "no-store"
+                ))
+                .andReturn();
+
+        return readJson(result);
     }
 }

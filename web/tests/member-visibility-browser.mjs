@@ -6,7 +6,7 @@ await fs.mkdir(out,{recursive:true})
 const browser=await chromium.launch({channel:'chrome',headless:true}),results=[]
 const stamp='2026-10-27T04:23:41.115818Z',member={memberId:7,nickname:'검증회원',email:'review@example.test',role:'ADMIN'}
 const post=id=>({id,visibility:'VISIBLE',createdAt:stamp,type:'QUESTION',topic:'HEARING_AID',title:`검증 게시글 ${id}`,contentPreview:'정상 미리보기',author:{memberId:7,nickname:member.nickname},commentCount:3,likeCount:2,liked:true})
-const comment=(id,pid=12)=>({commentId:id,createdAt:stamp,visibility:'VISIBLE',content:`검증 댓글 ${id}`,updatedAt:stamp,likeCount:3,liked:false,post:{postId:pid,title:`검증 게시글 ${pid}`,type:'QUESTION',topic:'HEARING_AID'}})
+const comment=(id,pid=12)=>({ contentUpdatedAt: null,commentId:id,createdAt:stamp,visibility:'VISIBLE',content:`검증 댓글 ${id}`,updatedAt:stamp,likeCount:3,liked:false,post:{postId:pid,title:`검증 게시글 ${pid}`,type:'QUESTION',topic:'HEARING_AID'}})
 const fail=code=>({code,message:'mock failure',fieldErrors:[]})
 const gate=()=>{let release,arrive;return {arrived:new Promise(r=>{arrive=r}),response:new Promise(r=>{release=r}),release:v=>release(v),arrive:()=>arrive()}}
 const button=(p,name)=>p.getByRole('button',{name,exact:true})
@@ -16,7 +16,7 @@ async function setup(width=1440){
  const ctx=await browser.newContext({viewport:{width,height:1000}}),p=await ctx.newPage();p.setDefaultTimeout(7000)
  const s={posts:Array.from({length:12},(_,i)=>post(12-i)),comments:[comment(3),comment(2,11),comment(1,10)],hidden:new Set([11]),commentHidden:new Set([3]),calls:[],user:{...member},write:null,read:null,publicRead:null}
  const privatePost=x=>s.hidden.has(x.id)?{...x,type:null,topic:null,title:null,contentPreview:null,author:null,commentCount:null,likeCount:null,liked:null,visibility:'HIDDEN'}:{...x}
- const privateComment=x=>s.hidden.has(x.post.postId)||s.commentHidden.has(x.commentId)?{...x,visibility:s.hidden.has(x.post.postId)?'PARENT_HIDDEN':'HIDDEN',content:null,updatedAt:null,likeCount:null,liked:null,post:{postId:x.post.postId,title:null,type:null,topic:null}}:{...x}
+ const privateComment=x=>s.hidden.has(x.post.postId)||s.commentHidden.has(x.commentId)?{...x,visibility:s.hidden.has(x.post.postId)?'PARENT_HIDDEN':'HIDDEN',content:null,updatedAt:null,contentUpdatedAt:null,likeCount:null,liked:null,post:{postId:x.post.postId,title:null,type:null,topic:null}}:{...x}
  const page=(u,list,key,convert)=>{const all=list.filter(x=>!u.searchParams.has('afterId')||x[key]<Number(u.searchParams.get('afterId'))),items=all.slice(0,10).map(convert),hasNext=all.length>10;return{items,hasNext,nextCursor:hasNext?{createdAt:stamp,[key==='id'?'postId':'commentId']:items.at(-1)[key]}:null}}
  s.postPage=u=>page(u,s.posts,'id',privatePost)
  const adminPost=id=>{const x=s.posts.find(x=>x.id===id);return {postId:id,type:x.type,topic:x.topic,title:x.title,content:'전체 검증 본문',author:{...x.author,withdrawn:false},status:s.hidden.has(id)?'HIDDEN':'VISIBLE',createdAt:stamp,updatedAt:stamp,hiddenAt:s.hidden.has(id)?stamp:null,deletedAt:null}}
@@ -35,7 +35,7 @@ async function setup(width=1440){
   if(path.startsWith('/api/v1/admin/posts/')){
    const parts=path.split('/'),id=Number(parts[5]),isComment=parts[6]==='comments'
    if(method==='POST'){assert.equal(r.request().headers()['x-csrf-token'],'mock-only');const hidden=parts.at(-1)==='hide',set=isComment?s.commentHidden:s.hidden,target=isComment?Number(parts[7]):id;if(hidden)set.add(target);else set.delete(target);return r.fulfill({json:{postId:id,...(isComment?{commentId:target}:{}),hidden,hiddenAt:hidden?stamp:null,changed:true}})}
-   if(isComment){const items=s.comments.filter(c=>c.post.postId===id).map(c=>({commentId:c.commentId,content:c.content,author:{...member,withdrawn:false},status:s.commentHidden.has(c.commentId)?'HIDDEN':'VISIBLE',createdAt:stamp,updatedAt:stamp,hiddenAt:s.commentHidden.has(c.commentId)?stamp:null,deletedAt:null}));return r.fulfill({json:{postId:id,postStatus:s.hidden.has(id)?'HIDDEN':'VISIBLE',items,page:0,size:20,totalElements:items.length,totalPages:items.length?1:0,hasNext:false,hasPrevious:false}})}
+   if(isComment){const items=s.comments.filter(c=>c.post.postId===id).map(c=>({ contentUpdatedAt: c.contentUpdatedAt,commentId:c.commentId,content:c.content,author:{...member,withdrawn:false},status:s.commentHidden.has(c.commentId)?'HIDDEN':'VISIBLE',createdAt:stamp,updatedAt:stamp,hiddenAt:s.commentHidden.has(c.commentId)?stamp:null,deletedAt:null}));return r.fulfill({json:{postId:id,postStatus:s.hidden.has(id)?'HIDDEN':'VISIBLE',items,page:0,size:20,totalElements:items.length,totalPages:items.length?1:0,hasNext:false,hasPrevious:false}})}
    return r.fulfill({json:adminPost(id)})
   }
   if(path.startsWith('/api/v1/community/posts/')){
@@ -45,7 +45,7 @@ async function setup(width=1440){
     return r.fulfill({status:204})
    }
    if(s.publicRead)return s.publicRead(r,u)
-   return r.fulfill({json:{items:[{commentId:100,content:'늦은 댓글 내용',createdAt:stamp,updatedAt:stamp,likeCount:0,liked:false,author:member}],hasNext:false,nextCursor:null}})
+   return r.fulfill({json:{items:[{ contentUpdatedAt: null,commentId:100,content:'늦은 댓글 내용',createdAt:stamp,updatedAt:stamp,likeCount:0,liked:false,author:member}],hasNext:false,nextCursor:null}})
   }
   return r.fulfill({status:404,json:fail('NOT_FOUND')})
  })
@@ -89,7 +89,7 @@ await run('stateful admin hide and restore feed author views; parent precedence 
  await p.goto(base+'/admin/posts/12');await button(p,'댓글 숨김 해제').waitFor();await moderate('댓글 숨김 해제');await p.getByRole('link',{name:'마이페이지',exact:true}).first().click();await count(p,'[data-member-post-id]',10);await comments(p);assert.match(await commentRow(p,3).innerText(),/검증 댓글 3/);assert.equal(s.calls.filter(c=>c.method==='POST'&&c.path.startsWith('/api/v1/admin/')).length,3)
 })
 await run('late inline response cannot resurrect hidden post after member refresh',async()=>{
- const{p,s}=await setup(),g=gate();s.publicRead=async r=>{g.arrive();await g.response;await r.fulfill({json:{items:[{commentId:100,content:'늦은 댓글 내용',createdAt:stamp,updatedAt:stamp,likeCount:0,liked:false,author:member}],hasNext:false,nextCursor:null}})}
+ const{p,s}=await setup(),g=gate();s.publicRead=async r=>{g.arrive();await g.response;await r.fulfill({json:{items:[{ contentUpdatedAt: null,commentId:100,content:'늦은 댓글 내용',createdAt:stamp,updatedAt:stamp,likeCount:0,liked:false,author:member}],hasNext:false,nextCursor:null}})}
  await open(p);await postRow(p,12).getByRole('button',{name:/^댓글 /}).click();await g.arrived
  // A successful deletion of another post invokes the real private-list invalidation path.
  s.hidden.add(12);await postRow(p,11).getByRole('button',{name:'게시글 관리'}).click();await postRow(p,11).getByRole('menuitem',{name:'삭제'}).click();await button(p,'삭제하기').click();await postRow(p,12).getByText('운영 정책에 따라 숨겨진 게시글입니다.').waitFor()

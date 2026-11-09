@@ -1,0 +1,739 @@
+--- a/web/src/components/admin/AdminStatusFilter.tsx
++++ b/web/src/components/admin/AdminStatusFilter.tsx
+@@ -1,16 +1,15 @@
+ "use client"
+ import { useId } from "react"
+ import { ADMIN_CONTENT_STATUSES, ADMIN_STATUSES, normalizeAdminStatuses, type AdminContentStatus } from "@/lib/admin-posts"
+-export default function AdminStatusFilter({label, value, onChange, error}: {
+-  label: string; value: readonly AdminContentStatus[]; onChange: (value: AdminContentStatus[]) => void; error: string
++export default function AdminStatusFilter({label, value, onChange}: {
++  label: string; value: readonly AdminContentStatus[]; onChange: (value: AdminContentStatus[]) => void
+ }) {
+   const id = useId()
+-  return <fieldset className="admin-status-filter" aria-describedby={error ? `${id}-error` : undefined} aria-invalid={!!error}>
+-    <legend>{label}</legend>
++  return <fieldset className="admin-status-filter" aria-label={label}>
++    <legend>{label}<span className="admin-multiple-hint">복수 선택</span></legend>
+     <div className="admin-status-options">{ADMIN_CONTENT_STATUSES.map(status => <label key={status} htmlFor={`${id}-${status}`}>
+       <input id={`${id}-${status}`} type="checkbox" checked={value.includes(status)} onChange={event => onChange(normalizeAdminStatuses(event.target.checked ? [...value,status] : value.filter(v => v !== status)))}/>
+       {ADMIN_STATUSES[status]}
+     </label>)}</div>
+-    {error && <p id={`${id}-error`} role="alert">{error}</p>}
+   </fieldset>
+ }
+--- /dev/null
++++ b/web/src/lib/useAdminContentFilters.ts
+@@ -0,0 +1,67 @@
++"use client"
++import { useCallback, useEffect, useRef, useState, type KeyboardEvent } from "react"
++import { ADMIN_CONTENT_STATUSES, adminKeywordError, normalizeAdminKeyword, normalizeAdminStatuses, type AdminQuery, type AdminContentStatus } from "./admin-posts"
++
++// Post/comment reads only: moderation writes keep their independent ownership.
++export function useAdminContentFilters(initial: AdminQuery) {
++  const [query, setQuery] = useState(initial)
++  const [statuses, setStatuses] = useState(initial.statuses)
++  const [input, setInput] = useState(initial.keyword)
++  const [validation, setValidation] = useState("")
++  const [pending, setPending] = useState(false)
++  const timer = useRef<ReturnType<typeof setTimeout> | null>(null)
++  const generation = useRef(0)
++  const read = useRef<AbortController | null>(null)
++  const composing = useRef(false)
++  const invalidate = useCallback(() => {
++    generation.current++
++    read.current?.abort()
++    if (timer.current !== null) clearTimeout(timer.current)
++    timer.current = null
++  }, [])
++  useEffect(() => invalidate, [invalidate])
++  const beginRead = useCallback((controller: AbortController) => {
++    read.current = controller
++    const owner = generation.current
++    return () => owner === generation.current && !controller.signal.aborted
++  }, [])
++  const change = (next: AdminQuery) => {
++    invalidate()
++    setPending(false)
++    setQuery({...next, statuses: [...next.statuses]})
++  }
++  const selectStatuses = (values: readonly AdminContentStatus[]) => {
++    invalidate() // Also reject delivery during the debounce window, even if transport ignores abort.
++    const next = normalizeAdminStatuses(values)
++    setStatuses(next)
++    setPending(next.length > 0)
++    if (!next.length) return
++    const owner = generation.current
++    timer.current = setTimeout(() => {
++      if (owner !== generation.current) return
++      timer.current = null
++      setQuery({...query, statuses: [...next], page: 0})
++      setPending(false)
++    }, 200)
++  }
++  const search = () => {
++    if (composing.current || !statuses.length) return
++    const error = adminKeywordError(input)
++    setValidation(error)
++    if (error) return
++    change({statuses, keyword: normalizeAdminKeyword(input), page: 0})
++  }
++  const reset = () => {
++    setStatuses([...ADMIN_CONTENT_STATUSES]); setInput(""); setValidation("")
++    change({statuses: ADMIN_CONTENT_STATUSES, keyword: "", page: 0})
++  }
++  const composition = {
++    onCompositionStart: () => { composing.current = true },
++    onCompositionEnd: () => { composing.current = false },
++    onKeyDown: (event: KeyboardEvent<HTMLInputElement>) => {
++      if (event.key === "Enter" && (composing.current || event.nativeEvent.isComposing || event.keyCode === 229)) event.preventDefault()
++    },
++  }
++  return {query, setQuery, statuses, input, setInput, validation, setValidation, pending,
++    empty: !statuses.length, beginRead, change, selectStatuses, search, reset, composition}
++}
+--- a/web/src/components/admin/AdminComments.tsx
++++ b/web/src/components/admin/AdminComments.tsx
+@@ -2,8 +2,9 @@
+ import { useEffect, useId, useRef, useState } from "react"
+ import { useAuth } from "@/components/AuthProvider"
+ import { useNavigationRequest } from "@/components/NavigationGuard"
+-import { ADMIN_CONTENT_STATUSES, sameAdminStatuses, AdminApiError, adminKeywordError, normalizeAdminKeyword, type AdminQuery } from "@/lib/admin-posts"
++import { ADMIN_CONTENT_STATUSES, AdminApiError, type AdminQuery } from "@/lib/admin-posts"
+ import { getAdminComments, type AdminCommentPage } from "@/lib/admin-detail"
++import { useAdminContentFilters } from "@/lib/useAdminContentFilters"
+ import AdminStatusFilter from "./AdminStatusFilter"
+ import AdminPagination from "./AdminPagination"
+ import { AdminCommentMeta, AdminAuthor, AdminStatusBadge } from "./AdminContentMeta"
+@@ -13,13 +14,14 @@
+   const adjusted=useRef(0)
+   const auth=useAuth(),scope=useNavigationRequest(),uid=useId()
+   const capture=auth.captureMemberRequest,memberId=auth.member!.memberId
+-  const [query,setQuery]=useState<AdminQuery>({statuses:ADMIN_CONTENT_STATUSES,keyword:"",page:0})
+-  const [statuses,setStatuses]=useState(ADMIN_CONTENT_STATUSES),[statusError,setStatusError]=useState("")
+-  const [input,setInput]=useState(""),[validation,setValidation]=useState(""),[retry,setRetry]=useState(0)
++  const {query,setQuery,statuses,input,setInput,validation,setValidation,pending,empty,beginRead,
++    change,selectStatuses,search,reset,composition}=useAdminContentFilters({statuses:ADMIN_CONTENT_STATUSES,keyword:"",page:0})
++  const [retry,setRetry]=useState(0)
+   const [result,setResult]=useState<{query:AdminQuery;attempt:number;revision:number;data?:AdminCommentPage;error?:string;notFound?:boolean}|null>(null)
+   useEffect(()=>{
+-    const controller=new AbortController(),navigation=scope.begin(),session=capture(memberId)
+-    const current=()=>readCurrent(revision) && !controller.signal.aborted && navigation() && session.isCurrent()
++    if(pending||empty||!scope.isActive())return
++    const controller=new AbortController(),navigation=scope.begin(),session=capture(memberId),ownsRead=beginRead(controller)
++    const current=()=>readCurrent(revision) && ownsRead() && navigation() && session.isCurrent()
+     void getAdminComments(postId,query,controller.signal).then(data=>{if(current()){
+       if(revision>0 && adjusted.current!==revision && query.page>0 && query.page>=data.totalPages){
+         adjusted.current=revision;setQuery({...query,page:Math.max(0,data.totalPages-1)});return
+@@ -34,21 +36,24 @@
+         error:notFound?"댓글 대상 게시글을 확인하지 못했습니다. 게시글이 존재하는지 다시 확인해 주세요." : error instanceof Error?error.message:"댓글을 가져오지 못했습니다."}))
+     })
+     return()=>controller.abort()
+-  },[postId,query,retry,capture,memberId,scope,onForbidden,revision,readCurrent])
+-  const active=result?.query===query && result.attempt===retry && result.revision===revision?result:null,busy=!active
+-  const change=(next:AdminQuery)=>setQuery(old=>sameAdminStatuses(old.statuses,next.statuses)&&old.keyword===next.keyword&&old.page===next.page?old:next)
++  },[postId,query,retry,capture,memberId,scope,onForbidden,revision,readCurrent,pending,empty,beginRead,setQuery])
++  const active=!pending&&!empty&&result?.query===query && result.attempt===retry && result.revision===revision?result:null,busy=!empty&&!active
++
+   const data=active?.data
+   return <section className="admin-panel admin-comments" aria-labelledby={`${uid}-heading`}>
+     <div className="admin-comments-heading"><h2 id={`${uid}-heading`}>댓글 관리</h2><span>등록순</span></div>
+     {data && data.postStatus !== "VISIBLE" && <p className="admin-parent-status">{data.postStatus === "HIDDEN" ? "게시글이 숨겨져 있어 댓글도 일반 사용자에게 표시되지 않습니다." : "게시글이 삭제되어 댓글도 일반 사용자에게 표시되지 않습니다."}</p>}
+-    <form className="admin-filters" onSubmit={e=>{e.preventDefault();const error=adminKeywordError(input);setValidation(error);setStatusError(statuses.length?"":"조회할 상태를 하나 이상 선택해 주세요.");if(!error&&statuses.length)change({...query,statuses:[...statuses],keyword:normalizeAdminKeyword(input),page:0})}}>
+-      <AdminStatusFilter label="댓글 상태" value={statuses} error={statusError} onChange={next=>{setStatuses(next);if(next.length)setStatusError("")}}/>
+-      <label className="admin-search" htmlFor={`${uid}-keyword`}>댓글 본문 검색<input id={`${uid}-keyword`} value={input} onChange={e=>{setInput(e.target.value);setValidation("")}} placeholder="댓글 본문 검색" aria-invalid={!!validation} aria-describedby={validation?`${uid}-error`:undefined}/></label>
+-      <button type="submit" aria-label="댓글 검색">검색</button><button type="button" aria-label="댓글 검색 초기화" onClick={()=>{setInput("");setValidation("");setStatuses([...ADMIN_CONTENT_STATUSES]);setStatusError("");if(query.statuses.length===3&&!query.keyword&&query.page===0)setRetry(n=>n+1);change({statuses:[...ADMIN_CONTENT_STATUSES],keyword:"",page:0})}}>초기화</button>
++    <form className="admin-filters admin-comment-filters" onSubmit={e=>{e.preventDefault();search()}}>
++      <AdminStatusFilter label="댓글 상태" value={statuses} onChange={selectStatuses}/>
++      <div className="admin-filter-search-row">
++        <label className="admin-search" htmlFor={`${uid}-keyword`}>댓글 본문 검색<input id={`${uid}-keyword`} value={input} {...composition} onChange={e=>{setInput(e.target.value);setValidation("")}} placeholder="댓글 본문 검색" aria-invalid={!!validation} aria-describedby={validation?`${uid}-error`:undefined}/></label>
++        <button type="submit" aria-label="댓글 검색">검색</button>
++      </div>
++      <button type="button" className="admin-filter-reset" aria-label="댓글 검색 초기화" onClick={reset}>초기화</button>
+     </form>
+     {validation&&<p id={`${uid}-error`} role="alert">{validation}</p>}
+     <div className="admin-comment-results" aria-busy={busy}>
+-      {busy?<p role="status">댓글을 불러오고 있습니다…</p>:active?.error?<div role="alert"><p>{completed && "변경 결과는 확인됐지만 최신 댓글을 불러오지 못했습니다. "}{active.error}</p><button onClick={()=>setRetry(n=>n+1)}>댓글 다시 시도</button></div>:data&&<>
++      {empty?<p className="admin-empty-selection">표시할 상태를 선택해 주세요.</p>:busy?<p role="status">댓글을 불러오고 있습니다…</p>:active?.error?<div role="alert"><p>{completed && "변경 결과는 확인됐지만 최신 댓글을 불러오지 못했습니다. "}{active.error}</p><button onClick={()=>setRetry(n=>n+1)}>댓글 다시 시도</button></div>:data&&<>
+         <div className="admin-comment-summary"><p>검색 결과 <strong>{data.totalElements.toLocaleString("ko-KR")}</strong>개</p><p className="admin-timezone">한국 시간 (KST)</p></div>
+         {!data.items.length ? query.page>0 && query.page>=data.totalPages ? <p>현재 페이지가 조회 범위를 벗어났습니다. <button onClick={()=>change({...query,page:0})}>댓글 첫 페이지로</button></p> : <p>{query.keyword||query.statuses.length!==3?"검색 조건에 맞는 댓글이 없습니다.":"아직 댓글이 없습니다."}</p> :
+           <ol className="admin-comment-list">{data.items.map(item=><li key={item.commentId} data-admin-comment-id={item.commentId}>
+@@ -59,6 +64,6 @@
+           </li>)}</ol>}
+       </>}
+     </div>
+-    {result?.data&&<AdminPagination label="댓글 페이지" data={result.data} busy={busy} failed={!!active?.error} onPage={page=>{if(!busy&&!active?.error)change({...query,page})}}/>}
++    {!empty&&result?.data&&result.data.totalPages>1&&<AdminPagination label="댓글 페이지" data={result.data} busy={busy} failed={!!active?.error} onPage={page=>{if(!busy&&!active?.error)change({...query,page})}}/>}
+   </section>
+ }
+--- a/web/src/features/AdminPosts.tsx
++++ b/web/src/features/AdminPosts.tsx
+@@ -4,6 +4,7 @@
+ import { useNavigationRequest } from "@/components/NavigationGuard"
+ import Link from "@/components/AppLink"
+ import { adminListHref } from "@/lib/admin-navigation"
++import { useAdminContentFilters } from "@/lib/useAdminContentFilters"
+ import AdminStatusFilter from "@/components/admin/AdminStatusFilter"
+ import AdminPagination from "@/components/admin/AdminPagination"
+ import WrittenTime from "@/components/WrittenTime"
+@@ -11,24 +12,18 @@
+ import {
+   ADMIN_STATUSES,
+   AdminApiError,
+-  adminKeywordError,
+   getAdminPosts,
+-  normalizeAdminKeyword,
+   type AdminQuery,
+   type AdminPage,
+   ADMIN_CONTENT_STATUSES,
+-  sameAdminStatuses,
+ } from "@/lib/admin-posts"
+ export default function AdminPosts({ initialQuery = {statuses: ADMIN_CONTENT_STATUSES, keyword: "", page: 0} }: {initialQuery?: AdminQuery}) {
+   const adjusted = useRef(false)
+   const auth = useAuth(),
+     scope = useNavigationRequest()
+-  const [query, setQuery] = useState<AdminQuery>(initialQuery)
+-  const [statuses, setStatuses] = useState(initialQuery.statuses)
+-  const [statusError, setStatusError] = useState("")
+-  const [input, setInput] = useState(initialQuery.keyword),
+-    [validation, setValidation] = useState(""),
+-    [retry, setRetry] = useState(0)
++  const {query, setQuery, statuses, input, setInput, validation, setValidation, pending,
++    empty, beginRead, change: apply, selectStatuses, search, reset, composition} = useAdminContentFilters(initialQuery)
++  const [retry, setRetry] = useState(0)
+   const [result, setResult] = useState<{
+     query: AdminQuery
+     attempt: number
+@@ -36,15 +31,17 @@
+     error?: string
+     forbidden?: boolean
+   } | null>(null)
+-  useEffect(() => { window.history.replaceState(window.history.state, "", adminListHref(query)) }, [query])
++  useEffect(() => { if (!empty) window.history.replaceState(window.history.state, "", adminListHref(query)) }, [query, empty])
+   const memberId = auth.member!.memberId,
+     capture = auth.captureMemberRequest
+   useEffect(() => {
++    if (pending || empty || !scope.isActive()) return
+     const controller = new AbortController(),
+       navigation = scope.begin(),
+-      session = capture(memberId)
++      session = capture(memberId),
++      ownsRead = beginRead(controller)
+     const current = () =>
+-      !controller.signal.aborted && navigation() && session.isCurrent()
++      ownsRead() && navigation() && session.isCurrent()
+     void getAdminPosts(query, controller.signal)
+       .then((data) => {
+         if (current()) {
+@@ -70,18 +67,12 @@
+         }))
+       })
+     return () => controller.abort()
+-  }, [query, retry, memberId, capture, scope])
+-  const active = result?.query === query && result.attempt === retry ? result : null,
+-    busy = !active
++  }, [query, retry, memberId, capture, scope, pending, empty, beginRead, setQuery])
++  const active = !pending && !empty && result?.query === query && result.attempt === retry ? result : null,
++    busy = !empty && !active
+   const change = (next: AdminQuery) => {
+     adjusted.current = false
+-    setQuery((old) =>
+-      sameAdminStatuses(old.statuses, next.statuses) &&
+-      old.keyword === next.keyword &&
+-      old.page === next.page
+-        ? old
+-        : next,
+-    )
++    apply(next)
+   }
+   return (
+     <>
+@@ -90,52 +81,19 @@
+         <h1>게시글 관리</h1>
+         <p>게시글의 제목과 공개 상태를 확인합니다.</p>
+       </header>
+-      <section className="admin-panel" aria-label="게시글 목록 관리">
+-        <form
+-          className="admin-filters"
+-          onSubmit={(event) => {
+-            event.preventDefault()
+-            const error = adminKeywordError(input)
+-            setValidation(error)
+-            setStatusError(statuses.length ? "" : "조회할 상태를 하나 이상 선택해 주세요.")
+-            if (!error && statuses.length)
+-              change({
+-                ...query,
+-                statuses: [...statuses],
+-                keyword: normalizeAdminKeyword(input),
+-                page: 0,
+-              })
+-          }}
+-        >
+-          <AdminStatusFilter label="게시글 상태" value={statuses} error={statusError} onChange={next => {setStatuses(next); if(next.length) setStatusError("")}} />
+-          <label className="admin-search">
+-            게시글 제목 검색
+-            <input
+-              value={input}
+-              onChange={(e) => {
+-                setInput(e.target.value)
+-                setValidation("")
+-              }}
+-              aria-invalid={!!validation}
+-              aria-describedby={validation ? "admin-search-error" : undefined}
+-              placeholder="게시글 제목 검색"
+-            />
+-          </label>
+-          <button type="submit">검색</button>
+-          <button
+-            type="button"
+-            className="admin-secondary"
+-            onClick={() => {
+-              setInput("")
+-              setValidation("")
+-              setStatuses([...ADMIN_CONTENT_STATUSES])
+-              setStatusError("")
+-              if (query.statuses.length === 3 && !query.keyword && query.page === 0) setRetry(n => n + 1)
+-              change({ statuses: [...ADMIN_CONTENT_STATUSES], keyword: "", page: 0 })
+-            }}
+-          >
+-            초기화
+-          </button>
++      <section className="admin-panel admin-posts-panel" aria-label="게시글 목록 관리">
++        <form className="admin-filters admin-post-filters" onSubmit={event => {event.preventDefault(); adjusted.current = false; search()}}>
++          <div className="admin-filter-search-row">
++            <label className="admin-search">게시글 제목 검색
++              <input value={input} {...composition} onChange={e=>{setInput(e.target.value);setValidation("")}}
++                aria-invalid={!!validation} aria-describedby={validation ? "admin-search-error" : undefined} placeholder="게시글 제목 검색"/>
++            </label>
++            <button type="submit">검색</button>
++          </div>
++          <div className="admin-filter-state-row">
++            <AdminStatusFilter label="게시글 상태" value={statuses} onChange={next=>{adjusted.current=false;selectStatuses(next)}}/>
++            <button type="button" className="admin-filter-reset" onClick={()=>{adjusted.current=false;reset()}}>초기화</button>
++          </div>
+         </form>
+         {validation && (
+           <p id="admin-search-error" role="alert">
+@@ -143,7 +101,7 @@
+           </p>
+         )}
+         <div className="admin-results" aria-busy={busy}>
+-          {busy ? (
++          {empty ? <p className="admin-empty-selection">표시할 상태를 선택해 주세요.</p> : busy ? (
+             <p role="status">게시글을 불러오고 있습니다…</p>
+           ) : active?.error ? (
+             <div role="alert">
+@@ -226,7 +184,7 @@
+             )
+           )}
+         </div>
+-        {result?.data && !active?.forbidden && <AdminPagination data={result.data} busy={busy} failed={!!active?.error}
++        {!empty && result?.data && result.data.totalPages > 1 && !active?.forbidden && <AdminPagination data={result.data} busy={busy} failed={!!active?.error}
+           onPage={page => { if (!busy && !active?.error) change({ ...query, page }) }} />}
+       </section>
+     </>
+--- a/web/src/styles/admin.css
++++ b/web/src/styles/admin.css
+@@ -105,10 +105,32 @@
+ 
+ .admin-moderation-dialog select { display: block; width: 100%; min-width: 0; margin-top: 8px; padding: 12px; border: 1px solid #b9ccd8; border-radius: 6px; background: white; }
+ 
+-/* Only the post/comment multi-status fieldset; operation-log filters are unchanged. */
++
++/* Post/comment filters only; operation log filters retain their layout. */
+ .admin-status-filter { border: 0; padding: 0; margin: 0; min-width: 0; max-width: 100%; }
+-.admin-status-filter legend { font-weight: 600; margin-bottom: 6px; }
+-.admin-status-options { display: flex; flex-wrap: wrap; gap: 4px 12px; }
+-.admin-filters .admin-status-options label { display: flex; align-items: center; gap: 6px; min-height: 46px; cursor: pointer; }
+-.admin-shell .admin-status-options input[type=checkbox] { width: 18px; height: 18px; min-height: 18px; flex: 0 0 18px; padding: 0; accent-color: #007d95; }
+-.admin-status-filter [role=alert] { max-width: 280px; }
++.admin-status-filter legend { font-weight: 600; margin-bottom: 8px; }
++.admin-multiple-hint { margin-left: 10px; color: #526c80; font-size: 12px; font-weight: 400; }
++.admin-status-options { display: flex; flex-wrap: wrap; gap: 8px; }
++.admin-filters .admin-status-options label { display: flex; align-items: center; gap: 6px; min-height: 42px; padding: 8px 10px; border: 1px solid #cedbe3; border-radius: 9px; background: white; cursor: pointer; font-size: 14px; }
++.admin-filters .admin-status-options label:has(input:checked) { background: #e9f5f7; border-color: #007d95; color: #006f83; }
++.admin-filters .admin-status-options label:has(input:focus-visible) { outline: 3px solid #007d95; outline-offset: 2px; }
++.admin-shell .admin-status-options input[type=checkbox] { width: 16px; height: 16px; min-height: 16px; flex: 0 0 16px; margin: 0; padding: 0; accent-color: #007d95; }
++.admin-shell .admin-status-options input:focus-visible { outline: none; }
++.admin-post-filters { display: grid; gap: 16px; }
++.admin-filter-search-row { display: flex; align-items: flex-end; gap: 8px; min-width: 0; }
++.admin-filter-search-row .admin-search { min-width: 0; flex: 1; }
++.admin-filter-search-row input { width: 100%; }
++.admin-filter-search-row button { flex: 0 0 auto; }
++.admin-filter-state-row { display: flex; align-items: flex-end; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
++.admin-filters .admin-filter-reset { background: transparent; border-color: transparent; color: #526c80; padding: 8px; font-size: 14px; flex: 0 0 auto; margin-left: auto; }
++.admin-posts-panel .admin-results { min-height: 0; margin-top: 20px; }
++.admin-detail-view .admin-comment-filters { display: flex; align-items: flex-end; gap: 12px 20px; margin: 20px 0; }
++.admin-comment-filters .admin-filter-search-row { flex: 1; }
++.admin-comment-summary { padding-bottom: 12px; border-bottom: 1px solid #dce5eb; }
++.admin-empty-selection { padding: 20px 0; color: #526c80; }
++@media(max-width:760px) {
++  .admin-comment-filters .admin-filter-search-row { flex-basis: 100%; }
++  .admin-filter-search-row button { padding-inline: 12px; }
++  .admin-detail-view .admin-filter-search-row button { flex: 0 0 auto; }
++  .admin-filters .admin-status-options label { padding-inline: 8px; }
++}
+--- a/web/tests/admin-posts-browser.mjs
++++ b/web/tests/admin-posts-browser.mjs
+@@ -1,3 +1,4 @@
++import { adminChipScenarios } from "./helpers/admin-chip-scenarios.mjs"
+ import assert from "node:assert/strict"
+ import fs from "node:fs/promises"
+ const { chromium } = await import(process.env.PLAYWRIGHT_MODULE ?? "playwright")
+@@ -55,7 +56,7 @@
+   const field = p.getByRole('group', {name: group, exact: true})
+   for (const [value,label] of [['VISIBLE','정상'],['HIDDEN','숨김'],['DELETED','삭제']])
+     await field.getByRole('checkbox',{name:label,exact:true}).setChecked(statuses.includes(value))
+-  await p.getByRole('button',{name:group==='게시글 상태'?'검색':'댓글 검색',exact:true}).click()
++  // State chips apply automatically; callers wait for the resulting read.
+ }
+ 
+ async function setup(role = "ADMIN", width = 1440) {
+@@ -463,43 +464,7 @@
+     await context.close()
+   })
+ 
+-for (const width of [1440,320]) await run(`multi-status applied vs draft filters ${width}`, async()=>{
+- const {context,p,state}=await setup('ADMIN',width)
+- await p.goto(base+'/admin/posts');await ready(p)
+- const group=p.getByRole('group',{name:'게시글 상태',exact:true}), input=p.getByLabel('게시글 제목 검색',{exact:true})
+- const check=name=>group.getByRole('checkbox',{name,exact:true})
+- const params=()=>new URLSearchParams(reads(state).at(-1).search)
+- assert.deepEqual(params().getAll('statuses'),['VISIBLE','HIDDEN','DELETED']);assert.equal(params().has('status'),false)
+- for(const name of ['정상','숨김','삭제'])assert(await check(name).isChecked())
+- const count=reads(state).length
+- await check('삭제').uncheck();await input.fill('  보청기 적응  ')
+- await p.evaluate(()=>new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve))))
+- assert.equal(reads(state).length,count)
+- await p.getByRole('button',{name:'다음',exact:true}).click();await ready(p)
+- assert.deepEqual(params().getAll('statuses'),['VISIBLE','HIDDEN','DELETED']);assert.equal(params().has('keyword'),false)
+- assert.equal(params().get('page'),'1')
+- await input.press('Enter');await ready(p)
+- assert.deepEqual(params().getAll('statuses'),['VISIBLE','HIDDEN']);assert.equal(params().get('keyword'),'보청기 적응');assert.equal(params().get('page'),'0')
+- await check('정상').uncheck();await p.getByRole('button',{name:'검색',exact:true}).click();await ready(p)
+- assert.deepEqual(params().getAll('statuses'),['HIDDEN'])
+- await check('숨김').uncheck();const before=reads(state).length
+- await p.getByRole('button',{name:'검색',exact:true}).click()
+- await group.getByRole('alert').waitFor();assert.equal(reads(state).length,before)
+- assert.equal(await group.getByRole('alert').textContent(),'조회할 상태를 하나 이상 선택해 주세요.')
+- await check('삭제').check();assert.equal(await group.getByRole('alert').count(),0)
+- assert.equal(reads(state).length,before)
+- await p.getByRole('button',{name:'초기화',exact:true}).click();await ready(p)
+- assert.deepEqual(params().getAll('statuses'),['VISIBLE','HIDDEN','DELETED']);assert.equal(params().has('status'),false)
+- assert.equal(params().has('keyword'),false);assert.equal(params().get('page'),'0');assert.equal(await input.inputValue(),'')
+- const resetCount=reads(state).length
+- await p.getByRole('button',{name:'초기화',exact:true}).click();await ready(p)
+- assert.equal(reads(state).length,resetCount+1)
+- await check('정상').focus();await p.keyboard.press('Space');assert.equal(await check('정상').isChecked(),false)
+- assert(await p.evaluate(()=>document.documentElement.scrollWidth<=innerWidth))
+- for(const box of await group.getByRole('checkbox').all())assert(await box.isVisible())
+- await p.screenshot({path:`${out}/multi-status-posts-${width}.png`,fullPage:true})
+- await context.close()
+-})
++await adminChipScenarios({run,setup,base,out,kind:'posts',ready:ready,reads:reads,template:payload})
+ 
+ await browser.close()
+ await fs.writeFile(`${out}/results.json`, JSON.stringify(results, null, 2))
+--- a/web/tests/admin-detail-browser.mjs
++++ b/web/tests/admin-detail-browser.mjs
+@@ -1,3 +1,4 @@
++import { adminChipScenarios } from "./helpers/admin-chip-scenarios.mjs"
+ import assert from "node:assert/strict"
+ import fs from "node:fs/promises"
+ const { chromium } = await import(process.env.PLAYWRIGHT_MODULE ?? "playwright")
+@@ -55,7 +56,7 @@
+   const field = p.getByRole('group', {name: group, exact: true})
+   for (const [value,label] of [['VISIBLE','정상'],['HIDDEN','숨김'],['DELETED','삭제']])
+     await field.getByRole('checkbox',{name:label,exact:true}).setChecked(statuses.includes(value))
+-  await p.getByRole('button',{name:group==='게시글 상태'?'검색':'댓글 검색',exact:true}).click()
++  // State chips apply automatically; callers wait for the resulting read.
+ }
+ 
+ async function setup(role = "ADMIN", width = 1440) {
+@@ -301,43 +302,7 @@
+ })
+ 
+ 
+-for (const width of [1440,320]) await run(`multi-status applied vs draft filters ${width}`, async()=>{
+- const {context,p,state}=await setup('ADMIN',width)
+- await p.goto(base+'/admin/posts/2');await commentReady(p)
+- const group=p.getByRole('group',{name:'댓글 상태',exact:true}), input=p.getByLabel('댓글 본문 검색',{exact:true})
+- const check=name=>group.getByRole('checkbox',{name,exact:true})
+- const params=()=>new URLSearchParams(commentReads(state).at(-1).search)
+- assert.deepEqual(params().getAll('statuses'),['VISIBLE','HIDDEN','DELETED']);assert.equal(params().has('status'),false)
+- for(const name of ['정상','숨김','삭제'])assert(await check(name).isChecked())
+- const count=commentReads(state).length
+- await check('삭제').uncheck();await input.fill('  보청기 적응  ')
+- await p.evaluate(()=>new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve))))
+- assert.equal(commentReads(state).length,count)
+- await p.getByRole('button',{name:'다음',exact:true}).click();await commentReady(p)
+- assert.deepEqual(params().getAll('statuses'),['VISIBLE','HIDDEN','DELETED']);assert.equal(params().has('keyword'),false)
+- assert.equal(params().get('page'),'1')
+- await input.press('Enter');await commentReady(p)
+- assert.deepEqual(params().getAll('statuses'),['VISIBLE','HIDDEN']);assert.equal(params().get('keyword'),'보청기 적응');assert.equal(params().get('page'),'0')
+- await check('정상').uncheck();await p.getByRole('button',{name:'댓글 검색',exact:true}).click();await commentReady(p)
+- assert.deepEqual(params().getAll('statuses'),['HIDDEN'])
+- await check('숨김').uncheck();const before=commentReads(state).length
+- await p.getByRole('button',{name:'댓글 검색',exact:true}).click()
+- await group.getByRole('alert').waitFor();assert.equal(commentReads(state).length,before)
+- assert.equal(await group.getByRole('alert').textContent(),'조회할 상태를 하나 이상 선택해 주세요.')
+- await check('삭제').check();assert.equal(await group.getByRole('alert').count(),0)
+- assert.equal(commentReads(state).length,before)
+- await p.getByRole('button',{name:'댓글 검색 초기화',exact:true}).click();await commentReady(p)
+- assert.deepEqual(params().getAll('statuses'),['VISIBLE','HIDDEN','DELETED']);assert.equal(params().has('status'),false)
+- assert.equal(params().has('keyword'),false);assert.equal(params().get('page'),'0');assert.equal(await input.inputValue(),'')
+- const resetCount=commentReads(state).length
+- await p.getByRole('button',{name:'댓글 검색 초기화',exact:true}).click();await commentReady(p)
+- assert.equal(commentReads(state).length,resetCount+1)
+- await check('정상').focus();await p.keyboard.press('Space');assert.equal(await check('정상').isChecked(),false)
+- assert(await p.evaluate(()=>document.documentElement.scrollWidth<=innerWidth))
+- for(const box of await group.getByRole('checkbox').all())assert(await box.isVisible())
+- await p.screenshot({path:`${out}/multi-status-detail-${width}.png`,fullPage:true})
+- await context.close()
+-})
++await adminChipScenarios({run,setup,base,out,kind:'comments',ready:commentReady,reads:commentReads,template:page=>commentPage(2,page)})
+ 
+ await browser.close()
+ await fs.writeFile(`${out}/results.json`,JSON.stringify(results,null,2))
+--- a/web/tests/admin-moderation-browser.mjs
++++ b/web/tests/admin-moderation-browser.mjs
+@@ -55,7 +55,7 @@
+   const field = p.getByRole('group', {name: group, exact: true})
+   for (const [value,label] of [['VISIBLE','정상'],['HIDDEN','숨김'],['DELETED','삭제']])
+     await field.getByRole('checkbox',{name:label,exact:true}).setChecked(statuses.includes(value))
+-  await p.getByRole('button',{name:group==='게시글 상태'?'검색':'댓글 검색',exact:true}).click()
++  // State chips apply automatically; callers wait for the resulting read.
+ }
+ 
+ async function setup(role = "ADMIN", width = 1440) {
+@@ -202,8 +202,7 @@
+  await p.getByLabel('댓글 본문 검색',{exact:true}).fill('  적용 검색어  ')
+  await button(p,'댓글 검색').click();await commentReady(p)
+  await button(p,'다음').click();await commentReady(p)
+- // Pending edits must not leak into the mutation's GET or its corrective page GET.
+- await p.getByRole('group',{name:'댓글 상태'}).getByRole('checkbox',{name:'숨김',exact:true}).check()
++ // Unsubmitted keyword edits must not leak into either follow-up GET.
+  await p.getByLabel('댓글 본문 검색',{exact:true}).fill('아직 적용하지 않은 검색어')
+  const before=commentReads(state).length
+  const original=state.comments;state.comments=(r,u)=>state.commentHidden?r.fulfill({json:{...commentPage(1,Number(u.searchParams.get('page'))),items:[],totalElements:0,totalPages:0,hasNext:false}}):original(r,u)
+@@ -294,8 +293,10 @@
+  state.read=(r,u)=>{const page=Number(u.searchParams.get('page'));return r.fulfill({json:{...payload(page),items:page?[]:[item(2)],totalElements:1,totalPages:1,hasNext:false,hasPrevious:page>0}})}
+  await p.getByRole('link',{name:'← 목록으로'}).click();await ready(p)
+  await p.getByRole('link',{name:'검증 게시글 2',exact:true}).waitFor()
+- assert.equal(await p.getByLabel('페이지 바로 이동',{exact:true}).inputValue(),'1')
+- assert.equal(state.calls.filter(c=>c.path==='/api/v1/admin/posts').length,2)
++ assert.equal(await p.getByLabel('페이지 바로 이동',{exact:true}).count(),0)
++ const reads=state.calls.filter(c=>c.path==='/api/v1/admin/posts')
++ assert.deepEqual(reads.map(c=>new URLSearchParams(c.search).get('page')),['1','0'])
++ assert.equal(new URL(p.url()).searchParams.get('page'),'0')
+  await context.close()
+ })
+ 
+@@ -333,4 +334,27 @@
+  assert.deepEqual(requests[1].body,{reasonType:'OTHER',reasonDetail:'보존할 상세'});assert(await p.evaluate(()=>document.documentElement.scrollWidth<=innerWidth))
+  await p.screenshot({path:`${out}/other-error-${width}.png`});await context.close()
+ })
++
++for(const empty of [false,true])await run(`moderation follow-up read cannot undo changed chips: empty=${empty}`,async()=>{
++ const {context,p,state}=await moderation()
++ const hold=gate()
++ try {
++  await p.addInitScript(()=>{const f=window.fetch;window.fetch=(u,o)=>f(u,String(u).includes('/comments?')?{...o,signal:undefined}:o)})
++  await p.goto(base+'/admin/posts/1',{waitUntil:'domcontentloaded'});await settled(p)
++  const original=state.comments
++  state.comments=async(r,u)=>{hold.arrive();await hold.response;await original(r,u)}
++  await execute(p,'댓글 숨김 처리');await hold.arrived;await dialog(p).waitFor({state:'hidden'})
++  const field=p.getByRole('group',{name:'댓글 상태',exact:true})
++  await field.getByRole('checkbox',{name:'정상',exact:true}).uncheck()
++  if(empty){await field.getByRole('checkbox',{name:'숨김',exact:true}).uncheck();await field.getByRole('checkbox',{name:'삭제',exact:true}).uncheck()}
++  state.comments=r=>r.fulfill({json:{...commentPage(1),items:[],totalElements:0,totalPages:0,hasNext:false}})
++  const done=p.waitForEvent('requestfinished',{predicate:r=>r.url().includes('/comments?statuses=VISIBLE')})
++  hold.release();await done;await commentReady(p)
++  assert.equal(writes(state).length,1)
++  assert.equal(await p.locator('.admin-comment-list li').count(),0)
++  if(empty)await p.getByText('표시할 상태를 선택해 주세요.',{exact:true}).waitFor()
++  else {assert.deepEqual(new URLSearchParams(commentReads(state).at(-1).search).getAll('statuses'),['HIDDEN','DELETED']);await p.getByText('검색 조건에 맞는 댓글이 없습니다.',{exact:true}).waitFor()}
++ } finally {hold.release();await context.close()}
++})
++
+ await browser.close();await fs.writeFile(`${out}/results.json`,JSON.stringify(results,null,2));if(results.some(r=>!r.passed))process.exitCode=1
+--- /dev/null
++++ b/web/tests/helpers/admin-chip-scenarios.mjs
+@@ -0,0 +1,121 @@
++import assert from "node:assert/strict"
++
++export async function adminChipScenarios({run,setup,base,out,kind,ready,reads,template}) {
++  const comments=kind==='comments',groupName=comments?'댓글 상태':'게시글 상태'
++  const searchName=comments?'댓글 본문 검색':'게시글 제목 검색'
++  const submitName=comments?'댓글 검색':'검색', resetName=comments?'댓글 검색 초기화':'초기화'
++  const area=comments?'.admin-comment-results':'.admin-results'
++  const slot=comments?'comments':'read',url=comments?'/admin/posts/2':'/admin/posts'
++  const statuses=['VISIBLE','HIDDEN','DELETED'],labels=['정상','숨김','삭제']
++  function body(u) {
++    const sample=template(0), selected=u.searchParams.getAll('statuses')
++    assert(!u.searchParams.has('status'));assert(selected.length)
++    assert.deepEqual(selected,statuses.filter(s=>selected.includes(s)))
++    const all=Array.from({length:27},(_,i)=>({...sample.items[0],status:statuses[i%3],
++      ...(comments?{commentId:i+1,content:`검증 댓글 ${i+1}`}:{postId:i+1,title:`검증 게시글 ${i+1}`})}))
++    const filtered=u.searchParams.get('keyword')==='없음'?[]:all.filter(v=>selected.includes(v.status))
++    const page=Number(u.searchParams.get('page')),totalPages=Math.ceil(filtered.length/20)
++    return {...sample,items:filtered.slice(page*20,page*20+20),page,totalElements:filtered.length,totalPages,hasPrevious:page>0,hasNext:page+1<totalPages}
++  }
++  async function open(width=1440) {
++    const x=await setup('ADMIN',width)
++    x.state[slot]=(r,u)=>r.fulfill({json:body(u)})
++    await x.p.goto(base+url);await ready(x.p)
++    x.field=x.p.getByRole('group',{name:groupName,exact:true})
++    x.box=name=>x.field.getByRole('checkbox',{name,exact:true})
++    x.input=x.p.getByLabel(searchName,{exact:true})
++    x.params=()=>new URLSearchParams(reads(x.state).at(-1).search)
++    return x
++  }
++  async function freeze(p) {
++    await p.clock.install({time:new Date('2030-01-01T00:00:00Z')})
++    await p.clock.pauseAt(new Date('2030-01-01T00:00:01Z'))
++  }
++  for(const width of [1440,320]) await run(`chips debounce, search, reset, empty and IME ${width}`,async()=>{
++    const {context,p,state,box,input,params}=await open(width)
++    try {
++      for(const label of labels)assert(await box(label).isChecked())
++      await p.getByRole('button',{name:'다음',exact:true}).click();await ready(p)
++      await freeze(p)
++      const initial=reads(state).length
++      await input.fill('  적용 검색어  ')
++      await box('삭제').uncheck();await p.clock.runFor(100);await box('숨김').uncheck()
++      assert.equal(await box('정상').isChecked(),true);assert.equal(reads(state).length,initial)
++      await p.clock.runFor(199);assert.equal(reads(state).length,initial)
++      await p.clock.runFor(1);await ready(p)
++      assert.equal(reads(state).length,initial+1);assert.deepEqual(params().getAll('statuses'),['VISIBLE'])
++      assert.equal(params().has('keyword'),false);assert.equal(params().get('page'),'0')
++      assert.equal(await p.locator('.admin-pagination').count(),0)
++      // Search flushes the current selection and cancels its pending timer.
++      await box('숨김').check();await p.clock.runFor(100);await input.press('Enter');await ready(p)
++      assert.equal(params().get('keyword'),'적용 검색어');assert.deepEqual(params().getAll('statuses'),['VISIBLE','HIDDEN'])
++      const afterSearch=reads(state).length;await p.clock.runFor(250);assert.equal(reads(state).length,afterSearch)
++      // Composition-confirming Enter cannot submit.
++      await input.dispatchEvent('compositionstart');await input.fill('미적용 입력')
++      await input.press('Enter');await p.clock.runFor(250);assert.equal(reads(state).length,afterSearch)
++      await input.dispatchEvent('compositionend')
++      await box('정상').uncheck();await p.clock.runFor(200);await ready(p)
++      assert.equal(params().get('keyword'),'적용 검색어');assert.deepEqual(params().getAll('statuses'),['HIDDEN'])
++      assert(await p.evaluate(()=>document.documentElement.scrollWidth<=innerWidth))
++      await p.screenshot({path:`${out}/chips-${kind}-${width}.png`,fullPage:true})
++      await box('숨김').uncheck()
++      await p.getByText('표시할 상태를 선택해 주세요.',{exact:true}).waitFor()
++      const emptyCalls=reads(state).length
++      await p.getByRole('button',{name:submitName,exact:true}).click();await input.press('Enter');await p.clock.runFor(500)
++      assert.equal(reads(state).length,emptyCalls)
++      assert.equal(await p.locator('.admin-pagination').count(),0)
++      assert.equal(await p.locator(comments?'.admin-comment-list > li':'.admin-panel tbody tr').count(),0)
++      assert.equal(await p.getByText(/검색 결과 .*개/).count(),0)
++      assert.equal(await input.inputValue(),'미적용 입력')
++      await p.screenshot({path:`${out}/chips-empty-${kind}-${width}.png`,fullPage:true})
++      await box('삭제').check();await p.clock.runFor(200);await ready(p)
++      assert.equal(params().get('keyword'),'적용 검색어');assert.deepEqual(params().getAll('statuses'),['DELETED'])
++      // Reset flushes, cancels debounce, clears both keyword values and forces one request.
++      await box('숨김').check();await p.getByRole('button',{name:resetName,exact:true}).click();await ready(p)
++      const afterReset=reads(state).length;await p.clock.runFor(250);assert.equal(reads(state).length,afterReset)
++      assert.deepEqual(params().getAll('statuses'),statuses);assert.equal(params().has('keyword'),false);assert.equal(await input.inputValue(),'')
++      await box('정상').focus();await p.keyboard.press('Space');assert(!await box('정상').isChecked())
++      assert(await box('정상').evaluate(e=>e===document.activeElement))
++      await p.clock.runFor(200);await ready(p)
++      assert.equal(reads(state).length,afterReset+1)
++      await input.fill('없음');await input.press('Enter');await ready(p)
++      assert.equal(await p.locator('.admin-pagination').count(),0)
++      assert.equal(await p.getByText('표시할 상태를 선택해 주세요.',{exact:true}).count(),0)
++    } finally {await context.close()}
++  })
++  for(const late of ['success','error']) for(const empty of [false,true]) await run(`chips reject ${late} delivery during ${empty?'empty':'debounce'} even without abort`,async()=>{
++    const {context,p,state,box,input,params}=await open()
++    let release
++    try {
++      await p.evaluate(()=>{const fetch=window.fetch;window.fetch=(u,o)=>fetch(u,{...o,signal:undefined})})
++      await freeze(p)
++      let arrive;const arrived=new Promise(r=>arrive=r),held=new Promise(r=>release=r)
++      state[slot]=async(r,u)=>{arrive();await held;await r.fulfill(late==='error'?{status:401,json:{code:'AUTHENTICATION_REQUIRED'}}:{json:{...body(u),totalElements:999,totalPages:50,hasNext:true}})}
++      await input.fill('지연');await input.press('Enter');await arrived
++      await box('삭제').uncheck()
++      if(empty){await box('정상').uncheck();await box('숨김').uncheck()}
++      const delivered=p.waitForEvent('requestfinished',{predicate:r=>r.url().includes('keyword=')})
++      release();await delivered;await p.clock.runFor(50)
++      assert.equal(await p.getByRole('heading',{name:'로그인이 필요합니다',exact:true}).count(),0)
++      assert.equal(await p.getByText('999',{exact:true}).count(),0)
++      assert.equal(await p.locator(area).getByRole('alert').count(),0)
++      if(empty){assert.equal(await p.locator(area).getAttribute('aria-busy'),'false');await p.getByText('표시할 상태를 선택해 주세요.',{exact:true}).waitFor()}
++      else assert.equal(await p.locator(area).getAttribute('aria-busy'),'true')
++      state[slot]=(r,u)=>r.fulfill({json:body(u)})
++      if(empty)await box('정상').check()
++      await p.clock.runFor(200);await ready(p)
++      assert.deepEqual(params().getAll('statuses'),empty?['VISIBLE']:['VISIBLE','HIDDEN'])
++      assert.equal(params().get('keyword'),'지연')
++    } finally {release?.();await context.close()}
++  })
++  await run('chips pending timer is cleared on logout',async()=>{
++    const {context,p,state,box}=await open()
++    try {
++      await freeze(p);await box('삭제').uncheck();const count=reads(state).length
++      await p.getByRole('button',{name:'로그아웃',exact:true}).click()
++      await p.getByRole('heading',{name:'로그인이 필요합니다',exact:true}).waitFor()
++      await p.clock.runFor(1000);assert.equal(reads(state).length,count)
++      assert.equal(await p.locator('.admin-status-filter').count(),0)
++    } finally {await context.close()}
++  })
++}
+--- a/docs/api/admin-content-status-filter.md
++++ b/docs/api/admin-content-status-filter.md
+@@ -104,17 +104,18 @@
+ 
+ ## 프론트 연동
+ 
+-- 정상·숨김·삭제 상태를 복수 선택할 수 있도록 한다.
+-- 초기 선택은 세 상태 모두 선택이다.
+-- 체크박스와 검색어 변경 후 검색 버튼으로 조건을 적용한다.
+-- 검색 조건 적용 시 page를 0으로 초기화한다.
+-- 아무 상태도 선택하지 않았으면 안내하고 요청하지 않는다.
+-- 빈 선택을 파라미터 생략으로 변환하지 않는다.
+-  파라미터 생략은 전체 조회를 의미하기 때문이다.
+-- 다중 상태 요청에는 statuses만 전달하고 status는 전달하지 않는다.
+-- 현재 페이지의 데이터를 프론트에서 필터링하거나,
+-  상태별 조회 결과를 합쳐 페이지를 구성하지 않는다.
+-- 서버가 반환한 목록 순서와 전체 개수를 사용한다.
+-- 늦게 도착한 이전 요청이 최신 검색 결과를 덮어쓰지 않도록 한다.
+-- 조치 후 재조회에도 현재 적용된 검색 조건을 유지한다.
+-- 인증 상태가 변경되면 이전 관리자 조회 결과를 표시하지 않는다.+- 정상·숨김·삭제를 실제 체크박스 칩으로 복수 선택하며 초기에는 모두 선택한다.
++- 상태 선택 표시는 즉시 바뀌고, 마지막 변경 후 200ms 디바운스로 첫 페이지를 조회한다.
++- 상태 변경에는 마지막으로 **적용한 검색어**를 사용한다. 입력 중인 검색어는 검색 버튼 또는 Enter로만 적용한다. 한글 조합 확정 Enter는 제출하지 않는다.
++- 검색은 현재 선택 상태와 입력 검색어를 즉시 적용하고 page=0으로 조회한다. 검색·초기화는 예약된 디바운스를 취소한다.
++- 초기화는 세 상태 모두 선택, 입력/적용 검색어 비우기, page=0으로 실제 조회한다.
++- 전체 해제 시 진행 중인 조회와 예약을 취소·무효화하고 목록·개수·페이지 이동을 숨긴다. “표시할 상태를 선택해 주세요.”만 안내하며 검색 버튼도 요청하지 않는다.
++- 빈 선택을 전체 조회로 바꾸지 않는다. 재선택하면 마지막 적용 검색어로 조회하며, 빈 선택 중 입력한 검색어를 자동 적용하지 않는다.
++- 요청에는 statuses만 고정 순서 VISIBLE, HIDDEN, DELETED로 반복 전달한다. status, ALL, 쉼표 연결을 사용하지 않는다.
++- 서버가 반환한 목록 순서와 전체 개수를 사용하며 현재 페이지를 프론트에서 필터링하지 않는다.
++- 상태를 클릭한 시점부터 이전 응답의 성공·오류를 무효화한다. 전송 취소와 별도로 요청 세대·화면·회원 수명을 확인한다.
++- 조회 대기 중 결과 행을 숨기고 페이지 이동을 막되 칩과 검색 입력은 계속 사용할 수 있다.
++- 운영 조치 POST와 목록 GET 수명을 분리한다. 조치 후 현재 유효한 조건으로 재조회하며 빈 선택에는 요청하지 않는다. 범위 밖 페이지 보정의 반복을 방지한다.
++- 결과가 0~1페이지면 페이지 이동 영역을 숨긴다. 인증 변경·화면 종료 시 타이머와 이전 조회를 정리한다.
++
++위 내용은 프론트 상호작용 정책이며 서버의 파라미터 허용·검증 계약을 변경하지 않는다.
+--- a/docs/api/admin-comment-read.md
++++ b/docs/api/admin-comment-read.md
+@@ -125,7 +125,11 @@
+ ## 프론트 연동 유의사항
+ 
+ - API 요청에 세션 쿠키를 포함한다.
+-- 상태·검색어·페이지 크기를 변경하면 page를 0으로 초기화한다.
++- 상태는 체크박스 칩 변경 후 200ms 디바운스로 page=0에 적용한다. 검색어는 입력값과 적용값을 분리하고 검색 버튼/Enter로 적용한다. 상태만 바꾸면 마지막 적용 검색어를 사용한다.
++- 검색·초기화는 예약 조회를 취소한다. 초기화는 모든 상태·빈 검색어·첫 페이지로 조회한다.
++- 전체 해제 시 GET을 취소·무효화하고 목록·개수·페이지 이동 대신 “표시할 상태를 선택해 주세요.”를 표시한다. 빈 선택 요청은 보내지 않으며 재선택하면 마지막 적용 검색어로 조회한다.
++- 요청은 고정 순서의 반복 statuses 파라미터를 사용한다. 상세 계약 및 프론트 정책은 [다중 상태 조회](admin-content-status-filter.md)를 따른다.
++- 결과가 0~1페이지면 페이지 이동을 숨긴다.
+ - 게시글 ID와 조회 조건을 구분하여 응답을 관리한다.
+ - 이전 조회 조건의 늦은 응답이 현재 목록을 덮어쓰지 않게 한다.
+ - 숨김·복원 성공 후 현재 조회 조건으로 댓글 목록을 갱신한다.
+--- a/web/docs/admin-multi-status-2026-11-07/README.md
++++ b/web/docs/admin-multi-status-2026-11-07/README.md
+@@ -1,3 +1,5 @@
++> 후속 변경(2026-11-07): 아래 기록은 검색 버튼으로 상태·검색어를 함께 적용하던 당시 검증이다. 현재 상태 칩의 즉시 적용 정책과 최종 검증은 [후속 보고서](../admin-status-chips-2026-11-07/README.md)를 참고한다. 과거 실행 결과는 그대로 보존했다.
++
+ # 관리자 다중 상태 필터 프론트 연동 — 2026-11-07
+ 
+ ## 기준과 범위

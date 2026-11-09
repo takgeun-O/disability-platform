@@ -1,3 +1,4 @@
+import { dateRangeError, type AdminSort } from "./admin-dates"
 import { writtenInstant } from "./written-time"
 import {
   normalizeTitle,
@@ -14,8 +15,17 @@ export const ADMIN_STATUSES = {
   DELETED: "삭제",
 } as const
 export type AdminStatus = keyof typeof ADMIN_STATUSES
+export type AdminContentStatus = Exclude<AdminStatus, "ALL">
+export const ADMIN_CONTENT_STATUSES: readonly AdminContentStatus[] = ["VISIBLE", "HIDDEN", "DELETED"]
+export const normalizeAdminStatuses = (values: readonly AdminContentStatus[]) =>
+  ADMIN_CONTENT_STATUSES.filter(value => values.includes(value))
+export const sameAdminStatuses = (a: readonly AdminContentStatus[], b: readonly AdminContentStatus[]) =>
+  a.length === b.length && a.every((value, index) => value === b[index])
 export type AdminQuery = {
-  status: AdminStatus
+  startDate?: string
+  endDate?: string
+  sort?: AdminSort
+  statuses: readonly AdminContentStatus[]
   keyword: string
   page: number
 }
@@ -121,7 +131,12 @@ export class AdminApiError extends Error {
   }
 }
 export function adminQueryParams(query: AdminQuery) {
-  const params = new URLSearchParams({status: query.status, page: String(query.page), size: "20"})
+  if (!query.statuses.length || query.statuses.some(value => !ADMIN_CONTENT_STATUSES.includes(value)))
+    throw new AdminApiError(400, "조회할 상태를 하나 이상 선택해 주세요.")
+  const params = new URLSearchParams()
+  for (const status of normalizeAdminStatuses(query.statuses)) params.append("statuses", status)
+  params.set("page", String(query.page))
+  params.set("size", "20")
   const keyword = normalizeTitle(query.keyword)
   if (adminKeywordError(keyword)) throw new AdminApiError(400, adminKeywordError(keyword))
   if (keyword) params.set("keyword", keyword)
@@ -172,7 +187,14 @@ export async function adminGet(path: string, signal: AbortSignal, target = "게�
   return body
 }
 export async function getAdminPosts(query: AdminQuery, signal: AbortSignal): Promise<AdminPage> {
-  const body = await adminGet("/api/v1/admin/posts?" + adminQueryParams(query), signal)
+  const params = adminQueryParams(query)
+  const error = dateRangeError({startDate:query.startDate??"",endDate:query.endDate??""})
+  if(error) throw new AdminApiError(400,error)
+  if(query.sort && query.sort!=="LATEST" && query.sort!=="OLDEST")throw new AdminApiError(400,"정렬을 다시 선택해 주세요.")
+  params.set("sort",query.sort??"LATEST")
+  if(query.startDate)params.set("startDate",query.startDate)
+  if(query.endDate)params.set("endDate",query.endDate)
+  const body = await adminGet("/api/v1/admin/posts?" + params, signal)
   if (!isAdminPage(body) || body.page !== query.page || body.size !== 20)
     throw new AdminApiError(0, "응답을 확인하지 못했습니다. 다시 시도해 주세요.")
   return body

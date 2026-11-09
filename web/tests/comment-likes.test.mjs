@@ -4,7 +4,7 @@ import {loadTypeScript} from './helpers/load-typescript.mjs'
 const api=await loadTypeScript('../src/lib/community-comments.ts',import.meta.url)
 const {createPostLikes:createCommentLikes}=await loadTypeScript('../src/lib/post-likes.ts',import.meta.url)
 const json=(body,status=200)=>new Response(JSON.stringify(body),{status,headers:{'Content-Type':'application/json'}})
-const item={commentId:5,content:' 원문\n',author:{memberId:1,nickname:'검토'},createdAt:'2026-10-27T00:00:00.123456Z',updatedAt:'2026-10-27T00:00:00.123456Z',likeCount:2,liked:true}
+const item={ contentUpdatedAt: null,commentId:5,content:' 원문\n',author:{memberId:1,nickname:'검토'},createdAt:'2026-10-27T00:00:00.123456Z',updatedAt:'2026-10-27T00:00:00.123456Z',likeCount:2,liked:true}
 async function fetchWith(fn,run){const old=globalThis.fetch,base=process.env.NEXT_PUBLIC_API_BASE_URL;process.env.NEXT_PUBLIC_API_BASE_URL='http://api.test';globalThis.fetch=fn;try{await run()}finally{globalThis.fetch=old;if(base===undefined)delete process.env.NEXT_PUBLIC_API_BASE_URL;else process.env.NEXT_PUBLIC_API_BASE_URL=base}}
 for(const liked of [true,false])test(`comment ${liked?'PUT':'DELETE'} uses dynamic CSRF, session, no body; server count`,async()=>{
  let calls=0

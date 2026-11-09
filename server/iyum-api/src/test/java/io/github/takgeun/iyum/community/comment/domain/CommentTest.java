@@ -18,6 +18,13 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 // createdAt, updatedAt의 자동 기록이나 실제 DB 매핑은 검증하지 않음.
 class CommentTest {
 
+    private static final Instant FIRST_EDITED_AT =
+            Instant.parse("2026-11-05T01:00:00Z");
+
+    private static final Instant SECOND_EDITED_AT =
+            Instant.parse("2026-11-05T02:00:00Z");
+
+
     @Test
     void 댓글을_생성하면_게시글과_작성자와_내용을_보존한다() {
         Post post = createPost();
@@ -30,6 +37,7 @@ class CommentTest {
         assertThat(comment.getAuthor()).isSameAs(author);
         assertThat(comment.getContent()).isEqualTo(content);
         assertThat(comment.getDeletedAt()).isNull();
+        assertThat(comment.getContentUpdatedAt()).isNull();
     }
 
     @Test
@@ -88,12 +96,15 @@ class CommentTest {
         Comment comment = Comment.create(post, author, "기존 내용");
         String updatedContent = "  수정한 내용\n다음 줄  ";
 
-        comment.update(updatedContent);
+        comment.update(updatedContent, FIRST_EDITED_AT);
 
         assertThat(comment.getContent()).isEqualTo(updatedContent);
         assertThat(comment.getPost()).isSameAs(post);
         assertThat(comment.getAuthor()).isSameAs(author);
         assertThat(comment.getDeletedAt()).isNull();
+
+        assertThat(comment.getContentUpdatedAt())
+                .isEqualTo(FIRST_EDITED_AT);
     }
 
     @ParameterizedTest
@@ -102,11 +113,12 @@ class CommentTest {
     void 필수값_검증에_실패하면_기존_내용을_유지한다(String content) {
         Comment comment = createComment();
 
-        assertThatThrownBy(() -> comment.update(content))
+        assertThatThrownBy(() -> comment.update(content, FIRST_EDITED_AT))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessage("댓글 내용은 필수입니다.");
 
         assertThat(comment.getContent()).isEqualTo("기존 내용");
+        assertThat(comment.getContentUpdatedAt()).isNull();
     }
 
     @Test
@@ -114,11 +126,14 @@ class CommentTest {
         Comment comment = createComment();
         String content = "가".repeat(2_001);
 
-        assertThatThrownBy(() -> comment.update(content))
+        assertThatThrownBy(
+                () -> comment.update(content, FIRST_EDITED_AT)
+        )
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessage("댓글 내용은 2,000자 이하여야 합니다.");
 
         assertThat(comment.getContent()).isEqualTo("기존 내용");
+        assertThat(comment.getContentUpdatedAt()).isNull();
     }
 
     @Test
@@ -130,6 +145,7 @@ class CommentTest {
 
         assertThat(comment.getDeletedAt()).isEqualTo(deletedAt);
         assertThat(comment.getContent()).isEqualTo("기존 내용");
+        assertThat(comment.getContentUpdatedAt()).isNull();
     }
 
     @Test
@@ -141,6 +157,7 @@ class CommentTest {
                 .hasMessage("삭제 시각은 필수입니다.");
 
         assertThat(comment.getDeletedAt()).isNull();
+        assertThat(comment.getContentUpdatedAt()).isNull();
     }
 
     @Test
@@ -155,6 +172,93 @@ class CommentTest {
         comment.delete(secondDeletedAt);
 
         assertThat(comment.getDeletedAt()).isEqualTo(firstDeletedAt);
+        assertThat(comment.getContentUpdatedAt()).isNull();
+    }
+
+    @Test
+    void 최초부터_동일한_본문이면_본문_수정_시각을_기록하지_않는다() {
+        Comment comment = createComment();
+
+        comment.update("기존 내용", FIRST_EDITED_AT);
+
+        assertThat(comment.getContent()).isEqualTo("기존 내용");
+        assertThat(comment.getContentUpdatedAt()).isNull();
+    }
+
+    @Test
+    void 수정한_본문을_다시_전달하면_기존_본문_수정_시각을_유지한다() {
+        Comment comment = createComment();
+        comment.update("수정한 내용", FIRST_EDITED_AT);
+
+        comment.update("수정한 내용", SECOND_EDITED_AT);
+
+        assertThat(comment.getContent()).isEqualTo("수정한 내용");
+        assertThat(comment.getContentUpdatedAt())
+                .isEqualTo(FIRST_EDITED_AT);
+    }
+
+    @Test
+    void 본문을_다시_변경하면_마지막_본문_수정_시각을_갱신한다() {
+        Comment comment = createComment();
+        comment.update("첫 번째 수정", FIRST_EDITED_AT);
+
+        comment.update("두 번째 수정", SECOND_EDITED_AT);
+
+        assertThat(comment.getContent()).isEqualTo("두 번째 수정");
+        assertThat(comment.getContentUpdatedAt())
+                .isEqualTo(SECOND_EDITED_AT);
+    }
+
+    @Test
+    void 본문_수정_시각이_없으면_본문과_기존_수정_시각을_유지한다() {
+        Comment comment = createComment();
+        comment.update("첫 번째 수정", FIRST_EDITED_AT);
+
+        assertThatThrownBy(() ->
+                comment.update("두 번째 수정", null)
+        )
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessage("본문 수정 시각은 필수입니다.");
+
+        assertThat(comment.getContent()).isEqualTo("첫 번째 수정");
+        assertThat(comment.getContentUpdatedAt())
+                .isEqualTo(FIRST_EDITED_AT);
+    }
+
+    @Test
+    void 잘못된_본문이면_이미_기록된_본문_수정_시각도_유지한다() {
+        Comment comment = createComment();
+        comment.update("첫 번째 수정", FIRST_EDITED_AT);
+
+        assertThatThrownBy(() ->
+                comment.update("   ", SECOND_EDITED_AT)
+        )
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessage("댓글 내용은 필수입니다.");
+
+        assertThat(comment.getContent()).isEqualTo("첫 번째 수정");
+        assertThat(comment.getContentUpdatedAt())
+                .isEqualTo(FIRST_EDITED_AT);
+    }
+
+    @Test
+    void 숨김_복원_삭제는_본문_수정_시각을_변경하지_않는다() {
+        Comment comment = createComment();
+        comment.update("수정한 내용", FIRST_EDITED_AT);
+
+        comment.hide(SECOND_EDITED_AT);
+        assertThat(comment.getContentUpdatedAt())
+                .isEqualTo(FIRST_EDITED_AT);
+
+        comment.restore();
+        assertThat(comment.getContentUpdatedAt())
+                .isEqualTo(FIRST_EDITED_AT);
+
+        comment.delete(SECOND_EDITED_AT);
+        assertThat(comment.getContentUpdatedAt())
+                .isEqualTo(FIRST_EDITED_AT);
+
+        assertThat(comment.getContent()).isEqualTo("수정한 내용");
     }
 
     private Comment createComment() {

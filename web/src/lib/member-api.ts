@@ -1,3 +1,4 @@
+import { writtenInstant } from "./written-time";
 import { isFeedItem, olderThan, type FeedItem } from "./community-api";
 import { validateComment } from "./community-comments";
 import {
@@ -310,13 +311,14 @@ export type VisibleMemberComment = {
   content: string;
   createdAt: string;
   updatedAt: string;
+  contentUpdatedAt: string | null;
   likeCount: number;
   liked: boolean;
   post: { postId: number; title: string; type: PostType; topic: PostTopic };
 };
 export type MemberCommentItem = VisibleMemberComment | {
   visibility: "HIDDEN" | "PARENT_HIDDEN"; commentId: number; createdAt: string;
-  content: null; updatedAt: null; likeCount: null; liked: null;
+  content: null; updatedAt: null; contentUpdatedAt: null; likeCount: null; liked: null;
   post: { postId: number; title: null; type: null; topic: null };
 };
 export type MemberCommentPage = {
@@ -333,7 +335,7 @@ export function isMemberComment(v: unknown): v is MemberCommentItem {
   if (!object(v)) return false;
   if (v.visibility === "HIDDEN" || v.visibility === "PARENT_HIDDEN") {
     return positiveId(v.commentId) && instant(v.createdAt) &&
-      ["content", "updatedAt", "likeCount", "liked"].every(key => v[key] === null) &&
+      ["content", "updatedAt", "contentUpdatedAt", "likeCount", "liked"].every(key => v[key] === null) &&
       object(v.post) && positiveId(v.post.postId) && v.post.title === null && v.post.type === null && v.post.topic === null;
   }
   if (v.visibility !== "VISIBLE") return false;
@@ -346,6 +348,7 @@ export function isMemberComment(v: unknown): v is MemberCommentItem {
     !validateComment(v.content) &&
     instant(v.createdAt) &&
     instant(v.updatedAt) &&
+    (v.contentUpdatedAt === null || (typeof v.contentUpdatedAt === "string" && writtenInstant(v.contentUpdatedAt) !== null)) &&
     object(v.post) &&
     positiveId(v.post.postId) &&
     typeof v.post.title === "string" &&

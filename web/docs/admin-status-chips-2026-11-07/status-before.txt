@@ -1,0 +1,12 @@
+ M web/src/components/admin/AdminComments.tsx
+ M web/src/features/AdminPosts.tsx
+ M web/src/lib/admin-navigation.ts
+ M web/src/lib/admin-posts.ts
+ M web/src/styles/admin.css
+ M web/tests/admin-detail-browser.mjs
+ M web/tests/admin-detail.test.mjs
+ M web/tests/admin-moderation-browser.mjs
+ M web/tests/admin-posts-browser.mjs
+ M web/tests/admin-posts.test.mjs
+?? web/docs/admin-multi-status-2026-11-07/
+?? web/src/components/admin/AdminStatusFilter.tsx

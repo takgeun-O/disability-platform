@@ -20,7 +20,7 @@ export default function AdminAccess({ children }: { children: ReactNode }) {
       <div className="admin-access-card">
         <p className="admin-access-eyebrow">IYUM 관리자</p>
         <h1>로그인이 필요합니다</h1>
-        <p>관리자 계정으로 로그인하면 게시글 관리를 계속할 수 있어요.</p>
+        <p>관리자 계정으로 로그인하면 관리 화면을 이용할 수 있어요.</p>
         <div className="admin-access-actions"><Link className="admin-primary-link" href={`/login?from=${encodeURIComponent(pathname)}`}>로그인</Link><Link href="/">서비스로 돌아가기</Link></div>
       </div>
     )

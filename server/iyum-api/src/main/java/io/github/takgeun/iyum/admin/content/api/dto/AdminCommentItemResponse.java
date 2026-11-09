@@ -14,6 +14,7 @@ public record AdminCommentItemResponse(
         AdminCommentStatus status,
         Instant createdAt,
         Instant updatedAt,
+        @Nullable Instant contentUpdatedAt,
         @Nullable Instant hiddenAt,
         @Nullable Instant deletedAt
 ) {
@@ -28,6 +29,7 @@ public record AdminCommentItemResponse(
                 result.status(),
                 result.createdAt(),
                 result.updatedAt(),
+                result.contentUpdatedAt(),
                 result.hiddenAt(),
                 result.deletedAt()
         );

@@ -23,7 +23,9 @@ public class ContentModerationException extends RuntimeException {
         ),
 
         INVALID_REASON(
-                "처리 사유는 앞뒤 공백을 제거한 뒤 1자 이상 500자 이하로 입력해 주세요."
+                "처리 사유 유형과 상세 내용을 확인해 주세요. "
+                        + "기타 사유는 상세 내용이 필수이며, "
+                        + "상세 내용은 앞뒤 공백을 제거한 뒤 500자 이하여야 합니다."
         ),
 
         POST_NOT_FOUND(

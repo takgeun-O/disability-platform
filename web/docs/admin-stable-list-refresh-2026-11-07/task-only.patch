@@ -1,0 +1,371 @@
+--- a/web/src/features/AdminPosts.tsx
++++ b/web/src/features/AdminPosts.tsx
+@@ -23,6 +23,7 @@
+     scope = useNavigationRequest()
+   const {query, setQuery, statuses, input, setInput, validation, setValidation, pending,
+     empty, beginRead, change: apply, selectStatuses, search, reset, composition} = useAdminContentFilters(initialQuery)
++  const [lastSuccess, setLastSuccess] = useState<{data: AdminPage; query: AdminQuery} | null>(null)
+   const [retry, setRetry] = useState(0)
+   const [result, setResult] = useState<{
+     query: AdminQuery
+@@ -48,15 +49,18 @@
+           if (!adjusted.current && query.page > 0 && query.page >= data.totalPages) {
+             adjusted.current = true; setQuery({...query, page: Math.max(0,data.totalPages-1)}); return
+           }
++          setLastSuccess({data, query})
+           setResult({ query, attempt: retry, data })
+         }
+       })
+       .catch((error) => {
+         if (!current()) return
+         if (error instanceof AdminApiError && error.status === 401) {
++          setLastSuccess(null)
+           session.expire()
+           return
+         }
++        if (error instanceof AdminApiError && (error.status === 403 || error.status === 404)) setLastSuccess(null)
+         setResult(previous => ({
+           data: error instanceof AdminApiError && error.status === 403 ? undefined : previous?.data,
+           query,
+@@ -70,6 +74,8 @@
+   }, [query, retry, memberId, capture, scope, pending, empty, beginRead, setQuery])
+   const active = !pending && !empty && result?.query === query && result.attempt === retry ? result : null,
+     busy = !empty && !active
++  const shown = empty ? null : lastSuccess, data = shown?.data, displayQuery = shown?.query ?? query
++  const stale = busy || !!active?.error
+   const change = (next: AdminQuery) => {
+     adjusted.current = false
+     apply(next)
+@@ -91,7 +97,7 @@
+             <button type="submit">검색</button>
+           </div>
+           <div className="admin-filter-state-row">
+-            <AdminStatusFilter label="게시글 상태" value={statuses} onChange={next=>{adjusted.current=false;selectStatuses(next)}}/>
++            <AdminStatusFilter label="게시글 상태" value={statuses} onChange={next=>{adjusted.current=false;if (!next.length) {setLastSuccess(null);setResult(null)};selectStatuses(next)}}/>
+             <button type="button" className="admin-filter-reset" onClick={()=>{adjusted.current=false;reset()}}>초기화</button>
+           </div>
+         </form>
+@@ -101,34 +107,25 @@
+           </p>
+         )}
+         <div className="admin-results" aria-busy={busy}>
+-          {empty ? <p className="admin-empty-selection">표시할 상태를 선택해 주세요.</p> : busy ? (
+-            <p role="status">게시글을 불러오고 있습니다…</p>
+-          ) : active?.error ? (
+-            <div role="alert">
++          {empty ? <p className="admin-empty-selection">표시할 상태를 선택해 주세요.</p> : <>
++            {data && <p className="admin-refresh-notice" role="status" style={{visibility:busy?"visible":"hidden"}}>목록을 갱신하고 있습니다…</p>}
++            {busy && !data && <p role="status">게시글을 불러오고 있습니다…</p>}
++            {active?.error && <div role="alert">
++              {data && <p>갱신에 실패했습니다. 이전 결과를 표시하고 있습니다.</p>}
+               <p>{active.error}</p>
+-              {!active.forbidden && (
+-                <button
+-                  onClick={() => {
+-                    setRetry((n) => n + 1)
+-                  }}
+-                >
+-                  다시 시도
+-                </button>
+-              )}
+-            </div>
+-          ) : (
+-            active?.data && (
+-              <>
++              {!active.forbidden && <button onClick={()=>setRetry(n=>n+1)}>다시 시도</button>}
++            </div>}
++            {data && <>
+                 <p className="admin-total">
+-                  검색 결과{" "}
++                  {stale ? "이전 결과" : "검색 결과"}{" "}
+                   <strong>
+-                    {active.data.totalElements.toLocaleString("ko-KR")}
++                    {data.totalElements.toLocaleString("ko-KR")}
+                   </strong>
+                   개
+                 </p>
+-                {!active.data.items.length ? (
++                {!data.items.length ? (
+                   <p>
+-                    {query.keyword || query.statuses.length !== 3
++                    {displayQuery.keyword || displayQuery.statuses.length !== 3
+                       ? "검색 결과가 없습니다."
+                       : "게시글이 없습니다."}
+                   </p>
+@@ -153,10 +150,10 @@
+                         </tr>
+                       </thead>
+                       <tbody>
+-                        {active.data.items.map((post) => (
++                        {data.items.map((post) => (
+                           <tr key={post.postId}>
+                             <td>{post.postId}</td>
+-                            <td className="admin-post-title"><Link href={`/admin/posts/${post.postId}?from=${encodeURIComponent(adminListHref(query))}`}>{post.title}</Link></td>
++                            <td className="admin-post-title"><Link href={`/admin/posts/${post.postId}?from=${encodeURIComponent(adminListHref(displayQuery))}`}>{post.title}</Link></td>
+                             <td>{post.author.nickname}</td>
+                             <td>
+                               {POST_TYPES[post.type]}
+@@ -180,11 +177,10 @@
+                   </div>
+                 )}
+ 
+-              </>
+-            )
+-          )}
++              </>}
++          </>}
+         </div>
+-        {!empty && result?.data && result.data.totalPages > 1 && !active?.forbidden && <AdminPagination data={result.data} busy={busy} failed={!!active?.error}
++        {data && data.totalPages > 1 && !active?.forbidden && <AdminPagination data={data} busy={busy} failed={!!active?.error}
+           onPage={page => { if (!busy && !active?.error) change({ ...query, page }) }} />}
+       </section>
+     </>
+--- a/web/src/features/AdminPostDetail.tsx
++++ b/web/src/features/AdminPostDetail.tsx
+@@ -48,7 +48,7 @@
+         {data.status === "DELETED" ? <p>삭제된 게시글은 숨김 또는 숨김 해제할 수 없습니다.</p> : <button className="admin-moderation-primary" disabled={busy || locked || !!active?.error} onClick={()=>open({postId,label:data.title,action:data.status === "HIDDEN" ? "restore" : "hide"})}>게시글 {data.status === "HIDDEN" ? "숨김 해제" : "숨김 처리"}</button>}
+         </div></footer>
+       </article>
+-      <AdminComments postId={postId} onForbidden={onForbidden} parentUnavailable={busy || !!active?.error}/>
++      <AdminComments key={postId} postId={postId} parentStatus={active?.data?.status} onForbidden={onForbidden} parentUnavailable={busy || !!active?.error}/>
+       </>}
+     </>}
+   </div>
+--- a/web/src/components/admin/AdminComments.tsx
++++ b/web/src/components/admin/AdminComments.tsx
+@@ -2,20 +2,23 @@
+ import { useEffect, useId, useRef, useState } from "react"
+ import { useAuth } from "@/components/AuthProvider"
+ import { useNavigationRequest } from "@/components/NavigationGuard"
+-import { ADMIN_CONTENT_STATUSES, AdminApiError, type AdminQuery } from "@/lib/admin-posts"
++import { ADMIN_CONTENT_STATUSES, AdminApiError, type AdminQuery, type AdminContentStatus } from "@/lib/admin-posts"
+ import { getAdminComments, type AdminCommentPage } from "@/lib/admin-detail"
+ import { useAdminContentFilters } from "@/lib/useAdminContentFilters"
+ import AdminStatusFilter from "./AdminStatusFilter"
+ import AdminPagination from "./AdminPagination"
+ import { AdminCommentMeta, AdminAuthor, AdminStatusBadge } from "./AdminContentMeta"
+ import { useAdminModeration } from "./AdminModeration"
+-export default function AdminComments({postId,onForbidden,parentUnavailable=false}: {postId:number;onForbidden:()=>void;parentUnavailable?:boolean}) {
++export default function AdminComments({postId,onForbidden,parentUnavailable=false,parentStatus}: {postId:number;onForbidden:()=>void;parentUnavailable?:boolean;parentStatus?:AdminContentStatus}) {
+   const {revision,readCurrent,locked,completed,open}=useAdminModeration()
+   const adjusted=useRef(0)
+   const auth=useAuth(),scope=useNavigationRequest(),uid=useId()
+   const capture=auth.captureMemberRequest,memberId=auth.member!.memberId
+   const {query,setQuery,statuses,input,setInput,validation,setValidation,pending,empty,beginRead,
+     change,selectStatuses,search,reset,composition}=useAdminContentFilters({statuses:ADMIN_CONTENT_STATUSES,keyword:"",page:0})
++  const parentState=useRef(parentStatus)
++  useEffect(()=>{parentState.current=parentStatus},[parentStatus])
++  const [lastSuccess,setLastSuccess]=useState<{data:AdminCommentPage;query:AdminQuery;parentStatus?:AdminContentStatus}|null>(null)
+   const [retry,setRetry]=useState(0)
+   const [result,setResult]=useState<{query:AdminQuery;attempt:number;revision:number;data?:AdminCommentPage;error?:string;notFound?:boolean}|null>(null)
+   useEffect(()=>{
+@@ -26,12 +29,14 @@
+       if(revision>0 && adjusted.current!==revision && query.page>0 && query.page>=data.totalPages){
+         adjusted.current=revision;setQuery({...query,page:Math.max(0,data.totalPages-1)});return
+       }
++      setLastSuccess({data,query,parentStatus:parentState.current})
+       setResult({query,attempt:retry,revision,data})
+     }}).catch(error=>{
+       if(!current())return
+-      if(error instanceof AdminApiError && error.status===401){session.expire();return}
+-      if(error instanceof AdminApiError && error.status===403){onForbidden();return}
++      if(error instanceof AdminApiError && error.status===401){setLastSuccess(null);session.expire();return}
++      if(error instanceof AdminApiError && error.status===403){setLastSuccess(null);onForbidden();return}
+       const notFound=error instanceof AdminApiError && error.status===404
++      if(notFound)setLastSuccess(null)
+       setResult(previous=>({query,attempt:retry,revision,data:notFound?undefined:previous?.data,notFound,
+         error:notFound?"댓글 대상 게시글을 확인하지 못했습니다. 게시글이 존재하는지 다시 확인해 주세요." : error instanceof Error?error.message:"댓글을 가져오지 못했습니다."}))
+     })
+@@ -39,12 +44,14 @@
+   },[postId,query,retry,capture,memberId,scope,onForbidden,revision,readCurrent,pending,empty,beginRead,setQuery])
+   const active=!pending&&!empty&&result?.query===query && result.attempt===retry && result.revision===revision?result:null,busy=!empty&&!active
+ 
+-  const data=active?.data
++  const shown=!empty&&lastSuccess?.data.postId===postId?lastSuccess:null
++  const data=shown?.data,displayQuery=shown?.query??query,stale=busy||!!active?.error
++  const confirmedParent=parentStatus!==shown?.parentStatus&&parentStatus?parentStatus:data?.postStatus
+   return <section className="admin-panel admin-comments" aria-labelledby={`${uid}-heading`}>
+     <div className="admin-comments-heading"><h2 id={`${uid}-heading`}>댓글 관리</h2><span>등록순</span></div>
+-    {data && data.postStatus !== "VISIBLE" && <p className="admin-parent-status">{data.postStatus === "HIDDEN" ? "게시글이 숨겨져 있어 댓글도 일반 사용자에게 표시되지 않습니다." : "게시글이 삭제되어 댓글도 일반 사용자에게 표시되지 않습니다."}</p>}
++    {data && confirmedParent !== "VISIBLE" && <p className="admin-parent-status">{confirmedParent === "HIDDEN" ? "게시글이 숨겨져 있어 댓글도 일반 사용자에게 표시되지 않습니다." : "게시글이 삭제되어 댓글도 일반 사용자에게 표시되지 않습니다."}</p>}
+     <form className="admin-filters admin-comment-filters" onSubmit={e=>{e.preventDefault();search()}}>
+-      <AdminStatusFilter label="댓글 상태" value={statuses} onChange={selectStatuses}/>
++      <AdminStatusFilter label="댓글 상태" value={statuses} onChange={next=>{if(!next.length){setLastSuccess(null);setResult(null)};selectStatuses(next)}}/>
+       <div className="admin-filter-search-row">
+         <label className="admin-search" htmlFor={`${uid}-keyword`}>댓글 본문 검색<input id={`${uid}-keyword`} value={input} {...composition} onChange={e=>{setInput(e.target.value);setValidation("")}} placeholder="댓글 본문 검색" aria-invalid={!!validation} aria-describedby={validation?`${uid}-error`:undefined}/></label>
+         <button type="submit" aria-label="댓글 검색">검색</button>
+@@ -53,17 +60,22 @@
+     </form>
+     {validation&&<p id={`${uid}-error`} role="alert">{validation}</p>}
+     <div className="admin-comment-results" aria-busy={busy}>
+-      {empty?<p className="admin-empty-selection">표시할 상태를 선택해 주세요.</p>:busy?<p role="status">댓글을 불러오고 있습니다…</p>:active?.error?<div role="alert"><p>{completed && "변경 결과는 확인됐지만 최신 댓글을 불러오지 못했습니다. "}{active.error}</p><button onClick={()=>setRetry(n=>n+1)}>댓글 다시 시도</button></div>:data&&<>
+-        <div className="admin-comment-summary"><p>검색 결과 <strong>{data.totalElements.toLocaleString("ko-KR")}</strong>개</p><p className="admin-timezone">한국 시간 (KST)</p></div>
+-        {!data.items.length ? query.page>0 && query.page>=data.totalPages ? <p>현재 페이지가 조회 범위를 벗어났습니다. <button onClick={()=>change({...query,page:0})}>댓글 첫 페이지로</button></p> : <p>{query.keyword||query.statuses.length!==3?"검색 조건에 맞는 댓글이 없습니다.":"아직 댓글이 없습니다."}</p> :
++      {empty?<p className="admin-empty-selection">표시할 상태를 선택해 주세요.</p>:<>
++        {data&&<p className="admin-refresh-notice" role="status" style={{visibility:busy?"visible":"hidden"}}>목록을 갱신하고 있습니다…</p>}
++        {busy&&!data&&<p role="status">댓글을 불러오고 있습니다…</p>}
++        {active?.error&&<div role="alert">{data&&<p>갱신에 실패했습니다. 이전 결과를 표시하고 있습니다.</p>}<p>{completed && "변경 결과는 확인됐지만 최신 댓글을 불러오지 못했습니다. "}{active.error}</p><button onClick={()=>setRetry(n=>n+1)}>댓글 다시 시도</button></div>}
++        {data&&<>
++        <div className="admin-comment-summary"><p>{stale?"이전 결과":"검색 결과"} <strong>{data.totalElements.toLocaleString("ko-KR")}</strong>개</p><p className="admin-timezone">한국 시간 (KST)</p></div>
++        {!data.items.length ? displayQuery.page>0 && displayQuery.page>=data.totalPages ? <p>현재 페이지가 조회 범위를 벗어났습니다. <button disabled={stale} onClick={()=>{if(!stale)change({...query,page:0})}}>댓글 첫 페이지로</button></p> : <p>{displayQuery.keyword||displayQuery.statuses.length!==3?"검색 조건에 맞는 댓글이 없습니다.":"아직 댓글이 없습니다."}</p> :
+           <ol className="admin-comment-list">{data.items.map(item=><li key={item.commentId} data-admin-comment-id={item.commentId}>
+             <div className="admin-comment-copy"><div className="admin-comment-heading"><h3><AdminAuthor author={item.author}/></h3><span className="admin-comment-id">#{item.commentId}</span><AdminStatusBadge status={item.status}/></div>
+             <p className="admin-full-content">{item.content}</p><AdminCommentMeta item={item}/></div>
+-            <div className="admin-item-action">{item.status === "DELETED" || data.postStatus === "DELETED" ? <p>{item.status === "DELETED" ? "삭제된 댓글은 변경할 수 없습니다." : "게시글이 삭제되어 댓글을 변경할 수 없습니다."}</p> : <button disabled={locked || parentUnavailable} onClick={()=>open({postId,commentId:item.commentId,label:item.content.slice(0,120),action:item.status === "HIDDEN" ? "restore" : "hide"})}>댓글 {item.status === "HIDDEN" ? "숨김 해제" : "숨김 처리"}</button>}
++            <div className="admin-item-action">{item.status === "DELETED" || confirmedParent === "DELETED" ? <p>{item.status === "DELETED" ? "삭제된 댓글은 변경할 수 없습니다." : "게시글이 삭제되어 댓글을 변경할 수 없습니다."}</p> : <button disabled={stale || locked || parentUnavailable} onClick={()=>{if(stale||locked||parentUnavailable)return;open({postId,commentId:item.commentId,label:item.content.slice(0,120),action:item.status === "HIDDEN" ? "restore" : "hide"})}}>댓글 {item.status === "HIDDEN" ? "숨김 해제" : "숨김 처리"}</button>}
+             </div>
+           </li>)}</ol>}
+       </>}
++      </>}
+     </div>
+-    {!empty&&result?.data&&result.data.totalPages>1&&<AdminPagination label="댓글 페이지" data={result.data} busy={busy} failed={!!active?.error} onPage={page=>{if(!busy&&!active?.error)change({...query,page})}}/>}
++    {data&&data.totalPages>1&&<AdminPagination label="댓글 페이지" data={data} busy={busy} failed={!!active?.error} onPage={page=>{if(!busy&&!active?.error)change({...query,page})}}/>}
+   </section>
+ }
+--- a/web/src/styles/admin.css
++++ b/web/src/styles/admin.css
+@@ -136,3 +136,6 @@
+   .admin-detail-view .admin-filter-search-row button { flex: 0 0 auto; }
+   .admin-filters .admin-status-options label { padding-inline: 8px; }
+ }
++
++/* Reserve the refresh notice line so pending reads do not push the result rows. */
++.admin-refresh-notice { margin: 0 0 8px; color: #526c80; font-size: 14px; line-height: 1.5; overflow-wrap: anywhere; }
+--- a/web/tests/admin-posts-browser.mjs
++++ b/web/tests/admin-posts-browser.mjs
+@@ -1,3 +1,4 @@
++import { adminStableListScenarios } from "./helpers/admin-stable-list-scenarios.mjs"
+ import { adminChipScenarios } from "./helpers/admin-chip-scenarios.mjs"
+ import assert from "node:assert/strict"
+ import fs from "node:fs/promises"
+@@ -466,6 +467,8 @@
+ 
+ await adminChipScenarios({run,setup,base,out,kind:'posts',ready:ready,reads:reads,template:payload})
+ 
++await adminStableListScenarios({run,setup,base,out,kind:'posts',ready:ready,reads:reads,template:payload})
++
+ await browser.close()
+ await fs.writeFile(`${out}/results.json`, JSON.stringify(results, null, 2))
+ if (results.some((r) => !r.passed)) process.exitCode = 1
+--- a/web/tests/admin-detail-browser.mjs
++++ b/web/tests/admin-detail-browser.mjs
+@@ -1,3 +1,4 @@
++import { adminStableListScenarios } from "./helpers/admin-stable-list-scenarios.mjs"
+ import { adminChipScenarios } from "./helpers/admin-chip-scenarios.mjs"
+ import assert from "node:assert/strict"
+ import fs from "node:fs/promises"
+@@ -304,6 +305,8 @@
+ 
+ await adminChipScenarios({run,setup,base,out,kind:'comments',ready:commentReady,reads:commentReads,template:page=>commentPage(2,page)})
+ 
++await adminStableListScenarios({run,setup,base,out,kind:'comments',ready:commentReady,reads:commentReads,template:page=>commentPage(2,page)})
++
+ await browser.close()
+ await fs.writeFile(`${out}/results.json`,JSON.stringify(results,null,2))
+ if(results.some(r=>!r.passed))process.exitCode=1
+--- /dev/null
++++ b/web/tests/helpers/admin-stable-list-scenarios.mjs
+@@ -0,0 +1,103 @@
++import assert from 'node:assert/strict'
++import fs from 'node:fs/promises'
++
++export async function adminStableListScenarios({run,setup,base,out,kind,ready,reads,template}) {
++ const comments=kind==='comments',slot=comments?'comments':'read'
++ const area=comments?'.admin-comment-results':'.admin-results',rows=comments?'.admin-comment-list li':'.admin-table-wrap tbody tr'
++ const form=comments?'.admin-comment-filters':'.admin-post-filters',group=comments?'댓글 상태':'게시글 상태'
++ const url=comments?'/admin/posts/2':'/admin/posts'
++ const metrics=p=>p.evaluate(({area,form})=>{
++  const a=document.querySelector(area).getBoundingClientRect(),f=document.querySelector(form).getBoundingClientRect()
++  return {height:a.height,filterY:f.y,scrollY:scrollY}
++ },{area,form})
++ function stable(before,after){for(const key of ['height','filterY','scrollY'])assert(Math.abs(after[key]-before[key])<2,`${key}: ${before[key]} -> ${after[key]}`)}
++ for(const width of [1440,320])await run(`retained ${kind} rows, failure and locks ${width}`,async()=>{
++  const {context,p,state}=await setup('ADMIN',width);let release
++  const body=u=>{
++   const data=template(Number(u.searchParams.get('page')))
++   return {...data,items:Array.from({length:20},(_,i)=>({...data.items[0],...(comments?{commentId:i+1,content:`유지할 댓글 ${i+1}\n`+'긴 본문 '.repeat(12)}:{postId:i+1,title:`유지할 게시글 ${i+1}`} )})),totalElements:40,totalPages:2,hasNext:data.page===0,hasPrevious:data.page>0}
++  }
++  state[slot]=(r,u)=>r.fulfill({json:body(u)})
++  try {
++   await p.goto(base+url);await ready(p);await p.evaluate(()=>document.fonts.ready)
++   await p.clock.install({time:new Date('2030-01-01T00:00:00Z')});await p.clock.pauseAt(new Date('2030-01-01T00:00:01Z'))
++   const field=p.getByRole('group',{name:group,exact:true}),chip=field.getByRole('checkbox',{name:'삭제',exact:true})
++   await chip.scrollIntoViewIfNeeded();await chip.focus();await p.clock.runFor(32)
++   const before=await metrics(p),parent=comments?await p.locator('.admin-parent-status').textContent():null
++   let arrive;const arrived=new Promise(r=>arrive=r),gate=new Promise(r=>release=r)
++   state[slot]=async(r,u)=>{arrive();await gate;await r.fulfill({json:body(u)})}
++   const start=reads(state).length
++   await chip.press('Space');await p.clock.runFor(32)
++   assert.equal(reads(state).length,start);assert.equal(await p.locator(rows).count(),20)
++   assert.equal(await p.locator(area).getAttribute('aria-busy'),'true');stable(before,await metrics(p))
++   if(comments)assert.equal(await p.locator('.admin-parent-status').textContent(),parent)
++   await p.clock.runFor(168);await arrived
++   stable(before,await metrics(p));assert.equal(await p.locator(rows).count(),20)
++   assert(await chip.evaluate(e=>e===document.activeElement))
++   for(const button of await p.locator('.admin-pagination button').all())assert.equal(await button.getAttribute('aria-disabled'),'true')
++   if(comments){assert.equal(await p.locator('.admin-comment-list button:disabled').count(),20);await p.locator('.admin-comment-list button').first().evaluate(e=>e.click());assert.equal(await p.getByRole('dialog').count(),0)}
++   assert.equal(await p.locator(form).locator('button:disabled,input:disabled').count(),0)
++   assert(await p.evaluate(()=>document.documentElement.scrollWidth<=innerWidth))
++   await p.screenshot({path:`${out}/retained-${kind}-${width}.png`})
++   await fs.writeFile(`${out}/retained-${kind}-${width}.json`,JSON.stringify({before,pending:await metrics(p)},null,2))
++   release();await ready(p)
++   // Page navigation from near the bottom must not collapse the long list or move focus.
++   const next=p.getByRole('button',{name:'다음',exact:true});await next.scrollIntoViewIfNeeded();await next.focus();await p.clock.runFor(32)
++   const pageBefore=await metrics(p);let pageArrive;const pageArrived=new Promise(r=>pageArrive=r),pageGate=new Promise(r=>release=r)
++   state[slot]=async(r,u)=>{pageArrive();await pageGate;await r.fulfill({json:body(u)})}
++   await next.press('Enter');await pageArrived;await p.clock.runFor(32)
++   stable(pageBefore,await metrics(p));assert(await next.evaluate(e=>e===document.activeElement))
++   const count=reads(state).length;await next.press('Enter');assert.equal(reads(state).length,count)
++   release();await ready(p)
++   // General failure retains rows but all row actions / page changes remain locked.
++   state[slot]=r=>r.fulfill({status:500,json:{code:'INTERNAL_SERVER_ERROR'}})
++   await p.locator(form).locator('input:not([type=checkbox])').fill('실패 조건')
++   await p.locator(form).locator('button[type=submit]').click();await ready(p)
++   await p.getByText('갱신에 실패했습니다. 이전 결과를 표시하고 있습니다.',{exact:true}).waitFor()
++   assert.equal(await p.locator(rows).count(),20)
++   assert.equal(await next.getAttribute('aria-disabled'),'true')
++   if(comments)assert.equal(await p.locator('.admin-comment-list button:disabled').count(),20)
++   state[slot]=(r,u)=>r.fulfill({json:body(u)})
++   await p.locator(area).getByRole('button',{name:comments?'댓글 다시 시도':'다시 시도',exact:true}).click();await ready(p)
++   assert.equal(new URLSearchParams(reads(state).at(-1).search).get('keyword'),'실패 조건')
++   assert.equal(await p.locator(area).getByRole('alert').count(),0)
++   // Empty selection discards the snapshot, including on reselection before its response.
++   for(const label of ['정상','숨김'])await field.getByRole('checkbox',{name:label,exact:true}).uncheck()
++   assert.equal(await p.locator(rows).count(),0);assert.equal(await p.locator('.admin-pagination').count(),0)
++   let emptyArrive;const emptyArrived=new Promise(r=>emptyArrive=r),emptyGate=new Promise(r=>release=r)
++   state[slot]=async(r,u)=>{emptyArrive();await emptyGate;await r.fulfill({json:body(u)})}
++   await field.getByRole('checkbox',{name:'정상',exact:true}).check();await p.clock.runFor(200);await emptyArrived
++   assert.equal(await p.locator(rows).count(),0);release();await ready(p)
++   // Confirmed 404 clears old results, and a new search cannot resurrect them.
++   state[slot]=r=>r.fulfill({status:404,json:{code:'POST_NOT_FOUND'}})
++   await p.locator(form).locator('button[type=submit]').click();await ready(p)
++   assert.equal(await p.locator(rows).count(),0);assert.equal(await p.locator('.admin-pagination').count(),0)
++  } finally {release?.();await context.close()}
++ })
++ for(const status of [401,403])await run(`retained ${kind} snapshot is removed on ${status}`,async()=>{
++  const {context,p,state}=await setup()
++  try{
++   await p.goto(base+url);await ready(p);assert((await p.locator(rows).count())>0)
++   state[slot]=r=>r.fulfill({status,json:{code:status===401?'AUTHENTICATION_REQUIRED':'ACCESS_DENIED'}})
++   await p.locator(form).locator('button[type=submit]').click()
++   if(status===401)await p.getByRole('heading',{name:'로그인이 필요합니다',exact:true}).waitFor()
++   else if(comments)await p.getByRole('heading',{name:'관리자 권한이 없습니다',exact:true}).waitFor()
++   else await ready(p)
++   assert.equal(await p.locator(rows).count(),0);assert.equal(await p.locator('.admin-pagination').count(),0)
++   if(status===403)assert(await p.getByRole('button',{name:'로그아웃',exact:true}).isVisible())
++  }finally{await context.close()}
++ })
++ if(comments)await run('deleted parent notice survives pending comment filter',async()=>{
++  const {context,p,state}=await setup();let release
++  try{
++   state.comments=(r,u)=>r.fulfill({json:{...template(Number(u.searchParams.get('page'))),postStatus:'DELETED'}})
++   await p.goto(base+url);await ready(p)
++   await p.clock.install();await p.clock.pauseAt(new Date(Date.now()+1000))
++   const before=await p.locator('.admin-parent-status').textContent()
++   state.comments=async(r,u)=>{await new Promise(resolve=>release=resolve);await r.fulfill({json:{...template(Number(u.searchParams.get('page'))),postStatus:'DELETED'}})}
++   await p.getByRole('group',{name:'댓글 상태',exact:true}).getByRole('checkbox',{name:'삭제',exact:true}).uncheck()
++   assert.equal(await p.locator('.admin-parent-status').textContent(),before)
++   assert(before.includes('삭제되어'))
++  }finally{release?.();await context.close()}
++ })
++}

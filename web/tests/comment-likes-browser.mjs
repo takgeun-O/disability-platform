@@ -25,7 +25,7 @@ const post = {
   createdAt: "2026-10-17T00:00:00Z",
   updatedAt: "2026-10-17T00:00:00Z",
 }
-const item = (id) => ({
+const item = (id) => ({ contentUpdatedAt: null,
   likeCount: 0, liked: false,
   commentId: id,
   content: `댓글 예시 ${id}\n공백  유지`,
@@ -92,7 +92,7 @@ const server = http.createServer(async (req, res) => {
   res.writeHead(result.status, { "Content-Type": "application/json" })
   res.end(JSON.stringify(result.json))
 })
-await new Promise((r) => server.listen(8856, "127.0.0.1", r))
+await new Promise((r) => server.listen(Number(process.env.COMMUNITY_SSR_MOCK_PORT ?? 8856), "127.0.0.1", r))
 const browser = await chromium.launch({ headless: true, channel: "chrome" })
 const results = []
 async function fixture(identity = member, count = 22, automatic = false) {
@@ -175,7 +175,7 @@ async function fixture(identity = member, count = 22, automatic = false) {
   )
   await p.goto(base + "/community/posts/7")
   if (identity) await p.getByRole("button", { name: "댓글 등록", exact: true }).waitFor()
-  else await p.getByRole("button", { name: "로그인하고 댓글 등록", exact: true }).waitFor()
+  else await p.getByPlaceholder("로그인 후 댓글을 남길 수 있어요", {exact:true}).waitFor()
   return { ctx, p, state }
 }
 async function check(name, fn) {
@@ -233,15 +233,29 @@ try {
  })
  await check('later-page COMMENT_NOT_FOUND rereads loaded prefix, removes only missing comment, preserves editor',async()=>{
   const{p,state}=await fixture(member,45);await settled(p);await p.getByRole('button',{name:'댓글 더 보기',exact:true}).click();await settled(p,21);await p.locator('#comment-edit-button-21').click();await p.locator('#comment-edit-21').fill('보관해야 할 편집')
-  state.write=r=>{comments=comments.filter(c=>c.commentId!==21);return r.fulfill({status:404,json:failure('COMMENT_NOT_FOUND')})};await btn(p,21).click();await reaction(p,21).getByRole('alert').waitFor();const before=state.calls.filter(c=>c.path.endsWith('/comments')&&c.method==='GET').length;await btn(p,21).click();await p.locator('.community-comment-detached').waitFor();assert.equal(await p.locator('#comment-edit-21').inputValue(),'보관해야 할 편집');assert(await p.locator('.community-post-body').isVisible());assert(state.calls.filter(c=>c.path.endsWith('/comments')&&c.method==='GET').length>=before+3)
+  state.write=r=>{comments=comments.filter(c=>c.commentId!==21);return r.fulfill({status:404,json:failure('COMMENT_NOT_FOUND')})};await btn(p,21).click();await reaction(p,21).getByRole('alert').waitFor();const before=state.calls.filter(c=>c.path.endsWith('/comments')&&c.method==='GET').length;await btn(p,21).click();await p.getByText('현재 목록에 없는 댓글을 수정하고 있어요. 입력한 내용은 유지했어요.',{exact:true}).waitFor();assert.equal(await p.locator('#comment-edit-21').inputValue(),'보관해야 할 편집');assert.equal(await p.getByRole('dialog').count(),0);assert(await p.locator('.community-post-body').isVisible());assert(state.calls.filter(c=>c.path.endsWith('/comments')&&c.method==='GET').length>=before+3)
  })
  for(const response of ['success','401','403','404'])await check(`old ${response} ignored after logout and same-member login`,async()=>{
   const{p,state}=await fixture(member,1);await settled(p);const g=gate();state.write=async r=>{await g.hold();await r.fulfill(response==='success'?{json:{postId:7,commentId:1,liked:true,likeCount:99}}:{status:Number(response),json:failure(response==='401'?'AUTHENTICATION_REQUIRED':response==='403'?'COMMENT_LIKE_NOT_ALLOWED':'COMMENT_NOT_FOUND')})}
   await btn(p).click();await g.reached;await logout(p);assert.equal(await btn(p).getAttribute('aria-pressed'),'false');await login(p);await settled(p);const done=p.waitForResponse(r=>r.request().method()==='PUT'&&r.url().endsWith('/like'));g.release();await(await done).finished();await settled(p);assert.equal(await reaction(p).getByRole('alert').count(),0);assert(await p.getByRole('button',{name:'로그아웃',exact:true}).isVisible())
  })
  await check('previous personalized GET rejected after other-account login',async()=>{
-  const{p,state}=await fixture(member,1);await settled(p);const g=gate();let once=true;state.get=async(r,u,result)=>{if(once&&u.pathname.endsWith('/comments')){once=false;result.json.items[0].liked=true;result.json.items[0].likeCount=99;await g.hold()}await r.fulfill(result)}
-  await p.locator('#comments-refresh').click();await g.reached;await logout(p);await login(p,'other@example.test');await settled(p);const done=p.waitForResponse(r=>r.url().includes('/comments?')&&r.status()===200);g.release();await(await done).finished();await settled(p)
+  const{p,state}=await fixture(member,1);await settled(p)
+  // Deliver one genuinely stale success despite abort. A cancelled native
+  // request has no response event, and proves cancellation rather than ownership.
+  await p.evaluate(()=>{
+    const original=window.fetch;let first=true
+    window.staleLikeReadConsumed=false
+    window.fetch=async(input,options)=>{
+      if(!first||options?.method!=='GET'||!new URL(String(input),location.href).pathname.endsWith('/comments'))return original(input,options)
+      first=false
+      const response=await original(input,{...options,signal:undefined}),json=response.json.bind(response)
+      response.json=async()=>{try{return await json()}finally{window.staleLikeReadConsumed=true}}
+      return response
+    }
+  })
+  const g=gate();let once=true;state.get=async(r,u,result)=>{if(once&&u.pathname.endsWith('/comments')){once=false;result.json.items[0].liked=true;result.json.items[0].likeCount=99;await g.hold()}await r.fulfill(result)}
+  await p.locator('#comments-refresh').click();await g.reached;await logout(p);await login(p,'other@example.test');await settled(p);g.release();await p.waitForFunction(()=>window.staleLikeReadConsumed);await p.evaluate(()=>new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve))));await settled(p)
  })
  await check('unknown personalized state cannot send a PUT; later confirmed state determines DELETE',async()=>{
   const{p,state}=await fixture(member,1);await settled(p);await logout(p);const g=gate();state.liked.add('123:1');comments[0].likeCount=1;state.get=async(r,u,result)=>{if(u.pathname.endsWith('/comments'))await g.hold();await r.fulfill(result)}

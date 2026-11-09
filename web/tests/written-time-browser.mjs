@@ -8,7 +8,7 @@ await fs.mkdir(out,{recursive:true})
 const now=Date.parse('2026-10-27T04:24:00Z'),recent='2026-10-27T04:23:30.115818Z',old='2026-10-20T04:24:30.115818Z'
 const member={memberId:321,nickname:'검토회원',email:'review@example.test',role:'USER'}
 const post={id:7,type:'QUESTION',topic:'HEARING_AID',title:'작성 시각 표시 검토 게시글',content:'원문 내용입니다.\n'.repeat(12),contentPreview:'목록의 본문 미리보기입니다.',createdAt:recent,updatedAt:recent,author:{memberId:321,nickname:member.nickname},commentCount:1,likeCount:3,liked:true}
-const comment={commentId:11,content:'작성 시각을 확인하는 댓글입니다.',createdAt:old,updatedAt:recent,author:post.author,likeCount:2,liked:false}
+const comment={ contentUpdatedAt: null,commentId:11,content:'작성 시각을 확인하는 댓글입니다.',createdAt:old,updatedAt:recent,author:post.author,likeCount:2,liked:false}
 const page=items=>({items,hasNext:false,nextCursor:null})
 function read(path){
  if(path.endsWith('/comments'))return page([comment])
@@ -30,7 +30,7 @@ async function fixture(width=1440,js=true){
   if(path.endsWith('/members/me'))return r.fulfill({json:{...member,createdAt:'2026-09-30T16:00:00Z'}})
   if(path.endsWith('/activity-summary'))return r.fulfill({json:{postCount:1,commentCount:1}})
   if(path.endsWith('/members/me/posts'))return r.fulfill({json:page([{...post,visibility:"VISIBLE"}])})
-  if(path.endsWith('/members/me/comments'))return r.fulfill({json:page([{visibility:"VISIBLE",commentId:comment.commentId,content:comment.content,createdAt:comment.createdAt,updatedAt:comment.updatedAt,likeCount:2,liked:false,post:{postId:post.id,title:post.title,type:post.type,topic:post.topic}}])})
+  if(path.endsWith('/members/me/comments'))return r.fulfill({json:page([{ contentUpdatedAt: null,visibility:"VISIBLE",commentId:comment.commentId,content:comment.content,createdAt:comment.createdAt,updatedAt:comment.updatedAt,likeCount:2,liked:false,post:{postId:post.id,title:post.title,type:post.type,topic:post.topic}}])})
   return r.fulfill({json:read(path)})
  })
  return {ctx,p,calls}

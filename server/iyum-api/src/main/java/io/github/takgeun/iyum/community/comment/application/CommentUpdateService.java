@@ -10,6 +10,8 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.Clock;
+
 @Service
 @RequiredArgsConstructor
 public class CommentUpdateService {
@@ -17,6 +19,7 @@ public class CommentUpdateService {
     private final MemberRepository memberRepository;
     private final PostRepository postRepository;
     private final CommentRepository commentRepository;
+    private final Clock clock;
 
     @Transactional
     public void update(
@@ -82,13 +85,15 @@ public class CommentUpdateService {
             );
         }
 
-        // 기존 도메인의 본문 검증 정책을 그대로 사용한다.
-        // 트랜잭션 안에서 조회한 엔티티 comment를 변경하므로 JPA의 변경 감지가
-        // 수저 ㅇ내용을 저장한다. 즉, 별도의 save() 호출 필요 없음.
-        comment.update(command.content());
+        // 회원·게시글·댓글 잠금과 작성자 확인을 마친 뒤 시각을 읽는다.
+        // 실제 본문 변경 여부와 contentUpdatedAt 갱신은 도메인에서 결정
+        comment.update(
+                command.content(),
+                clock.instant()
+        );
 
         // 기존 댓글의 ID, 작성자, 생성 시각은 유지
-        // 댓글 본문이 실제로 변경되면 기존 Auditing 설정에 따라 수정 시각 갱신
+        // 댓글 본문이 실제로 변경되면 updatedAt은 기존 Auditing 설정에 따라 수정 시각 갱신
         // 즉, 같은 본문을 다시 보내는 경우에는 UPDATE가 발생하지 않을 수 있음.
     }
 }

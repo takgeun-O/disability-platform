@@ -59,7 +59,7 @@ test("private admin GET uses precise query/session/no-store and no CSRF or retry
   })
   assert.deepEqual(
     await api.getAdminPosts(
-      { status: "ALL", keyword: "　검색　", page: 0 },
+      { statuses: ["VISIBLE","HIDDEN","DELETED"], keyword: "　검색　", page: 0 },
       new AbortController().signal,
     ),
     page,
@@ -86,10 +86,21 @@ test("401 and 403 remain distinguishable; broken response is not empty success",
     )
     await assert.rejects(
       api.getAdminPosts(
-        { status: "ALL", keyword: "", page: 0 },
+        { statuses: ["VISIBLE","HIDDEN","DELETED"], keyword: "", page: 0 },
         new AbortController().signal,
       ),
       (e) => e.status === (status === 200 ? 0 : status),
     )
   }
+})
+
+test("multi-status request is canonical, copied, explicit and rejects empty/invalid selections", () => {
+  const values = ["HIDDEN", "VISIBLE", "HIDDEN"]
+  const params = api.adminQueryParams({statuses:values,keyword:"  검색  ",page:2})
+  values.push("DELETED")
+  assert.deepEqual(params.getAll("statuses"),["VISIBLE","HIDDEN"])
+  assert.equal(params.has("status"),false)
+  assert.equal(params.get("page"),"2")
+  assert.deepEqual(api.adminQueryParams({statuses:api.ADMIN_CONTENT_STATUSES,keyword:"",page:0}).getAll("statuses"),["VISIBLE","HIDDEN","DELETED"])
+  for(const statuses of [[],["ALL"],["hidden"],["VISIBLE,HIDDEN"]]) assert.throws(()=>api.adminQueryParams({statuses,keyword:"",page:0}))
 })
