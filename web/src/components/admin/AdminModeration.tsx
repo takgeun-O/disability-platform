@@ -59,7 +59,7 @@ type Actions = {
 };
 const Context = createContext<Actions | null>(null);
 export const useAdminModeration = () => useContext(Context)!;
-export default function AdminModeration({ children, inline = false, onDenied, recovery, onRecovery }: { children: ReactNode; inline?: boolean; onDenied?:()=>void; recovery?:ModerationTarget|null; onRecovery?:(target:ModerationTarget|null)=>void }) {
+export default function AdminModeration({ children, inline = false, exitDialog = false, onDenied, recovery, onRecovery }: { children: ReactNode; inline?: boolean; exitDialog?: boolean; onDenied?:()=>void; recovery?:ModerationTarget|null; onRecovery?:(target:ModerationTarget|null)=>void }) {
   const guard = useNavigationGuard();
   const [exit, setExit] = useState<(() => void) | null>(null);
   const auth = useAuth(),
@@ -149,11 +149,17 @@ export default function AdminModeration({ children, inline = false, onDenied, re
     } finally {checkFlight.current=false;if(current())setChecking(false)}
   }
   const dirty = inline && !!target && (!!reasonType || !!reason || busy);
+  const busyNotice=useRef(false)
+  useEffect(()=>{
+    if(!exitDialog)return
+    if(busy&&(exit||guard.pending))busyNotice.current=true
+    if(!busy&&busyNotice.current){busyNotice.current=false;setExit(null);guard.cancel()}
+  },[busy,exit,exitDialog,guard])
   const setDirty = guard.setDirty;
   useLayoutEffect(() => { if (!inline) return; setDirty(dirty); return () => setDirty(false); }, [inline, dirty, setDirty]);
   function requestExit(action: () => void) {
-    if (flight.current) return;
-    if (dirty) setExit(() => action); else { if(inline){setTarget(null);setNotice("");setToast("")} action(); }
+    if (flight.current) {if(exitDialog)setExit(()=>action);return;}
+    if (dirty) setExit(() => action); else { if(inline){setTarget(null);setNotice("");setToast("");setCompletion(null)} action(); }
   }
   function close() { requestExit(() => {returnPending.current=true;setTarget(null)}); }
 
@@ -358,11 +364,13 @@ export default function AdminModeration({ children, inline = false, onDenied, re
 </section>;
   const recoveryFeedback = inline&&recovery&&<section className="admin-recovery" role="status" aria-label="조치 결과 확인 필요"><p>{recovery.commentId===undefined?"게시글":"댓글"} #{recovery.commentId??recovery.postId} · {recovery.action==="hide"?"숨김 처리":"숨김 해제"} 결과 확인이 필요합니다. 현재 상태를 확인하기 전에는 추가 변경을 할 수 없습니다.</p>{checkError&&<p role="alert">{checkError}</p>}{!target&&<button disabled={checking} onClick={()=>void checkLatest()}>{checking?"확인 중…":"최신 상태 확인"}</button>}</section>;
   const feedback = <>{recoveryFeedback}{notice && !completion && <div className="admin-inline-feedback" role="status"><p>{notice}</p>{!inline && needsCheck && !target && <button onClick={refresh}>최신 상태 확인</button>}</div>}</>;
-  const confirmation = (exit || (inline && guard.pending)) && <AdminExitConfirmation>
-    <p>{busy ? "처리 중입니다. 완료 후 이동해 주세요." : "작성한 처리 사유를 버리고 이동할까요?"}</p>
-    <button type="button" onClick={() => {setExit(null);guard.cancel()}}>계속 작성</button>
-    {!busy && <button type="button" onClick={() => {const next=exit;setExit(null);setTarget(null);setDirty(false);if(next)next();else guard.proceed()}}>버리고 이동</button>}
-  </AdminExitConfirmation>;
+  const cancelExit=()=>{setExit(null);guard.cancel()}
+  const exitButtons=<>
+    <button type="button" data-initial-focus onClick={cancelExit}>{busy?"현재 화면에 머무르기":"계속 작성"}</button>
+    {!busy&&<button type="button" onClick={()=>{const next=exit;setExit(null);setTarget(null);setCompletion(null);setDirty(false);if(next)next();else guard.proceed()}}>{exitDialog?"입력 버리고 이동":"버리고 이동"}</button>}
+  </>
+  const exitOpen=!!exit||(inline&&!!guard.pending)
+  const confirmation=!exitDialog&&exitOpen&&<AdminExitConfirmation><p>{busy?"처리 중입니다. 완료 후 이동해 주세요.":"작성한 처리 사유를 버리고 이동할까요?"}</p>{exitButtons}</AdminExitConfirmation>
   return (
     <Context.Provider
       value={{
@@ -407,6 +415,11 @@ export default function AdminModeration({ children, inline = false, onDenied, re
       </div>
       </>}
       {children}
+      {exitDialog&&exitOpen&&<OverlayDialog titleId={`${uid}-exit-title`} descriptionId={`${uid}-exit-description`} className="admin-log-exit-dialog" onClose={cancelExit} fallbackFocus="#admin-log-panel-title">
+        <h2 id={`${uid}-exit-title`}>{busy?"처리 중입니다":"입력한 사유를 버리고 이동할까요?"}</h2>
+        <p id={`${uid}-exit-description`}>{busy?"요청이 완료된 뒤 이동할 수 있어요.":"이동하면 작성한 처리 사유는 사라집니다."}</p>
+        <div>{exitButtons}</div>
+      </OverlayDialog>}
       {!inline && target && <OverlayDialog titleId={`${uid}-title`} descriptionId={`${uid}-description`} className="admin-moderation-dialog" onClose={close} fallbackFocus="[data-admin-feedback]" closeOnBackdropClick={false}>{form}</OverlayDialog>}
     </Context.Provider>
   );
@@ -422,7 +435,7 @@ export function AdminModerationMissingResult({postId,ids}:{postId:number;ids:num
   const id=completion?.target.commentId;
   return completion?.target.postId===postId&&id!==undefined&&!ids.includes(id)?<p role="status">{completion.message} 현재 댓글 결과에 포함되지 않습니다.</p>:null;
 }
-export function AdminModerationWorkspace() {
+export function AdminModerationWorkspace({stacked=false}:{stacked?:boolean}) {
   const {inlineTarget:target,form}=useAdminModeration();
   const field=useRef<HTMLDivElement>(null);
   useLayoutEffect(()=>{field.current?.querySelector<HTMLElement>('.admin-action-content h3')?.focus({preventScroll:true})},[target]);
@@ -434,9 +447,10 @@ export function AdminModerationWorkspace() {
       {data&&<>{'title' in data&&<h4 className="admin-preview-title">{data.title}</h4>}<div className="admin-compact-meta"><AdminAuthor author={data.author}/><time dateTime={data.createdAt}>작성 {writtenTime(data.createdAt).exact}</time></div>
       <div className="admin-comment-body"><span className="admin-comment-body-label">현재 {kind} 본문</span><div className="admin-full-content">{data.content}</div></div>
       </>}
+      {stacked&&data&&<details className="admin-detail-metadata admin-action-metadata"><summary>수정·처리 시각</summary>{'contentUpdatedAt' in data?<AdminCommentMeta item={data} omitCreated/>:<AdminContentMeta item={data} omitCreated/>}</details>}
     </section>
     <div className="admin-action-form">{form}</div>
-    {data&&<details className="admin-detail-metadata admin-action-metadata"><summary>수정·처리 시각</summary>{'contentUpdatedAt' in data?<AdminCommentMeta item={data} omitCreated/>:<AdminContentMeta item={data} omitCreated/>}</details>}
+    {!stacked&&data&&<details className="admin-detail-metadata admin-action-metadata"><summary>수정·처리 시각</summary>{'contentUpdatedAt' in data?<AdminCommentMeta item={data} omitCreated/>:<AdminContentMeta item={data} omitCreated/>}</details>}
   </div>;
 }
 function AdminExitConfirmation({children}:{children:ReactNode}) {
@@ -449,15 +463,16 @@ function AdminExitConfirmation({children}:{children:ReactNode}) {
 function focusModerationField(field:HTMLElement) {
   field.focus({preventScroll:true});revealModerationField(field);
 }
-function revealModerationField(field:HTMLElement) {
-  const body=field.closest<HTMLElement>('.admin-dialog-body, .admin-moderation-dialog');
+export function revealModerationField(field:HTMLElement) {
+  const body=field.closest<HTMLElement>('.admin-dialog-body, .admin-moderation-dialog, .admin-log-panel-body');
   if(!body)return;
   const rect=field.getBoundingClientRect(),bounds=body.getBoundingClientRect();
   const label=field.id?document.querySelector<HTMLElement>(`label[for="${CSS.escape(field.id)}"]`):null;
   const error=field.getAttribute('aria-describedby')?.split(' ').map(id=>document.getElementById(id)).find(e=>e?.getAttribute('role')==='alert');
   const top=Math.min(rect.top,label?.getBoundingClientRect().top??rect.top),bottom=Math.max(rect.bottom,error?.getBoundingClientRect().bottom??rect.bottom);
-  if(top>=bounds.top+12&&bottom<=bounds.bottom-12)return;
-  const delta=top<bounds.top+12?top-bounds.top-16:Math.min(bottom-bounds.bottom+16,top-bounds.top-16);
+  const visibleTop=Math.max(0,bounds.top),visibleBottom=Math.min(window.innerHeight,bounds.bottom);
+  if(top>=visibleTop+12&&bottom<=visibleBottom-12)return;
+  const delta=top<visibleTop+12?top-visibleTop-16:Math.min(bottom-visibleBottom+16,top-visibleTop-16);
   body.scrollTo({top:body.scrollTop+delta,behavior:'instant'});
 }
 export function AdminActionLabel({postId,commentId,children}:{postId:number;commentId?:number;children:ReactNode}) {

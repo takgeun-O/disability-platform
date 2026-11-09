@@ -3,7 +3,7 @@ import { MODERATION_REASONS } from "@/lib/moderation-reasons"
 import { writtenTime } from "@/lib/written-time"
 import AdminCommentPreview from "./AdminCommentPreview"
 import AdminPostPreview from "./AdminPostPreview"
-export default function AdminLogPreview({log,returnHref,onManage,onParent}:{log:OperationLog;returnHref:string;onManage:()=>void;onParent:(postId:number)=>void}) {
+export default function AdminLogPreview({log,returnHref,onManage,onParent,direct=false,blocked=false}:{log:OperationLog;returnHref:string;onManage?:()=>void;onParent?:(postId:number)=>void;direct?:boolean;blocked?:boolean}) {
   return <>
     <section aria-label="당시 운영 조치"><h3>당시 운영 조치</h3>
     <dl className="admin-log-fields admin-log-summary-compact">
@@ -18,7 +18,7 @@ export default function AdminLogPreview({log,returnHref,onManage,onParent}:{log:
     <section className="admin-log-current" aria-label="현재 콘텐츠">
       <h3>현재 {log.targetType==="POST"?"게시글":"댓글"}</h3>
       <p className="admin-preview-help">조회한 현재 내용이며 조치 당시와 다를 수 있습니다.</p>
-      {log.targetType==="POST"?<AdminPostPreview key={log.logId} postId={log.targetId} returnHref={returnHref} readOnly showHeading={false} onManage={onManage}/>:<AdminCommentPreview key={log.logId} commentId={log.targetId} showHeading={false} onManage={onManage} onParent={onParent}/>}
+      {log.targetType==="POST"?<AdminPostPreview key={log.logId} postId={log.targetId} returnHref={returnHref} readOnly={!direct} includeComments={!direct} blocked={blocked} showHeading={false} onManage={onManage}/>:<AdminCommentPreview key={log.logId} commentId={log.targetId} manage={direct} blocked={blocked} showHeading={false} onManage={onManage} onParent={onParent}/>}
     </section>
   </>
 }

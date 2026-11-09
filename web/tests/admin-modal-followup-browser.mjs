@@ -7,7 +7,7 @@ const browser=await chromium.launch({channel:'chrome',headless:true}),results=[]
 const stamp='2026-11-01T03:04:05Z',member={memberId:7,email:'mock@example.test',nickname:'검증 관리자',role:'ADMIN'}
 const author={memberId:8,nickname:'검증 작성자',withdrawn:false}
 const post=(id,status='VISIBLE')=>({postId:id,type:'GENERAL',topic:'DAILY',title:`선택 게시글 ${id}`,content:`현재 본문 ${id}\n`+'긴 본문 검증 '.repeat(40),contentPreview:'미리보기',author,status,createdAt:stamp,updatedAt:stamp,hiddenAt:status==='HIDDEN'?stamp:null,deletedAt:status==='DELETED'?stamp:null})
-const log=(id,targetType='POST')=>({logId:id,actorMemberId:8,targetType,targetId:targetType==='POST'?101:900,action:'HIDE',reasonType:id===201?'LEGACY':'OTHER',reasonDetail:id===201?null:`상세 사유 ${id}`,reason:`저장 원문 ${id}\n`+'긴 사유 '.repeat(30),createdAt:stamp})
+const log=(id,targetType='POST')=>({logId:id,actorMemberId:8,currentTarget:null,targetType,targetId:targetType==='POST'?101:900,action:'HIDE',reasonType:id===201?'LEGACY':'OTHER',reasonDetail:id===201?null:`상세 사유 ${id}`,reason:`저장 원문 ${id}\n`+'긴 사유 '.repeat(30),createdAt:stamp})
 const comment=(id,postId=101)=>({commentId:id,postId,postStatus:'HIDDEN',content:`현재 댓글 ${id}\n`+'긴 댓글 본문 '.repeat(80),author:{...author,nickname:'탈퇴한 회원',withdrawn:true},status:'VISIBLE',createdAt:stamp,updatedAt:stamp,contentUpdatedAt:null,hiddenAt:null,deletedAt:null})
 const btn=(p,name)=>p.getByRole('button',{name,exact:true})
 const selectRow=(p,name)=>p.getByRole('row',{name,exact:true})
@@ -168,14 +168,15 @@ await run('followup parent anchor refresh failure keeps subtree and locks action
   assert.equal(await p.getByLabel('댓글 본문 검색',{exact:true}).inputValue(),'현재')
  }finally{await context.close()}
 })
-await run('followup corrected list page survives whole-flow close then Back',async()=>{
+await run('followup corrected list page survives explicit close and browser history',async()=>{
  const{p,context,s}=await setup()
  try{
-  await p.goto(base+'/admin/operation-logs');await ready(p);await p.getByRole('link',{name:'게시글 관리',exact:true}).click();await ready(p)
+  await p.goto(base+'/admin/operation-logs');await ready(p);await p.getByRole('link',{name:'게시글 관리',exact:true}).click();await p.waitForURL('**/admin/posts?**');await ready(p)
   await p.getByRole('navigation',{name:'게시글 페이지'}).getByRole('button',{name:'다음',exact:true}).click();await ready(p);await select(p,101);await preview(p)
   s.list=(r,u,data)=>r.fulfill({json:{...data,items:Number(u.searchParams.get('page'))>0?[]:s.posts,totalElements:3,totalPages:1,hasNext:false,hasPrevious:Number(u.searchParams.get('page'))>0}})
   await btn(p,'게시글 숨김 처리').click();await p.getByLabel('처리 사유 (필수)',{exact:true}).selectOption('SPAM_ADVERTISING');await btn(p,'숨김 처리 실행').click();await p.waitForFunction(()=>new URL(location.href).searchParams.get('page')==='0');await preview(p)
-  await close(p);await ready(p);assert.equal(new URL(p.url()).searchParams.get('page'),'0');await p.goBack();await ready(p);assert.equal(new URL(p.url()).pathname,'/admin/operation-logs');assert.equal(await dialog(p).count(),0)
+  await close(p);await ready(p);assert.equal(new URL(p.url()).searchParams.get('page'),'0');await p.goBack();await ready(p);assert.equal(new URL(p.url()).pathname,'/admin/posts');assert.equal(new URL(p.url()).searchParams.get('page'),'0');assert.equal(await dialog(p).count(),0)
+  await p.goForward();await ready(p);assert.equal(new URL(p.url()).pathname,'/admin/posts');assert.equal(new URL(p.url()).searchParams.get('page'),'0');assert.equal(await dialog(p).count(),0)
  }finally{await context.close()}
 })
 

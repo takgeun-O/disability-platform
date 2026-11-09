@@ -22,7 +22,7 @@ async function setup(width){
   if(path.endsWith('/logout')){s.member=null;return r.fulfill({status:204})}
   const page=Number(u.searchParams.get('page')??0),meta={page,size:20,totalElements:41,totalPages:3,hasNext:page<2,hasPrevious:page>0}
   if(path==='/api/v1/admin/posts'){const data={...meta,items:[{...metadata,postId:501+page,type:'GENERAL',topic:'DAILY',title:'결과 '+mark(u),contentPreview:'검증 본문'}]};return s.read?s.read(r,u,data):r.fulfill({json:data})}
-  if(path==='/api/v1/admin/operation-logs'){const data={...meta,items:[{logId:601+page,actorMemberId:8,targetType:'POST',targetId:501+page,action:'HIDE',reasonType:'OTHER',reasonDetail:mark(u),reason:mark(u),createdAt:stamp}]};return s.read?s.read(r,u,data):r.fulfill({json:data})}
+  if(path==='/api/v1/admin/operation-logs'){const data={...meta,items:[{logId:601+page,actorMemberId:8,currentTarget:null,targetType:'POST',targetId:501+page,action:'HIDE',reasonType:'OTHER',reasonDetail:mark(u),reason:mark(u),createdAt:stamp}]};return s.read?s.read(r,u,data):r.fulfill({json:data})}
   const detail=path.match(/^\/api\/v1\/admin\/posts\/(\d+)$/)
   if(detail)return r.fulfill({json:{...metadata,postId:Number(detail[1]),type:'GENERAL',topic:'DAILY',title:'상세 검증',content:'전체 검증 본문'}})
   const comments=path.match(/^\/api\/v1\/admin\/posts\/(\d+)\/comments$/)
@@ -71,8 +71,9 @@ for(const kind of ['posts','logs'])for(const width of [1440,320])await run(`${ki
   const back=tab.getByRole('link',{name:kind==='posts'?'← 목록으로':'← 운영 기록으로',exact:true})
   assert.equal(await back.getAttribute('href'),modalUrl.replace(base,''));assert.equal(await tab.locator('.admin-breadcrumb').getByRole('link').innerText(),kind==='posts'?'게시글 관리':'운영 기록')
   snapshots.push({stage:'detail-return',url:tab.url(),returnHref:await back.getAttribute('href')})
-  await back.click();await ready(tab);await tab.getByRole('dialog').waitFor();assert.equal(tab.url(),modalUrl)
-  await btn(tab,'닫기').click();assert.equal(tab.url(),expected.url)
+  await back.click();await tab.locator('.admin-results[aria-busy="false"]').waitFor({state:'attached'});await (kind==='posts'?tab.getByRole('dialog'):tab.locator('.admin-log-panel')).waitFor();assert.equal(tab.url(),modalUrl)
+  if(kind==='logs')assert.equal(await tab.getByRole('dialog').count(),0,'operation records retain the same-page panel')
+  await btn(tab,kind==='posts'?'닫기':'상세 닫기').click();await tab.waitForURL(expected.url);assert.equal(tab.url(),expected.url)
   assert.equal(await label(tab,`${prefix} 시작일`).inputValue(),expected.start);assert.equal(await label(tab,`${prefix} 종료일`).inputValue(),expected.end);assert.equal(await label(tab,`${prefix} 시각 정렬`).inputValue(),'OLDEST');assert.equal(await label(tab,'페이지 바로 이동').inputValue(),'2');assert.equal(await tab.locator('tbody').innerText(),expected.rows);assert.equal(reads().at(-1).search,request)
   await tab.screenshot({path:`${out}/${kind}-${width}-return-link.png`,fullPage:true});await tab.close()
   await openDates(p);await label(p,`${prefix} 시작일`).fill('2026-11-09');await openDates(p);await btn(p,'기간 적용').click();await p.locator('.admin-date-range [role=alert]').waitFor();assert.equal(reads().at(-1).search,request)

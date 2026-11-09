@@ -7,7 +7,7 @@ const browser=await chromium.launch({channel:'chrome',headless:true}),results=[]
 const stamp='2026-11-01T03:04:05Z',member={memberId:7,email:'mock@example.test',nickname:'검증 관리자',role:'ADMIN'}
 const author={memberId:8,nickname:'검증 작성자',withdrawn:false}
 const post=(id,status='VISIBLE')=>({postId:id,type:'GENERAL',topic:'DAILY',title:`보청기 적응 경험을 나눕니다 ${id}`,content:`새 보청기를 사용한 지 한 달이 되었습니다. 🦻\n조용한 곳에서는 대화가 한결 편해졌지만, 사람이 많은 장소에서는 아직 적응이 필요합니다.\n\n`+'착용 시간을 조금씩 늘리며 느낀 점을 기록합니다. 여러분의 경험도 알려 주세요.\n'.repeat(32)+'마지막 게시글 문장입니다.',contentPreview:'미리보기',author,status,createdAt:stamp,updatedAt:stamp,hiddenAt:status==='HIDDEN'?stamp:null,deletedAt:status==='DELETED'?stamp:null})
-const log=(id,targetType='POST')=>({logId:id,actorMemberId:8,targetType,targetId:targetType==='POST'?101:900,action:'HIDE',reasonType:id===201?'LEGACY':'OTHER',reasonDetail:id===201?null:`상세 사유 ${id}`,reason:`저장 원문 ${id}\n`+'긴 사유 '.repeat(30),createdAt:stamp})
+const log=(id,targetType='POST')=>({logId:id,actorMemberId:8,currentTarget:null,targetType,targetId:targetType==='POST'?101:900,action:'HIDE',reasonType:id===201?'LEGACY':'OTHER',reasonDetail:id===201?null:`상세 사유 ${id}`,reason:`저장 원문 ${id}\n`+'긴 사유 '.repeat(30),createdAt:stamp})
 const comment=(id,postId=101)=>({commentId:id,postId,postStatus:'HIDDEN',content:`저도 비슷한 경험이 있어요. 🦻\n처음에는 조용한 곳에서 대화를 연습했습니다.\n\n`+'꾸준히 착용하면서 조금씩 적응하고 있습니다.\n'.repeat(32)+'공백없는긴문자열'.repeat(50)+'\n끝까지 읽어 주셔서 감사합니다.',author:{...author,nickname:'탈퇴한 회원',withdrawn:true},status:'VISIBLE',createdAt:stamp,updatedAt:stamp,contentUpdatedAt:null,hiddenAt:null,deletedAt:null})
 const btn=(p,name)=>p.getByRole('button',{name,exact:true})
 const selectRow=(p,name)=>p.getByRole('row',{name,exact:true})

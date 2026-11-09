@@ -1,8 +1,8 @@
 "use client"
 import { useId, useLayoutEffect, useRef, useState } from "react"
 import type { AdminPageInfo } from "@/lib/admin-posts"
-export default function AdminPagination({ data, busy, failed, onPage, label = "게시글 페이지" }: {
-  data: AdminPageInfo; label?: string; busy: boolean; failed: boolean; onPage: (page: number) => void
+export default function AdminPagination({ data, busy, failed, disabled = false, onPage, label = "게시글 페이지" }: {
+  data: AdminPageInfo; label?: string; busy: boolean; failed: boolean; disabled?: boolean; onPage: (page: number) => void
 }) {
   const uid = useId()
   const [input, setInput] = useState(String(data.page + 1))
@@ -21,7 +21,7 @@ export default function AdminPagination({ data, busy, failed, onPage, label = "�
       && focused.dataset.boundary === "true") summary.current?.focus({ preventScroll: true })
   }, [data, busy, failed])
   const empty = data.totalPages === 0
-  const locked = busy || failed || empty
+  const locked = busy || failed || disabled || empty
   const go = (page: number, boundary = false) => { if (!locked && !boundary) { setError(""); onPage(page) } }
   return <nav ref={region} className="admin-pagination" aria-label={label} aria-busy={busy}>
     <div className="admin-page-buttons">
@@ -41,7 +41,7 @@ export default function AdminPagination({ data, busy, failed, onPage, label = "�
       go(page-1)
     }}>
       <label htmlFor={`${uid}-input`}>페이지 바로 이동</label>
-      <input id={`${uid}-input`} inputMode="numeric" value={empty ? "" : input} readOnly={busy || failed} disabled={empty}
+      <input id={`${uid}-input`} inputMode="numeric" value={empty ? "" : input} readOnly={busy || failed || disabled} disabled={empty}
         aria-invalid={!!error} aria-describedby={error ? `${uid}-error` : undefined}
         onChange={event => {setInput(event.target.value); setError("")}} />
       <button aria-disabled={locked} type="submit">이동</button>

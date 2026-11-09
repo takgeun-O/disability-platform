@@ -2,7 +2,7 @@ import test from "node:test"
 import assert from "node:assert/strict"
 import { loadTypeScript } from "./helpers/load-typescript.mjs"
 const api = await loadTypeScript("../src/lib/admin-operation-logs.ts", import.meta.url)
-const item = {logId: 10, actorMemberId: 88, targetType: "COMMENT", targetId: 42, action: "HIDE", reasonType:"LEGACY",reasonDetail:null,reason: "원문  공백\n보존", createdAt: "2026-11-03T18:04:05.123456Z"}
+const item = {logId: 10, actorMemberId: 88,currentTarget:null, targetType: "COMMENT", targetId: 42, action: "HIDE", reasonType:"LEGACY",reasonDetail:null,reason: "원문  공백\n보존", createdAt: "2026-11-03T18:04:05.123456Z"}
 const page = {items: [item], page: 0, size: 20, totalElements: 1, totalPages: 1, hasNext: false, hasPrevious: false}
 for (const date of ["0001-01-01", "9999-12-31", "2000-02-29", "2024-02-29", "2026-12-31"])
  test(`calendar accepts ${date}`, () => assert(api.validLogDate(date)))
@@ -57,4 +57,15 @@ test('reason and server sort are independent, explicit null required',()=>{
  for(const reasonType of ['ALL','unknown',null])assert(!api.isOperationLogPage({...page,items:[{...item,reasonType}]}))
  for(const reasonDetail of [undefined,0,{}])assert(!api.isOperationLogPage({...page,items:[{...item,reasonDetail}]}))
  assert(api.isOperationLogPage({...page,items:[{...item,reasonType:'OTHER',reasonDetail:'😀'}]}))
+})
+
+
+test("currentTarget is required nullable, author is distinct, comment title is explicit null", () => {
+ const target={author:{memberId:43,nickname:"탈퇴한 회원",withdrawn:true},title:null,contentPreview:"현재 댓글 😀"}
+ assert(api.isOperationLogPage({...page,items:[{...item,currentTarget:target}]}))
+ assert(api.isOperationLogPage({...page,items:[{...item,targetType:"POST",currentTarget:{...target,title:"현재 제목"}}]}))
+ for(const currentTarget of [undefined,{}, {...target,title:undefined},{...target,title:"댓글에 제목"},{...target,contentPreview:null},{...target,author:{...target.author,memberId:0}},{...target,author:{...target.author,withdrawn:undefined}}])
+  assert(!api.isOperationLogPage({...page,items:[{...item,currentTarget}]}))
+ for(const key of ["memberId","nickname","withdrawn"]){const author={...target.author};delete author[key];assert(!api.isOperationLogPage({...page,items:[{...item,currentTarget:{...target,author}}]}))}
+ assert(!api.isOperationLogPage({...page,items:[{...item,targetType:"POST",currentTarget:target}]}))
 })

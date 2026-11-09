@@ -9,7 +9,7 @@ await fs.mkdir(out,{recursive:true})
 const browser=await chromium.launch({channel:'chrome',headless:true}),results=[]
 const path='/api/v1/admin/operation-logs',stamp='2026-11-03T18:04:05.123456Z'
 const member={memberId:7,email:'mock@example.test',nickname:'검증관리자',role:'ADMIN'}
-const item=(id,overrides={})=>({logId:id,actorMemberId:88,targetType:id%2?'POST':'COMMENT',targetId:id+100,action:id%2?'HIDE':'RESTORE',reasonType:"LEGACY",reasonDetail:null,reason:`검증 처리 사유 ${id}\n원문  공백 유지`,createdAt:stamp,...overrides})
+const item=(id,overrides={})=>({logId:id,actorMemberId:88,currentTarget:null,targetType:id%2?'POST':'COMMENT',targetId:id+100,action:id%2?'HIDE':'RESTORE',reasonType:"LEGACY",reasonDetail:null,reason:`검증 처리 사유 ${id}\n원문  공백 유지`,createdAt:stamp,...overrides})
 const payload=(page=0,total=45,overrides={})=>({items:Array.from({length:Math.max(0,Math.min(20,total-page*20))},(_,i)=>item(total-page*20-i)),page,size:20,totalElements:total,totalPages:Math.ceil(total/20),hasNext:(page+1)*20<total,hasPrevious:page>0,...overrides})
 const failure=(status,code)=>({status,json:{code,message:'mock error',fieldErrors:[]}})
 const gate=()=>{let arrive,release;return{arrived:new Promise(r=>arrive=r),promise:new Promise(r=>release=r),arrive:()=>arrive(),release:()=>release()}}
@@ -63,7 +63,7 @@ await run('ADMIN default GET, exact KST seconds, past actor and target semantics
  assert.equal(s.calls.filter(c=>c.path.includes('/csrf')).length,0)
  assert.equal(s.calls.filter(c=>c.path.startsWith('/api/v1/admin/')).length,1)
  await p.locator('[data-log-id="44"] .admin-badge').click();await p.locator('.admin-preview-comment[aria-busy="false"]').waitFor();assert(await p.locator('.admin-log-fields').getByText('회원 #88',{exact:true}).isVisible());assert.deepEqual(s.calls.filter(c=>c.path.startsWith('/api/v1/admin/')).map(c=>c.path),[path,'/api/v1/admin/comments/144']);assert.equal(await p.locator('.admin-content-dialog a').count(),0);assert((await p.locator('.admin-preview-comment').innerText()).includes('현재 댓글 정보를 찾을 수 없습니다.'))
- await p.getByRole('button',{name:'닫기',exact:true}).click();await p.getByRole('dialog').waitFor({state:'detached'});await ready(p);assert.equal(reads(s).length,2,'whole-flow close returns to the list and refreshes once');await p.getByRole('link',{name:'운영 기록',exact:true}).click();assert.equal(reads(s).length,2)
+ await p.getByRole('button',{name:'상세 닫기',exact:true}).click();await p.locator('#admin-log-panel-title').waitFor({state:'detached'});await ready(p);assert.equal(reads(s).length,1,'closing same-page detail preserves the loaded list');assert.equal(await p.getByRole('dialog').count(),0)
  await p.getByRole('link',{name:'게시글 관리',exact:true}).click();await p.waitForURL(/\/admin\/posts/);await ready(p)
  assert.equal(await p.getByRole('link',{name:'게시글 관리',exact:true}).getAttribute('aria-current'),'page')
  await context.close()
@@ -230,11 +230,11 @@ await run('network failure retries only on request and retains applied filters',
 })
 for(const width of [1440,1024,390,320])await run(`layout ${width}: long reason/IDs, keyboard, screenshot`,async()=>{
  const{context,p,s}=await setup('ADMIN',width)
- s.read=r=>r.fulfill({json:payload(0,3,{items:[item(3,{actorMemberId:9007199254740991,targetId:9007199254740990,reasonType:"LEGACY",reasonDetail:null,reason:'긴 처리 사유입니다. 원문의 줄바꿈과 공백을 유지합니다.\n'+ '공백없는긴문자열'.repeat(16)}),item(2,{reasonType:"LEGACY",reasonDetail:null,reason:'사유를 확인한 후 숨김을 해제했습니다.'}),item(1,{reasonType:"LEGACY",reasonDetail:null,reason:'<script>alert("실행 금지")</script>'})]})})
+ s.read=r=>r.fulfill({json:payload(0,3,{items:[item(3,{actorMemberId:9007199254740991,currentTarget:null,targetId:9007199254740990,reasonType:"LEGACY",reasonDetail:null,reason:'긴 처리 사유입니다. 원문의 줄바꿈과 공백을 유지합니다.\n'+ '공백없는긴문자열'.repeat(16)}),item(2,{reasonType:"LEGACY",reasonDetail:null,reason:'사유를 확인한 후 숨김을 해제했습니다.'}),item(1,{reasonType:"LEGACY",reasonDetail:null,reason:'<script>alert("실행 금지")</script>'})]})})
  await p.goto(base+'/admin/operation-logs',{waitUntil:'domcontentloaded'});await ready(p)
  assert(await p.evaluate(()=>document.documentElement.scrollWidth<=innerWidth))
  assert.equal(await p.locator('.admin-log-reason script').count(),0)
- assert.equal(await p.getByRole('columnheader').count(),width>1100?4:5)
+ assert.equal(await p.getByRole('columnheader').count(),5)
  await openDates(p);await label(p,'처리 시작일').focus();await p.keyboard.press('Tab');assert(await focus(button(p,'처리 시작일 달력 열기')))
  await p.keyboard.press('Tab');assert(await focus(label(p,'처리 종료일')))
  for(const control of await p.locator('.admin-log-filters input,.admin-log-filters select,.admin-log-filters button').all()){

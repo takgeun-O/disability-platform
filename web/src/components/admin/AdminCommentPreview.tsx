@@ -9,7 +9,7 @@ import { AdminApiError } from "@/lib/admin-posts"
 import { AdminAuthor, AdminCommentMeta, AdminStatusBadge } from "./AdminContentMeta"
 import { AdminActionLabel, AdminModerationSlot, useAdminModeration } from "./AdminModeration"
 
-export default function AdminCommentPreview({commentId,manage=false,onParent,onManage,parentManagement=false,returnHref="/admin/operation-logs",showHeading=true}:{commentId:number;manage?:boolean;onParent?:(postId:number)=>void;onManage?:()=>void;parentManagement?:boolean;returnHref?:string;showHeading?:boolean}) {
+export default function AdminCommentPreview({commentId,manage=false,blocked=false,onParent,onManage,parentManagement=false,returnHref="/admin/operation-logs",showHeading=true}:{commentId:number;manage?:boolean;blocked?:boolean;onParent?:(postId:number)=>void;onManage?:()=>void;parentManagement?:boolean;returnHref?:string;showHeading?:boolean}) {
   const auth=useAuth(),scope=useNavigationRequest(),{deny,readCurrent,revision,locked,completed,open}=useAdminModeration()
   const capture=auth.captureMemberRequest,memberId=auth.member!.memberId
   const [retry,setRetry]=useState(0)
@@ -27,7 +27,7 @@ export default function AdminCommentPreview({commentId,manage=false,onParent,onM
   },[commentId,retry,scope,capture,memberId,deny,readCurrent,revision])
   const active=result?.id===commentId&&result.attempt===retry&&result.revision===revision?result:null,data=result?.id===commentId?result.data:undefined
   const confirmed=result?.id===commentId?result.data:undefined
-  const unavailable=!active||!!active.error, actionLocked=locked||unavailable
+  const unavailable=!active||!!active.error, actionLocked=locked||unavailable||blocked
   if(parentManagement&&confirmed)return <><p>소속 게시글 #{confirmed.postId}</p>{!active&&<p role="status">현재 댓글과 소속 게시글 상태를 확인하고 있습니다…</p>}{active?.error&&<div role="alert"><p>{active.error} 이전 상태를 표시하며 조치를 제한합니다.</p><button onClick={()=>setRetry(n=>n+1)}>댓글 정보 다시 시도</button></div>}<AdminPostPreview key={confirmed.postId} postId={confirmed.postId} returnHref={returnHref} blocked={!active||!!active.error}/></>
   return <section className="admin-preview-comment" aria-label="현재 댓글 내용" tabIndex={-1} aria-busy={!active}>
     {showHeading&&<h3>현재 댓글</h3>}

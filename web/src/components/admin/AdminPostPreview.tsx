@@ -11,7 +11,7 @@ import { POST_TYPES, POST_TOPICS } from "@/lib/community-posts"
 import { AdminActionLabel, AdminModerationSlot, useAdminModeration } from "./AdminModeration"
 import AdminComments from "./AdminComments"
 import AdminContentMeta, { AdminAuthor, AdminStatusBadge } from "./AdminContentMeta"
-export default function AdminPostPreview({postId,blocked=false,readOnly=false,showHeading=true,onManage}:{postId:number;returnHref:string;blocked?:boolean;readOnly?:boolean;showHeading?:boolean;onManage?:()=>void}) {
+export default function AdminPostPreview({postId,blocked=false,readOnly=false,showHeading=true,onManage,includeComments=true}:{postId:number;returnHref:string;blocked?:boolean;readOnly?:boolean;showHeading?:boolean;onManage?:()=>void;includeComments?:boolean}) {
   useAdminManagedPostTitle(postId)
   const auth=useAuth(),scope=useNavigationRequest()
   const {revision,readCurrent,locked,completed,open,deny}=useAdminModeration()
@@ -49,15 +49,15 @@ export default function AdminPostPreview({postId,blocked=false,readOnly=false,sh
   },[postId,revision,retry,scope,capture,memberId,readCurrent,deny])
   const active=result?.revision===revision&&result.retry===retry?result:null,data=result?.data
   useEffect(()=>{
-    if(readOnly||!data)return
+    if(readOnly||!includeComments||!data)return
     const element=commentsRegion.current
     if(!element)return
     const observer=new IntersectionObserver(entries=>{if(entries.some(entry=>entry.isIntersecting)){setCommentsOpened(true);observer.disconnect()}},{root:element.closest('.admin-dialog-body'),rootMargin:'160px'})
     observer.observe(element)
     return()=>observer.disconnect()
-  },[readOnly,data])
+  },[readOnly,includeComments,data])
   return <section className="admin-preview-post" aria-label={readOnly?"현재 게시글 내용":"게시글 상세 내용"} aria-busy={!active}>
-    <AdminModalActions>{!readOnly&&<button type="button" onClick={jumpComments}>댓글 관리로 이동</button>}{data?.status==="VISIBLE"&&<Link href={`/community/posts/${postId}`}>원문 보기</Link>}</AdminModalActions>
+    <AdminModalActions>{!readOnly&&includeComments&&<button type="button" onClick={jumpComments}>댓글 관리로 이동</button>}{data?.status==="VISIBLE"&&<Link href={`/community/posts/${postId}`}>원문 보기</Link>}</AdminModalActions>
     {readOnly&&showHeading&&<h3>현재 게시글 내용</h3>}
     {!active&&<p role="status">게시글을 불러오고 있습니다…</p>}
     {active?.error&&<div role="alert"><p>{completed&&"조치는 완료됐지만 최신 내용을 확인하지 못했습니다. "}{active.error}</p><button onClick={()=>setRetry(n=>n+1)}>게시글 다시 시도</button></div>}
@@ -70,7 +70,7 @@ export default function AdminPostPreview({postId,blocked=false,readOnly=false,sh
       {!readOnly&&(data.status==="DELETED"?<p>삭제된 게시글은 숨김 또는 숨김 해제할 수 없습니다.</p>:<button className="admin-moderation-primary" disabled={blocked||locked||!active||!!active.error} onClick={()=>{if(!blocked&&!locked&&active&&!active.error)open({postId,content:data,label:data.title,action:data.status==="HIDDEN"?"restore":"hide"})}}><AdminActionLabel postId={postId}>게시글 {data.status==="HIDDEN"?"숨김 해제":"숨김 처리"}</AdminActionLabel></button>)}
       {!readOnly&&<AdminModerationSlot postId={postId}/>}
     </>}
-    {!readOnly&&<section ref={commentsRegion} className="admin-dialog-comments" aria-label="댓글 영역" tabIndex={-1}>
+    {!readOnly&&includeComments&&<section ref={commentsRegion} className="admin-dialog-comments" aria-label="댓글 영역" tabIndex={-1}>
       {!commentsOpened&&<h3>댓글</h3>}
       {commentsOpened&&data?<AdminComments compact key={postId} postId={postId} parentStatus={active?.data?.status} parentUnavailable={blocked||!active||!!active.error} onForbidden={deny} onReady={onCommentsReady}/>:<p>댓글 영역에 도달하면 목록을 불러옵니다.</p>}
     </section>}

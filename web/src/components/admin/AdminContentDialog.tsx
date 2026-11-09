@@ -1,7 +1,7 @@
 "use client"
 import { createContext, useCallback, useContext, useLayoutEffect, useRef, useState, type ReactNode } from "react"
 import { createPortal } from "react-dom"
-import { useSearchParams } from "next/navigation"
+import { usePathname, useSearchParams } from "next/navigation"
 import OverlayDialog from "@/components/OverlayDialog"
 import { getAdminDialogReturn, setAdminDialogReturn } from "@/lib/admin-dialog-return"
 import { adminReturnHref } from "@/lib/admin-navigation"
@@ -11,13 +11,13 @@ import AdminCommentPreview from "./AdminCommentPreview"
 import AdminLogPreview from "./AdminLogPreview"
 import { AdminModerationWorkspace, useAdminModeration } from "./AdminModeration"
 
-// Only flows opened in this live document may traverse back to a known base.
-// A reload/direct entry has no entry in this map and uses the safe URL fallback.
-const flows=new Map<string,{index:number;href:string;x:number;y:number}>()
+// A flow remembers only list scroll, never a browser-history traversal distance.
+const flows=new Map<string,{href:string;x:number;y:number}>()
 export function useAdminDialogReturn(navigation:number) {
+  const pathname=usePathname(),search=useSearchParams().toString()
   useLayoutEffect(()=>{
     const pending=getAdminDialogReturn()
-    if(!pending||![pending.href,pending.baseHref].includes(location.pathname+location.search))return
+    if(!pending||pending.href!==location.pathname+location.search)return
     const restore=()=>{
       const row=document.querySelector<HTMLElement>(pending.selector)
       const ready=document.querySelector('.admin-results[aria-busy="false"]')
@@ -28,7 +28,7 @@ export function useAdminDialogReturn(navigation:number) {
     }
     const observer=new MutationObserver(restore);observer.observe(document.body,{childList:true,subtree:true,attributes:true,attributeFilter:['aria-busy']});restore()
     return()=>{observer.disconnect();if(getAdminDialogReturn()===pending)setAdminDialogReturn(null)}
-  },[navigation])
+  },[navigation,pathname,search])
 }
 const ManagedPost = createContext<((postId:number)=>void)|null>(null)
 export function useAdminManagedPostTitle(postId:number) {
@@ -43,9 +43,8 @@ export function AdminModalActions({children}:{children:ReactNode}) {
 // Pass only app-owned metadata: Next copies its router fields itself. Passing
 // __NA would bypass Next's native-history integration and leave searchParams stale.
 export function openAdminDialog(href:string) {
-  const base=history.state?.__iyumNavigationIndex
   const flow=crypto.randomUUID()
-  if(typeof base==='number')flows.set(flow,{index:base,href:location.pathname+location.search,x:scrollX,y:scrollY})
+  flows.set(flow,{href:location.pathname+location.search,x:scrollX,y:scrollY})
   history.pushState({adminModalFlow:flow},'',href)
 }
 export function syncAdminListUrl(href:string) {
@@ -59,6 +58,7 @@ export default function AdminContentDialog({id,log,listHref}:{id:number;log?:Ope
   const params=useSearchParams(),{requestExit,confirmation,feedback,inlineTarget,originScroll}=useAdminModeration()
   const [header,setHeader]=useState<HTMLDivElement|null>(null)
   const body=useRef<HTMLDivElement>(null),heading=useRef<HTMLHeadingElement>(null),closing=useRef(false)
+  const openedScroll=useRef({x:typeof window==='undefined'?0:window.scrollX,y:typeof window==='undefined'?0:window.scrollY})
   const readScroll=useRef(0),wasAction=useRef(false);
   useLayoutEffect(()=>{
     if(!body.current)return;
@@ -80,13 +80,13 @@ export default function AdminContentDialog({id,log,listHref}:{id:number;log?:Ope
   const close=()=>requestExit(()=>{
     if(closing.current)return
     closing.current=true
-    const href=adminReturnHref(listHref),flow=flows.get(history.state?.adminModalFlow),index=history.state?.__iyumNavigationIndex
-    if(flow&&new URL(flow.href,location.origin).pathname===new URL(href,location.origin).pathname&&typeof index==='number'&&index>flow.index){
-      setAdminDialogReturn({href,baseHref:flow.href,selector:`#${log?'log':'post'}-select-${id}`,x:flow.x,y:flow.y})
-      history.go(flow.index-index)
-      return
-    }
-    // Direct entry/reload: never assume that an earlier list entry exists.
+    const destination=new URL(adminReturnHref(listHref),location.origin)
+    for(const key of ['selected','view','parent'])destination.searchParams.delete(key)
+    const href=destination.pathname+destination.search,flow=flows.get(history.state?.adminModalFlow)
+    const scroll=flow&&new URL(flow.href,location.origin).pathname===destination.pathname?flow:openedScroll.current
+    setAdminDialogReturn({href,selector:`#${log?'log':'post'}-select-${id}`,x:scroll.x,y:scroll.y})
+    // Explicit close is not Back. Replace only the current list selection; Next's
+    // native-history integration keeps searchParams and its router tree in sync.
     history.replaceState({},'',href)
   })
   return <OverlayDialog titleId="admin-content-dialog-title" className="admin-content-dialog" onClose={close} closeOnBackdropClick={false} closeOnNavigation={false} returnFocus={`#${log?'log':'post'}-select-${id}`} fallbackFocus="[data-admin-list-heading]" initialFocus="#admin-content-dialog-title">

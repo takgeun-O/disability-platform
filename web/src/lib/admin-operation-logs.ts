@@ -9,7 +9,9 @@ export const LOG_SORTS = { LATEST: "최신순", OLDEST: "오래된순" } as cons
 export type LogFilters = { reasonType: ModerationReasonType | ""; sort: keyof typeof LOG_SORTS; targetType: keyof typeof LOG_TARGETS; action: keyof typeof LOG_ACTIONS; startDate: string; endDate: string }
 export type LogQuery = LogFilters & { page: number }
 export const DEFAULT_LOG_QUERY: LogQuery = { reasonType: "", sort: "LATEST", targetType: "ALL", action: "ALL", startDate: "", endDate: "", page: 0 }
+export type CurrentLogTarget = { author: { memberId: number; nickname: string; withdrawn: boolean }; title: string | null; contentPreview: string }
 export type OperationLog = {
+  currentTarget: CurrentLogTarget | null
   logId: number; actorMemberId: number; targetType: "POST" | "COMMENT"; targetId: number
   action: "HIDE" | "RESTORE"; reasonType: ModerationReasonType; reasonDetail: string | null; reason: string; createdAt: string
 }
@@ -34,6 +36,11 @@ export function logQueryParams(query: LogQuery) {
   return params
 }
 const positiveId = (v: unknown): v is number => adminCount(v) && v > 0
+function isCurrentTarget(value: unknown, type: unknown): value is CurrentLogTarget | null {
+  return value === null || (adminObject(value) && adminObject(value.author)
+    && positiveId(value.author.memberId) && typeof value.author.nickname === "string" && typeof value.author.withdrawn === "boolean"
+    && (type === "COMMENT" ? value.title === null : typeof value.title === "string") && typeof value.contentPreview === "string")
+}
 export function isOperationLogPage(value: unknown): value is OperationLogPage {
   if (!isAdminPageInfo(value) || !Array.isArray(value.items) || value.items.length > value.size || value.items.length > value.totalElements) return false
   if (value.page >= value.totalPages && value.items.length !== 0) return false
@@ -41,6 +48,7 @@ export function isOperationLogPage(value: unknown): value is OperationLogPage {
     && positiveId(item.targetId) && (item.targetType === "POST" || item.targetType === "COMMENT")
     && (item.action === "HIDE" || item.action === "RESTORE") && typeof item.reason === "string"
     && isModerationReasonType(item.reasonType) && (item.reasonDetail === null || typeof item.reasonDetail === "string")
+    && isCurrentTarget(item.currentTarget, item.targetType)
     && typeof item.createdAt === "string" && writtenInstant(item.createdAt) !== null)
     && new Set(value.items.map(item => item.logId)).size === value.items.length
 }
