@@ -113,6 +113,8 @@ public class AdminMemberReadController {
                     검색·상태·권한 조건은 AND로 결합합니다.
                     LATEST는 createdAt DESC, memberId DESC; OLDEST는 두 필드 모두 ASC로 정렬한 뒤 페이지를 적용합니다.
                     모든 회원 상태를 조회하며 WITHDRAWN/DELETED 표시 이름은 탈퇴한 회원입니다. DELETED 이메일은 명시적 null, WITHDRAWN은 저장된 이메일입니다.
+                    MVP의 일반 탈퇴는 개인정보 정리 후 즉시 DELETED(탈퇴 완료)로 전환하며 회원 행과 ID는 유지합니다. 물리 삭제가 아닙니다.
+                    WITHDRAWN(탈퇴·정리 대기)은 이용 종료 후 개인정보 정리가 완료되지 않은 예약 상태이며 현재 MVP 일반 탈퇴 경로에서 별도로 저장하지 않습니다.
                     관리자 로그인 세션이 필요하며 GET 요청에는 CSRF 토큰이 필요하지 않습니다.
                     """
     )
@@ -293,6 +295,8 @@ public class AdminMemberReadController {
             summary = "관리자 회원 상세 조회",
             description = """
                     가입 대기·정지·탈퇴 등 대상 회원의 상태와 관계없이 조회합니다.
+                    MVP의 일반 탈퇴는 개인정보 정리 후 즉시 DELETED(탈퇴 완료)로 전환하며 회원 행과 ID는 유지합니다. 물리 삭제가 아닙니다.
+                    WITHDRAWN(탈퇴·정리 대기)은 이용 종료 후 개인정보 정리가 완료되지 않은 예약 상태이며 현재 MVP 일반 탈퇴 경로에서 별도로 저장하지 않습니다.
                     DELETED의 이메일은 명시적 null, WITHDRAWN은 현재 저장된 이메일을 반환합니다.
                     WITHDRAWN과 DELETED의 표시 이름은 탈퇴한 회원입니다. withdrawnAt이 없으면 명시적 null입니다.
                     회원 이메일을 포함하나 passwordHash, password, credentialVersion 등 인증 비밀값은 반환하지 않습니다.

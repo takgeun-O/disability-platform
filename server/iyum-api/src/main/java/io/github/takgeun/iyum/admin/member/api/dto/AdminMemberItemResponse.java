@@ -28,7 +28,7 @@ public record AdminMemberItemResponse(
         String nickname,
         @Schema(description = "현재 저장된 이메일. DELETED는 null, WITHDRAWN은 저장된 값을 반환. null이어도 필드 포함", requiredMode = Schema.RequiredMode.REQUIRED, example = "member@example.com", types = {"string", "null"}, nullable = true)
         @Nullable String email,
-        @Schema(description = "회원 상태. 모든 상태를 관리자 조회에 포함", requiredMode = Schema.RequiredMode.REQUIRED, example = "ACTIVE")
+        @Schema(description = "회원 상태. WITHDRAWN은 탈퇴·정리 대기(예약 상태), DELETED는 탈퇴 완료(회원 행 유지, 물리 삭제 아님). 모든 상태를 관리자 조회에 포함", requiredMode = Schema.RequiredMode.REQUIRED, example = "ACTIVE")
         MemberStatus status,
         @Schema(description = "현재 역할", requiredMode = Schema.RequiredMode.REQUIRED, example = "USER")
         MemberRole role,

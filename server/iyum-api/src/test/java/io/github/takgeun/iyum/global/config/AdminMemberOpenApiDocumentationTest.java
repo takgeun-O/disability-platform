@@ -66,6 +66,21 @@ class AdminMemberOpenApiDocumentationTest extends AbstractOpenApiWebTest {
         assertThat(doc.at("/components/securitySchemes").toString()).doesNotContain("bearer");
     }
 
+    @Test
+    void withdrawalDescriptionsDistinguishRetainedRowsAndReservedCleanupState() throws Exception {
+        JsonNode doc = document();
+        for (boolean detail : List.of(false, true)) {
+            assertThat(operation(doc, detail).get("description").asString())
+                    .contains("DELETED", "물리 삭제가 아닙니다", "WITHDRAWN", "예약 상태", "MVP");
+        }
+        for (String name : List.of("AdminMemberItemResponse", "AdminMemberDetailResponse")) {
+            assertThat(doc.at("/components/schemas/" + name + "/properties/status/description").asString())
+                    .contains("탈퇴 완료", "탈퇴·정리 대기", "회원 행 유지");
+        }
+        assertThat(operation(doc, true).at("/responses/200/content/application~1json/examples/deleted/value/status").asString())
+                .isEqualTo("DELETED");
+    }
+
     @ParameterizedTest
     @ValueSource(strings = {"page", "size"})
     void paginationUsesOptionalIntegerQueryWithNumericDefaultsAndBounds(String name) throws Exception {
