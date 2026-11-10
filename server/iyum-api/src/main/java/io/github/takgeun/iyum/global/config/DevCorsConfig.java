@@ -313,6 +313,24 @@ public class DevCorsConfig {
                 adminOperationLogReadCors
         );
 
+        // 관리자 회원 목록·상세 조회
+        CorsConfiguration adminMemberReadCors =
+                new CorsConfiguration(cors);
+
+        adminMemberReadCors.setAllowedMethods(
+                List.of("GET", "OPTIONS")
+        );
+
+        source.registerCorsConfiguration(
+                "/api/v1/admin/members",
+                adminMemberReadCors
+        );
+
+        source.registerCorsConfiguration(
+                "/api/v1/admin/members/*",
+                adminMemberReadCors
+        );
+
         return source;
     }
 }

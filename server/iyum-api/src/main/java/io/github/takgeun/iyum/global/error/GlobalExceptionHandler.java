@@ -1,6 +1,7 @@
 package io.github.takgeun.iyum.global.error;
 
 import io.github.takgeun.iyum.admin.content.application.AdminContentReadException;
+import io.github.takgeun.iyum.admin.member.application.AdminMemberReadException;
 import io.github.takgeun.iyum.admin.moderation.application.ContentModerationException;
 import io.github.takgeun.iyum.admin.operation.application.AdminOperationLogReadException;
 import io.github.takgeun.iyum.auth.emailverification.application.InvalidEmailVerificationTokenException;
@@ -877,6 +878,35 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
 
             case INVALID_PAGE_REQUEST, INVALID_DATE_RANGE ->
                     HttpStatus.BAD_REQUEST;
+        };
+
+        return ResponseEntity
+                .status(status)
+                .cacheControl(CacheControl.noStore())
+                .body(ApiErrorResponse.of(
+                        exception.getCode().name(),
+                        exception.getMessage()
+                ));
+    }
+
+    @ExceptionHandler(AdminMemberReadException.class)
+    public ResponseEntity<ApiErrorResponse> handleAdminMemberRead(
+            AdminMemberReadException exception
+    ) {
+        HttpStatus status = switch (exception.getCode()) {
+            case AUTHENTICATION_REQUIRED ->
+                    HttpStatus.UNAUTHORIZED;
+
+            case ADMIN_REQUIRED ->
+                    HttpStatus.FORBIDDEN;
+
+            case INVALID_REQUEST_PARAMETER,
+                 INVALID_PAGE_REQUEST,
+                 INVALID_SEARCH_KEYWORD ->
+                    HttpStatus.BAD_REQUEST;
+
+            case MEMBER_NOT_FOUND ->
+                    HttpStatus.NOT_FOUND;
         };
 
         return ResponseEntity
