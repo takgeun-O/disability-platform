@@ -159,4 +159,69 @@ public class Member {
         this.passwordHash = newPasswordHash;
         this.credentialVersion = nextCredentialVersion;
     }
+
+    /**
+     * 일반 회원을 이용 정지한다.
+     *
+     * @return 실제 상태가 변경되면 true,
+     * 이미 이용 정지 상태이면 false.
+     */
+    public boolean suspend() {
+        validateModerationTarget();
+
+        if (this.status == MemberStatus.SUSPENDED) {
+            return false;
+        }
+
+        if (this.status != MemberStatus.ACTIVE) {
+            throw new IllegalStateException(
+                    "활성 회원만 이용 정지할 수 있습니다."
+            );
+        }
+
+        // 오버플로가 발생하면 상태를 변경하지 않는다.
+        long nextCredentialVersion =
+                Math.addExact(this.credentialVersion, 1L);
+
+        this.status = MemberStatus.SUSPENDED;
+        this.credentialVersion = nextCredentialVersion;
+
+        return true;
+    }
+
+    /**
+     * 일반 회원의 이용 정지를 해제한다.
+     *
+     * @return 실제 상태가 변경되면 true,
+     * 이미 활성 상태이면 false
+     */
+    public boolean liftSuspension() {
+        validateModerationTarget();
+
+        if (this.status == MemberStatus.ACTIVE) {
+            return false;
+        }
+
+        if (this.status != MemberStatus.SUSPENDED) {
+            throw new IllegalStateException(
+                    "이용 정지 회원만 정지를 해제할 수 있습니다."
+            );
+        }
+
+        long nextCredentialVersion =
+                Math.addExact(this.credentialVersion, 1L);
+
+        this.status = MemberStatus.ACTIVE;
+        this.credentialVersion = nextCredentialVersion;
+
+        return true;
+    }
+
+    private void validateModerationTarget() {
+        if (this.role != MemberRole.USER) {
+            throw new IllegalStateException(
+                    "일반 회원만 이용 정지ㅏ 또는 정지 해제할 수 있습니다."
+            );
+        }
+    }
 }

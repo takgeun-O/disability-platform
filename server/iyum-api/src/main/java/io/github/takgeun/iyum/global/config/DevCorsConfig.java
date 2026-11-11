@@ -331,6 +331,30 @@ public class DevCorsConfig {
                 adminMemberReadCors
         );
 
+        // 관리자 회원 이용 정지·해제
+        CorsConfiguration adminMemberModerationCors =
+                new CorsConfiguration(cors);
+
+        adminMemberModerationCors.setAllowedMethods(
+                List.of("POST", "OPTIONS")
+        );
+
+        source.registerCorsConfiguration(
+                "/api/v1/admin/members/*/suspend",
+                adminMemberModerationCors
+        );
+
+        source.registerCorsConfiguration(
+                "/api/v1/admin/members/*/lift-suspension",
+                adminMemberModerationCors
+        );
+
+        // 관리자 회원별 이용 정지·해제 이력 조회
+        source.registerCorsConfiguration(
+                "/api/v1/admin/members/*/moderation-logs",
+                adminMemberReadCors
+        );
+
         return source;
     }
 }

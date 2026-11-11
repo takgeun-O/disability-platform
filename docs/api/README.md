@@ -2,7 +2,9 @@
 
 ## 관리자
 
-- [회원 목록·상세 조회](admin-member-read.md) — 읽기 전용 회원 관리
+- [회원 목록·상세 조회](admin-member-read.md) — 읽기 전용 조회
+- [회원 이용 정지·해제](admin-member-moderation.md)
+- [회원별 이용 정지·해제 이력](admin-member-moderation-logs.md)
 - [게시글 목록·상세 조회](admin-post-read.md)
 - [게시글·댓글 다중 상태 필터](admin-content-status-filter.md)
 - [댓글 목록 조회](admin-comment-read.md)

@@ -3,7 +3,7 @@
 현재 로컬 구현 기준: `AdminMemberReadController`, `AdminMemberReadQuery`, `AdminMemberReadService`,
 `AdminMemberReadRepository`, 회원 응답 DTO, 기존 Controller·세션·Query·Repository·Service 테스트.
 
-이 API는 **읽기 전용**이다. 회원 정지·해제, 역할 변경, 강제 탈퇴 기능은 제공하지 않는다.
+이 API는 **읽기 전용**이다. 이용 정지·해제는 별도 [회원 운영 API](admin-member-moderation.md), 조치 이력은 [회원별 이력 조회 API](admin-member-moderation-logs.md)를 사용한다. 이 조회 API는 상태·역할 변경이나 강제 탈퇴를 수행하지 않는다.
 
 ## 공통 정책
 
