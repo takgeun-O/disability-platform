@@ -30,7 +30,7 @@ import org.springframework.web.bind.annotation.*;
         value = "/api/v1/admin/members",
         produces = MediaType.APPLICATION_JSON_VALUE
 )
-@Tag(name = "관리자 회원 조회", description = "읽기 전용 목록·상세. 회원 상태·역할 변경 기능은 제공하지 않음")
+@Tag(name = "관리자 회원 조회", description = "읽기 전용 목록·상세. 이용 정지·해제는 별도 회원 운영 API에서 제공하며 이 조회 API는 상태·역할을 변경하지 않음")
 @ApiResponses({
         @ApiResponse(
                 responseCode = "401",

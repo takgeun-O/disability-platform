@@ -1,6 +1,7 @@
 package io.github.takgeun.iyum.global.error;
 
 import io.github.takgeun.iyum.admin.content.application.AdminContentReadException;
+import io.github.takgeun.iyum.admin.member.application.AdminMemberModerationException;
 import io.github.takgeun.iyum.admin.member.application.AdminMemberReadException;
 import io.github.takgeun.iyum.admin.moderation.application.ContentModerationException;
 import io.github.takgeun.iyum.admin.operation.application.AdminOperationLogReadException;
@@ -907,6 +908,38 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
 
             case MEMBER_NOT_FOUND ->
                     HttpStatus.NOT_FOUND;
+        };
+
+        return ResponseEntity
+                .status(status)
+                .cacheControl(CacheControl.noStore())
+                .body(ApiErrorResponse.of(
+                        exception.getCode().name(),
+                        exception.getMessage()
+                ));
+    }
+
+    @ExceptionHandler(AdminMemberModerationException.class)
+    public ResponseEntity<ApiErrorResponse> handleAdminMemberModeration(
+            AdminMemberModerationException exception
+    ) {
+        HttpStatus status = switch (exception.getCode()) {
+            case AUTHENTICATION_REQUIRED ->
+                    HttpStatus.UNAUTHORIZED;
+
+            case ADMIN_REQUIRED,
+                 SELF_MODERATION_NOT_ALLOWED,
+                 ADMIN_TARGET_NOT_ALLOWED ->
+                    HttpStatus.FORBIDDEN;
+
+            case INVALID_REASON ->
+                    HttpStatus.BAD_REQUEST;
+
+            case MEMBER_NOT_FOUND ->
+                    HttpStatus.NOT_FOUND;
+
+            case MEMBER_STATUS_NOT_ALLOWED ->
+                    HttpStatus.CONFLICT;
         };
 
         return ResponseEntity
