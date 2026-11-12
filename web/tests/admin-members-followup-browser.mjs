@@ -21,6 +21,7 @@ async function setup(width=1440){
   const u=new URL(r.request().url());s.calls.push({url:u.pathname+u.search,method:r.request().method()})
   if(u.pathname.endsWith('/auth/me'))return r.fulfill(s.member?{json:s.member}:error(401,'AUTHENTICATION_REQUIRED'))
   if(u.pathname===path)return s.list?s.list(r,u):r.fulfill({json:page(Number(u.searchParams.get('page')))})
+  if(u.pathname.endsWith('/moderation-logs'))return r.fulfill({json:{items:[],page:Number(u.searchParams.get('page')),size:20,totalElements:0,totalPages:0,hasNext:false,hasPrevious:false}})
   if(u.pathname.startsWith(path+'/'))return s.detail?s.detail(r,u):r.fulfill({json:detail(Number(u.pathname.split('/').at(-1)))})
   if(u.pathname.endsWith('/csrf'))return r.fulfill({json:{headerName:'X-CSRF-TOKEN',token:'mock-only'}})
   if(u.pathname.endsWith('/logout')){s.member=null;return r.fulfill({status:204})}

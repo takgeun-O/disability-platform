@@ -4,6 +4,8 @@ import { useAdminUrlQuery } from "@/lib/useAdminUrlQuery"
 import { useSearchParams } from "next/navigation"
 import { useAuth } from "@/components/AuthProvider"
 import { useNavigationRequest } from "@/components/NavigationGuard"
+import MemberEmail from "@/components/admin/MemberEmail"
+import useMemberModeration from "@/components/admin/useMemberModeration"
 import AdminPagination from "@/components/admin/AdminPagination"
 import { AdminApiError } from "@/lib/admin-posts"
 import { writtenTime } from "@/lib/written-time"
@@ -18,7 +20,7 @@ function MemberWorkspace() {
   const queryKey = memberParams(memberQuery(new URLSearchParams(params.toString()))).toString()
   const query = useMemo(() => memberQuery(new URLSearchParams(queryKey)), [queryKey])
   const selected = memberSelection(params.get("selected"))
-  const auth = useAuth(), scope = useNavigationRequest(), detailScope = useNavigationRequest(), copyScope = useNavigationRequest()
+  const auth = useAuth(), scope = useNavigationRequest(), detailScope = useNavigationRequest()
   const memberId = auth.member!.memberId, capture = auth.captureMemberRequest
   const [list, setList] = useState<{key: string; attempt: number; data?: MemberPage; error?: string} | null>(null)
   const [detail, setDetail] = useState<{id: string; attempt: number; data?: AdminMemberDetail; error?: string} | null>(null)
@@ -32,7 +34,7 @@ function MemberWorkspace() {
   const workspace = useRef<HTMLDivElement>(null), heading = useRef<HTMLHeadingElement>(null), detailHeading = useRef<HTMLHeadingElement>(null)
   const panel = useRef<HTMLElement>(null), detailBody = useRef<HTMLDivElement>(null)
   const origin = useRef<{id: string; y: number} | null>(null), previous = useRef(selected)
-  const [copy, setCopy] = useState<{id: string; text: string} | null>(null)
+  const refreshedList = useRef<string | null>(null)
   const active = list?.key === queryKey && list.attempt === retry ? list : null
   const current = detailSelection === selected && detail?.id === selected && detail.attempt === detailRetry ? detail : null
   const busy = !active, data = active?.data
@@ -88,6 +90,8 @@ function MemberWorkspace() {
   }, [selected, compact])
   useEffect(() => {
     if (denied) return
+    const accepted = `${queryKey}:${retry}`
+    if (refreshedList.current === accepted) { refreshedList.current = null; return }
     const controller = new AbortController(), navigation = scope.begin(), session = capture(memberId)
     let live = true
     const valid = () => live && !blocked.current && navigation() && session.isCurrent()
@@ -118,7 +122,40 @@ function MemberWorkspace() {
     })
     return () => { live = false; controller.abort() }
   }, [selected, detailRetry, capture, memberId, detailScope, denied])
-  function apply(q: MemberQuery) {
+  function deny() {
+    blocked.current = true; setList(null); setDetail(null); setDenied(true)
+  }
+  async function refreshMember() {
+    if (!selected || blocked.current) throw new Error("대상을 확인할 수 없습니다.")
+    const id = selected, navigation = scope.begin(), detailNavigation = detailScope.begin(), session = capture(memberId)
+    const valid = () => !blocked.current && navigation() && detailNavigation() && session.isCurrent()
+    const results = await Promise.allSettled([getMembers(query, AbortSignal.timeout(15000)), getMember(id, AbortSignal.timeout(15000))])
+    if (!valid()) throw new Error("만료된 조회입니다.")
+    for (const result of results) if (result.status === "rejected" && result.reason instanceof AdminApiError) {
+      if (result.reason.status === 401) { session.expire(); throw result.reason }
+      if (result.reason.status === 403) { deny(); throw result.reason }
+    }
+    const [listResult, detailResult] = results
+    if (listResult.status === "fulfilled") {
+      const data = listResult.value
+      if (query.page > 0 && query.page >= data.totalPages) {
+        const corrected = {...query, page: Math.max(0, data.totalPages - 1)}
+        const correctedData = await getMembers(corrected, AbortSignal.timeout(15000))
+        if (!valid()) throw new Error("만료된 조회입니다.")
+        refreshedList.current = `${memberParams(corrected)}:${retry}`
+        setList({key: memberParams(corrected).toString(), attempt: retry, data: correctedData})
+        // Pass only application state. Next adds its own fields; passing __NA
+        // would bypass its searchParams synchronization.
+        history.replaceState({adminMemberOrigin: origin.current ?? history.state?.adminMemberOrigin}, "", memberHref(corrected, id))
+      } else setList({key: queryKey, attempt: retry, data})
+    } else setList({key: queryKey, attempt: retry, error: "최신 회원 목록을 가져오지 못했습니다."})
+    if (detailResult.status === "fulfilled") setDetail({id, attempt: detailRetry, data: detailResult.value})
+    else if (detailResult.reason instanceof AdminApiError && detailResult.reason.status === 404) setDetail({id, attempt: detailRetry, error: "회원을 찾을 수 없습니다."})
+    if (results.some(r => r.status === "rejected")) throw new Error("최신 정보를 확인하지 못했습니다.")
+  }
+  const operations = useMemberModeration({selected: denied ? null : selected, member: denied ? undefined : current?.data, refresh: refreshMember, deny})
+  function apply(q: MemberQuery) { operations.requestExit(() => applyQuery(q)) }
+  function applyQuery(q: MemberQuery) {
     if (blocked.current || !scope.isActive()) return
     const nextKey = memberParams(q).toString()
     scope.begin() // Immediately revoke the previous request, including before effect cleanup.
@@ -133,15 +170,16 @@ function MemberWorkspace() {
   }
   function select(id: string) {
     if (busy || blocked.current) return
+    operations.requestExit(() => {
     origin.current = {id, y: scrollY}
     history.pushState({adminMemberOrigin: {id, y: scrollY}}, "", memberHref(query, id))
-    setCopy(null)
+    })
   }
-  function close() { history.replaceState({adminMemberOrigin: origin.current ?? history.state?.adminMemberOrigin}, "", memberHref(query)) }
+  function close() { operations.requestExit(() => history.replaceState({adminMemberOrigin: origin.current ?? history.state?.adminMemberOrigin}, "", memberHref(query))) }
   if (denied) return <div className="admin-access-card" role="alert"><h1>관리자 권한이 없습니다</h1><p>회원 정보를 조회할 수 없습니다.</p></div>
   const m = current?.data
   return <section className="admin-members" ref={workspace} data-compact={compact}>
-    <header className="admin-members-heading"><h1 ref={heading} tabIndex={-1}>회원 관리</h1><p>회원의 기본 정보와 계정 상태를 확인합니다.</p></header>
+    <header className="admin-members-heading"><h1 ref={heading} tabIndex={-1}>회원 관리</h1><p>회원의 기본 정보와 계정 상태를 확인하고 운영 조치를 관리합니다.</p></header>
     <div hidden={compact && !!selected}>
       <MemberFilters key={queryKey} query={query} onApply={apply} />
     </div>
@@ -164,16 +202,18 @@ function MemberWorkspace() {
           {m.status === "PENDING" && <p className="admin-member-state-note">이메일 인증이 완료되지 않은 회원입니다.</p>}
           {m.status === "WITHDRAWN" && <p className="admin-member-state-note">서비스 이용이 종료되었으며 계정 정보 정리가 완료되지 않은 상태입니다.</p>}
           {m.status === "DELETED" && <p className="admin-member-state-note">탈퇴가 완료되어 이메일과 닉네임 등 계정 식별 정보가 제거되었습니다.</p>}
-          <h3>이메일</h3><div className="admin-member-email-detail"><span>{m.email ?? "이메일 정보 없음"}</span>{m.email !== null && <button className="admin-member-copy" onClick={async () => {
-            const session = capture(memberId), navigation = copyScope.begin()
-            try { await navigator.clipboard.writeText(m.email!); if (session.isCurrent() && navigation() && !blocked.current) setCopy({id: selected, text: "이메일을 복사했습니다."}) } catch { if (session.isCurrent() && navigation() && !blocked.current) setCopy({id: selected, text: "복사하지 못했습니다. 이메일을 직접 선택해 복사해 주세요."}) }
-          }}>이메일 복사</button>}</div>
-          {copy?.id === selected && <p role="status">{copy.text}</p>}
-          <h3>가입·변경 정보</h3><dl><dt>가입 시각</dt><dd><MemberTime value={m.createdAt}/></dd><dt>최종 변경 시각</dt><dd><MemberTime value={m.updatedAt}/></dd><dt>탈퇴 시각</dt><dd>{m.withdrawnAt ? <MemberTime value={m.withdrawnAt}/> : "해당 없음"}</dd></dl><p className="admin-member-timezone">한국 시간(KST) 기준</p>
+          <MemberEmail key={selected} email={m.email}/>
+          {operations.controls}
+          {operations.completed && data && query.status && m.status !== query.status && <p role="status">회원 상태가 변경되어 현재 목록의 상태 조건에서 제외되었습니다. 선택한 회원 상세는 유지합니다.</p>}
+
         </>}
+        {!m && operations.controls}
+        {operations.history}
+        {m && <details key={selected} className="admin-member-dates"><summary>가입·변경 정보</summary><dl><dt>가입 시각</dt><dd><MemberTime value={m.createdAt}/></dd><dt>최종 변경 시각</dt><dd><MemberTime value={m.updatedAt}/></dd><dt>탈퇴 시각</dt><dd>{m.withdrawnAt ? <MemberTime value={m.withdrawnAt}/> : "해당 없음"}</dd></dl><p className="admin-member-timezone">한국 시간(KST) 기준</p></details>}
         </div>
       </section>}
     </div>
+    {operations.confirmation}
   </section>
 }
 function MemberTime({value}: {value: string}) { return <time dateTime={value}>{writtenTime(value).exact.replace(" (한국 시간)", "")}</time> }
