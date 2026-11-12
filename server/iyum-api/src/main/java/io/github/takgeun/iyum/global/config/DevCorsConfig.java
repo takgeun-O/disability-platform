@@ -355,6 +355,24 @@ public class DevCorsConfig {
                 adminMemberReadCors
         );
 
+        // 게시글·댓글 신고 접수
+        CorsConfiguration contentReportCors =
+                new CorsConfiguration(cors);
+
+        contentReportCors.setAllowedMethods(
+                List.of("POST", "OPTIONS")
+        );
+
+        source.registerCorsConfiguration(
+                "/api/v1/community/posts/*/reports",
+                contentReportCors
+        );
+
+        source.registerCorsConfiguration(
+                "/api/v1/community/posts/*/comments/*/reports",
+                contentReportCors
+        );
+
         return source;
     }
 }

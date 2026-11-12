@@ -14,6 +14,7 @@ import io.github.takgeun.iyum.auth.signup.application.SignupTermsException;
 import io.github.takgeun.iyum.auth.security.EmailVerificationRequiredException;
 import io.github.takgeun.iyum.community.comment.application.*;
 import io.github.takgeun.iyum.community.post.application.*;
+import io.github.takgeun.iyum.community.report.application.ContentReportCreateException;
 import io.github.takgeun.iyum.member.application.*;
 import org.springframework.beans.TypeMismatchException;
 import org.springframework.http.*;
@@ -939,6 +940,36 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
                     HttpStatus.NOT_FOUND;
 
             case MEMBER_STATUS_NOT_ALLOWED ->
+                    HttpStatus.CONFLICT;
+        };
+
+        return ResponseEntity
+                .status(status)
+                .cacheControl(CacheControl.noStore())
+                .body(ApiErrorResponse.of(
+                        exception.getCode().name(),
+                        exception.getMessage()
+                ));
+    }
+
+    @ExceptionHandler(ContentReportCreateException.class)
+    public ResponseEntity<ApiErrorResponse> handleContentReportCreate(
+            ContentReportCreateException exception
+    ) {
+        HttpStatus status = switch (exception.getCode()) {
+            case AUTHENTICATION_REQUIRED ->
+                    HttpStatus.UNAUTHORIZED;
+
+            case INVALID_REASON ->
+                    HttpStatus.BAD_REQUEST;
+
+            case SELF_REPORT_NOT_ALLOWED ->
+                    HttpStatus.FORBIDDEN;
+
+            case POST_NOT_FOUND, COMMENT_NOT_FOUND ->
+                    HttpStatus.NOT_FOUND;
+
+            case REPORT_ALREADY_EXISTS ->
                     HttpStatus.CONFLICT;
         };
 
