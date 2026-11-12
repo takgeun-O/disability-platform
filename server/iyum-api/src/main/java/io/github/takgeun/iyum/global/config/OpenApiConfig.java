@@ -34,6 +34,48 @@ public class OpenApiConfig {
         );
     }
 
+    /**
+     * OpenAPI 3.1 applies $ref and sibling types together, not as a union.
+     * Limit this union to the two nullable report properties; shared target
+     * schemas and the containing objects' required lists remain unchanged.
+     */
+    @Bean
+    public OpenApiCustomizer adminReportNullableObjectsCustomizer() {
+        return openApi -> {
+            if (openApi.getComponents() == null
+                    || openApi.getComponents().getSchemas() == null) {
+                return;
+            }
+            var schemas = openApi.getComponents().getSchemas();
+            nullableReportProperty(schemas.get("AdminReportItemResponse"),
+                    "currentAuthor", "AdminReportTargetAuthorResponse");
+            nullableReportProperty(schemas.get("AdminReportDetailResponse"),
+                    "currentTarget", "AdminReportCurrentTargetResponse");
+        };
+    }
+
+    private void nullableReportProperty(
+            Schema<?> owner,
+            String propertyName,
+            String referenceName
+    ) {
+        // Some documentation slices do not include the report controllers.
+        if (owner == null || owner.getProperties() == null) {
+            return;
+        }
+        Schema<?> original = owner.getProperties().get(propertyName);
+        if (original == null) {
+            return;
+        }
+        Schema<Object> union = new Schema<>();
+        union.setDescription(original.getDescription());
+        union.addAnyOfItem(new Schema<>().$ref("#/components/schemas/" + referenceName));
+        Schema<Object> nullValue = new Schema<>();
+        nullValue.addType("null");
+        union.addAnyOfItem(nullValue);
+        owner.addProperty(propertyName, union);
+    }
+
     // Swagger에 로그아웃 문서 추가하기
     // 로그아웃은 Security 필터(SecurityConfig)가 처리하므로 OpenApiCustomizer로 문서에 명시적으로 추가한다.
     @Bean

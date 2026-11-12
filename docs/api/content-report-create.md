@@ -178,3 +178,7 @@ cd server/iyum-api
 ```
 
 `ContentReportOpenApiDocumentationTest`는 기존 springdoc MVC 테스트 구성을 사용해 실제 생성 `/v3/api-docs`의 두 경로, CSRF 헤더, principal 비노출, DTO 타입·필수/nullable 구분, 201·오류 예시를 확인한다. JSON은 `server/iyum-api/build/reports/content-report-openapi.json`에 생성된다. springdoc 라이브러리는 3.1.1, 생성 규격은 OpenAPI 3.1.0이며 서로 다른 버전이다.
+
+## 관리자 조회 연결
+
+접수된 신고의 관리자 목록·상세 조회는 [관리자 신고 조회 API](admin-report-read.md)를 참고하세요. 신고 처리 완료·기각 API는 현재 제공하지 않습니다.

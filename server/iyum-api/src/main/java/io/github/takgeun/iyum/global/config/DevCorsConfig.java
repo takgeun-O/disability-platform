@@ -373,6 +373,24 @@ public class DevCorsConfig {
                 contentReportCors
         );
 
+        // 관리자 신고 목록·상세 조회
+        CorsConfiguration adminReportReadCors =
+                new CorsConfiguration(cors);
+
+        adminReportReadCors.setAllowedMethods(
+                List.of("GET", "OPTIONS")
+        );
+
+        source.registerCorsConfiguration(
+                "/api/v1/admin/reports",
+                adminReportReadCors
+        );
+
+        source.registerCorsConfiguration(
+                "/api/v1/admin/reports/*",
+                adminReportReadCors
+        );
+
         return source;
     }
 }
