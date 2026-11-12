@@ -11,6 +11,7 @@ import io.github.takgeun.iyum.community.report.domain.ContentReportReasonType;
 import io.github.takgeun.iyum.community.report.domain.ContentReportStatus;
 import io.github.takgeun.iyum.community.report.infrastructure.ContentReportRepository;
 import io.github.takgeun.iyum.member.domain.Member;
+import io.github.takgeun.iyum.member.domain.MemberRole;
 import io.github.takgeun.iyum.member.domain.MemberStatus;
 import io.github.takgeun.iyum.member.infrastructure.MemberRepository;
 import org.junit.jupiter.api.BeforeEach;
@@ -32,6 +33,7 @@ import org.springframework.mock.web.MockHttpSession;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
+import org.springframework.test.util.ReflectionTestUtils;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.MvcResult;
 import org.springframework.test.web.servlet.ResultActions;
@@ -293,20 +295,28 @@ class ContentReportCreateSessionIntegrationTest {
                 submit(target, client, validBody())
         );
 
-        /*
-         * 처리 완료·기각된 기존 기록을 준비한다.
-         * 관리자 신고 처리 API를 구현한 것으로 가정하는 코드는 아니다.
-         */
-        int changedRows = jdbcTemplate.update("""
-                UPDATE content_reports
-                   SET status = ?
-                 WHERE id = ?
-                """,
-                existingStatus.name(),
-                first.getId()
+        prepareExistingReportStatus(
+                first.getId(),
+                existingStatus
         );
 
-        assertThat(changedRows).isEqualTo(1);
+        // 처리 정보까지 실제 DB에 저장된 값을 기준으로 비교한다.
+        ContentReport beforeRetry = reportRepository
+                .findById(first.getId())
+                .orElseThrow();
+
+        assertThat(beforeRetry.getStatus())
+                .isEqualTo(existingStatus);
+
+        if (existingStatus == ContentReportStatus.RECEIVED) {
+            assertThat(beforeRetry.getHandledByMemberId()).isNull();
+            assertThat(beforeRetry.getHandledAt()).isNull();
+            assertThat(beforeRetry.getHandlingReason()).isNull();
+        } else {
+            assertThat(beforeRetry.getHandledByMemberId()).isPositive();
+            assertThat(beforeRetry.getHandledAt()).isNotNull();
+            assertThat(beforeRetry.getHandlingReason()).isNotBlank();
+        }
 
         submit(
                 target,
@@ -323,9 +333,18 @@ class ContentReportCreateSessionIntegrationTest {
                 .findById(first.getId())
                 .orElseThrow();
 
-        assertThat(after.getStatus()).isEqualTo(existingStatus);
+        assertThat(after.getId())
+                .isEqualTo(first.getId());
+        assertThat(after.getStatus())
+                .isEqualTo(existingStatus);
+
         assertThat(after.getReporterMemberId())
                 .isEqualTo(first.getReporterMemberId());
+        assertThat(after.getPostId())
+                .isEqualTo(first.getPostId());
+        assertThat(after.getCommentId())
+                .isEqualTo(first.getCommentId());
+
         assertThat(after.getReasonType())
                 .isEqualTo(first.getReasonType());
         assertThat(after.getReasonDetail())
@@ -336,6 +355,14 @@ class ContentReportCreateSessionIntegrationTest {
                 .isEqualTo(first.getContentSnapshot());
         assertThat(after.getCreatedAt())
                 .isEqualTo(first.getCreatedAt());
+
+        // 재신고 실패가 최초 처리 정보를 덮어쓰지 않아야 한다.
+        assertThat(after.getHandledByMemberId())
+                .isEqualTo(beforeRetry.getHandledByMemberId());
+        assertThat(after.getHandledAt())
+                .isEqualTo(beforeRetry.getHandledAt());
+        assertThat(after.getHandlingReason())
+                .isEqualTo(beforeRetry.getHandlingReason());
     }
 
     @ParameterizedTest
@@ -989,6 +1016,66 @@ class ContentReportCreateSessionIntegrationTest {
                 .isEqualTo(MemberStatus.ACTIVE);
         assertThat(storedReporter.getCredentialVersion())
                 .isEqualTo(REPORTER_VERSION);
+    }
+
+    private void prepareExistingReportStatus(
+            Long reportId,
+            ContentReportStatus existingStatus
+    ) {
+        if (existingStatus == ContentReportStatus.RECEIVED) {
+            // 최초 접수 상태를 그대로 사용한다.
+            return;
+        }
+
+        String suffix = UUID.randomUUID()
+                .toString()
+                .replace("-", "")
+                .substring(0, 12);
+
+        String passwordHash = passwordEncoder.encode(PASSWORD);
+
+        transaction.executeWithoutResult(transactionStatus -> {
+            Member handler = Member.createPending(
+                    "report-handler-" + suffix + "@example.com",
+                    passwordHash,
+                    "처리관리자" + suffix
+            );
+
+            handler.activeAfterEmailVerification();
+
+            // 테스트 준비용 관리자 계정이다.
+            ReflectionTestUtils.setField(
+                    handler,
+                    "role",
+                    MemberRole.ADMIN
+            );
+
+            memberRepository.saveAndFlush(handler);
+
+            ContentReport report = reportRepository
+                    .findById(reportId)
+                    .orElseThrow();
+
+            Instant handledAt = Instant.now();
+
+            switch (existingStatus) {
+                case RESOLVED -> report.resolve(
+                        handler.getId(),
+                        "재신고 검증용: 필요한 대응을 완료했습니다.",
+                        handledAt
+                );
+                case DISMISSED -> report.dismiss(
+                        handler.getId(),
+                        "재신고 검증용: 위반 사항이 없어 기각했습니다.",
+                        handledAt
+                );
+                default -> throw new IllegalArgumentException(
+                        "지원하지 않는 종결 상태입니다."
+                );
+            }
+
+            reportRepository.flush();
+        });
     }
 
     private record CsrfSession(

@@ -415,7 +415,10 @@ class AdminReportReadControllerTest {
                 postTarget ? "신고 당시 제목" : null,
                 snapshot,
                 CREATED_AT,
-                target
+                target,
+                null,
+                null,
+                null
         );
 
         when(reportReadService.getReport(ACTOR_ID, VERSION, REPORT_ID))
@@ -502,7 +505,10 @@ class AdminReportReadControllerTest {
                 null,
                 "남아 있는 신고 당시 댓글",
                 CREATED_AT,
-                null
+                null,
+                ACTOR_ID,
+                CREATED_AT.plusSeconds(60),
+                "검토 결과 필요한 대응을 완료했습니다."
         );
 
         when(reportReadService.getReport(ACTOR_ID, VERSION, REPORT_ID))

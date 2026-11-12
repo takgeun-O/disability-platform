@@ -9,6 +9,7 @@ import io.github.takgeun.iyum.community.report.domain.ContentReportReasonType;
 import io.github.takgeun.iyum.community.report.domain.ContentReportStatus;
 import io.github.takgeun.iyum.community.report.infrastructure.ContentReportRepository;
 import io.github.takgeun.iyum.member.domain.Member;
+import io.github.takgeun.iyum.member.domain.MemberRole;
 import jakarta.persistence.EntityManager;
 import org.assertj.core.api.ThrowableAssert.ThrowingCallable;
 import org.junit.jupiter.api.AfterEach;
@@ -23,6 +24,7 @@ import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
+import org.springframework.test.util.ReflectionTestUtils;
 import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.support.TransactionTemplate;
 import org.testcontainers.junit.jupiter.Container;
@@ -94,6 +96,7 @@ class ContentReportCreateServiceIntegrationTest {
 
     private TransactionTemplate transactions;
     private Fixture fixture;
+    private Long handlingAdminId;
 
     @BeforeEach
     void setUp() {
@@ -489,18 +492,31 @@ class ContentReportCreateServiceIntegrationTest {
     ) {
         ContentReportCreateResult first = report(true);
 
-        // 관리자 처리 기능 구현 전, 상태별 중복 정책 검증용 준비.
-        transactions.executeWithoutResult(status ->
-                jdbcTemplate.update(
-                        """
-                        UPDATE content_reports
-                        SET status = ?
-                        WHERE id = ?
-                        """,
-                        reportStatus.name(),
-                        first.reportId()
-                )
-        );
+        prepareExistingReportStatus(first.reportId(), reportStatus);
+
+        ContentReport beforeRetry = reportRepository
+                .findById(first.reportId())
+                .orElseThrow();
+
+        assertThat(beforeRetry.getStatus()).isEqualTo(reportStatus);
+
+        if (reportStatus == ContentReportStatus.RECEIVED) {
+            assertThat(beforeRetry.getHandledByMemberId()).isNull();
+            assertThat(beforeRetry.getHandledAt()).isNull();
+            assertThat(beforeRetry.getHandlingReason()).isNull();
+        } else {
+            assertThat(beforeRetry.getHandledByMemberId())
+                    .isEqualTo(handlingAdminId);
+            assertThat(beforeRetry.getHandledAt())
+                    .isEqualTo(NOW.plusSeconds(60));
+            assertThat(beforeRetry.getHandlingReason())
+                    .isEqualTo("기존 신고의 중복 접수 정책 검증");
+        }
+
+        // 재요청 전 값을 별도로 보관한다.
+        Long originalHandlerId = beforeRetry.getHandledByMemberId();
+        Instant originalHandledAt = beforeRetry.getHandledAt();
+        String originalHandlingReason = beforeRetry.getHandlingReason();
 
         assertFailure(
                 ContentReportCreateException.Code.REPORT_ALREADY_EXISTS,
@@ -513,10 +529,17 @@ class ContentReportCreateServiceIntegrationTest {
                 )
         );
 
-        ContentReport found =
-                reportRepository.findById(first.reportId()).orElseThrow();
+        ContentReport found = reportRepository
+                .findById(first.reportId())
+                .orElseThrow();
 
         assertThat(reportCount()).isEqualTo(1L);
+        assertThat(found.getId()).isEqualTo(first.reportId());
+        assertThat(found.getReporterMemberId())
+                .isEqualTo(fixture.reporterId());
+        assertThat(found.getPostId()).isEqualTo(fixture.postId());
+        assertThat(found.getCommentId()).isNull();
+
         assertThat(found.getStatus()).isEqualTo(reportStatus);
         assertThat(found.getReasonType())
                 .isEqualTo(ContentReportReasonType.OTHER);
@@ -525,6 +548,14 @@ class ContentReportCreateServiceIntegrationTest {
         assertThat(found.getTitleSnapshot()).isEqualTo(POST_TITLE);
         assertThat(found.getContentSnapshot()).isEqualTo(POST_CONTENT);
         assertThat(found.getCreatedAt()).isEqualTo(NOW);
+
+        // 중복 요청이 기존 신고의 처리 정보도 변경하지 않아야 한다.
+        assertThat(found.getHandledByMemberId())
+                .isEqualTo(originalHandlerId);
+        assertThat(found.getHandledAt())
+                .isEqualTo(originalHandledAt);
+        assertThat(found.getHandlingReason())
+                .isEqualTo(originalHandlingReason);
     }
 
     @Test
@@ -732,6 +763,60 @@ class ContentReportCreateServiceIntegrationTest {
                         exception -> assertThat(exception.getCode())
                                 .isEqualTo(expectedCode)
                 );
+    }
+
+    private void prepareExistingReportStatus(
+            Long reportId,
+            ContentReportStatus reportStatus
+    ) {
+        if (reportStatus == ContentReportStatus.RECEIVED) {
+            return;
+        }
+
+        handlingAdminId = transactions.execute(transactionStatus -> {
+            String suffix = UUID.randomUUID()
+                    .toString()
+                    .replace("-", "")
+                    .substring(0, 12);
+
+            Member admin = activeMember(
+                    "report-handler-" + suffix + "@example.com",
+                    "관리" + suffix
+            );
+
+            // 테스트 준비용 권한 설정이다.
+            ReflectionTestUtils.setField(admin, "role", MemberRole.ADMIN);
+
+            entityManager.persist(admin);
+            entityManager.flush();
+
+            ContentReport report = reportRepository
+                    .findById(reportId)
+                    .orElseThrow();
+
+            String handlingReason = "기존 신고의 중복 접수 정책 검증";
+            Instant handledAt = NOW.plusSeconds(60);
+
+            switch (reportStatus) {
+                case RESOLVED -> report.resolve(
+                        admin.getId(),
+                        handlingReason,
+                        handledAt
+                );
+                case DISMISSED -> report.dismiss(
+                        admin.getId(),
+                        handlingReason,
+                        handledAt
+                );
+                default -> throw new IllegalArgumentException(
+                        "지원하지 않는 준비 상태: " + reportStatus
+                );
+            }
+
+            entityManager.flush();
+
+            return admin.getId();
+        });
     }
 
     private record Fixture(

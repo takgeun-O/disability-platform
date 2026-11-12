@@ -40,7 +40,7 @@ public record AdminReportItemResponse(
         )
         Long targetId,
         @Schema(
-                description = "신고 상태. 처리 API는 현재 제공하지 않음",
+                description = "신고 상태: 접수, 처리 완료, 기각",
                 requiredMode = Schema.RequiredMode.REQUIRED
         )
         ContentReportStatus status,

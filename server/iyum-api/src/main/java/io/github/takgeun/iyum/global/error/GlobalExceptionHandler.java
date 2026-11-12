@@ -5,6 +5,7 @@ import io.github.takgeun.iyum.admin.member.application.AdminMemberModerationExce
 import io.github.takgeun.iyum.admin.member.application.AdminMemberReadException;
 import io.github.takgeun.iyum.admin.moderation.application.ContentModerationException;
 import io.github.takgeun.iyum.admin.operation.application.AdminOperationLogReadException;
+import io.github.takgeun.iyum.admin.report.application.AdminReportHandlingException;
 import io.github.takgeun.iyum.admin.report.application.AdminReportReadException;
 import io.github.takgeun.iyum.auth.emailverification.application.InvalidEmailVerificationTokenException;
 import io.github.takgeun.iyum.auth.passwordreset.application.PasswordResetException;
@@ -1001,6 +1002,36 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
 
             case REPORT_NOT_FOUND ->
                     HttpStatus.NOT_FOUND;
+        };
+
+        return ResponseEntity
+                .status(status)
+                .cacheControl(CacheControl.noStore())
+                .body(ApiErrorResponse.of(
+                        exception.getCode().name(),
+                        exception.getMessage()
+                ));
+    }
+
+    @ExceptionHandler(AdminReportHandlingException.class)
+    public ResponseEntity<ApiErrorResponse> handleAdminReportHandling(
+            AdminReportHandlingException exception
+    ) {
+        HttpStatus status = switch (exception.getCode()) {
+            case AUTHENTICATION_REQUIRED ->
+                    HttpStatus.UNAUTHORIZED;
+
+            case ADMIN_REQUIRED ->
+                    HttpStatus.FORBIDDEN;
+
+            case REPORT_NOT_FOUND ->
+                    HttpStatus.NOT_FOUND;
+
+            case REPORT_ALREADY_HANDLED ->
+                    HttpStatus.CONFLICT;
+
+            case INVALID_HANDLING_REASON ->
+                    HttpStatus.BAD_REQUEST;
         };
 
         return ResponseEntity

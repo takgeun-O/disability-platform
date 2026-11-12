@@ -181,4 +181,4 @@ cd server/iyum-api
 
 ## 관리자 조회 연결
 
-접수된 신고의 관리자 목록·상세 조회는 [관리자 신고 조회 API](admin-report-read.md)를 참고하세요. 신고 처리 완료·기각 API는 현재 제공하지 않습니다.
+접수된 신고의 관리자 목록·상세 조회는 [관리자 신고 조회 API](admin-report-read.md)를 참고하세요. 처리 완료·기각은 [관리자 신고 처리 API](admin-report-handling.md)를 참고하세요. 처리 후에도 기존 중복 신고 정책은 유지됩니다.

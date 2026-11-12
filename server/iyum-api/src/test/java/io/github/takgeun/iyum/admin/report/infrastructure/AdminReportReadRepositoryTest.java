@@ -86,6 +86,7 @@ class AdminReportReadRepositoryTest {
 
     private Long authorId;
     private Long reporterId;
+    private Long handlerId;
 
     @BeforeEach
     void setUp() {
@@ -107,6 +108,23 @@ class AdminReportReadRepositoryTest {
 
         authorId = author.getId();
         reporterId = reporter.getId();
+
+        Member handler = activeMember(
+                "report-handler@example.com",
+                "신고처리관리자"
+        );
+
+        // 테스트 데이터에서만 관리자 역할을 설정한다.
+        org.springframework.test.util.ReflectionTestUtils.setField(
+                handler,
+                "role",
+                io.github.takgeun.iyum.member.domain.MemberRole.ADMIN
+        );
+
+        entityManager.persist(handler);
+        entityManager.flush();
+
+        handlerId = handler.getId();
     }
 
     @ParameterizedTest
@@ -722,18 +740,27 @@ class AdminReportReadRepositoryTest {
         entityManager.persist(report);
         entityManager.flush();
 
-        Long id = report.getId();
-
-        if (status != ContentReportStatus.RECEIVED) {
-            // 관리자 처리 기능 구현 전, 조회 조건 검증용 데이터 준비.
-            jdbcTemplate.update(
-                    "UPDATE content_reports SET status = ? WHERE id = ?",
-                    status.name(),
-                    id
+        switch (status) {
+            case RECEIVED -> {
+                // 접수 상태와 처리 정보 null을 유지한다.
+            }
+            case RESOLVED -> report.resolve(
+                    handlerId,
+                    "조회 테스트: 처리 완료",
+                    createdAt.plusSeconds(60)
+            );
+            case DISMISSED -> report.dismiss(
+                    handlerId,
+                    "조회 테스트: 기각",
+                    createdAt.plusSeconds(60)
             );
         }
 
-        // JDBC 변경 내용과 DB에 저장된 스냅샷을 다시 읽도록 한다.
+        entityManager.persist(report);
+        entityManager.flush();
+
+        Long id = report.getId();
+
         entityManager.clear();
 
         return id;

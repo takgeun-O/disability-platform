@@ -8,10 +8,11 @@ import jakarta.annotation.Nullable;
 import java.time.Instant;
 
 /**
- * 관리자 신고 상세 조회 결과
- * <p>
+ * 관리자 신고 상세 조회 결과.
+ *
  * 스냅샷은 신고 접수 당시 내용이며,
- * currentTarget은 조회 시점의 현재 콘텐츠
+ * currentTarget은 조회 시점의 현재 콘텐츠다.
+ * 처리 정보는 신고에 저장된 값을 그대로 반환한다.
  */
 public record AdminReportDetailResult(
         Long reportId,
@@ -24,7 +25,10 @@ public record AdminReportDetailResult(
         @Nullable String titleSnapshot,
         String contentSnapshot,
         Instant createdAt,
-        @Nullable AdminReportCurrentTargetResult currentTarget
+        @Nullable AdminReportCurrentTargetResult currentTarget,
+        @Nullable Long handledByMemberId,
+        @Nullable Instant handledAt,
+        @Nullable String handlingReason
 ) {
 
     public static AdminReportDetailResult from(
@@ -48,7 +52,10 @@ public record AdminReportDetailResult(
                 report.getTitleSnapshot(),
                 report.getContentSnapshot(),
                 report.getCreatedAt(),
-                currentTarget
+                currentTarget,
+                report.getHandledByMemberId(),
+                report.getHandledAt(),
+                report.getHandlingReason()
         );
     }
 }

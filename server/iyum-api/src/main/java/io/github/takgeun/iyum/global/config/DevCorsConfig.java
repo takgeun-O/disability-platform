@@ -391,6 +391,24 @@ public class DevCorsConfig {
                 adminReportReadCors
         );
 
+        // 관리자 신고 처리 완료·기각
+        CorsConfiguration adminReportHandlingCors =
+                new CorsConfiguration(cors);
+
+        adminReportHandlingCors.setAllowedMethods(
+                List.of("POST", "OPTIONS")
+        );
+
+        source.registerCorsConfiguration(
+                "/api/v1/admin/reports/*/resolve",
+                adminReportHandlingCors
+        );
+
+        source.registerCorsConfiguration(
+                "/api/v1/admin/reports/*/dismiss",
+                adminReportHandlingCors
+        );
+
         return source;
     }
 }

@@ -93,6 +93,19 @@ public class ContentReport {
     )
     private Instant createdAt;
 
+    // 아래 3개 필드는 updatable 해야 한다. (신고 접수 후 처리할 때 값이 저장되어야 하기 때문)
+    @Column(name = "handled_by_member_id")
+    private Long handledByMemberId;
+
+    @Column(name = "handled_at")
+    private Instant handledAt;
+
+    @Column(
+            name = "handling_reason",
+            length = ContentReportHandlingPolicy.HANDLING_REASON_MAX_LENGTH
+    )
+    private String handlingReason;
+
     private ContentReport(
             Long reporterMemberId,
             Long postId,
@@ -118,7 +131,7 @@ public class ContentReport {
         } else {
             validatePositiveId(commentId, "댓글 ID");
 
-            if(titleSnapshot != null) {
+            if (titleSnapshot != null) {
                 throw new IllegalArgumentException(
                         "댓글 신고에는 제목 스냅샷을 저장할 수 없습니다."
                 );
@@ -127,7 +140,7 @@ public class ContentReport {
 
         validateSnapshotText(contentSnapshot, "본문");
 
-        if(createdAt == null) {
+        if (createdAt == null) {
             throw new IllegalArgumentException(
                     "신고 접수 시각은 필수입니다."
             );
@@ -199,6 +212,32 @@ public class ContentReport {
         );
     }
 
+    public void resolve(
+            Long handlerMemberId,
+            String reason,
+            Instant handledAt
+    ) {
+        handle(
+                ContentReportStatus.RESOLVED,
+                handlerMemberId,
+                reason,
+                handledAt
+        );
+    }
+
+    public void dismiss(
+            Long handlerMemberId,
+            String reason,
+            Instant handledAt
+    ) {
+        handle(
+                ContentReportStatus.DISMISSED,
+                handlerMemberId,
+                reason,
+                handledAt
+        );
+    }
+
     private static void validatePositiveId(Long id, String name) {
         if (id == null || id <= 0) {
             throw new IllegalArgumentException(
@@ -216,5 +255,33 @@ public class ContentReport {
                     name + " 스냅샷은 필수입니다."
             );
         }
+    }
+
+    private void handle(
+            ContentReportStatus nextStatus,
+            Long handlerMemberId,
+            String reason,
+            Instant handledAt
+    ) {
+        if(this.status != ContentReportStatus.RECEIVED) {
+            throw new ContentReportAlreadyHandledException();
+        }
+
+        validatePositiveId(handlerMemberId, "처리 관리자 회원 ID");
+
+        if(handledAt == null) {
+            throw new IllegalArgumentException(
+                    "신고 처리 시각은 필수입니다."
+            );
+        }
+
+        String normalizedReason =
+                ContentReportHandlingPolicy.normalizeHandlingReason(reason);
+
+        // 모든 검증이 끝난 뒤 상태와 처리 정보를 함께 변경
+        this.handledByMemberId = handlerMemberId;
+        this.handledAt = handledAt;
+        this.handlingReason = normalizedReason;
+        this.status = nextStatus;
     }
 }

@@ -1,6 +1,6 @@
 # 관리자 신고 목록·상세 조회 API
 
-현재 작업 트리의 `AdminReportReadController`, 조회 조건·서비스·저장소 및 응답 DTO 기준입니다. 신고 처리 완료·기각 API는 제공하지 않습니다. [사용자 신고 접수](content-report-create.md)와 구분합니다.
+현재 작업 트리의 `AdminReportReadController`, 조회 조건·서비스·저장소 및 응답 DTO 기준입니다. [신고 처리 완료·기각 API](admin-report-handling.md)를 별도로 제공합니다. [사용자 신고 접수](content-report-create.md)와 구분합니다.
 
 ## 인증 및 공통 정책
 
@@ -67,6 +67,9 @@ GET /api/v1/admin/reports?targetType=COMMENT&status=RECEIVED&reasonType=OTHER&st
 | contentSnapshot | string | 신고 당시 전체 본문 |
 | createdAt | date-time | 접수 시각 |
 | currentTarget | 객체 또는 null | 조회 시점의 현재 콘텐츠 |
+| handledByMemberId | int64 또는 null | 처리 관리자. 신고자·현재 작성자와 구분 |
+| handledAt | date-time 또는 null | 처리 시각. 접수 시각 createdAt과 구분 |
+| handlingReason | string 또는 null | 저장된 처리 사유 |
 | currentTarget.targetId | int64 | 현재 대상 ID |
 | currentTarget.parentPostId | int64 또는 null | 현재 댓글 부모 게시글 ID. 게시글은 null |
 | currentTarget.author | 작성자 객체 | 현재 대상 작성자 |
@@ -76,7 +79,7 @@ GET /api/v1/admin/reports?targetType=COMMENT&status=RECEIVED&reasonType=OTHER&st
 
 목록 currentAuthor와 상세 author는 `memberId`(int64), `nickname`(string), `withdrawn`(boolean)으로 구성됩니다. 현재 구현은 작성자 상태가 DELETED일 때 `탈퇴한 회원`, true로 표시하며 그 외에는 저장 닉네임과 false를 사용합니다. WITHDRAWN까지 동일 처리한다고 확대 해석하지 않습니다.
 
-응답 DTO의 nullable 필드는 생략하지 않고 명시적 null로 반환합니다. 숨김·소프트 삭제 대상도 현재 조회에 포함되며 댓글 부모의 숨김·삭제로 제외하지 않습니다. 댓글 hiddenAt·deletedAt은 부모의 상태가 아닙니다. 현재 대상이 없으면 신고와 스냅샷은 유지되고 목록 currentAuthor / 상세 currentTarget만 null입니다. 신고 자체가 없으면 404 REPORT_NOT_FOUND입니다. 처리 관리자·처리 시각·처리 사유는 현재 응답 필드가 아닙니다.
+응답 DTO의 nullable 필드는 생략하지 않고 명시적 null로 반환합니다. 숨김·소프트 삭제 대상도 현재 조회에 포함되며 댓글 부모의 숨김·삭제로 제외하지 않습니다. 댓글 hiddenAt·deletedAt은 부모의 상태가 아닙니다. 현재 대상이 없으면 신고와 스냅샷은 유지되고 목록 currentAuthor / 상세 currentTarget만 null입니다. 신고 자체가 없으면 404 REPORT_NOT_FOUND입니다. 상세에는 handledByMemberId(처리 관리자 ID), handledAt(저장된 처리 시각), handlingReason(저장된 처리 사유)이 항상 존재합니다. RECEIVED는 세 값 모두 null, RESOLVED/DISMISSED는 저장된 값입니다. 목록에는 이 세 필드가 없습니다. 현재 대상 유무와 처리 상태는 독립적이며 대상이 없어도 스냅샷과 처리 정보를 반환합니다.
 
 ## 오류
 
@@ -203,7 +206,10 @@ GET /api/v1/admin/reports?targetType=COMMENT&status=RECEIVED&reasonType=OTHER&st
     "content": "조회 시점의 현재 본문입니다.",
     "hiddenAt": null,
     "deletedAt": null
-  }
+  },
+  "handledByMemberId": null,
+  "handledAt": null,
+  "handlingReason": null
 }
 ```
 
@@ -233,7 +239,10 @@ GET /api/v1/admin/reports?targetType=COMMENT&status=RECEIVED&reasonType=OTHER&st
     "content": "조회 시점의 현재 본문입니다.",
     "hiddenAt": null,
     "deletedAt": null
-  }
+  },
+  "handledByMemberId": null,
+  "handledAt": null,
+  "handlingReason": null
 }
 ```
 
@@ -251,7 +260,10 @@ GET /api/v1/admin/reports?targetType=COMMENT&status=RECEIVED&reasonType=OTHER&st
   "reporterMemberId": 51,
   "reasonDetail": null,
   "contentSnapshot": "신고 당시 본문입니다.",
-  "currentTarget": null
+  "currentTarget": null,
+  "handledByMemberId": null,
+  "handledAt": null,
+  "handlingReason": null
 }
 ```
 
@@ -282,3 +294,59 @@ GET /api/v1/admin/reports?targetType=COMMENT&status=RECEIVED&reasonType=OTHER&st
   "hasPrevious": false
 }
 ```
+
+### 처리 완료 상세
+
+```json
+{
+  "reportId": 103,
+  "targetType": "POST",
+  "targetId": 104,
+  "status": "RESOLVED",
+  "reasonType": "SPAM_ADVERTISING",
+  "titleSnapshot": "신고 당시 게시글 제목",
+  "createdAt": "2026-11-12T01:00:00Z",
+  "reporterMemberId": 51,
+  "reasonDetail": null,
+  "contentSnapshot": "신고 당시 본문입니다.",
+  "currentTarget": {
+    "targetId": 104,
+    "parentPostId": null,
+    "author": {
+      "memberId": 42,
+      "nickname": "소리나무",
+      "withdrawn": false
+    },
+    "title": "현재 게시글 제목",
+    "content": "조회 시점의 현재 본문입니다.",
+    "hiddenAt": null,
+    "deletedAt": null
+  },
+  "handledByMemberId": 40,
+  "handledAt": "2026-11-13T01:00:00Z",
+  "handlingReason": "검토를 완료했습니다."
+}
+```
+
+### 기각 상세 — 현재 대상 조회 불가
+
+```json
+{
+  "reportId": 104,
+  "targetType": "POST",
+  "targetId": 104,
+  "status": "DISMISSED",
+  "reasonType": "SPAM_ADVERTISING",
+  "titleSnapshot": "신고 당시 게시글 제목",
+  "createdAt": "2026-11-12T01:00:00Z",
+  "reporterMemberId": 51,
+  "reasonDetail": null,
+  "contentSnapshot": "신고 당시 본문입니다.",
+  "currentTarget": null,
+  "handledByMemberId": 40,
+  "handledAt": "2026-11-13T01:00:00Z",
+  "handlingReason": "검토 결과 신고를 기각했습니다."
+}
+```
+
+OpenAPI는 처리 정보의 필수 존재와 nullable 타입을 표현합니다. 상태별 값 조합의 불변식은 도메인·DB·통합 테스트로 보장하며 스키마가 이를 조건부로 강제한다고 해석하지 않습니다.

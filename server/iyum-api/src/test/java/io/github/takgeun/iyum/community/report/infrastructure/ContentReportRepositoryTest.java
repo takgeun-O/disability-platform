@@ -104,6 +104,7 @@ class ContentReportRepositoryTest {
     private Long authorId;
     private Long postId;
     private Long commentId;
+    private Long handlerId;
 
     @BeforeEach
     void setUp() {
@@ -156,6 +157,23 @@ class ContentReportRepositoryTest {
         commentId = comment.getId();
 
         entityManager.clear();
+
+        Member handler = activeMember(
+                "report-handler@example.com",
+                "신고처리관리자"
+        );
+
+        // 테스트 데이터에서만 관리자 역할을 설정한다.
+        org.springframework.test.util.ReflectionTestUtils.setField(
+                handler,
+                "role",
+                io.github.takgeun.iyum.member.domain.MemberRole.ADMIN
+        );
+
+        entityManager.persist(handler);
+        entityManager.flush();
+
+        handlerId = handler.getId();
     }
 
     @Test
@@ -314,30 +332,45 @@ class ContentReportRepositoryTest {
     void 종결된_신고도_동일_대상_재신고를_허용하지_않는다(
             ContentReportStatus status
     ) {
-        Long reportId = reportRepository.saveAndFlush(
+        ContentReport report = reportRepository.saveAndFlush(
                 newReport(true, reporterId)
-        ).getId();
-
-        // 관리자 처리 API 구현 전, DB 제약 검증을 위한 준비다.
-        jdbcTemplate.update(
-                "UPDATE content_reports SET status = ? WHERE id = ?",
-                status.name(),
-                reportId
         );
 
+        switch (status) {
+            case RESOLVED -> report.resolve(
+                    handlerId,
+                    "필요한 대응을 완료했습니다.",
+                    NOW.plusSeconds(60)
+            );
+            case DISMISSED -> report.dismiss(
+                    handlerId,
+                    "검토 결과 위반 사항이 없습니다.",
+                    NOW.plusSeconds(60)
+            );
+            default -> throw new IllegalArgumentException(
+                    "지원하지 않는 종결 상태입니다."
+            );
+        }
+
+        reportRepository.flush();
+
+        Long reportId = report.getId();
         entityManager.clear();
 
-        assertThat(
-                reportRepository.findById(reportId)
-                        .orElseThrow()
-                        .getStatus()
-        ).isEqualTo(status);
+        ContentReport found = reportRepository.findById(reportId)
+                .orElseThrow();
+
+        assertThat(found.getStatus()).isEqualTo(status);
+        assertThat(found.getHandledByMemberId()).isEqualTo(handlerId);
+        assertThat(found.getHandledAt()).isEqualTo(NOW.plusSeconds(60));
+        assertThat(found.getHandlingReason()).isNotBlank();
 
         assertThatThrownBy(() ->
                 reportRepository.saveAndFlush(
                         newReport(true, reporterId)
                 )
-        ).isInstanceOf(DataIntegrityViolationException.class)
+        )
+                .isInstanceOf(DataIntegrityViolationException.class)
                 .hasStackTraceContaining(
                         "uq_content_reports_post_reporter"
                 );

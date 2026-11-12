@@ -1007,7 +1007,10 @@ class AdminReportReadSessionIntegrationTest {
                         createdAt
                 );
             } else {
-                Comment comment = entityManager.find(Comment.class, targetId);
+                Comment comment = entityManager.find(
+                        Comment.class,
+                        targetId
+                );
 
                 report = ContentReport.forComment(
                         reporter.getId(),
@@ -1019,6 +1022,22 @@ class AdminReportReadSessionIntegrationTest {
                 );
             }
 
+            switch (status) {
+                case RECEIVED -> {
+                    // 접수 상태와 처리 정보 null을 유지한다.
+                }
+                case RESOLVED -> report.resolve(
+                        admin.getId(),
+                        "조회 테스트: 처리 완료",
+                        createdAt.plusSeconds(60)
+                );
+                case DISMISSED -> report.dismiss(
+                        admin.getId(),
+                        "조회 테스트: 기각",
+                        createdAt.plusSeconds(60)
+                );
+            }
+
             entityManager.persist(report);
             entityManager.flush();
 
@@ -1026,17 +1045,6 @@ class AdminReportReadSessionIntegrationTest {
         });
 
         assertThat(reportId).isNotNull();
-
-        if (status != ContentReportStatus.RECEIVED) {
-            // 신고 처리 API 구현 전, 조회 조건 검증용 상태를 준비한다.
-            int updated = jdbcTemplate.update(
-                    "UPDATE content_reports SET status = ? WHERE id = ?",
-                    status.name(),
-                    reportId
-            );
-
-            assertThat(updated).isEqualTo(1);
-        }
 
         return reportId;
     }
