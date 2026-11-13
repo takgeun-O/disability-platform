@@ -1,3 +1,4 @@
+import { reportHref, reportQuery } from "./content-reports"
 import { logQueryParams, type LogQuery } from "./admin-operation-logs"
 import { isModerationReasonType } from "./moderation-reasons"
 import { dateRangeError, validAdminDate } from "./admin-dates"
@@ -26,14 +27,15 @@ export function adminListHref(query: AdminQuery, selected: number | null = null)
 }
 export function adminReturnHref(value: unknown) {
   // Only exact internal list paths are allowed. Never navigate to raw input.
-  if(typeof value !== "string" || !/^\/admin\/(posts|operation-logs)(?:\?|$)/.test(value))return "/admin/posts"
+  if(typeof value !== "string" || !/^\/admin\/(posts|operation-logs|reports)(?:\?|$)/.test(value))return "/admin/posts"
   const url=new URL(value,"http://internal.invalid")
-  if(url.origin!=="http://internal.invalid" || url.hash || !["/admin/posts","/admin/operation-logs"].includes(url.pathname))return "/admin/posts"
+  if(url.origin!=="http://internal.invalid" || url.hash || !["/admin/posts","/admin/operation-logs","/admin/reports"].includes(url.pathname))return "/admin/posts"
   const params: Record<string,string|string[]> = {}
   for(const key of url.searchParams.keys()) {
     const values=url.searchParams.getAll(key)
     params[key]=values.length===1?values[0]:values
   }
+  if(url.pathname === "/admin/reports") return reportHref(reportQuery(url.searchParams),adminSelectionId(params.selected))
   return url.pathname==="/admin/operation-logs" ? adminLogHref(adminLogQuery(params),adminSelectionId(params.selected)) : adminListHref(adminListQuery(params),adminSelectionId(params.selected))
 }
 

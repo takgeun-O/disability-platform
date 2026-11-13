@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation"
 import Link from "@/components/AppLink"
 import { useAuth } from "@/components/AuthProvider"
 import { useNavigationRequest } from "@/components/NavigationGuard"
+import ReportButton from "./ReportButton"
 import CommunityDialog from "./CommunityDialog"
 import {
   changePost,
@@ -85,6 +86,7 @@ export default function PostActions({
   }
   return (
     <>
+      <ReportButton postId={String(post.id)} authorId={post.author.memberId} label={post.title} />
       {owner && (
         <div className="community-owner-actions" aria-label="내 게시글 관리">
           <Link
