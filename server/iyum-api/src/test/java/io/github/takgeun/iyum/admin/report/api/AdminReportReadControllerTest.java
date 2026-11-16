@@ -1,14 +1,6 @@
 package io.github.takgeun.iyum.admin.report.api;
 
-import io.github.takgeun.iyum.admin.report.application.AdminReportCurrentTargetResult;
-import io.github.takgeun.iyum.admin.report.application.AdminReportDetailResult;
-import io.github.takgeun.iyum.admin.report.application.AdminReportItemResult;
-import io.github.takgeun.iyum.admin.report.application.AdminReportReadException;
-import io.github.takgeun.iyum.admin.report.application.AdminReportReadQuery;
-import io.github.takgeun.iyum.admin.report.application.AdminReportReadService;
-import io.github.takgeun.iyum.admin.report.application.AdminReportSort;
-import io.github.takgeun.iyum.admin.report.application.AdminReportTargetAuthorResult;
-import io.github.takgeun.iyum.admin.report.application.AdminReportTargetType;
+import io.github.takgeun.iyum.admin.report.application.*;
 import io.github.takgeun.iyum.auth.security.MemberPrincipal;
 import io.github.takgeun.iyum.community.report.domain.ContentReportHandlingOutcome;
 import io.github.takgeun.iyum.community.report.domain.ContentReportReasonType;
@@ -115,7 +107,8 @@ class AdminReportReadControllerTest {
                         11L,
                         "현재작성자",
                         false
-                )
+                ),
+                AdminReportCurrentTargetStatus.NORMAL
         );
 
         AdminReportItemResult commentItem = new AdminReportItemResult(
@@ -127,6 +120,7 @@ class AdminReportReadControllerTest {
                 null,
                 "신고 당시 댓글 미리보기",
                 CREATED_AT.minusSeconds(60),
+                null,
                 null
         );
 
@@ -173,6 +167,10 @@ class AdminReportReadControllerTest {
                         .doesNotHaveJsonPath())
                 .andExpect(jsonPath("$.items[0].reporterMemberId")
                         .doesNotHaveJsonPath())
+                .andExpect(
+                        jsonPath("$.items[0].currentTargetStatus")
+                                .value("NORMAL")
+                )
                 .andExpect(jsonPath("$.items[1].reportId").value(99))
                 .andExpect(jsonPath("$.items[1].targetType").value("COMMENT"))
                 .andExpect(jsonPath("$.items[1].targetId").value(144))
@@ -180,6 +178,14 @@ class AdminReportReadControllerTest {
                 .andExpect(jsonPath("$.items[1].titleSnapshot").value(nullValue()))
                 .andExpect(jsonPath("$.items[1].currentAuthor").hasJsonPath())
                 .andExpect(jsonPath("$.items[1].currentAuthor").value(nullValue()))
+                .andExpect(
+                        jsonPath("$.items[1].currentTargetStatus")
+                                .hasJsonPath()
+                )
+                .andExpect(
+                        jsonPath("$.items[1].currentTargetStatus")
+                                .value(nullValue())
+                )
                 .andExpect(jsonPath("$.page").value(0))
                 .andExpect(jsonPath("$.size").value(20))
                 .andExpect(jsonPath("$.totalElements").value(2))
@@ -902,6 +908,67 @@ class AdminReportReadControllerTest {
                 ));
 
         verifyNoInteractions(reportReadService);
+    }
+
+    @ParameterizedTest
+    @EnumSource(AdminReportCurrentTargetStatus.class)
+    void 목록의_현재_콘텐츠_상태를_문자열로_반환한다(
+            AdminReportCurrentTargetStatus currentTargetStatus
+    ) throws Exception {
+        givenValidSession(MemberRole.ADMIN);
+
+        AdminReportReadQuery query = defaultQuery();
+
+        AdminReportItemResult item = new AdminReportItemResult(
+                REPORT_ID,
+                AdminReportTargetType.COMMENT,
+                166L,
+                ContentReportStatus.RECEIVED,
+                ContentReportReasonType.OTHER,
+                null,
+                "신고 당시 댓글 미리보기",
+                CREATED_AT,
+                new AdminReportTargetAuthorResult(
+                        38L,
+                        "현재작성자",
+                        false
+                ),
+                currentTargetStatus
+        );
+
+        when(reportReadService.getReports(
+                ACTOR_ID,
+                VERSION,
+                query
+        ))
+                .thenReturn(new PageImpl<>(
+                        List.of(item),
+                        PageRequest.of(0, 20),
+                        1
+                ));
+
+        expectSuccess(
+                mockMvc.perform(
+                        adminRequest(LIST_PATH)
+                )
+        )
+                .andExpect(
+                        jsonPath("$.items[0].status")
+                                .value("RECEIVED")
+                )
+                .andExpect(
+                        jsonPath("$.items[0].currentTargetStatus")
+                                .value(currentTargetStatus.name())
+                );
+
+        verify(reportReadService)
+                .getReports(
+                        ACTOR_ID,
+                        VERSION,
+                        query
+                );
+
+        verifyNoMoreInteractions(reportReadService);
     }
 
     static Stream<Arguments> disallowedCorsMethods() {

@@ -1,0 +1,7 @@
+.report-comment-management { max-width:58rem; margin-inline:auto; overflow-wrap:anywhere; }
+.report-comment-management .report-comment-context { padding:1rem; background:#edf7f8; border-radius:.6rem; margin:1rem 0 1.5rem; }
+.report-comment-management .admin-comment-body { margin:1rem 0; padding:1rem; background:#f4f7f9; border-radius:.5rem; }
+.report-comment-management .admin-comment-body-label { display:block; font-weight:650; margin-bottom:.6rem; }
+.report-comment-management .report-comment-operations { margin-top:1.5rem; padding-top:1rem; border-top:1px solid #d6e3e9; }
+.report-comment-management .admin-comment-parent { margin-top:1.5rem; padding-top:1rem; border-top:1px solid #d6e3e9; }
+.report-comment-management h3 { font-size:1.1rem; font-weight:650; margin-bottom:.6rem; }

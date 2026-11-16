@@ -509,6 +509,15 @@ class AdminReportReadSessionIntegrationTest {
                     .isEqualTo("탈퇴한 회원");
             assertThat(item.path("currentAuthor").path("withdrawn").asBoolean())
                     .isTrue();
+
+            assertThat(item.path("status").asString())
+                    .isEqualTo("RECEIVED");
+
+            assertThat(item.has("currentTargetStatus"))
+                    .isTrue();
+
+            assertThat(item.path("currentTargetStatus").asString())
+                    .isEqualTo("DELETED");
         }
 
         JsonNode postDetail = readDetail(session, postReportId);
@@ -682,6 +691,153 @@ class AdminReportReadSessionIntegrationTest {
         );
 
         assertThat(session.isInvalid()).isTrue();
+    }
+
+    @ParameterizedTest
+    @ValueSource(booleans = {true, false})
+    void 콘텐츠_숨김과_복원은_목록의_현재_상태에_반영되고_신고는_접수로_유지된다(
+            boolean postTarget
+    ) throws Exception {
+        Long targetId = postTarget ? postId : commentId;
+
+        Long reportId = saveReport(
+                postTarget,
+                targetId,
+                ContentReportStatus.RECEIVED,
+                ContentReportReasonType.OTHER,
+                NOW
+        );
+
+        MockHttpSession session = login(admin.getEmail());
+
+        JsonNode before = assertReceivedTargetStatus(
+                session,
+                reportId,
+                "NORMAL"
+        );
+
+        // 별도 트랜잭션에서 상태 변경을 커밋한다.
+        transactions.executeWithoutResult(transaction -> {
+            if (postTarget) {
+                Post target = entityManager.find(
+                        Post.class,
+                        targetId
+                );
+
+                assertThat(target.hide(HIDDEN_AT)).isTrue();
+            } else {
+                Comment target = entityManager.find(
+                        Comment.class,
+                        targetId
+                );
+
+                assertThat(target.hide(HIDDEN_AT)).isTrue();
+            }
+        });
+
+        JsonNode hidden = assertReceivedTargetStatus(
+                session,
+                reportId,
+                "HIDDEN"
+        );
+
+        transactions.executeWithoutResult(transaction -> {
+            if (postTarget) {
+                Post target = entityManager.find(
+                        Post.class,
+                        targetId
+                );
+
+                assertThat(target.restore()).isTrue();
+            } else {
+                Comment target = entityManager.find(
+                        Comment.class,
+                        targetId
+                );
+
+                assertThat(target.restore()).isTrue();
+            }
+        });
+
+        JsonNode restored = assertReceivedTargetStatus(
+                session,
+                reportId,
+                "NORMAL"
+        );
+
+        // 현재 콘텐츠 상태가 바뀌어도 신고 당시 정보는 유지한다.
+        for (JsonNode item : List.of(hidden, restored)) {
+            assertThat(item.path("titleSnapshot"))
+                    .isEqualTo(before.path("titleSnapshot"));
+
+            assertThat(item.path("contentSnapshotPreview"))
+                    .isEqualTo(before.path("contentSnapshotPreview"));
+
+            assertThat(item.path("createdAt"))
+                    .isEqualTo(before.path("createdAt"));
+        }
+
+        ContentReport saved = reportRepository
+                .findById(reportId)
+                .orElseThrow();
+
+        assertThat(saved.getStatus())
+                .isEqualTo(ContentReportStatus.RECEIVED);
+
+        assertThat(saved.getContentSnapshot())
+                .isEqualTo(
+                        postTarget ? POST_BODY : COMMENT_BODY
+                );
+    }
+
+    @ParameterizedTest
+    @ValueSource(booleans = {false, true})
+    void 부모_게시글이_숨김이나_삭제여도_댓글_자체의_상태를_반환한다(
+            boolean deleteParent
+    ) throws Exception {
+        Long reportId = saveReport(
+                false,
+                commentId,
+                ContentReportStatus.RECEIVED,
+                ContentReportReasonType.OTHER,
+                NOW
+        );
+
+        MockHttpSession session = login(admin.getEmail());
+
+        transactions.executeWithoutResult(transaction -> {
+            Post parent = entityManager.find(
+                    Post.class,
+                    postId
+            );
+
+            parent.hide(HIDDEN_AT);
+
+            if (deleteParent) {
+                parent.delete(DELETED_AT);
+            }
+        });
+
+        JsonNode item = assertReceivedTargetStatus(
+                session,
+                reportId,
+                "NORMAL"
+        );
+
+        assertThat(item.path("targetType").asString())
+                .isEqualTo("COMMENT");
+
+        assertThat(item.path("targetId").asLong())
+                .isEqualTo(commentId.longValue());
+
+        JsonNode detail = readDetail(session, reportId);
+        JsonNode current = detail.path("currentTarget");
+
+        assertThat(current.path("hiddenAt").isNull())
+                .isTrue();
+
+        assertThat(current.path("deletedAt").isNull())
+                .isTrue();
     }
 
     private MockHttpSession login(String email) throws Exception {
@@ -1047,5 +1203,48 @@ class AdminReportReadSessionIntegrationTest {
         assertThat(reportId).isNotNull();
 
         return reportId;
+    }
+
+    private JsonNode assertReceivedTargetStatus(
+            MockHttpSession session,
+            Long reportId,
+            String expectedTargetStatus
+    ) throws Exception {
+        // 콘텐츠가 숨겨져도 접수 상태 신고 목록에 남아 있어야 한다.
+        JsonNode list = readList(
+                session,
+                "status", "RECEIVED"
+        );
+
+        assertThat(reportIds(list))
+                .containsExactly(reportId);
+
+        assertThat(list.path("totalElements").asLong())
+                .isEqualTo(1L);
+
+        JsonNode item = findItem(list, reportId);
+
+        assertThat(item.path("status").asString())
+                .isEqualTo("RECEIVED");
+
+        assertThat(item.has("currentTargetStatus"))
+                .isTrue();
+
+        assertThat(item.path("currentTargetStatus").asString())
+                .isEqualTo(expectedTargetStatus);
+
+        // 콘텐츠 관리만으로 신고 처리 정보가 생성되면 안 된다.
+        JsonNode detail = readDetail(session, reportId);
+
+        assertThat(detail.path("status").asString())
+                .isEqualTo("RECEIVED");
+
+        assertThat(detail.has("handlingOutcome"))
+                .isTrue();
+
+        assertThat(detail.path("handlingOutcome").isNull())
+                .isTrue();
+
+        return item;
     }
 }

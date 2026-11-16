@@ -17,8 +17,11 @@ import {
   useNavigationGuard,
   useNavigationRequest,
 } from "@/components/NavigationGuard"
+import CommentSuccessToast from "@/components/community/CommentSuccessToast"
+import "@/styles/community.css"
 import OverlayDialog from "@/components/OverlayDialog"
 import AdminPagination from "@/components/admin/AdminPagination"
+import ReportContent from "@/components/admin/ReportContent"
 import AdminSelectionPanel from "@/components/admin/AdminSelectionPanel"
 import { AdminApiError } from "@/lib/admin-posts"
 import { dateRangeError } from "@/lib/admin-dates"
@@ -26,6 +29,9 @@ import { writtenTime } from "@/lib/written-time"
 import {
   REPORT_REASONS,
   REPORT_STATUSES,
+  REPORT_TARGET_STATUSES,
+  reportTargetStatus,
+  REPORT_OUTCOMES,
   defaultReportQuery,
   reportQuery,
   reportHref,
@@ -45,7 +51,20 @@ type ListSnapshot = {
   key: string
   data: ReportPage
 }
+type SuccessNotice = {
+  key: string
+  message: string
+  valid: () => boolean
+}
 export default function AdminReports() {
+  const auth = useAuth()
+  const [toast, setToast] = useState<SuccessNotice | null>(null)
+  const dismissToast = useCallback(() => setToast(null), [])
+  const notify = useCallback((event: SuccessNotice) => {
+    setToast((previous) =>
+      previous?.key === event.key ? previous : event,
+    )
+  }, [])
   const params = useSearchParams()
   const [snapshot, setSnapshot] = useState<ListSnapshot | null>(null)
   const remember = useCallback(
@@ -56,19 +75,44 @@ export default function AdminReports() {
     reportQuery(new URLSearchParams(params.toString())),
   )
   return (
-    <ReportsScreen
-      key={params.toString()}
-      params={new URLSearchParams(params.toString())}
-      initialList={snapshot?.key === queryKey ? snapshot.data : null}
-      remember={remember}
-    />
+    <>
+      <div
+        role="status"
+        aria-atomic="true"
+        className="comment-toast-announcer report-toast"
+      >
+        {toast &&
+          auth.member?.role === "ADMIN" &&
+          toast.valid() && (
+            <CommentSuccessToast
+              key={toast.key}
+              message={toast.message}
+              onDismiss={dismissToast}
+            />
+          )}
+      </div>
+      <ReportsScreen
+        notify={notify}
+        dismissToast={dismissToast}
+        key={params.toString()}
+        params={new URLSearchParams(params.toString())}
+        initialList={
+          snapshot?.key === queryKey ? snapshot.data : null
+        }
+        remember={remember}
+      />
+    </>
   )
 }
 function ReportsScreen({
   params,
   initialList,
   remember,
+  notify,
+  dismissToast,
 }: {
+  notify: (event: SuccessNotice) => void
+  dismissToast: () => void
   params: URLSearchParams
   initialList: ReportPage | null
   remember: (key: string, data: ReportPage) => void
@@ -101,6 +145,7 @@ function ReportsScreen({
     (e: unknown) => {
       if (e instanceof AdminApiError || e instanceof ReportMutationError) {
         if (e.status === 401) {
+          dismissToast()
           capture(actor).expire()
           return true
         }
@@ -109,13 +154,14 @@ function ReportsScreen({
           (!(e instanceof ReportMutationError) ||
             ["ADMIN_REQUIRED", "ACCESS_DENIED"].includes(e.code))
         ) {
+          dismissToast()
           setDenied(true)
           return true
         }
       }
       return false
     },
-    [capture, actor],
+    [capture, actor, dismissToast],
   )
   const refresh = useCallback(async () => {
     const current = scope.begin(),
@@ -131,7 +177,10 @@ function ReportsScreen({
           {},
           "",
           reportHref(
-            { ...queryRef.current, page: Math.max(0, data.totalPages - 1) },
+            {
+              ...queryRef.current,
+              page: Math.max(0, data.totalPages - 1),
+            },
             selected,
           ),
         )
@@ -162,7 +211,10 @@ function ReportsScreen({
             {},
             "",
             reportHref(
-              { ...query, page: Math.max(0, data.totalPages - 1) },
+              {
+                ...query,
+                page: Math.max(0, data.totalPages - 1),
+              },
               selected,
             ),
           )
@@ -257,7 +309,7 @@ function ReportsScreen({
             <option value="ALL">전체</option>
             {Object.entries(REPORT_STATUSES).map(([v, l]) => (
               <option key={v} value={v}>
-                {l}
+                {v === "RECEIVED" ? "접수(미처리)" : l}
               </option>
             ))}
           </select>
@@ -379,16 +431,22 @@ function ReportsScreen({
               <table>
                 <thead>
                   <tr>
-                    <th>신고·대상</th>
-                    <th>신고 사유·상태</th>
-                    <th>접수 시각</th>
+                    <th scope="col" id={`${uid}-target`}>신고·대상</th>
+                    <th scope="col" id={`${uid}-reason`}>신고 사유</th>
+                    <th scope="col" id={`${uid}-status`}>신고 상태</th>
+                    <th scope="col" id={`${uid}-content-status`}>현재 콘텐츠</th>
+                    <th scope="col" id={`${uid}-created`}>접수 시각</th>
                   </tr>
                 </thead>
                 <tbody>
                   {list.items.map((item) => (
                     <tr
                       key={item.reportId}
-                      data-selected={item.reportId === selected}
+                      data-selected={
+                        item.reportId ===
+                        selected
+                      }
+                      data-status={item.status}
                       onClick={(e) => {
                         if (
                           !(e.target as HTMLElement).closest("button") &&
@@ -398,7 +456,7 @@ function ReportsScreen({
                           navigate(query, item.reportId)
                       }}
                     >
-                      <td>
+                      <td headers={`${uid}-target`}>
                         <button
                           data-report-select={item.reportId}
                           aria-pressed={item.reportId === selected}
@@ -409,16 +467,20 @@ function ReportsScreen({
                           {item.targetType === "POST" ? "게시글" : "댓글"} #
                           {item.targetId}
                         </button>
-                        <strong>{item.titleSnapshot}</strong>
-                        <p>{item.contentSnapshotPreview}</p>
+                        <strong className="report-list-title">{item.titleSnapshot}</strong>
+                        <p className="report-list-preview">{item.contentSnapshotPreview}</p>
                         {item.currentAuthor && (
                           <small>
                             현재 작성자: {item.currentAuthor.nickname}
                           </small>
                         )}
                       </td>
-                      <td>
+                      <td headers={`${uid}-reason`} data-label="신고 사유">
+                        <span className="report-cell-label" aria-hidden="true">신고 사유:</span>
                         {REPORT_REASONS[item.reasonType]}
+                      </td>
+                      <td headers={`${uid}-status`} data-label="신고 상태">
+                        <span className="report-cell-label" aria-hidden="true">신고 상태:</span>
                         <span
                           className="report-badge"
                           data-status={item.status}
@@ -426,7 +488,15 @@ function ReportsScreen({
                           {REPORT_STATUSES[item.status]}
                         </span>
                       </td>
-                      <td>
+                      <td headers={`${uid}-content-status`} data-label="현재 콘텐츠">
+                        <span className="report-cell-label" aria-hidden="true">현재 콘텐츠:</span>
+                        <span className="report-content-badge" data-content-status={item.currentTargetStatus ?? "UNAVAILABLE"}>
+                          {item.currentTargetStatus === null
+                            ? "확인 불가"
+                            : REPORT_TARGET_STATUSES[item.currentTargetStatus]}
+                        </span>
+                      </td>
+                      <td headers={`${uid}-created`}>
                         <time dateTime={item.createdAt}>
                           {writtenTime(item.createdAt).exact.replace(
                             " (한국 시간)",
@@ -478,6 +548,10 @@ function ReportsScreen({
                 !list.items.some((i) => i.reportId === selected)
               }
               refreshList={refresh}
+              notify={notify}
+              showStatus={(status) =>
+                navigate({ ...query, status, page: 0 }, selected)
+              }
               protect={protect}
               close={() => navigate(query, null, true)}
             />
@@ -496,12 +570,16 @@ function ReportPanel({
   query,
   absent,
   refreshList,
+  notify,
+  showStatus,
   protect,
   close,
 }: {
   id: number
   query: ReportQuery
   absent: boolean
+  notify: (event: SuccessNotice) => void
+  showStatus: (status: "RESOLVED" | "DISMISSED") => void
   refreshList: () => Promise<void>
   protect: (e: unknown) => boolean
   close: () => void
@@ -513,6 +591,7 @@ function ReportPanel({
   const [data, setData] = useState<ReportDetail | null>(null),
     [loading, setLoading] = useState(true),
     [readError, setReadError] = useState(""),
+    [listOnlyReadFailure, setListOnlyReadFailure] = useState(false),
     [action, setAction] = useState<ReportAction | null>(null),
     [reason, setReason] = useState(""),
     [error, setError] = useState(""),
@@ -523,7 +602,23 @@ function ReportPanel({
     [localExit, setLocalExit] = useState(false)
   const flight = useRef(false),
     field = useRef<HTMLTextAreaElement>(null),
-    generation = useRef(0)
+    generation = useRef(0),
+    completed = useRef(false),
+    resultHeading = useRef<HTMLHeadingElement>(null),
+    actionHeading = useRef<HTMLHeadingElement>(null),
+    focusResult = useRef(false)
+  const reveal = (element: HTMLElement | null) => {
+    if (!element) return
+    element.focus({ preventScroll: true })
+    const scroller = element.closest(".admin-preview-body")
+    if (scroller) scroller.scrollTop += element.getBoundingClientRect().top - scroller.getBoundingClientRect().top - 12
+  }
+  useLayoutEffect(() => {
+    if (focusResult.current && data?.status !== "RECEIVED" && resultHeading.current) {
+      focusResult.current = false
+      reveal(resultHeading.current)
+    }
+  }, [data?.status])
   const actor = auth.member!.memberId,
     capture = auth.captureMemberRequest,
     setDirty = guard.setDirty
@@ -544,16 +639,24 @@ function ReportPanel({
       ])
       if (!valid()) return
       const failure = results.find((r) => r.status === "rejected")
+      const detailSucceeded = results[0].status === "fulfilled"
+      // Recompute for each settled read, never infer freshness from error text.
+      setListOnlyReadFailure(detailSucceeded && !!failure)
       if (failure?.status === "rejected") {
         if (protect(failure.reason)) return
         setReadError(
-          failure.reason instanceof AdminApiError &&
-            failure.reason.status === 404
-            ? "신고 기록을 찾을 수 없습니다."
-            : "최신 정보를 불러오지 못했습니다. 다시 조회해 주세요.",
+          detailSucceeded
+            ? "상세 정보는 갱신됐지만 목록을 갱신하지 못했습니다. 다시 조회해 주세요."
+            : failure.reason instanceof AdminApiError &&
+                failure.reason.status === 404
+              ? "신고 기록을 찾을 수 없습니다."
+            : completed.current
+              ? "조치는 완료됐습니다. 최신 정보를 불러오지 못했습니다. 다시 조회해 주세요."
+              : "최신 정보를 불러오지 못했습니다. 다시 조회해 주세요.",
         )
         setNeedsCheck(true)
         if (
+          !detailSucceeded &&
           failure.reason instanceof AdminApiError &&
           failure.reason.status === 404
         )
@@ -629,7 +732,9 @@ function ReportPanel({
       !action ||
       flight.current ||
       needsCheck ||
-      loading
+      loading ||
+      (action === "hide-and-resolve" &&
+        (!data.currentTarget || !!data.currentTarget.deletedAt))
     )
       return
     const issue = handlingError(reason)
@@ -651,11 +756,26 @@ function ReportPanel({
     try {
       const result = await handleReport(id, action, reason, valid)
       if (!valid() || !result) return
-      setNotice(
-        action === "resolve"
-          ? "신고 처리를 완료했습니다. 콘텐츠 공개 상태는 변경하지 않았습니다."
-          : "신고를 기각했습니다. 콘텐츠 공개 상태는 변경하지 않았습니다.",
-      )
+      completed.current = true
+      focusResult.current = true
+      // Keep the confirmed result; current target state still comes from GET.
+      setData({ ...data, ...result })
+      const targetLabel = `${
+        data.targetType === "POST" ? "게시글" : "댓글"
+      } #${data.targetId}`
+      notify({
+        key: `${result.reportId}:${result.handledAt}`,
+        valid: session.isCurrent,
+        message: `신고 #${result.reportId} ${
+          result.status === "DISMISSED" ? "기각 완료" : "처리 완료"
+        } · ${
+          result.handlingOutcome === "CONTENT_HIDDEN"
+            ? `${targetLabel}을 숨겼습니다.`
+            : result.handlingOutcome === "CONTENT_ALREADY_HIDDEN"
+              ? `${targetLabel}의 기존 숨김을 유지했습니다.`
+              : "콘텐츠 공개 상태는 변경하지 않았습니다."
+        }`,
+      })
       setAction(null)
       setReason("")
       setDirty(false)
@@ -678,9 +798,25 @@ function ReportPanel({
       if (failure.code === "INVALID_HANDLING_REASON") focusError()
       if (failure.uncertain || failure.status === 409 || failure.status === 404)
         setNeedsCheck(true)
-      if (failure.status === 409) {
-        setNotice("다른 처리와 충돌했습니다. 서버의 최신 결과를 확인합니다.")
+      if (failure.code === "REPORT_ALREADY_HANDLED") {
+        setNotice(
+          "이미 종결된 신고입니다. 이번 요청의 성공이 아닙니다. 서버의 최신 결과를 확인합니다.",
+        )
         reread = true
+      } else if (
+        [
+          "POST_DELETED",
+          "COMMENT_DELETED",
+          "POST_NOT_FOUND",
+          "COMMENT_NOT_FOUND",
+        ].includes(failure.code)
+      ) {
+        setNotice(failure.message)
+        reread = true
+      } else if (failure.uncertain) {
+        setNotice(
+          "이번 요청의 처리 결과는 확실하지 않습니다. 다시 조회한 현재 상태와 저장된 처리 이력을 확인해 주세요.",
+        )
       }
     } finally {
       flight.current = false
@@ -694,7 +830,27 @@ function ReportPanel({
       await load(true)
     }
   }
+  const contentStatus = data ? reportTargetStatus(data.currentTarget) : null
+  const contentStatusLabel = contentStatus === null ? "확인 불가" : REPORT_TARGET_STATUSES[contentStatus]
+  const staleMessage = loading
+    ? "최신 상태를 확인하고 있습니다. 이전 조회 정보입니다."
+    : !listOnlyReadFailure && (needsCheck || readError)
+      ? "최신 상태를 확인하지 못했습니다. 현재 콘텐츠는 이전 조회 정보입니다."
+      : ""
   const target = data?.currentTarget
+  const sameContent = !!target && !!data && target.content === data.contentSnapshot &&
+    (data.targetType === "COMMENT" || target.title === data.titleSnapshot)
+  const hideUnavailable = !target
+    ? "현재 대상을 찾을 수 없어 숨김·처리 완료를 실행할 수 없습니다."
+    : target.deletedAt
+      ? "삭제된 대상은 숨김·처리 완료를 실행할 수 없습니다."
+      : ""
+  const actionName =
+    action === "hide-and-resolve"
+      ? "숨김·처리 완료"
+      : action === "resolve"
+        ? "추가 조치 없이 처리 완료"
+        : "신고 기각"
   const returnHref = reportHref(query, id)
   const back = () => {
     if (busy || reason) setLocalExit(true)
@@ -710,8 +866,9 @@ function ReportPanel({
         title={`신고 #${id} 상세`}
         focusOnOpen
         onClose={close}
+        headerActions={data?.status === "RECEIVED" ? <button type="button" onClick={() => reveal(actionHeading.current)}>처리 영역으로 이동</button> : undefined}
       >
-        {loading && <p role="status">신고 상세를 불러오고 있습니다…</p>}
+        {loading && !data && <p role="status">신고 상세를 불러오고 있습니다…</p>}
         {readError && <p role="alert">{readError}</p>}
         {notice && <p role="status">{notice}</p>}
         {needsCheck && (
@@ -730,16 +887,37 @@ function ReportPanel({
         )}
         {data && (
           <div className="report-detail" aria-busy={loading}>
-            {absent && (
-              <p>이 신고는 현재 목록 조건에 포함되어 있지 않습니다.</p>
-            )}
+            {absent &&
+              (query.status === "RECEIVED" && data.status !== "RECEIVED" ? (
+                <div className="report-filter-notice" role="status">
+                  <p>처리가 완료되어 미처리 목록에서 제외됐습니다.</p>
+                  <button
+                    type="button"
+                    onClick={() =>
+                      showStatus(data.status as "RESOLVED" | "DISMISSED")
+                    }
+                  >
+                    {data.status === "DISMISSED"
+                      ? "기각 목록 보기"
+                      : "처리 완료 목록 보기"}
+                  </button>
+                </div>
+              ) : (
+                <p>이 신고는 현재 목록 조건에 포함되어 있지 않습니다.</p>
+              ))}
             <section>
-              <h3>
-                신고 기본 정보{" "}
-                <span className="report-badge" data-status={data.status}>
-                  {REPORT_STATUSES[data.status]}
-                </span>
-              </h3>
+              <h3>신고 기본 정보</h3>
+              <dl className="report-status-summary">
+                <div>
+                  <dt>신고 상태</dt>
+                  <dd><span className="report-badge" data-status={data.status}>{REPORT_STATUSES[data.status]}</span></dd>
+                </div>
+                <div>
+                  <dt>현재 콘텐츠</dt>
+                  <dd><span className="report-content-badge" data-content-status={contentStatus ?? "UNAVAILABLE"}>{contentStatusLabel}</span></dd>
+                </div>
+              </dl>
+              {staleMessage && <p className="report-status-freshness" role="status">{staleMessage}</p>}
               <p>
                 {data.targetType === "POST" ? "게시글" : "댓글"} #
                 {data.targetId} · 신고자: 회원 #{data.reporterMemberId}
@@ -750,38 +928,74 @@ function ReportPanel({
                 <p className="report-body">{data.reasonDetail}</p>
               )}
             </section>
+            {data.status !== "RECEIVED" && (
+                <section className="report-handling-summary" aria-labelledby={`${uid}-result`}>
+                  <h3 id={`${uid}-result`} ref={resultHeading} tabIndex={-1}>신고 처리 결과</h3>
+                  <p>
+                    신고 상태:{" "}
+                    <span className="report-badge" data-status={data.status}>
+                      {REPORT_STATUSES[data.status]}
+                    </span>
+                  </p>
+                  <p>
+                    처리 결과:{" "}
+                    {data.handlingOutcome === null
+                      ? "아직 처리되지 않음"
+                      : REPORT_OUTCOMES[data.handlingOutcome]}
+                  </p>
+                  <p>
+                    처리 당시 저장된 결과입니다. 현재 콘텐츠의 공개·숨김·삭제
+                    상태와 다를 수 있습니다.
+                  </p>
+                  <p>처리 관리자: 회원 #{data.handledByMemberId}</p>
+                  <p>처리: {writtenTime(data.handledAt!).exact}</p>
+                  <h4>처리 사유</h4>
+                  <div className="report-body">{data.handlingReason}</div>
+                </section>
+            )}
             <section>
               <h3>신고 당시 콘텐츠</h3>
-              {data.titleSnapshot !== null && <h4>{data.titleSnapshot}</h4>}
-              <div className="report-body">{data.contentSnapshot}</div>
+              <ReportContent key={`snapshot-${id}`} title={data.titleSnapshot} content={data.contentSnapshot}/>
             </section>
             <section>
-              <h3>현재 콘텐츠</h3>
-              <p>신고 이후 내용과 상태가 변경될 수 있습니다.</p>
+              <h3 className="report-current-heading">
+                현재 콘텐츠
+                <span className="report-content-badge" data-content-status={contentStatus ?? "UNAVAILABLE"}>{contentStatusLabel}</span>
+              </h3>
+              <p>
+                {(loading || (!listOnlyReadFailure && (needsCheck || !!readError)))
+                  ? "최신 조회 전 정보입니다. 처리 후 현재 콘텐츠 상태를 다시 확인해 주세요."
+                  : listOnlyReadFailure
+                    ? "상세 정보는 갱신됐습니다. 목록과 상세가 일시적으로 다를 수 있습니다."
+                    : "신고 이후 내용과 상태가 변경될 수 있습니다."}
+              </p>
               {target ? (
                 <>
                   <p>
                     현재 작성자: {target.author.nickname} · 회원 #
                     {target.author.memberId}
                   </p>
-                  <p>
-                    대상 상태:{" "}
-                    {target.deletedAt
-                      ? "삭제"
-                      : target.hiddenAt
-                        ? "숨김"
-                        : "정상"}
-                  </p>
-                  {target.title !== null && <h4>{target.title}</h4>}
-                  <div className="report-body">{target.content}</div>
+                  {!loading && !needsCheck && !readError && <p className="report-comparison">
+                    {sameContent
+                      ? "신고 당시와 내용이 같습니다." : "신고 당시와 내용이 다릅니다."}
+                  </p>}
+                  <ReportContent key={`current-${id}`} title={target.title} content={target.content}
+                    duplicate={sameContent}/>
+
                   <Link
-                    href={`/admin/${data.targetType === "COMMENT" ? "comments" : "posts"}/${target.targetId}?from=${encodeURIComponent(returnHref)}`}
+                    className="report-management-link"
+                    href={`/admin/${
+                      data.targetType === "COMMENT" ? "comments" : "posts"
+                    }/${target.targetId}?from=${encodeURIComponent(returnHref)}`}
                     prefetch={false}
                   >
                     {data.targetType === "POST"
                       ? "게시글 관리로 이동"
                       : "신고된 댓글 관리로 이동"}
                   </Link>
+                  {target.hiddenAt && !target.deletedAt && (
+                    <p>숨김 해제는 콘텐츠 관리 화면에서 할 수 있습니다.</p>
+                  )}
                   {data.targetType === "POST" &&
                     !target.hiddenAt &&
                     !target.deletedAt && (
@@ -800,35 +1014,55 @@ function ReportPanel({
                 </p>
               )}
             </section>
-            <section>
-              <h3>신고 처리</h3>
-              <p>
-                이 신고 한 건의 검토 결과를 기록합니다. 콘텐츠 숨김이나 회원
-                제재는 실행하지 않습니다.
-              </p>
-              {data.status !== "RECEIVED" ? (
-                <>
-                  <p>
-                    {REPORT_STATUSES[data.status]} · 처리 관리자: 회원 #
-                    {data.handledByMemberId}
-                  </p>
-                  <p>처리: {writtenTime(data.handledAt!).exact}</p>
-                  <div className="report-body">{data.handlingReason}</div>
-                </>
-              ) : !action ? (
-                <div className="report-actions">
-                  <button
-                    disabled={loading || needsCheck}
-                    onClick={() => setAction("resolve")}
-                  >
-                    추가 조치 없이 처리 완료
-                  </button>
-                  <button
-                    disabled={loading || needsCheck}
-                    onClick={() => setAction("dismiss")}
-                  >
-                    신고 기각
-                  </button>
+            {data.status === "RECEIVED" && <section>
+              <h3 ref={actionHeading} tabIndex={-1}>신고 처리</h3>
+              {data.status === "RECEIVED" && !action && (
+                <p>이 신고에 적용할 처리 방법을 선택하세요.</p>
+              )}
+              {!action ? (
+                <div>
+                  <p>처리 결과: 아직 처리되지 않음</p>
+                  {hideUnavailable && (
+                    <p id={`${uid}-hide-unavailable`}>{hideUnavailable}</p>
+                  )}
+                  {target?.hiddenAt && !target.deletedAt && (
+                    <p>
+                      이미 숨겨진 대상입니다. 기존 숨김을 유지하고 신고를 처리
+                      완료할 수 있습니다.
+                    </p>
+                  )}
+                  <div className="report-actions">
+                    <div className="report-action-choice">
+                      <button
+                        aria-describedby={`${uid}-hide-and-resolve-effect ${hideUnavailable ? `${uid}-hide-unavailable` : ""}`}
+                        disabled={loading || needsCheck || !!hideUnavailable}
+                        onClick={() => setAction("hide-and-resolve")}
+                      >
+                        숨김·처리 완료
+                      </button>
+                      <p id={`${uid}-hide-and-resolve-effect`}>콘텐츠를 숨기고 신고를 종결합니다.</p>
+                    </div>
+                    <div className="report-action-choice">
+                      <button
+                        aria-describedby={`${uid}-resolve-effect`}
+                        disabled={loading || needsCheck}
+                        onClick={() => setAction("resolve")}
+                      >
+                        추가 조치 없이 처리 완료
+                      </button>
+                      <p id={`${uid}-resolve-effect`}>공개 상태를 유지하고 신고를 종결합니다.</p>
+                    </div>
+                    <div className="report-action-choice">
+                      <button
+                        aria-describedby={`${uid}-dismiss-effect`}
+                        disabled={loading || needsCheck}
+                        onClick={() => setAction("dismiss")}
+                      >
+                        신고 기각
+                      </button>
+                      <p id={`${uid}-dismiss-effect`}>신고를 받아들이지 않고 종결합니다.</p>
+                    </div>
+                  </div>
                 </div>
               ) : (
                 <form
@@ -840,9 +1074,24 @@ function ReportPanel({
                   }}
                 >
                   <h4>
-                    신고 #{id} {action === "resolve" ? "처리 완료" : "기각"}
+                    신고 #{id} · {actionName} 확인
                   </h4>
-                  <p>{action === "resolve" ? "콘텐츠 공개 상태를 변경하지 않고 이 신고만 종결합니다. 추가 조치가 필요하지 않은 이유를 입력해 주세요." : "이 신고만 기각합니다. 숨겨진 콘텐츠를 자동 복구하지 않습니다."}</p>
+                  <p>
+                    처리 대상: {data.targetType === "POST" ? "게시글" : "댓글"}{" "}
+                    #{data.targetId}
+                  </p>
+                  <p>
+                    {action === "hide-and-resolve"
+                      ? target?.hiddenAt
+                        ? "기존 숨김을 유지하고 이 신고만 처리 완료합니다. 새로 숨기거나 다른 신고를 함께 처리하지 않습니다."
+                        : "이 콘텐츠를 숨기고 이 신고를 함께 처리 완료합니다. 다른 신고나 회원 상태는 변경하지 않습니다."
+                      : action === "resolve"
+                        ? "콘텐츠 공개 상태를 변경하지 않고 이 신고만 종결합니다. 추가 조치가 필요하지 않은 이유를 입력해 주세요."
+                        : "이 신고만 기각합니다. 숨겨진 콘텐츠를 자동 복구하지 않습니다."}
+                  </p>
+                  {action === "hide-and-resolve" && hideUnavailable && (
+                    <p role="alert">{hideUnavailable}</p>
+                  )}
                   <label htmlFor={`${uid}-reason`}>처리 사유 (필수)</label>
                   <textarea
                     ref={field}
@@ -882,18 +1131,20 @@ function ReportPanel({
                     <button
                       className="report-primary"
                       type="submit"
-                      disabled={busy || loading || needsCheck}
+                      disabled={busy || loading || needsCheck || (action === "hide-and-resolve" && !!hideUnavailable)}
                     >
                       {busy
                         ? "처리 중…"
-                        : action === "resolve"
-                          ? "처리 완료 확정"
-                          : "기각 확정"}
+                        : action === "hide-and-resolve"
+                          ? "숨김·처리 완료 확정"
+                          : action === "resolve"
+                            ? "처리 완료 확정"
+                            : "기각 확정"}
                     </button>
                   </div>
                 </form>
               )}
-            </section>
+            </section>}
           </div>
         )}
       </AdminSelectionPanel>

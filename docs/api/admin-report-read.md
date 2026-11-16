@@ -25,7 +25,7 @@
 | page | 정수, 기본 0, 0 이상 |
 | size | 정수, 기본 20, 1~50 |
 
-`page × size <= 2147483647`이어야 합니다. page에는 size와 무관한 고정 최대값을 두지 않습니다. 날짜는 각각 단독 지정 가능하며 둘 다 있으면 startDate <= endDate여야 합니다. 모든 검색 조건을 AND로 결합하고 정렬·페이지를 적용합니다. 전체 개수에도 같은 조건을 적용합니다. API 상태 기본값은 전체이며 프론트 최초 RECEIVED 선택 정책과 별개입니다.
+`page × size <= 2147483647`이어야 합니다. page에는 size와 무관한 고정 최대값을 두지 않습니다. 날짜는 각각 단독 지정 가능하며 둘 다 있으면 startDate <= endDate여야 합니다. 모든 검색 조건을 AND로 결합하고 정렬·페이지를 적용합니다. 전체 개수에도 같은 조건을 적용합니다. API 상태 기본값은 전체입니다. 관리자 화면도 상태 미지정 최초 진입과 전체 초기화에서는 전체를 조회하며, 사용자가 명시한 상태 필터는 유지합니다.
 
 ```http
 GET /api/v1/admin/reports?targetType=COMMENT&status=RECEIVED&reasonType=OTHER&startDate=2026-11-01&endDate=2026-11-12&sort=OLDEST&page=0&size=20
@@ -49,6 +49,28 @@ GET /api/v1/admin/reports?targetType=COMMENT&status=RECEIVED&reasonType=OTHER&st
 | items[].contentSnapshotPreview | string | 접수 당시 본문의 목록용 미리보기 |
 | items[].createdAt | string(date-time) | 접수 시각 |
 | items[].currentAuthor | 작성자 객체 또는 null | 조회 시점의 대상 작성자. 대상 조회 불가 시 null |
+| items[].currentTargetStatus | string enum 또는 null | 필수 존재. NORMAL / HIDDEN / DELETED 또는 명시적 null. 조회 시점의 대상 자체 상태 |
+
+### 현재 콘텐츠 상태와 신고 이력 구분
+
+`items[].currentTargetStatus`는 항상 존재하며, 현재 페이지의 게시글·댓글 ID를 모아 일괄 조회한 현재 대상의 `hiddenAt`·`deletedAt`으로 계산합니다. 항목별 추가 조회나 새로운 DB 컬럼·콘텐츠 상태 필터는 사용하지 않습니다.
+
+| 값 | 의미 |
+| --- | --- |
+| NORMAL | 대상 자체의 hiddenAt과 deletedAt이 모두 없음 |
+| HIDDEN | hiddenAt이 있고 deletedAt은 없음 |
+| DELETED | deletedAt이 있음. hiddenAt도 있으면 DELETED 우선 |
+| null | 현재 대상 조회 불가. 문자열 "null"이 아닌 JSON null이며 필드를 생략하지 않음 |
+
+댓글은 부모 게시글이 아닌 **댓글 자체 상태**만 표시합니다. 부모가 숨김·삭제되어도 댓글 자체가 변경되지 않았다면 NORMAL입니다. 따라서 NORMAL은 일반 사용자에게 반드시 접근 가능하다는 의미가 아닙니다. 작성자 정보의 유무, 신고 당시 스냅샷이나 처리 당시 결과로 상태를 추정하지 않습니다.
+
+| 개념 | 응답 위치 | 의미 |
+| --- | --- | --- |
+| status | 목록·상세 | 신고 상태(RECEIVED / RESOLVED / DISMISSED) |
+| handlingOutcome | 상세 | 처리 당시 저장된 콘텐츠 조치 결과. 목록에는 없음 |
+| currentTargetStatus | 목록 항목 | 조회 시점의 콘텐츠 자체 상태. 상세에서는 currentTarget의 시각 필드로 확인 |
+
+콘텐츠 관리에서 숨김·복원해도 신고 상태와 기존 handlingOutcome은 변경하지 않습니다. 예를 들어 `status: RECEIVED`인 댓글이 `currentTargetStatus: HIDDEN`일 수 있으며, 종결 후 콘텐츠를 복원하면 목록의 현재 상태는 NORMAL이 되어도 신고 종결 상태와 처리 이력은 유지됩니다. 숨김·처리 완료 API는 선택한 신고 한 건과 콘텐츠 숨김을 원자적으로 처리하고, resolve·dismiss는 콘텐츠 공개 상태를 바꾸지 않고 선택한 신고만 종결합니다. 다른 신고나 회원 상태를 자동 변경하지 않습니다.
 
 결과 없음 및 범위 밖 페이지도 200입니다. 범위 밖에서는 items만 비고 검색 결과 전체 개수와 요청 page·size를 유지합니다.
 
@@ -80,7 +102,7 @@ GET /api/v1/admin/reports?targetType=COMMENT&status=RECEIVED&reasonType=OTHER&st
 
 목록 currentAuthor와 상세 author는 `memberId`(int64), `nickname`(string), `withdrawn`(boolean)으로 구성됩니다. 현재 구현은 작성자 상태가 DELETED일 때 `탈퇴한 회원`, true로 표시하며 그 외에는 저장 닉네임과 false를 사용합니다. WITHDRAWN까지 동일 처리한다고 확대 해석하지 않습니다.
 
-응답 DTO의 nullable 필드는 생략하지 않고 명시적 null로 반환합니다. 숨김·소프트 삭제 대상도 현재 조회에 포함되며 댓글 부모의 숨김·삭제로 제외하지 않습니다. 댓글 hiddenAt·deletedAt은 부모의 상태가 아닙니다. 현재 대상이 없으면 신고와 스냅샷은 유지되고 목록 currentAuthor / 상세 currentTarget만 null입니다. 신고 자체가 없으면 404 REPORT_NOT_FOUND입니다. 상세에는 handledByMemberId(처리 관리자 ID), handledAt(저장된 처리 시각), handlingReason(저장된 처리 사유), handlingOutcome(저장된 처리 결과)이 항상 존재합니다. 최상위 필드는 총 15개입니다. RECEIVED는 네 값 모두 null, RESOLVED/DISMISSED는 저장된 값입니다. 목록에는 이 네 필드가 없습니다. 현재 대상 유무와 처리 상태는 독립적이며 대상이 없어도 스냅샷과 처리 정보를 반환합니다.
+응답 DTO의 nullable 필드는 생략하지 않고 명시적 null로 반환합니다. 숨김·소프트 삭제 대상도 현재 조회에 포함되며 댓글 부모의 숨김·삭제로 제외하지 않습니다. 댓글 hiddenAt·deletedAt은 부모의 상태가 아닙니다. 현재 대상이 없으면 신고와 스냅샷은 유지되고 목록 currentAuthor·currentTargetStatus / 상세 currentTarget은 명시적 null입니다. 신고 자체가 없으면 404 REPORT_NOT_FOUND입니다. 상세에는 handledByMemberId(처리 관리자 ID), handledAt(저장된 처리 시각), handlingReason(저장된 처리 사유), handlingOutcome(저장된 처리 결과)이 항상 존재합니다. 최상위 필드는 총 15개입니다. RECEIVED는 네 값 모두 null, RESOLVED/DISMISSED는 저장된 값입니다. 목록에는 이 네 필드가 없습니다. 현재 대상 유무와 처리 상태는 독립적이며 대상이 없어도 스냅샷과 처리 정보를 반환합니다.
 
 handlingOutcome은 현재 hiddenAt으로 다시 계산하지 않는 처리 이력입니다. 이후 콘텐츠가 복원·삭제되어도 유지합니다. `LEGACY_UNKNOWN`은 필드 도입 전 과거 기록의 콘텐츠 조치 여부를 확정할 수 없다는 뜻이며 `NO_CONTENT_ACTION`과 다릅니다.
 
@@ -110,7 +132,7 @@ handlingOutcome은 현재 hiddenAt으로 다시 계산하지 않는 처리 이�
 
 아래는 가상 데이터입니다. 댓글 작성자 탈퇴 예시는 신고자와 별개의 현재 작성자 상태입니다.
 
-### 게시글·댓글 목록 (탈퇴 작성자 포함)
+### 게시글·댓글 목록 (접수 상태의 숨김 댓글·탈퇴 작성자 포함)
 
 ```json
 {
@@ -128,7 +150,8 @@ handlingOutcome은 현재 hiddenAt으로 다시 계산하지 않는 처리 이�
         "memberId": 42,
         "nickname": "소리나무",
         "withdrawn": false
-      }
+      },
+      "currentTargetStatus": "NORMAL"
     },
     {
       "reportId": 101,
@@ -143,7 +166,8 @@ handlingOutcome은 현재 hiddenAt으로 다시 계산하지 않는 처리 이�
         "memberId": 43,
         "nickname": "탈퇴한 회원",
         "withdrawn": true
-      }
+      },
+      "currentTargetStatus": "HIDDEN"
     }
   ],
   "page": 0,
@@ -275,7 +299,7 @@ handlingOutcome은 현재 hiddenAt으로 다시 계산하지 않는 처리 이�
 
 ### 현재 대상 작성자를 조회할 수 없는 목록
 
-현재 대상 조회가 불가능해도 신고 기록과 접수 당시 스냅샷은 유지합니다. 전체 1건은 그대로이며 `currentAuthor`는 생략하지 않고 null로 반환합니다.
+현재 대상 조회가 불가능해도 신고 기록과 접수 당시 스냅샷은 유지합니다. 전체 1건은 그대로이며 `currentAuthor`와 `currentTargetStatus`는 생략하지 않고 null로 반환합니다. 이 예시는 현재 대상 자체를 조회할 수 없는 경우이며, 작성자 정보만 없으면 콘텐츠 상태도 무조건 null이라는 규칙이 아닙니다.
 
 ```json
 {
@@ -289,7 +313,8 @@ handlingOutcome은 현재 hiddenAt으로 다시 계산하지 않는 처리 이�
       "titleSnapshot": "신고 당시 게시글 제목",
       "contentSnapshotPreview": "신고 당시 본문입니다.",
       "createdAt": "2026-11-12T01:00:00Z",
-      "currentAuthor": null
+      "currentAuthor": null,
+      "currentTargetStatus": null
     }
   ],
   "page": 0,

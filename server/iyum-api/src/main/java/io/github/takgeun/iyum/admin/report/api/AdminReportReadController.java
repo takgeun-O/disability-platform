@@ -61,6 +61,7 @@ public class AdminReportReadController {
                     접수 시각과 신고 ID로 정렬한 후 페이지를 적용합니다.
                     제목과 본문 미리보기는 신고 당시 스냅샷이며,
                     currentAuthor는 조회 시점의 현재 작성자입니다.
+                    currentTargetStatus는 대상 자체의 현재 상태이며 신고 status와 구분합니다.
                     """
     )
     @ApiResponses({
@@ -98,7 +99,8 @@ public class AdminReportReadController {
                                                             "memberId": 42,
                                                             "nickname": "소리나무",
                                                             "withdrawn": false
-                                                          }
+                                                          },
+                                                          "currentTargetStatus": "NORMAL"
                                                         },
                                                         {
                                                           "reportId": 101,
@@ -113,7 +115,8 @@ public class AdminReportReadController {
                                                             "memberId": 43,
                                                             "nickname": "탈퇴한 회원",
                                                             "withdrawn": true
-                                                          }
+                                                          },
+                                                          "currentTargetStatus": "HIDDEN"
                                                         }
                                                       ],
                                                       "page": 0,
@@ -127,6 +130,7 @@ public class AdminReportReadController {
                                     ),
                                     @ExampleObject(
                                             name = "missingCurrentAuthor",
+                                            summary = "현재 대상 조회 불가로 작성자와 콘텐츠 상태가 null인 신고",
                                             value = """
                                                     {
                                                       "items": [
@@ -139,7 +143,8 @@ public class AdminReportReadController {
                                                           "titleSnapshot": "신고 당시 게시글 제목",
                                                           "contentSnapshotPreview": "신고 당시 본문입니다.",
                                                           "createdAt": "2026-11-12T01:00:00Z",
-                                                          "currentAuthor": null
+                                                          "currentAuthor": null,
+                                                          "currentTargetStatus": null
                                                         }
                                                       ],
                                                       "page": 0,

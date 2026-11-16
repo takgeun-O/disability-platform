@@ -22,7 +22,8 @@ public record AdminReportItemResult(
         @Nullable String titleSnapshot,
         String contentSnapshotPreview,
         Instant createdAt,
-        @Nullable AdminReportTargetAuthorResult currentAuthor
+        @Nullable AdminReportTargetAuthorResult currentAuthor,
+        @Nullable AdminReportCurrentTargetStatus currentTargetStatus
 ) {
 
     public static AdminReportItemResult from(
@@ -48,7 +49,10 @@ public record AdminReportItemResult(
                 report.getCreatedAt(),
                 currentTarget == null
                         ? null
-                        : currentTarget.author()
+                        : currentTarget.author(),
+                AdminReportCurrentTargetStatus.from(
+                        currentTarget
+                )
         );
     }
 }

@@ -23,9 +23,30 @@ export const REPORT_STATUSES = {
   RESOLVED: "처리 완료",
   DISMISSED: "기각",
 } as const
+export const REPORT_TARGET_STATUSES = {
+  NORMAL: "정상",
+  HIDDEN: "숨김",
+  DELETED: "삭제",
+} as const
+export type ReportTargetStatus = keyof typeof REPORT_TARGET_STATUSES
 export type ReportReason = keyof typeof REPORT_REASONS
 export type ReportStatus = keyof typeof REPORT_STATUSES
-export type ReportAction = "resolve" | "dismiss"
+export type ReportAction = "resolve" | "dismiss" | "hide-and-resolve"
+export const REPORT_OUTCOMES = {
+  CONTENT_HIDDEN: "콘텐츠 숨김",
+  CONTENT_ALREADY_HIDDEN: "기존 숨김 유지",
+  NO_CONTENT_ACTION: "추가 콘텐츠 조치 없음",
+  LEGACY_UNKNOWN: "과거 기록 · 조치 여부 확인 불가",
+} as const
+export type ReportOutcome = keyof typeof REPORT_OUTCOMES
+export type ReportHandlingResponse = {
+  reportId: number
+  status: "RESOLVED" | "DISMISSED"
+  handledByMemberId: number
+  handledAt: string
+  handlingReason: string
+  handlingOutcome: Exclude<ReportOutcome, "LEGACY_UNKNOWN">
+}
 export type ReportAuthor = {
   memberId: number
   nickname: string
@@ -41,9 +62,10 @@ export type ReportItem = {
   contentSnapshotPreview: string
   createdAt: string
   currentAuthor: ReportAuthor | null
+  currentTargetStatus: ReportTargetStatus | null
 }
 export type ReportPage = AdminPageInfo & { items: ReportItem[] }
-export type ReportDetail = Omit<ReportItem, "contentSnapshotPreview" | "currentAuthor"> & {
+export type ReportDetail = Omit<ReportItem, "contentSnapshotPreview" | "currentAuthor" | "currentTargetStatus"> & {
   reporterMemberId: number
   reasonDetail: string | null
   contentSnapshot: string
@@ -59,6 +81,14 @@ export type ReportDetail = Omit<ReportItem, "contentSnapshotPreview" | "currentA
   handledByMemberId: number | null
   handledAt: string | null
   handlingReason: string | null
+  handlingOutcome: ReportOutcome | null
+}
+// Validated detail data only: a missing target is distinct from an unloaded detail.
+export function reportTargetStatus(target: ReportDetail["currentTarget"]): ReportTargetStatus | null {
+  if (target === null) return null
+  if (target.deletedAt !== null) return "DELETED"
+  if (target.hiddenAt !== null) return "HIDDEN"
+  return "NORMAL"
 }
 export type ReportQuery = {
   targetType: "ALL" | "POST" | "COMMENT"
@@ -71,7 +101,7 @@ export type ReportQuery = {
 }
 export const defaultReportQuery: ReportQuery = {
   targetType: "ALL",
-  status: "RECEIVED",
+  status: "ALL",
   reasonType: "",
   startDate: "",
   endDate: "",
@@ -113,7 +143,12 @@ export function isReportPage(v: unknown): v is ReportPage {
       (x) =>
         base(x) &&
         typeof x.contentSnapshotPreview === "string" &&
-        (x.currentAuthor === null || author(x.currentAuthor)),
+        (x.currentAuthor === null || author(x.currentAuthor)) &&
+        (x.currentTargetStatus === null ||
+          (typeof x.currentTargetStatus === "string" &&
+            Object.prototype.hasOwnProperty.call(
+              REPORT_TARGET_STATUSES, x.currentTargetStatus,
+            ))),
     )
   )
 }
@@ -145,10 +180,13 @@ export function isReportDetail(v: unknown): v is ReportDetail {
   return v.status === "RECEIVED"
     ? v.handledByMemberId === null &&
         v.handledAt === null &&
-        v.handlingReason === null
+        v.handlingReason === null &&
+        v.handlingOutcome === null
     : id(v.handledByMemberId) &&
         instant(v.handledAt) &&
-        typeof v.handlingReason === "string"
+        typeof v.handlingReason === "string" &&
+        typeof v.handlingOutcome === "string" &&
+        Object.prototype.hasOwnProperty.call(REPORT_OUTCOMES, v.handlingOutcome)
 }
 export function reportQuery(p: URLSearchParams): ReportQuery {
   const startDate = validAdminDate(p.get("startDate") ?? "")
@@ -165,7 +203,7 @@ export function reportQuery(p: URLSearchParams): ReportQuery {
         : p.get("targetType") === "COMMENT"
           ? "COMMENT"
           : "ALL",
-    status: s === "ALL" ? "ALL" : status(s) ? s : "RECEIVED",
+    status: s === "ALL" ? "ALL" : status(s) ? s : "ALL",
     reasonType: isReportReason(r) ? r : "",
     ...(dateRangeError({ startDate, endDate })
       ? { startDate: "", endDate: "" }
@@ -322,8 +360,11 @@ async function post(
     INVALID_REASON: "신고 사유와 상세 내용을 확인해 주세요.",
     INVALID_HANDLING_REASON:
       "처리 사유를 확인해 주세요. 앞뒤 공백을 제외하고 1~500자로 입력해 주세요.",
-    POST_NOT_FOUND: "신고할 게시글을 찾을 수 없습니다.",
-    COMMENT_NOT_FOUND: "신고할 댓글을 찾을 수 없습니다.",
+    POST_NOT_FOUND: "대상 게시글 또는 댓글의 부모 게시글을 찾을 수 없습니다.",
+    COMMENT_NOT_FOUND: "대상 댓글을 찾을 수 없습니다.",
+    POST_DELETED:
+      "대상 게시글 또는 댓글의 부모 게시글이 삭제되어 숨길 수 없습니다.",
+    COMMENT_DELETED: "대상 댓글이 삭제되어 숨길 수 없습니다.",
     REPORT_NOT_FOUND: "신고 기록을 찾을 수 없습니다.",
   }
   throw new ReportMutationError(
@@ -366,17 +407,22 @@ export async function handleReport(
   const error = handlingError(reason)
   if (error)
     throw new ReportMutationError(400, "INVALID_HANDLING_REASON", error)
-  return post(
+  const result = await post(
     `/api/v1/admin/reports/${reportId}/${action}`,
     { handlingReason: handlingText(reason) },
     200,
     (v) =>
       adminObject(v) &&
       v.reportId === reportId &&
-      v.status === (action === "resolve" ? "RESOLVED" : "DISMISSED") &&
+      v.status === (action === "dismiss" ? "DISMISSED" : "RESOLVED") &&
       id(v.handledByMemberId) &&
       instant(v.handledAt) &&
-      typeof v.handlingReason === "string",
+      typeof v.handlingReason === "string" &&
+      (action === "hide-and-resolve"
+        ? v.handlingOutcome === "CONTENT_HIDDEN" ||
+          v.handlingOutcome === "CONTENT_ALREADY_HIDDEN"
+        : v.handlingOutcome === "NO_CONTENT_ACTION"),
     current,
   )
+  return result as ReportHandlingResponse | null
 }

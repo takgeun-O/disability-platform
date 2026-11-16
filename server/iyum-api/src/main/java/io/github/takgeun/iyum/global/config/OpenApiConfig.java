@@ -152,6 +152,78 @@ public class OpenApiConfig {
         };
     }
 
+    /**
+     * 신고 목록의 현재 콘텐츠 상태는
+     * 정해진 문자열 enum 또는 명시적 null을 허용한다.
+     */
+    @Bean
+    public OpenApiCustomizer adminReportCurrentTargetStatusCustomizer() {
+        return openApi -> {
+            if (openApi.getComponents() == null
+                    || openApi.getComponents().getSchemas() == null) {
+                return;
+            }
+
+            var schemas = openApi.getComponents().getSchemas();
+
+            Schema<?> itemSchema = schemas.get(
+                    "AdminReportItemResponse"
+            );
+
+            // 신고 목록 응답이 없는 문서에서는 보정하지 않는다.
+            if (itemSchema == null
+                    || itemSchema.getProperties() == null) {
+                return;
+            }
+
+            Schema<?> original = itemSchema.getProperties()
+                    .get("currentTargetStatus");
+
+            if (original == null) {
+                return;
+            }
+
+            Schema<String> statusSchema = new Schema<>();
+
+            statusSchema.addType("string");
+
+            statusSchema.setEnum(
+                    List.of(
+                            "NORMAL",
+                            "HIDDEN",
+                            "DELETED"
+                    )
+            );
+
+            Schema<Object> nullSchema = new Schema<>();
+
+            nullSchema.addType("null");
+
+            /*
+             * 문자열 enum 조건과 null 조건을 별도 분기로 구성한다.
+             * 기존 enum 제약이 바깥에 남지 않도록 새 스키마로 교체한다.
+             */
+            Schema<Object> nullableStatusSchema = new Schema<>();
+
+            nullableStatusSchema.setDescription(
+                    original.getDescription()
+            );
+
+            nullableStatusSchema.addAnyOfItem(
+                    statusSchema
+            );
+
+            nullableStatusSchema.addAnyOfItem(
+                    nullSchema
+            );
+
+            itemSchema.addProperty(
+                    "currentTargetStatus",
+                    nullableStatusSchema
+            );
+        };
+    }
+
     private void nullableReportProperty(
             Schema<?> owner,
             String propertyName,

@@ -233,7 +233,8 @@ class AdminReportOpenApiDocumentationTest
                         "titleSnapshot",
                         "contentSnapshotPreview",
                         "createdAt",
-                        "currentAuthor"
+                        "currentAuthor",
+                        "currentTargetStatus"
                 ),
                 "AdminReportDetailResponse",
                 List.of(
@@ -1487,6 +1488,139 @@ class AdminReportOpenApiDocumentationTest
                         .contains(errorCode);
             }
         }
+    }
+
+    @Test
+    void 목록의_현재_콘텐츠_상태는_정해진_문자열과_null만_허용하고_누락을_거부한다()
+            throws Exception {
+
+        JsonNode document = document();
+
+        JsonNode content = successContent(
+                operation(
+                        document,
+                        LIST_PATH,
+                        "get"
+                )
+        );
+
+        JsonSchema schema = responseSchema(
+                document,
+                content
+        );
+
+        // Swagger에 작성한 모든 목록 성공 예시도 검증한다.
+        assertExamplesMatchSchema(
+                schema,
+                content.path("examples")
+        );
+
+        ObjectNode valid = exampleObject(
+                content,
+                "mixed"
+        );
+
+        assertThat(schema.validate(valid))
+                .as("기본 목록 성공 예시가 유효해야 한다")
+                .isEmpty();
+
+        assertThat(valid.at("/items/0/currentTargetStatus").asText())
+                .isEqualTo("NORMAL");
+        assertThat(valid.at("/items/1/status").asText())
+                .isEqualTo("RECEIVED");
+        assertThat(valid.at("/items/1/currentTargetStatus").asText())
+                .as("댓글 숨김과 신고 접수 상태가 독립적인 예시")
+                .isEqualTo("HIDDEN");
+
+        for (String targetStatus : List.of(
+                "NORMAL",
+                "HIDDEN",
+                "DELETED"
+        )) {
+            ObjectNode modified = valid.deepCopy();
+
+            ObjectNode item = (ObjectNode) modified
+                    .path("items")
+                    .path(0);
+
+            item.put(
+                    "currentTargetStatus",
+                    targetStatus
+            );
+
+            assertThat(schema.validate(modified))
+                    .as(
+                            "현재 콘텐츠 상태 %s를 허용해야 한다",
+                            targetStatus
+                    )
+                    .isEmpty();
+        }
+
+        ObjectNode nullResponse = valid.deepCopy();
+
+        ObjectNode nullItem = (ObjectNode) nullResponse
+                .path("items")
+                .path(0);
+
+        nullItem.putNull("currentAuthor");
+        nullItem.putNull("currentTargetStatus");
+
+        assertThat(schema.validate(nullResponse))
+                .as("현재 대상 조회 불가를 나타내는 명시적 null을 허용해야 한다")
+                .isEmpty();
+
+        ObjectNode missingResponse = valid.deepCopy();
+
+        ObjectNode missingItem = (ObjectNode) missingResponse
+                .path("items")
+                .path(0);
+
+        missingItem.remove("currentTargetStatus");
+
+        assertThat(schema.validate(missingResponse))
+                .as("현재 콘텐츠 상태 필드 누락을 거부해야 한다")
+                .isNotEmpty();
+
+        for (String invalidStatus : List.of(
+                "UNKNOWN",
+                "RECEIVED",
+                "normal",
+                "null",
+                ""
+        )) {
+            ObjectNode modified = valid.deepCopy();
+
+            ObjectNode item = (ObjectNode) modified
+                    .path("items")
+                    .path(0);
+
+            item.put(
+                    "currentTargetStatus",
+                    invalidStatus
+            );
+
+            assertThat(schema.validate(modified))
+                    .as(
+                            "허용되지 않은 현재 콘텐츠 상태 '%s'를 거부해야 한다",
+                            invalidStatus
+                    )
+                    .isNotEmpty();
+        }
+
+        ObjectNode invalidTypeResponse = valid.deepCopy();
+
+        ObjectNode invalidTypeItem = (ObjectNode) invalidTypeResponse
+                .path("items")
+                .path(0);
+
+        invalidTypeItem.put(
+                "currentTargetStatus",
+                42
+        );
+
+        assertThat(schema.validate(invalidTypeResponse))
+                .as("현재 콘텐츠 상태에 숫자를 넣을 수 없다")
+                .isNotEmpty();
     }
 
     private JsonNode document() throws Exception {

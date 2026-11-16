@@ -26,6 +26,7 @@ const detail = {
   handledByMemberId: null,
   handledAt: null,
   handlingReason: null,
+  handlingOutcome: null,
 }
 test("create and handling whitespace policies differ; normalized codepoints and inner newlines", () => {
   assert.equal(a.reportDetailText("\u00a0 내용\u00a0"), "\u00a0 내용\u00a0")
@@ -41,8 +42,14 @@ test("create and handling whitespace policies differ; normalized codepoints and 
   assert.equal(a.handlingError("😀".repeat(500)), "")
   assert(a.handlingError("😀".repeat(501)))
 })
-test("UI defaults RECEIVED; API all omits status, selected never sent; URL round trip", () => {
-  assert.equal(a.reportParams(a.defaultReportQuery).get("status"), "RECEIVED")
+test("UI defaults ALL; API all omits status, selected never sent; URL round trip", () => {
+  assert.equal(a.reportParams(a.defaultReportQuery).get("status"), null)
+  assert.equal(a.reportQuery(new URLSearchParams()).status, "ALL")
+  for (const value of ["RECEIVED", "RESOLVED", "DISMISSED"]) {
+    const q = a.reportQuery(new URLSearchParams(`status=${value}`))
+    assert.equal(q.status, value)
+    assert.equal(a.reportParams(q).get("status"), value)
+  }
   const q = {
     ...a.defaultReportQuery,
     status: "ALL",
@@ -60,7 +67,7 @@ test("UI defaults RECEIVED; API all omits status, selected never sent; URL round
   )
   assert.equal(
     a.reportQuery(new URLSearchParams("status=LEGACY&page=-1&sort=bad")).status,
-    "RECEIVED",
+    "ALL",
   )
 })
 test("detail requires explicit nullable fields and correct target identity", () => {
@@ -83,6 +90,7 @@ test("detail requires explicit nullable fields and correct target identity", () 
       handledByMemberId: 9,
       handledAt: stamp,
       handlingReason: "검토",
+      handlingOutcome: "NO_CONTENT_ACTION",
     }),
   )
 })
@@ -110,6 +118,7 @@ test("list preserves nullable current author and server pagination", () => {
       ...base,
       contentSnapshotPreview: "당시 요약",
       currentAuthor: null,
+      currentTargetStatus: null,
     },
     page = {
       items: [item],
@@ -121,6 +130,15 @@ test("list preserves nullable current author and server pagination", () => {
       hasPrevious: false,
     }
   assert(a.isReportPage(page))
+  for (const currentTargetStatus of ["NORMAL", "HIDDEN", "DELETED", null]) {
+    assert(a.isReportPage({ ...page, items: [{ ...item, currentTargetStatus }] }))
+  }
+  for (const currentTargetStatus of [undefined, "UNKNOWN", "RECEIVED", "normal", "null", "", 0, {}]) {
+    assert(!a.isReportPage({ ...page, items: [{ ...item, currentTargetStatus }] }))
+  }
+  const { currentTargetStatus, ...missingStatus } = item
+  void currentTargetStatus
+  assert(!a.isReportPage({ ...page, items: [missingStatus] }))
   assert(
     !a.isReportPage({
       ...page,
@@ -170,4 +188,99 @@ test("POST uses current session CSRF, exact paths and payloads; stale request se
     if (previousBase === undefined) delete process.env.NEXT_PUBLIC_API_BASE_URL
     else process.env.NEXT_PUBLIC_API_BASE_URL = previousBase
   }
+})
+
+test("detail outcome is required, nullable before handling, and preserves legacy", () => {
+  for (const outcome of [undefined, "UNKNOWN", 1, "NO_CONTENT_ACTION"])
+    assert(!a.isReportDetail({ ...detail, handlingOutcome: outcome }))
+  const handled = {
+    ...detail,
+    status: "RESOLVED",
+    handledByMemberId: 9,
+    handledAt: stamp,
+    handlingReason: "검토",
+  }
+  for (const outcome of Object.keys(a.REPORT_OUTCOMES))
+    assert(a.isReportDetail({ ...handled, handlingOutcome: outcome }))
+  for (const outcome of [null, undefined, "UNKNOWN", 1])
+    assert(!a.isReportDetail({ ...handled, handlingOutcome: outcome }))
+})
+test("handling sends one report-ID POST with reason only and validates returned outcome", async () => {
+  const previousBase = process.env.NEXT_PUBLIC_API_BASE_URL
+  process.env.NEXT_PUBLIC_API_BASE_URL = "http://example.test"
+  const original = globalThis.fetch,
+    calls = []
+  let outcome = "CONTENT_HIDDEN",
+    action = "hide-and-resolve"
+  globalThis.fetch = async (url, options) => {
+    calls.push({ url: String(url), options })
+    return Response.json(
+      String(url).endsWith("/csrf")
+        ? { headerName: "X-CSRF-TOKEN", token: "synthetic" }
+        : {
+            reportId: 12,
+            status: action === "dismiss" ? "DISMISSED" : "RESOLVED",
+            handledByMemberId: 9,
+            handledAt: stamp,
+            handlingReason: "검토",
+            handlingOutcome: outcome,
+          },
+    )
+  }
+  try {
+    for (const [act, result] of [
+      ["hide-and-resolve", "CONTENT_HIDDEN"],
+      ["hide-and-resolve", "CONTENT_ALREADY_HIDDEN"],
+      ["resolve", "NO_CONTENT_ACTION"],
+      ["dismiss", "NO_CONTENT_ACTION"],
+    ]) {
+      action = act
+      outcome = result
+      const before = calls.length
+      assert.equal(
+        (await a.handleReport(12, action, "　 검토　", () => true))
+          .handlingOutcome,
+        result,
+      )
+      const mutations = calls
+        .slice(before)
+        .filter((c) => c.options?.method === "POST")
+      assert.equal(mutations.length, 1)
+      assert(mutations[0].url.endsWith(`/admin/reports/12/${action}`))
+      assert.deepEqual(JSON.parse(mutations[0].options.body), {
+        handlingReason: "검토",
+      })
+    }
+    action = "hide-and-resolve"
+    for (const invalid of [
+      null,
+      undefined,
+      "LEGACY_UNKNOWN",
+      "NO_CONTENT_ACTION",
+      1,
+    ]) {
+      outcome = invalid
+      await assert.rejects(
+        () => a.handleReport(12, action, "검토", () => true),
+        (e) => e.uncertain === true,
+      )
+    }
+    const before = calls.length
+    assert.equal(await a.handleReport(12, action, "검토", () => false), null)
+    assert.equal(calls.length, before)
+  } finally {
+    globalThis.fetch = original
+    if (previousBase === undefined) delete process.env.NEXT_PUBLIC_API_BASE_URL
+    else process.env.NEXT_PUBLIC_API_BASE_URL = previousBase
+  }
+})
+
+test("상세 현재 대상 상태는 삭제를 우선하고 대상 null을 정상과 구분한다", () => {
+  const target = detail.currentTarget
+  for (const [hiddenAt, deletedAt, expected] of [[null, null, "NORMAL"], [stamp, null, "HIDDEN"], [null, stamp, "DELETED"], [stamp, stamp, "DELETED"]]) {
+    assert.equal(a.reportTargetStatus({ ...target, hiddenAt, deletedAt }), expected)
+  }
+  assert.equal(a.reportTargetStatus(null), null)
+  assert(!Object.hasOwn(detail, "currentTargetStatus"))
+  assert(a.isReportDetail(detail))
 })
