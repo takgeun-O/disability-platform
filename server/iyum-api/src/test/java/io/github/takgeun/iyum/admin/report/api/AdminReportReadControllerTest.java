@@ -10,6 +10,7 @@ import io.github.takgeun.iyum.admin.report.application.AdminReportSort;
 import io.github.takgeun.iyum.admin.report.application.AdminReportTargetAuthorResult;
 import io.github.takgeun.iyum.admin.report.application.AdminReportTargetType;
 import io.github.takgeun.iyum.auth.security.MemberPrincipal;
+import io.github.takgeun.iyum.community.report.domain.ContentReportHandlingOutcome;
 import io.github.takgeun.iyum.community.report.domain.ContentReportReasonType;
 import io.github.takgeun.iyum.community.report.domain.ContentReportStatus;
 import io.github.takgeun.iyum.global.config.DevCorsConfig;
@@ -418,6 +419,7 @@ class AdminReportReadControllerTest {
                 target,
                 null,
                 null,
+                null,
                 null
         );
 
@@ -508,7 +510,8 @@ class AdminReportReadControllerTest {
                 null,
                 ACTOR_ID,
                 CREATED_AT.plusSeconds(60),
-                "검토 결과 필요한 대응을 완료했습니다."
+                "검토 결과 필요한 대응을 완료했습니다.",
+                ContentReportHandlingOutcome.NO_CONTENT_ACTION
         );
 
         when(reportReadService.getReport(ACTOR_ID, VERSION, REPORT_ID))

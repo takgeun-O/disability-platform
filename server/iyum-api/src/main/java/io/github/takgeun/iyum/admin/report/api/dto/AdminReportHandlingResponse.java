@@ -1,6 +1,7 @@
 package io.github.takgeun.iyum.admin.report.api.dto;
 
 import io.github.takgeun.iyum.admin.report.application.AdminReportHandlingResult;
+import io.github.takgeun.iyum.community.report.domain.ContentReportHandlingOutcome;
 import io.github.takgeun.iyum.community.report.domain.ContentReportStatus;
 import io.swagger.v3.oas.annotations.media.Schema;
 
@@ -22,7 +23,10 @@ public record AdminReportHandlingResponse(
         @Schema(
                 description = "처리 후 신고 상태",
                 requiredMode = Schema.RequiredMode.REQUIRED,
-                allowableValues = {"RESOLVED", "DISMISSED"},
+                allowableValues = {
+                        "RESOLVED",
+                        "DISMISSED"
+                },
                 example = "RESOLVED"
         )
         ContentReportStatus status,
@@ -50,7 +54,26 @@ public record AdminReportHandlingResponse(
                 requiredMode = Schema.RequiredMode.REQUIRED,
                 example = "검토 결과 필요한 운영 조치를 완료했습니다."
         )
-        String handlingReason
+        String handlingReason,
+
+        @Schema(
+                description = """
+                        이번 신고 처리 시 저장한 콘텐츠 조치 결과입니다.
+                        CONTENT_HIDDEN: 이번 요청에서 대상 콘텐츠를 숨겼습니다.
+                        CONTENT_ALREADY_HIDDEN: 이미 개별 숨김 상태여서 유지했습니다.
+                        NO_CONTENT_ACTION: 콘텐츠 조치 없이 처리 완료하거나 기각했습니다.
+                        이후 콘텐츠가 복원되어도 이 처리 결과는 변경되지 않습니다.
+                        신규 처리 응답에서는 null이나 LEGACY_UNKNOWN을 반환하지 않습니다.
+                        """,
+                requiredMode = Schema.RequiredMode.REQUIRED,
+                allowableValues = {
+                        "CONTENT_HIDDEN",
+                        "CONTENT_ALREADY_HIDDEN",
+                        "NO_CONTENT_ACTION"
+                },
+                example = "CONTENT_HIDDEN"
+        )
+        ContentReportHandlingOutcome handlingOutcome
 
 ) {
 
@@ -62,7 +85,8 @@ public record AdminReportHandlingResponse(
                 result.status(),
                 result.handledByMemberId(),
                 result.handledAt(),
-                result.handlingReason()
+                result.handlingReason(),
+                result.handlingOutcome()
         );
     }
 }

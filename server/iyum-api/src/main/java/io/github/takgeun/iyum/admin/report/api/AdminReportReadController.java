@@ -435,10 +435,13 @@ public class AdminReportReadController {
                     신고 자체가 없으면 REPORT_NOT_FOUND를 반환합니다.
                     처리 관리자·처리 시각·처리 사유는 저장된 값을 반환합니다.
                     접수 상태(RECEIVED)에서는 handledByMemberId, handledAt,
-                    handlingReason을 생략하지 않고 명시적 null로 반환합니다.
+                    handlingReason, handlingOutcome을 생략하지 않고 명시적 null로 반환합니다.
                     처리 완료(RESOLVED) 또는 기각(DISMISSED) 상태에서는
                     해당 신고의 처리 정보를 반환합니다.
-                    신고 처리는 게시글·댓글의 숨김 상태나 회원 상태를 변경하지 않습니다.
+                    숨김·처리 완료는 대상 콘텐츠를 숨기며, 추가 조치 없는 처리 완료와 기각은 공개 상태를 바꾸지 않습니다.
+                    어느 처리도 회원 상태나 같은 대상의 다른 신고를 변경하지 않습니다.
+                    handlingOutcome은 신고에 저장된 이력이며 현재 hiddenAt으로 다시 계산하지 않습니다.
+                    LEGACY_UNKNOWN은 과거 콘텐츠 조치 여부를 확정할 수 없다는 뜻이며 NO_CONTENT_ACTION과 다릅니다.
                     """
     )
     @ApiResponses({
@@ -488,7 +491,8 @@ public class AdminReportReadController {
                                                       },
                                                       "handledByMemberId": null,
                                                       "handledAt": null,
-                                                      "handlingReason": null
+                                                      "handlingReason": null,
+                                                      "handlingOutcome": null
                                                     }
                                                     """
                                     ),
@@ -522,7 +526,8 @@ public class AdminReportReadController {
                                                       },
                                                       "handledByMemberId": null,
                                                       "handledAt": null,
-                                                      "handlingReason": null
+                                                      "handlingReason": null,
+                                                      "handlingOutcome": null
                                                     }
                                                     """
                                     ),
@@ -544,7 +549,8 @@ public class AdminReportReadController {
                                                       "currentTarget": null,
                                                       "handledByMemberId": null,
                                                       "handledAt": null,
-                                                      "handlingReason": null
+                                                      "handlingReason": null,
+                                                      "handlingOutcome": null
                                                     }
                                                     """
                                     ),
@@ -578,7 +584,8 @@ public class AdminReportReadController {
                                                       },
                                                       "handledByMemberId": 40,
                                                       "handledAt": "2026-11-13T01:00:00Z",
-                                                      "handlingReason": "검토를 완료했습니다."
+                                                      "handlingReason": "검토를 완료했습니다.",
+                                                      "handlingOutcome": "NO_CONTENT_ACTION"
                                                     }
                                                     """
                                     ),
@@ -600,7 +607,113 @@ public class AdminReportReadController {
                                                       "currentTarget": null,
                                                       "handledByMemberId": 40,
                                                       "handledAt": "2026-11-13T01:00:00Z",
-                                                      "handlingReason": "검토 결과 신고를 기각했습니다."
+                                                      "handlingReason": "검토 결과 신고를 기각했습니다.",
+                                                      "handlingOutcome": "NO_CONTENT_ACTION"
+                                                    }
+                                                    """
+                                    ),
+                                    @ExampleObject(
+                                            name = "contentHidden",
+                                            summary = "이번 처리에서 새로 숨긴 게시글 신고",
+                                            value = """
+                                                    {
+                                                      "reportId": 105,
+                                                      "targetType": "POST",
+                                                      "targetId": 104,
+                                                      "status": "RESOLVED",
+                                                      "reasonType": "SPAM_ADVERTISING",
+                                                      "titleSnapshot": "신고 당시 게시글 제목",
+                                                      "createdAt": "2026-11-12T01:00:00Z",
+                                                      "reporterMemberId": 51,
+                                                      "reasonDetail": null,
+                                                      "contentSnapshot": "신고 당시 본문입니다.",
+                                                      "currentTarget": {
+                                                        "targetId": 104,
+                                                        "parentPostId": null,
+                                                        "author": {
+                                                          "memberId": 42,
+                                                          "nickname": "소리나무",
+                                                          "withdrawn": false
+                                                        },
+                                                        "title": "현재 게시글 제목",
+                                                        "content": "조회 시점의 현재 본문입니다.",
+                                                        "hiddenAt": "2026-11-13T01:00:00Z",
+                                                        "deletedAt": null
+                                                      },
+                                                      "handledByMemberId": 40,
+                                                      "handledAt": "2026-11-13T01:00:00Z",
+                                                      "handlingReason": "운영 정책 위반을 확인하여 숨겼습니다.",
+                                                      "handlingOutcome": "CONTENT_HIDDEN"
+                                                    }
+                                                    """
+                                    ),
+                                    @ExampleObject(
+                                            name = "contentAlreadyHidden",
+                                            summary = "기존 개별 숨김을 유지하며 처리 완료한 신고",
+                                            value = """
+                                                    {
+                                                      "reportId": 106,
+                                                      "targetType": "POST",
+                                                      "targetId": 104,
+                                                      "status": "RESOLVED",
+                                                      "reasonType": "SPAM_ADVERTISING",
+                                                      "titleSnapshot": "신고 당시 게시글 제목",
+                                                      "createdAt": "2026-11-12T01:00:00Z",
+                                                      "reporterMemberId": 51,
+                                                      "reasonDetail": null,
+                                                      "contentSnapshot": "신고 당시 본문입니다.",
+                                                      "currentTarget": {
+                                                        "targetId": 104,
+                                                        "parentPostId": null,
+                                                        "author": {
+                                                          "memberId": 42,
+                                                          "nickname": "소리나무",
+                                                          "withdrawn": false
+                                                        },
+                                                        "title": "현재 게시글 제목",
+                                                        "content": "조회 시점의 현재 본문입니다.",
+                                                        "hiddenAt": "2026-11-12T02:00:00Z",
+                                                        "deletedAt": null
+                                                      },
+                                                      "handledByMemberId": 40,
+                                                      "handledAt": "2026-11-13T01:00:00Z",
+                                                      "handlingReason": "기존 숨김을 유지하고 신고 검토를 완료했습니다.",
+                                                      "handlingOutcome": "CONTENT_ALREADY_HIDDEN"
+                                                    }
+                                                    """
+                                    ),
+                                    @ExampleObject(
+                                            name = "legacyUnknown",
+                                            summary = "당시 콘텐츠 조치 여부를 확정할 수 없는 과거 신고",
+                                            value = """
+                                                    {
+                                                      "reportId": 107,
+                                                      "targetType": "POST",
+                                                      "targetId": 104,
+                                                      "status": "RESOLVED",
+                                                      "reasonType": "SPAM_ADVERTISING",
+                                                      "titleSnapshot": "신고 당시 게시글 제목",
+                                                      "createdAt": "2026-11-01T01:00:00Z",
+                                                      "reporterMemberId": 51,
+                                                      "reasonDetail": null,
+                                                      "contentSnapshot": "신고 당시 본문입니다.",
+                                                      "currentTarget": {
+                                                        "targetId": 104,
+                                                        "parentPostId": null,
+                                                        "author": {
+                                                          "memberId": 42,
+                                                          "nickname": "소리나무",
+                                                          "withdrawn": false
+                                                        },
+                                                        "title": "현재 게시글 제목",
+                                                        "content": "조회 시점의 현재 본문입니다.",
+                                                        "hiddenAt": null,
+                                                        "deletedAt": null
+                                                      },
+                                                      "handledByMemberId": 40,
+                                                      "handledAt": "2026-11-02T01:00:00Z",
+                                                      "handlingReason": "신고 검토를 완료했습니다.",
+                                                      "handlingOutcome": "LEGACY_UNKNOWN"
                                                     }
                                                     """
                                     )

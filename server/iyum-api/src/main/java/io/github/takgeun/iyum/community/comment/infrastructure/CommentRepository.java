@@ -437,4 +437,25 @@ public interface CommentRepository
             @Param("afterId") Long afterId,
             Pageable pageable
     );
+
+    /**
+     * 관리자 조치를 위해 댓글의 부모 게시글 ID만 조회한다.
+     * <p>
+     * 숨김·삭제 상태로 제외하지 않는다.
+     * 상태 검증은 부모 게시글과 댓글을 순서대로 잠근 뒤 수행한다.
+     *
+     * 여기서는 @Lock으로 댓글부터 잠그는 일 없도록 한다.
+     * 댓글부터 잠그면 기존의 부모 게시글 -> 댓글 잠금 순서와 달라지기 때문
+     *
+     * 부모 ID를 얻은 뒤에는 findCommentByIdForModerationForUpdate(postId, commentId)로
+     * 소속 관계까지 다시 확인한다.
+     */
+    @Query("""
+            select c.post.id
+            from Comment c
+            where c.id = :commentId
+            """)
+    Optional<Long> findPostIdByCommentIdForModeration(
+            @Param("commentId") Long commentId
+    );
 }

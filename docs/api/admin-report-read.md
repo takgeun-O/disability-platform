@@ -1,6 +1,6 @@
 # 관리자 신고 목록·상세 조회 API
 
-현재 작업 트리의 `AdminReportReadController`, 조회 조건·서비스·저장소 및 응답 DTO 기준입니다. [신고 처리 완료·기각 API](admin-report-handling.md)를 별도로 제공합니다. [사용자 신고 접수](content-report-create.md)와 구분합니다.
+현재 작업 트리의 `AdminReportReadController`, 조회 조건·서비스·저장소 및 응답 DTO 기준입니다. [신고 숨김·처리 완료·기각 API](admin-report-handling.md)를 별도로 제공합니다. [사용자 신고 접수](content-report-create.md)와 구분합니다.
 
 ## 인증 및 공통 정책
 
@@ -70,6 +70,7 @@ GET /api/v1/admin/reports?targetType=COMMENT&status=RECEIVED&reasonType=OTHER&st
 | handledByMemberId | int64 또는 null | 처리 관리자. 신고자·현재 작성자와 구분 |
 | handledAt | date-time 또는 null | 처리 시각. 접수 시각 createdAt과 구분 |
 | handlingReason | string 또는 null | 저장된 처리 사유 |
+| handlingOutcome | string enum 또는 null | 필수 존재. CONTENT_HIDDEN, CONTENT_ALREADY_HIDDEN, NO_CONTENT_ACTION, LEGACY_UNKNOWN 또는 실제 JSON null |
 | currentTarget.targetId | int64 | 현재 대상 ID |
 | currentTarget.parentPostId | int64 또는 null | 현재 댓글 부모 게시글 ID. 게시글은 null |
 | currentTarget.author | 작성자 객체 | 현재 대상 작성자 |
@@ -79,7 +80,9 @@ GET /api/v1/admin/reports?targetType=COMMENT&status=RECEIVED&reasonType=OTHER&st
 
 목록 currentAuthor와 상세 author는 `memberId`(int64), `nickname`(string), `withdrawn`(boolean)으로 구성됩니다. 현재 구현은 작성자 상태가 DELETED일 때 `탈퇴한 회원`, true로 표시하며 그 외에는 저장 닉네임과 false를 사용합니다. WITHDRAWN까지 동일 처리한다고 확대 해석하지 않습니다.
 
-응답 DTO의 nullable 필드는 생략하지 않고 명시적 null로 반환합니다. 숨김·소프트 삭제 대상도 현재 조회에 포함되며 댓글 부모의 숨김·삭제로 제외하지 않습니다. 댓글 hiddenAt·deletedAt은 부모의 상태가 아닙니다. 현재 대상이 없으면 신고와 스냅샷은 유지되고 목록 currentAuthor / 상세 currentTarget만 null입니다. 신고 자체가 없으면 404 REPORT_NOT_FOUND입니다. 상세에는 handledByMemberId(처리 관리자 ID), handledAt(저장된 처리 시각), handlingReason(저장된 처리 사유)이 항상 존재합니다. RECEIVED는 세 값 모두 null, RESOLVED/DISMISSED는 저장된 값입니다. 목록에는 이 세 필드가 없습니다. 현재 대상 유무와 처리 상태는 독립적이며 대상이 없어도 스냅샷과 처리 정보를 반환합니다.
+응답 DTO의 nullable 필드는 생략하지 않고 명시적 null로 반환합니다. 숨김·소프트 삭제 대상도 현재 조회에 포함되며 댓글 부모의 숨김·삭제로 제외하지 않습니다. 댓글 hiddenAt·deletedAt은 부모의 상태가 아닙니다. 현재 대상이 없으면 신고와 스냅샷은 유지되고 목록 currentAuthor / 상세 currentTarget만 null입니다. 신고 자체가 없으면 404 REPORT_NOT_FOUND입니다. 상세에는 handledByMemberId(처리 관리자 ID), handledAt(저장된 처리 시각), handlingReason(저장된 처리 사유), handlingOutcome(저장된 처리 결과)이 항상 존재합니다. 최상위 필드는 총 15개입니다. RECEIVED는 네 값 모두 null, RESOLVED/DISMISSED는 저장된 값입니다. 목록에는 이 네 필드가 없습니다. 현재 대상 유무와 처리 상태는 독립적이며 대상이 없어도 스냅샷과 처리 정보를 반환합니다.
+
+handlingOutcome은 현재 hiddenAt으로 다시 계산하지 않는 처리 이력입니다. 이후 콘텐츠가 복원·삭제되어도 유지합니다. `LEGACY_UNKNOWN`은 필드 도입 전 과거 기록의 콘텐츠 조치 여부를 확정할 수 없다는 뜻이며 `NO_CONTENT_ACTION`과 다릅니다.
 
 ## 오류
 
@@ -209,7 +212,8 @@ GET /api/v1/admin/reports?targetType=COMMENT&status=RECEIVED&reasonType=OTHER&st
   },
   "handledByMemberId": null,
   "handledAt": null,
-  "handlingReason": null
+  "handlingReason": null,
+  "handlingOutcome": null
 }
 ```
 
@@ -242,7 +246,8 @@ GET /api/v1/admin/reports?targetType=COMMENT&status=RECEIVED&reasonType=OTHER&st
   },
   "handledByMemberId": null,
   "handledAt": null,
-  "handlingReason": null
+  "handlingReason": null,
+  "handlingOutcome": null
 }
 ```
 
@@ -263,7 +268,8 @@ GET /api/v1/admin/reports?targetType=COMMENT&status=RECEIVED&reasonType=OTHER&st
   "currentTarget": null,
   "handledByMemberId": null,
   "handledAt": null,
-  "handlingReason": null
+  "handlingReason": null,
+  "handlingOutcome": null
 }
 ```
 
@@ -324,7 +330,8 @@ GET /api/v1/admin/reports?targetType=COMMENT&status=RECEIVED&reasonType=OTHER&st
   },
   "handledByMemberId": 40,
   "handledAt": "2026-11-13T01:00:00Z",
-  "handlingReason": "검토를 완료했습니다."
+  "handlingReason": "검토를 완료했습니다.",
+  "handlingOutcome": "NO_CONTENT_ACTION"
 }
 ```
 
@@ -345,8 +352,113 @@ GET /api/v1/admin/reports?targetType=COMMENT&status=RECEIVED&reasonType=OTHER&st
   "currentTarget": null,
   "handledByMemberId": 40,
   "handledAt": "2026-11-13T01:00:00Z",
-  "handlingReason": "검토 결과 신고를 기각했습니다."
+  "handlingReason": "검토 결과 신고를 기각했습니다.",
+  "handlingOutcome": "NO_CONTENT_ACTION"
 }
 ```
 
 OpenAPI는 처리 정보의 필수 존재와 nullable 타입을 표현합니다. 상태별 값 조합의 불변식은 도메인·DB·통합 테스트로 보장하며 스키마가 이를 조건부로 강제한다고 해석하지 않습니다.
+
+### 이번 처리에서 새로 숨긴 게시글 신고 (`contentHidden`)
+
+```json
+{
+  "reportId": 105,
+  "targetType": "POST",
+  "targetId": 104,
+  "status": "RESOLVED",
+  "reasonType": "SPAM_ADVERTISING",
+  "titleSnapshot": "신고 당시 게시글 제목",
+  "createdAt": "2026-11-12T01:00:00Z",
+  "reporterMemberId": 51,
+  "reasonDetail": null,
+  "contentSnapshot": "신고 당시 본문입니다.",
+  "currentTarget": {
+    "targetId": 104,
+    "parentPostId": null,
+    "author": {
+      "memberId": 42,
+      "nickname": "소리나무",
+      "withdrawn": false
+    },
+    "title": "현재 게시글 제목",
+    "content": "조회 시점의 현재 본문입니다.",
+    "hiddenAt": "2026-11-13T01:00:00Z",
+    "deletedAt": null
+  },
+  "handledByMemberId": 40,
+  "handledAt": "2026-11-13T01:00:00Z",
+  "handlingReason": "운영 정책 위반을 확인하여 숨겼습니다.",
+  "handlingOutcome": "CONTENT_HIDDEN"
+}
+```
+
+### 기존 개별 숨김을 유지하며 처리 완료한 신고 (`contentAlreadyHidden`)
+
+```json
+{
+  "reportId": 106,
+  "targetType": "POST",
+  "targetId": 104,
+  "status": "RESOLVED",
+  "reasonType": "SPAM_ADVERTISING",
+  "titleSnapshot": "신고 당시 게시글 제목",
+  "createdAt": "2026-11-12T01:00:00Z",
+  "reporterMemberId": 51,
+  "reasonDetail": null,
+  "contentSnapshot": "신고 당시 본문입니다.",
+  "currentTarget": {
+    "targetId": 104,
+    "parentPostId": null,
+    "author": {
+      "memberId": 42,
+      "nickname": "소리나무",
+      "withdrawn": false
+    },
+    "title": "현재 게시글 제목",
+    "content": "조회 시점의 현재 본문입니다.",
+    "hiddenAt": "2026-11-12T02:00:00Z",
+    "deletedAt": null
+  },
+  "handledByMemberId": 40,
+  "handledAt": "2026-11-13T01:00:00Z",
+  "handlingReason": "기존 숨김을 유지하고 신고 검토를 완료했습니다.",
+  "handlingOutcome": "CONTENT_ALREADY_HIDDEN"
+}
+```
+
+### 당시 콘텐츠 조치 여부를 확정할 수 없는 과거 신고 (`legacyUnknown`)
+
+```json
+{
+  "reportId": 107,
+  "targetType": "POST",
+  "targetId": 104,
+  "status": "RESOLVED",
+  "reasonType": "SPAM_ADVERTISING",
+  "titleSnapshot": "신고 당시 게시글 제목",
+  "createdAt": "2026-11-01T01:00:00Z",
+  "reporterMemberId": 51,
+  "reasonDetail": null,
+  "contentSnapshot": "신고 당시 본문입니다.",
+  "currentTarget": {
+    "targetId": 104,
+    "parentPostId": null,
+    "author": {
+      "memberId": 42,
+      "nickname": "소리나무",
+      "withdrawn": false
+    },
+    "title": "현재 게시글 제목",
+    "content": "조회 시점의 현재 본문입니다.",
+    "hiddenAt": null,
+    "deletedAt": null
+  },
+  "handledByMemberId": 40,
+  "handledAt": "2026-11-02T01:00:00Z",
+  "handlingReason": "신고 검토를 완료했습니다.",
+  "handlingOutcome": "LEGACY_UNKNOWN"
+}
+```
+
+위 상세 예시는 각각 독립적인 상황입니다. 새 숨김 예시의 hiddenAt은 처리 시각과 같고 기존 숨김 예시는 더 이릅니다. 과거 기록 예시의 현재 공개 상태로 당시 조치 여부를 추정하지 않습니다.

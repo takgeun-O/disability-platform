@@ -39,14 +39,15 @@ public class AdminReportHandlingController {
     private final AdminReportHandlingService reportHandlingService;
 
     @Operation(
-            summary = "신고 처리 완료",
+            summary = "추가 조치 없이 신고 처리 완료",
             description = """
                     관리자 로그인 세션과 CSRF 토큰이 필요합니다.
                     접수 상태의 신고만 처리할 수 있습니다.
                     이미 종결된 신고는 409 REPORT_ALREADY_HANDLED를 반환합니다.
                     해당 신고 한 건만 처리하며 같은 대상의 다른 신고는 변경하지 않습니다.
                     처리 관리자와 시각은 서버가 결정하고 저장된 처리 정보를 반환합니다.
-                    신고 처리만으로 콘텐츠 공개 상태나 회원 상태를 변경하지 않습니다.
+                    콘텐츠 공개 상태나 회원 상태를 변경하지 않으며 handlingOutcome은 NO_CONTENT_ACTION입니다.
+                    콘텐츠 숨김과 함께 처리하려면 POST /api/v1/admin/reports/{reportId}/hide-and-resolve를 사용합니다.
                     """
     )
     @Parameter(
@@ -97,7 +98,8 @@ public class AdminReportHandlingController {
                                               "status": "RESOLVED",
                                               "handledByMemberId": 40,
                                               "handledAt": "2026-11-13T01:00:00Z",
-                                              "handlingReason": "검토를 완료했습니다."
+                                              "handlingReason": "검토를 완료했습니다.",
+                                              "handlingOutcome": "NO_CONTENT_ACTION"
                                             }
                                             """
                             )
@@ -319,6 +321,7 @@ public class AdminReportHandlingController {
                     해당 신고 한 건만 처리하며 같은 대상의 다른 신고는 변경하지 않습니다.
                     처리 관리자와 시각은 서버가 결정하고 저장된 처리 정보를 반환합니다.
                     신고 기각만으로 콘텐츠 공개 상태나 회원 상태를 변경하지 않습니다.
+                    기존에 숨겨진 콘텐츠를 복원하지 않으며 handlingOutcome은 NO_CONTENT_ACTION입니다.
                     """
     )
     @Parameter(
@@ -369,7 +372,8 @@ public class AdminReportHandlingController {
                                               "status": "DISMISSED",
                                               "handledByMemberId": 40,
                                               "handledAt": "2026-11-13T01:00:00Z",
-                                              "handlingReason": "검토 결과 신고를 기각했습니다."
+                                              "handlingReason": "검토 결과 신고를 기각했습니다.",
+                                              "handlingOutcome": "NO_CONTENT_ACTION"
                                             }
                                             """
                             )

@@ -5,6 +5,7 @@ import io.github.takgeun.iyum.community.post.domain.Post;
 import io.github.takgeun.iyum.community.post.domain.PostTopic;
 import io.github.takgeun.iyum.community.post.domain.PostType;
 import io.github.takgeun.iyum.community.report.domain.ContentReport;
+import io.github.takgeun.iyum.community.report.domain.ContentReportHandlingOutcome;
 import io.github.takgeun.iyum.community.report.domain.ContentReportReasonType;
 import io.github.takgeun.iyum.community.report.domain.ContentReportStatus;
 import io.github.takgeun.iyum.community.report.infrastructure.ContentReportRepository;
@@ -294,7 +295,9 @@ class AdminReportHandlingSessionIntegrationTest {
                         .value(fixture.adminId()))
                 .andExpect(jsonPath("$.handlingReason")
                         .value(HANDLING_REASON))
-                .andExpect(jsonPath("$.*", hasSize(5)))
+                .andExpect(jsonPath("$.handlingOutcome")
+                        .value("NO_CONTENT_ACTION"))
+                .andExpect(jsonPath("$.*", hasSize(6)))
                 .andReturn();
 
         Instant after = Instant.now();
@@ -317,6 +320,8 @@ class AdminReportHandlingSessionIntegrationTest {
                 .isEqualTo(fixture.adminId());
         assertThat(found.getHandlingReason())
                 .isEqualTo(HANDLING_REASON);
+        assertThat(found.getHandlingOutcome())
+                .isEqualTo(ContentReportHandlingOutcome.NO_CONTENT_ACTION);
         assertThat(found.getHandledAt()).isNotNull();
 
         // PostgreSQL의 마이크로초 정밀도에 따른 반올림을 허용한다.

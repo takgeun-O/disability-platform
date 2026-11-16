@@ -5,6 +5,7 @@ import io.github.takgeun.iyum.community.post.domain.Post;
 import io.github.takgeun.iyum.community.post.domain.PostTopic;
 import io.github.takgeun.iyum.community.post.domain.PostType;
 import io.github.takgeun.iyum.community.report.domain.ContentReport;
+import io.github.takgeun.iyum.community.report.domain.ContentReportHandlingOutcome;
 import io.github.takgeun.iyum.community.report.domain.ContentReportReasonType;
 import io.github.takgeun.iyum.community.report.domain.ContentReportStatus;
 import io.github.takgeun.iyum.member.domain.Member;
@@ -13,9 +14,7 @@ import jakarta.persistence.EntityManager;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
-import org.junit.jupiter.params.provider.Arguments;
-import org.junit.jupiter.params.provider.MethodSource;
-import org.junit.jupiter.params.provider.ValueSource;
+import org.junit.jupiter.params.provider.*;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.dao.DataIntegrityViolationException;
@@ -68,7 +67,8 @@ class ContentReportHandlingRepositoryTest {
                SET status = ?,
                    handled_by_member_id = ?,
                    handled_at = ?,
-                   handling_reason = ?
+                   handling_reason = ?,
+                   handling_outcome = ?
              WHERE id = ?
             """;
 
@@ -206,6 +206,7 @@ class ContentReportHandlingRepositoryTest {
             assertThat(found.getHandledByMemberId()).isNull();
             assertThat(found.getHandledAt()).isNull();
             assertThat(found.getHandlingReason()).isNull();
+            assertThat(found.getHandlingOutcome()).isNull();
         } else {
             assertThat(found.getHandledByMemberId())
                     .isEqualTo(handlerId);
@@ -213,6 +214,10 @@ class ContentReportHandlingRepositoryTest {
                     .isEqualTo(HANDLED_AT);
             assertThat(found.getHandlingReason())
                     .isEqualTo("검토 완료\n필요한 대응을 마쳤습니다.");
+            assertThat(found.getHandlingOutcome())
+                    .isEqualTo(
+                            ContentReportHandlingOutcome.NO_CONTENT_ACTION
+                    );
         }
 
         assertThat(found.getReporterMemberId())
@@ -266,6 +271,7 @@ class ContentReportHandlingRepositoryTest {
                 actor,
                 time,
                 reason,
+                "NO_CONTENT_ACTION",
                 reportId
         };
 
@@ -311,6 +317,7 @@ class ContentReportHandlingRepositoryTest {
                 actor,
                 time,
                 reason,
+                null,
                 reportId
         };
 
@@ -344,6 +351,7 @@ class ContentReportHandlingRepositoryTest {
                         handlerId,
                         Timestamp.from(HANDLED_AT),
                         reason,
+                        "NO_CONTENT_ACTION",
                         reportId
                 )
         )
@@ -367,6 +375,7 @@ class ContentReportHandlingRepositoryTest {
                         handlerId,
                         Timestamp.from(HANDLED_AT),
                         character.repeat(501),
+                        "NO_CONTENT_ACTION",
                         reportId
                 )
         ).isInstanceOf(DataIntegrityViolationException.class);
@@ -411,6 +420,7 @@ class ContentReportHandlingRepositoryTest {
                         Long.MAX_VALUE,
                         Timestamp.from(HANDLED_AT),
                         "검토 완료",
+                        "NO_CONTENT_ACTION",
                         reportId
                 )
         )
@@ -444,6 +454,164 @@ class ContentReportHandlingRepositoryTest {
                 .isInstanceOf(DataIntegrityViolationException.class)
                 .hasStackTraceContaining(
                         "fk_content_reports_handler"
+                );
+    }
+
+    @ParameterizedTest
+    @MethodSource("targetsAndHandlingOutcomes")
+    void 처리_결과를_저장하고_DB에서_다시_조회한다(
+            boolean comment,
+            ContentReportHandlingOutcome outcome
+    ) {
+        ContentReport report = reportRepository.saveAndFlush(
+                newReport(comment)
+        );
+
+        report.resolve(
+                handlerId,
+                "조치 결과를 기록합니다.",
+                HANDLED_AT,
+                outcome
+        );
+
+        reportRepository.flush();
+
+        Long reportId = report.getId();
+        entityManager.clear();
+
+        ContentReport found = reportRepository.findById(reportId)
+                .orElseThrow();
+
+        assertThat(found.getStatus())
+                .isEqualTo(ContentReportStatus.RESOLVED);
+        assertThat(found.getHandlingOutcome())
+                .isEqualTo(outcome);
+        assertThat(found.getHandledByMemberId())
+                .isEqualTo(handlerId);
+        assertThat(found.getHandledAt())
+                .isEqualTo(HANDLED_AT);
+        assertThat(found.getHandlingReason())
+                .isEqualTo("조치 결과를 기록합니다.");
+
+        assertThat(found.getReporterMemberId())
+                .isEqualTo(reporterId);
+        assertThat(found.getCreatedAt())
+                .isEqualTo(CREATED_AT);
+        assertThat(found.getContentSnapshot())
+                .isEqualTo(BODY);
+
+        if (comment) {
+            assertThat(found.getCommentId())
+                    .isEqualTo(commentId);
+            assertThat(found.getPostId()).isNull();
+            assertThat(found.getTitleSnapshot()).isNull();
+        } else {
+            assertThat(found.getPostId())
+                    .isEqualTo(postId);
+            assertThat(found.getCommentId()).isNull();
+            assertThat(found.getTitleSnapshot())
+                    .isEqualTo(TITLE);
+        }
+    }
+
+    @ParameterizedTest
+    @CsvSource(
+            value = {
+                    "RECEIVED, CONTENT_HIDDEN",
+                    "RECEIVED, CONTENT_ALREADY_HIDDEN",
+                    "RECEIVED, NO_CONTENT_ACTION",
+                    "RECEIVED, LEGACY_UNKNOWN",
+                    "RECEIVED, UNKNOWN",
+                    "RESOLVED, NULL",
+                    "RESOLVED, UNKNOWN",
+                    "DISMISSED, NULL",
+                    "DISMISSED, CONTENT_HIDDEN",
+                    "DISMISSED, CONTENT_ALREADY_HIDDEN",
+                    "DISMISSED, UNKNOWN"
+            },
+            nullValues = "NULL"
+    )
+    void 잘못된_상태와_처리_결과_조합은_DB가_거부한다(
+            ContentReportStatus status,
+            String outcome
+    ) {
+        Long reportId = saveReceived();
+
+        boolean received =
+                status == ContentReportStatus.RECEIVED;
+
+        Long actor = received ? null : handlerId;
+        Timestamp time = received
+                ? null
+                : Timestamp.from(HANDLED_AT);
+        String reason = received ? null : "검토 완료";
+
+        assertThatThrownBy(() ->
+                jdbcTemplate.update(
+                        UPDATE_HANDLING_SQL,
+                        status.name(),
+                        actor,
+                        time,
+                        reason,
+                        outcome,
+                        reportId
+                )
+        )
+                .isInstanceOf(DataIntegrityViolationException.class)
+                .hasStackTraceContaining(
+                        "ck_content_reports_handling_outcome"
+                );
+    }
+
+    @ParameterizedTest
+    @EnumSource(
+            value = ContentReportStatus.class,
+            names = {"RESOLVED", "DISMISSED"}
+    )
+    void 기존_종결_기록의_미확인_결과를_조회할_수_있다(
+            ContentReportStatus status
+    ) {
+        Long reportId = saveReceived();
+
+        int changedRows = jdbcTemplate.update(
+                UPDATE_HANDLING_SQL,
+                status.name(),
+                handlerId,
+                Timestamp.from(HANDLED_AT),
+                "기존 처리 사유",
+                "LEGACY_UNKNOWN",
+                reportId
+        );
+
+        assertThat(changedRows).isEqualTo(1);
+        entityManager.clear();
+
+        ContentReport found = reportRepository.findById(reportId)
+                .orElseThrow();
+
+        assertThat(found.getStatus()).isEqualTo(status);
+        assertThat(found.getHandlingOutcome())
+                .isEqualTo(
+                        ContentReportHandlingOutcome.LEGACY_UNKNOWN
+                );
+        assertThat(found.getHandledByMemberId())
+                .isEqualTo(handlerId);
+        assertThat(found.getHandledAt())
+                .isEqualTo(HANDLED_AT);
+        assertThat(found.getHandlingReason())
+                .isEqualTo("기존 처리 사유");
+    }
+
+    static Stream<Arguments> targetsAndHandlingOutcomes() {
+        return Stream.of(false, true)
+                .flatMap(comment ->
+                        Stream.of(
+                                ContentReportHandlingOutcome.CONTENT_HIDDEN,
+                                ContentReportHandlingOutcome.CONTENT_ALREADY_HIDDEN,
+                                ContentReportHandlingOutcome.NO_CONTENT_ACTION
+                        ).map(outcome ->
+                                Arguments.of(comment, outcome)
+                        )
                 );
     }
 

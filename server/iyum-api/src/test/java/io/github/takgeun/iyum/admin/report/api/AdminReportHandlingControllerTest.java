@@ -4,6 +4,7 @@ import io.github.takgeun.iyum.admin.report.application.AdminReportHandlingExcept
 import io.github.takgeun.iyum.admin.report.application.AdminReportHandlingResult;
 import io.github.takgeun.iyum.admin.report.application.AdminReportHandlingService;
 import io.github.takgeun.iyum.auth.security.MemberPrincipal;
+import io.github.takgeun.iyum.community.report.domain.ContentReportHandlingOutcome;
 import io.github.takgeun.iyum.community.report.domain.ContentReportStatus;
 import io.github.takgeun.iyum.global.config.DevCorsConfig;
 import io.github.takgeun.iyum.global.config.SecurityConfig;
@@ -136,7 +137,9 @@ class AdminReportHandlingControllerTest {
                         .value(HANDLED_AT.toString()))
                 .andExpect(jsonPath("$.handlingReason")
                         .value(NORMALIZED_REASON))
-                .andExpect(jsonPath("$.*", hasSize(5)));
+                .andExpect(jsonPath("$.handlingOutcome")
+                        .value("NO_CONTENT_ACTION"))
+                .andExpect(jsonPath("$.*", hasSize(6)));
 
         // 인증 정보는 쿼리 파라미터가 아니라 principal에서 가져온다.
         // 사유 원문은 서비스에 전달하고 정규화는 서비스가 담당한다.
@@ -160,7 +163,8 @@ class AdminReportHandlingControllerTest {
                         "credentialVersion", 999,
                         "handledByMemberId", 999,
                         "handledAt", "2000-01-01T00:00:00Z",
-                        "status", "RECEIVED"
+                        "status", "RECEIVED",
+                        "handlingOutcome", "CONTENT_HIDDEN"
                 )
         );
 
@@ -174,7 +178,9 @@ class AdminReportHandlingControllerTest {
                 .andExpect(jsonPath("$.handledAt")
                         .value(HANDLED_AT.toString()))
                 .andExpect(jsonPath("$.status")
-                        .value(expectedStatus(action).name()));
+                        .value(expectedStatus(action).name()))
+                .andExpect(jsonPath("$.handlingOutcome")
+                        .value("NO_CONTENT_ACTION"));
 
         verifyServiceCall(action, REPORT_ID, NORMALIZED_REASON);
     }
@@ -676,7 +682,8 @@ class AdminReportHandlingControllerTest {
                 expectedStatus(action),
                 ACTOR_ID,
                 HANDLED_AT,
-                NORMALIZED_REASON
+                NORMALIZED_REASON,
+                ContentReportHandlingOutcome.NO_CONTENT_ACTION
         );
     }
 

@@ -409,6 +409,11 @@ public class DevCorsConfig {
                 adminReportHandlingCors
         );
 
+        source.registerCorsConfiguration(
+                "/api/v1/admin/reports/*/hide-and-resolve",
+                adminReportHandlingCors
+        );
+
         return source;
     }
 }

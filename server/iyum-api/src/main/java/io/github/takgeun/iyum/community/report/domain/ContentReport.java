@@ -106,6 +106,19 @@ public class ContentReport {
     )
     private String handlingReason;
 
+    /**
+     * 신고 종결 당시 실제 콘텐츠 조치 결과.
+     *
+     * 접수 상태에서는 null이다. (@NotNull 필요 없음)
+     * 이후 콘텐츠 상태가 변경되어도 수정하지 않는다.
+     */
+    @Enumerated(EnumType.STRING)
+    @Column(
+            name = "handling_outcome",
+            length = 32
+    )
+    private ContentReportHandlingOutcome handlingOutcome;
+
     private ContentReport(
             Long reporterMemberId,
             Long postId,
@@ -221,10 +234,37 @@ public class ContentReport {
                 ContentReportStatus.RESOLVED,
                 handlerMemberId,
                 reason,
-                handledAt
+                handledAt,
+                // 기존 resolve는 NO_CONTENT_ACTION을 전달해야 함.
+                // 기존 resolve는 추가 조치 없이 처리 완료를 의미하므로
+                ContentReportHandlingOutcome.NO_CONTENT_ACTION
         );
     }
 
+    /**
+     * 실제 콘텐츠 조치 결과와 함께 신고를 처리 완료한다.
+     *
+     * 콘텐츠 숨김 자체는 서비스에서 실행한다.
+     * 이 메서드는 신고의 처리 결과를 기록한다.
+     */
+    public void resolve(
+            Long handlerMemberId,
+            String reason,
+            Instant handledAt,
+            ContentReportHandlingOutcome outcome
+    ) {
+        handle(
+                ContentReportStatus.RESOLVED,
+                handlerMemberId,
+                reason,
+                handledAt,
+                outcome
+        );
+    }
+
+    /**
+     * 콘텐츠 상태 변경 없이 신고를 기각한다.
+     */
     public void dismiss(
             Long handlerMemberId,
             String reason,
@@ -234,7 +274,8 @@ public class ContentReport {
                 ContentReportStatus.DISMISSED,
                 handlerMemberId,
                 reason,
-                handledAt
+                handledAt,
+                ContentReportHandlingOutcome.NO_CONTENT_ACTION
         );
     }
 
@@ -261,13 +302,16 @@ public class ContentReport {
             ContentReportStatus nextStatus,
             Long handlerMemberId,
             String reason,
-            Instant handledAt
+            Instant handledAt,
+            ContentReportHandlingOutcome outcome
     ) {
         if(this.status != ContentReportStatus.RECEIVED) {
             throw new ContentReportAlreadyHandledException();
         }
 
-        validatePositiveId(handlerMemberId, "처리 관리자 회원 ID");
+        validatePositiveId(
+                handlerMemberId,
+                "처리 관리자 회원 ID");
 
         if(handledAt == null) {
             throw new IllegalArgumentException(
@@ -276,12 +320,63 @@ public class ContentReport {
         }
 
         String normalizedReason =
-                ContentReportHandlingPolicy.normalizeHandlingReason(reason);
+                ContentReportHandlingPolicy
+                        .normalizeHandlingReason(reason);
+
+        /**
+         * 신고 상태: RECEIVED -> 허용할 조치 결과: null
+         * 신고 상태: RESOLVED -> 허용할 조치 결과: CONTENT_HIDDEN, CONTENT_ALREADY_HIDDEN, NO_CONTENT_ACTION
+         * 신고 상태: DISMISSED -> 허용할 조치 결과: NO_CONTENT_ACTION
+         * 신고 상태: 기존 종결 기록 -> 허용할 조치 결과: 이행 정책에 따라 LEGACY_UNKNOWN
+         */
+        validateHandlingOutcome(nextStatus, outcome);
 
         // 모든 검증이 끝난 뒤 상태와 처리 정보를 함께 변경
         this.handledByMemberId = handlerMemberId;
         this.handledAt = handledAt;
         this.handlingReason = normalizedReason;
+        this.handlingOutcome = outcome;
         this.status = nextStatus;
+    }
+
+    private static void validateHandlingOutcome(
+            ContentReportStatus nextStatus,
+            ContentReportHandlingOutcome outcome
+    ) {
+        if(outcome == null) {
+            throw new IllegalArgumentException(
+                    "신고 처리 결과는 필수입니다."
+            );
+        }
+
+        if(outcome == ContentReportHandlingOutcome.LEGACY_UNKNOWN) {
+            throw new IllegalArgumentException(
+                    "신규 신고 처리에 기존 기록용 결과를 사용할 수 없습니다."
+            );
+        }
+
+        /**
+         * 신고 상태: RECEIVED -> 허용할 조치 결과: null
+         * 신고 상태: RESOLVED -> 허용할 조치 결과: CONTENT_HIDDEN, CONTENT_ALREADY_HIDDEN, NO_CONTENT_ACTION
+         * 신고 상태: DISMISSED -> 허용할 조치 결과: NO_CONTENT_ACTION
+         * 신고 상태: 기존 종결 기록 -> 허용할 조치 결과: 이행 정책에 따라 LEGACY_UNKNOWN
+         */
+        boolean allowed = switch (nextStatus) {
+            case RESOLVED ->
+                outcome == ContentReportHandlingOutcome.CONTENT_HIDDEN
+                        || outcome == ContentReportHandlingOutcome.CONTENT_ALREADY_HIDDEN
+                        || outcome == ContentReportHandlingOutcome.NO_CONTENT_ACTION;
+
+            case DISMISSED ->
+                outcome == ContentReportHandlingOutcome.NO_CONTENT_ACTION;
+
+            default -> false;
+        };
+
+        if(!allowed) {
+            throw new IllegalArgumentException(
+                    "신고 상태에 맞지 않는 처리 결과입니다."
+            );
+        }
     }
 }

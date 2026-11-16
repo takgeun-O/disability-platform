@@ -3,6 +3,7 @@ package io.github.takgeun.iyum.admin.report.api.dto;
 import com.fasterxml.jackson.annotation.JsonInclude;
 import io.github.takgeun.iyum.admin.report.application.AdminReportDetailResult;
 import io.github.takgeun.iyum.admin.report.application.AdminReportTargetType;
+import io.github.takgeun.iyum.community.report.domain.ContentReportHandlingOutcome;
 import io.github.takgeun.iyum.community.report.domain.ContentReportReasonType;
 import io.github.takgeun.iyum.community.report.domain.ContentReportStatus;
 import io.swagger.v3.oas.annotations.media.Schema;
@@ -118,7 +119,33 @@ public record AdminReportDetailResponse(
                 requiredMode = Schema.RequiredMode.REQUIRED,
                 types = {"string", "null"}
         )
-        @Nullable String handlingReason
+        @Nullable String handlingReason,
+
+        @Schema(
+                description = """
+                        신고에 저장된 처리 결과입니다.
+                        접수 상태에서는 필드를 생략하지 않고 null을 반환합니다.
+
+                        CONTENT_HIDDEN:
+                        신고 처리 과정에서 대상 콘텐츠를 숨겼습니다.
+
+                        CONTENT_ALREADY_HIDDEN:
+                        대상이 이미 개별 숨김 상태여서 기존 숨김을 유지했습니다.
+
+                        NO_CONTENT_ACTION:
+                        추가 콘텐츠 조치 없이 처리 완료하거나 기각했습니다.
+
+                        LEGACY_UNKNOWN:
+                        처리 결과 필드 도입 전의 기존 처리 기록으로,
+                        당시 콘텐츠 조치 여부를 확정할 수 없습니다.
+
+                        이후 콘텐츠가 복구되거나 삭제되어도
+                        저장된 처리 결과는 변경되지 않습니다.
+                        """,
+                requiredMode = Schema.RequiredMode.REQUIRED,
+                types = {"string", "null"}
+        )
+        @Nullable ContentReportHandlingOutcome handlingOutcome
 
 ) {
 
@@ -143,7 +170,8 @@ public record AdminReportDetailResponse(
                         ),
                         result.handledByMemberId(),
                         result.handledAt(),
-                        result.handlingReason()
+                        result.handlingReason(),
+                        result.handlingOutcome()
                 );
         }
 }

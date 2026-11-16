@@ -593,10 +593,27 @@ class ContentReportRepositoryTest {
                 Timestamp.from(NOW)
         };
 
-        assertThatThrownBy(() ->
-                jdbcTemplate.update(INSERT_REPORT_SQL, parameters)
-        ).isInstanceOf(DataIntegrityViolationException.class)
-                .hasStackTraceContaining(constraint);
+        var failure = assertThatThrownBy(() ->
+                jdbcTemplate.update(
+                        INSERT_REPORT_SQL,
+                        parameters
+                )
+        ).isInstanceOf(DataIntegrityViolationException.class);
+
+        if ("INVALID_STATUS".equals(scenario)) {
+            failure.satisfiesAnyOf(
+                    exception -> assertThat(exception)
+                            .hasStackTraceContaining(
+                                    "ck_content_reports_status"
+                            ),
+                    exception -> assertThat(exception)
+                            .hasStackTraceContaining(
+                                    "ck_content_reports_handling_outcome"
+                            )
+            );
+        } else {
+            failure.hasStackTraceContaining(constraint);
+        }
     }
 
     @ParameterizedTest
