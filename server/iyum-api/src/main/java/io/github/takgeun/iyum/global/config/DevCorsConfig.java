@@ -355,6 +355,65 @@ public class DevCorsConfig {
                 adminMemberReadCors
         );
 
+        // 게시글·댓글 신고 접수
+        CorsConfiguration contentReportCors =
+                new CorsConfiguration(cors);
+
+        contentReportCors.setAllowedMethods(
+                List.of("POST", "OPTIONS")
+        );
+
+        source.registerCorsConfiguration(
+                "/api/v1/community/posts/*/reports",
+                contentReportCors
+        );
+
+        source.registerCorsConfiguration(
+                "/api/v1/community/posts/*/comments/*/reports",
+                contentReportCors
+        );
+
+        // 관리자 신고 목록·상세 조회
+        CorsConfiguration adminReportReadCors =
+                new CorsConfiguration(cors);
+
+        adminReportReadCors.setAllowedMethods(
+                List.of("GET", "OPTIONS")
+        );
+
+        source.registerCorsConfiguration(
+                "/api/v1/admin/reports",
+                adminReportReadCors
+        );
+
+        source.registerCorsConfiguration(
+                "/api/v1/admin/reports/*",
+                adminReportReadCors
+        );
+
+        // 관리자 신고 처리 완료·기각
+        CorsConfiguration adminReportHandlingCors =
+                new CorsConfiguration(cors);
+
+        adminReportHandlingCors.setAllowedMethods(
+                List.of("POST", "OPTIONS")
+        );
+
+        source.registerCorsConfiguration(
+                "/api/v1/admin/reports/*/resolve",
+                adminReportHandlingCors
+        );
+
+        source.registerCorsConfiguration(
+                "/api/v1/admin/reports/*/dismiss",
+                adminReportHandlingCors
+        );
+
+        source.registerCorsConfiguration(
+                "/api/v1/admin/reports/*/hide-and-resolve",
+                adminReportHandlingCors
+        );
+
         return source;
     }
 }

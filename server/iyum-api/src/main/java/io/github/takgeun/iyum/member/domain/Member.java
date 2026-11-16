@@ -220,7 +220,7 @@ public class Member {
     private void validateModerationTarget() {
         if (this.role != MemberRole.USER) {
             throw new IllegalStateException(
-                    "일반 회원만 이용 정지ㅏ 또는 정지 해제할 수 있습니다."
+                    "일반 회원만 이용 정지 또는 정지 해제할 수 있습니다."
             );
         }
     }

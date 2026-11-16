@@ -1,6 +1,6 @@
 "use client"
 import { useEffect, useLayoutEffect, useRef, type ReactNode } from "react"
-export default function AdminSelectionPanel({id,title,focusOnOpen,onClose,children}:{id:number;title:string;focusOnOpen:boolean;onClose:()=>void;children:ReactNode}) {
+export default function AdminSelectionPanel({id,title,focusOnOpen,onClose,children,headerActions}:{id:number;title:string;focusOnOpen:boolean;onClose:()=>void;children:ReactNode;headerActions?:ReactNode}) {
   const heading=useRef<HTMLHeadingElement>(null),panel=useRef<HTMLElement>(null),body=useRef<HTMLDivElement>(null)
   // Only selection changes reset the reading position, never async content updates.
   useLayoutEffect(()=>{ if(body.current)body.current.scrollTop=0 },[id])
@@ -33,7 +33,7 @@ export default function AdminSelectionPanel({id,title,focusOnOpen,onClose,childr
     if(window.matchMedia("(max-width:1100px)").matches)heading.current?.scrollIntoView({block:"start",behavior:"instant"})
   },[id,focusOnOpen])
   return <aside ref={panel} className="admin-preview" aria-label={title}>
-    <header className="admin-preview-heading"><h2 ref={heading} tabIndex={-1}>{title}</h2><button type="button" onClick={onClose}>상세 닫기</button></header>
+    <header className="admin-preview-heading"><h2 ref={heading} tabIndex={-1}>{title}</h2>{headerActions}<button type="button" onClick={onClose}>상세 닫기</button></header>
     <div ref={body} className="admin-preview-body" tabIndex={0} role="region" aria-label={`${title} 내용`}>{children}</div>
   </aside>
 }

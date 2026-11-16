@@ -2,6 +2,9 @@
 
 ## 관리자
 
+- [신고 목록·상세 조회](admin-report-read.md)
+- [신고 처리 완료·기각](admin-report-handling.md)
+
 - [회원 목록·상세 조회](admin-member-read.md) — 읽기 전용 조회
 - [회원 이용 정지·해제](admin-member-moderation.md)
 - [회원별 이용 정지·해제 이력](admin-member-moderation-logs.md)

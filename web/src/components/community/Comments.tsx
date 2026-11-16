@@ -1,6 +1,7 @@
 "use client";
 import { useCommentTransition } from "@/lib/useCommentTransition";
 import CommentSortMenu from "./CommentSortMenu";
+import ReportButton from "./ReportButton";
 import CommentItem from "./CommentItem";
 // Refresh the visible prefix, keeping editor snapshots separate from server data.
 import {
@@ -1027,6 +1028,7 @@ export default function Comments({
                 reread={(id) => load(false, false, id)}
               />
             }
+            more={<ReportButton postId={postId} commentId={c.commentId} authorId={c.author.memberId} label={c.content.slice(0,120)} />}
             actions={
               owner(c) &&
               editor?.id !== c.commentId ? (
@@ -1055,7 +1057,7 @@ export default function Comments({
                     삭제
                   </button>
                 </div>
-              ) : undefined
+              ) : null
             }
           />
         ))}
