@@ -1,9 +1,10 @@
 "use client"
-import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react"
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react"
 import { useAdminUrlQuery } from "@/lib/useAdminUrlQuery"
 import { useSearchParams } from "next/navigation"
 import { useAuth } from "@/components/AuthProvider"
 import { useNavigationRequest } from "@/components/NavigationGuard"
+import AdminMemberSummary, { useMemberSummary } from "@/components/admin/AdminMemberSummary"
 import MemberEmail from "@/components/admin/MemberEmail"
 import useMemberModeration from "@/components/admin/useMemberModeration"
 import AdminPagination from "@/components/admin/AdminPagination"
@@ -122,9 +123,20 @@ function MemberWorkspace() {
     })
     return () => { live = false; controller.abort() }
   }, [selected, detailRetry, capture, memberId, detailScope, denied])
-  function deny() {
+  const deny = useCallback(() => {
     blocked.current = true; setList(null); setDetail(null); setDenied(true)
-  }
+  }, [])
+  const protectSummary = useCallback((failure: unknown) => {
+    if (!(failure instanceof AdminApiError)) return false
+    if (failure.status === 401) {
+      blocked.current = true; setList(null); setDetail(null)
+      capture(memberId).expire()
+      return true
+    }
+    if (failure.status === 403) { deny(); return true }
+    return false
+  }, [capture, memberId, deny])
+  const summary = useMemberSummary(protectSummary)
   async function refreshMember() {
     if (!selected || blocked.current) throw new Error("대상을 확인할 수 없습니다.")
     const id = selected, navigation = scope.begin(), detailNavigation = detailScope.begin(), session = capture(memberId)
@@ -153,7 +165,7 @@ function MemberWorkspace() {
     else if (detailResult.reason instanceof AdminApiError && detailResult.reason.status === 404) setDetail({id, attempt: detailRetry, error: "회원을 찾을 수 없습니다."})
     if (results.some(r => r.status === "rejected")) throw new Error("최신 정보를 확인하지 못했습니다.")
   }
-  const operations = useMemberModeration({selected: denied ? null : selected, member: denied ? undefined : current?.data, refresh: refreshMember, deny})
+  const operations = useMemberModeration({selected: denied ? null : selected, member: denied ? undefined : current?.data, refresh: refreshMember, deny, onSuccess: summary.refresh})
   function apply(q: MemberQuery) { operations.requestExit(() => applyQuery(q)) }
   function applyQuery(q: MemberQuery) {
     if (blocked.current || !scope.isActive()) return
@@ -181,6 +193,7 @@ function MemberWorkspace() {
   return <section className="admin-members" ref={workspace} data-compact={compact}>
     <header className="admin-members-heading"><h1 ref={heading} tabIndex={-1}>회원 관리</h1><p>회원의 기본 정보와 계정 상태를 확인하고 운영 조치를 관리합니다.</p></header>
     <div hidden={compact && !!selected}>
+      <AdminMemberSummary {...summary} />
       <MemberFilters key={queryKey} query={query} onApply={apply} />
     </div>
     <p className="admin-member-applied" hidden={compact && !!selected}>적용 조건: {query.keyword ? `${MEMBER_SEARCHES[query.searchType]} ‘${query.keyword}’` : "전체 검색"} · {query.status ? MEMBER_STATUSES[query.status as keyof typeof MEMBER_STATUSES] : "전체 상태"} · {query.role ? MEMBER_ROLES[query.role as keyof typeof MEMBER_ROLES] : "전체 권한"} · {query.sort === "OLDEST" ? "오래된순" : "최신순"}</p>

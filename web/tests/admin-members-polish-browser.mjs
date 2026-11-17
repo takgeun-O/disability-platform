@@ -1,3 +1,4 @@
+import { memberSummaryFixture } from "./helpers/member-summary-fixture.mjs"
 import assert from 'node:assert/strict'
 import fs from 'node:fs/promises'
 const {chromium}=await import(process.env.PLAYWRIGHT_MODULE??'playwright')
@@ -19,6 +20,7 @@ async function setup(width=1440){
  await c.route('http://127.0.0.1:8082/**',async r=>{
   const u=new URL(r.request().url());s.calls.push({url:u.pathname+u.search,method:r.request().method()})
   if(u.pathname.endsWith('/auth/me'))return r.fulfill(s.member?{json:s.member}:error(401,'AUTHENTICATION_REQUIRED'))
+  if(u.pathname===path+"/summary")return r.fulfill({json:memberSummaryFixture()})
   if(u.pathname===path)return s.list?s.list(r,u):r.fulfill({json:page(Number(u.searchParams.get('page')))})
   if(u.pathname.endsWith('/moderation-logs'))return r.fulfill({json:{items:[],page:Number(u.searchParams.get('page')),size:20,totalElements:0,totalPages:0,hasNext:false,hasPrevious:false}})
   if(u.pathname.startsWith(path+'/'))return s.detail?s.detail(r,u):r.fulfill({json:detail(Number(u.pathname.split('/').at(-1)))})

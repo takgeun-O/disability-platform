@@ -11,8 +11,8 @@ import { writtenTime } from "@/lib/written-time"
 
 type State = { id: string | null; action: MemberAction | null; reason: string; error: MemberActionError | null; notice: string; completionNotice: string; uncertain: boolean; busy: boolean; checking: boolean; needsCheck: boolean; completed: boolean; restricted: boolean; page: number; retry: number }
 const initial = (id: string | null): State => ({ id, action: null, reason: "", error: null, notice: "", completionNotice: "", uncertain: false, busy: false, checking: false, needsCheck: false, completed: false, restricted: false, page: 0, retry: 0 })
-export default function useMemberModeration({selected, member, refresh, deny}: {
-  selected: string | null; member?: AdminMemberDetail; refresh: () => Promise<void>; deny: () => void;
+export default function useMemberModeration({selected, member, refresh, deny, onSuccess}: {
+  selected: string | null; member?: AdminMemberDetail; refresh: () => Promise<void>; deny: () => void; onSuccess?: () => void;
 }) {
   const auth = useAuth(), guard = useNavigationGuard(), scope = useNavigationRequest(), logScope = useNavigationRequest()
   const actorId = auth.member!.memberId, capture = auth.captureMemberRequest, uid = useId()
@@ -26,6 +26,8 @@ export default function useMemberModeration({selected, member, refresh, deny}: {
   const [exit, setExit] = useState<(() => void) | null>(null)
   const field = useRef<HTMLTextAreaElement>(null), trigger = useRef<HTMLButtonElement>(null), feedback = useRef<HTMLDivElement>(null)
   const flight = useRef(false), checking = useRef<object | null>(null), identity = useRef(opening), refreshRef = useRef(refresh), denyRef = useRef(deny)
+  const successRef = useRef(onSuccess)
+  useLayoutEffect(() => { successRef.current = onSuccess }, [onSuccess])
   const manualHistory = useRef<{opening: object; retry: number} | null>(null)
   const [validation, setValidation] = useState(0)
   const returnFocus = useRef(false), blockedWhileBusy = useRef(false)
@@ -129,6 +131,7 @@ export default function useMemberModeration({selected, member, refresh, deny}: {
       const result = await moderateMember(id, action, s.reason, valid)
       if (!valid() || !result) return
       completed = true; reload = true; returnFocus.current = true
+      successRef.current?.()
       const message = result.changed
         ? action === "suspend" ? "이용 정지를 완료했습니다." : "이용 정지 해제를 완료했습니다."
         : action === "suspend" ? "이미 이용 정지된 회원입니다." : "이미 이용 정지가 해제된 회원입니다."
