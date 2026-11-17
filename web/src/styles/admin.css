@@ -249,7 +249,7 @@ body:has(.admin-shell) .iyum-footer { display:none; }
  .admin-master-list .admin-post-title { min-width:0; width:auto; }
  .admin-posts-panel .admin-master-list th:nth-child(3) { width:100px; }
  .admin-posts-panel .admin-master-list th:nth-child(5) { width:58px; }
- .admin-posts-panel .admin-master-list th:nth-child(6) { width:110px; }
+ .admin-posts-panel .admin-master-list th:nth-child(6) { width:120px; }
  .admin-master-list .admin-log-table { table-layout:auto; }
  .admin-master-list .admin-log-table th { width:auto; }
 }
@@ -543,3 +543,7 @@ body:has(.admin-shell) .iyum-footer { display:none; }
 }
 /* Short action content should not leave a viewport-sized empty lower half. */
 .admin-content-dialog:has(.admin-action-workspace) { height:fit-content; }
+
+/* 게시글 작성 시각은 날짜와 시간 사이에서 줄바꿈하여 셀 안에 표시합니다. */
+.admin-posts-panel .admin-master-list td:last-child { white-space:normal; }
+.admin-posts-panel .admin-master-list td:last-child time { word-break:keep-all; overflow-wrap:normal; }

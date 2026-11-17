@@ -1,7 +1,7 @@
 "use client"
 import type { ModerationTarget } from "@/lib/admin-moderation"
 import { isAdminRowSelection, isAdminRowKeyboardSelection } from "@/lib/admin-row-selection"
-import { useEffect, useRef, useState } from "react"
+import { useCallback, useEffect, useRef, useState } from "react"
 import { useAuth } from "@/components/AuthProvider"
 import { useNavigationRequest } from "@/components/NavigationGuard"
 import Link from "@/components/AppLink"
@@ -24,11 +24,31 @@ import {
   type AdminPage,
   ADMIN_CONTENT_STATUSES,
 } from "@/lib/admin-posts"
+import AdminContentSummary, { useContentSummary } from "@/components/admin/AdminContentSummary"
 export default function AdminPosts() {
+  const auth = useAuth()
+  const actor = auth.member!.memberId
+  const capture = auth.captureMemberRequest
+  const [denied, setDenied] = useState(false)
+  const deny = useCallback(() => setDenied(true), [])
+  const protect = useCallback((failure: unknown) => {
+    if (!(failure instanceof AdminApiError)) return false
+    if (failure.status === 401) { capture(actor).expire(); return true }
+    if (failure.status === 403) { deny(); return true }
+    return false
+  }, [actor, capture, deny])
+  const summary = useContentSummary(protect)
   const {values,navigation}=useAdminUrlQuery()
   useAdminDialogReturn(navigation)
   const [recovery,setRecovery]=useState<ModerationTarget|null>(null)
-  return <AdminModeration inline recovery={recovery} onRecovery={setRecovery} key={navigation}><AdminPostResults initialQuery={adminListQuery(values)} initialSelected={adminSelectionId(values.selected)} /></AdminModeration>
+  if (denied) return <div role="alert"><h1>관리자 권한이 없습니다</h1><p>이전 콘텐츠 정보는 제거되었습니다.</p></div>
+  return <>
+    <header className="admin-heading">
+      <h1 tabIndex={-1} data-admin-list-heading>게시글 관리</h1>
+      <p>게시글의 제목과 공개 상태를 확인합니다.</p>
+    </header>
+    <AdminContentSummary {...summary} />
+    <AdminModeration onSuccess={summary.refresh} onDenied={deny} inline recovery={recovery} onRecovery={setRecovery} key={navigation}><AdminPostResults initialQuery={adminListQuery(values)} initialSelected={adminSelectionId(values.selected)} /></AdminModeration></>
 }
 function AdminPostResults({ initialSelected = null, initialQuery = {statuses: ADMIN_CONTENT_STATUSES, keyword: "", page: 0,startDate:"",endDate:"",sort:"LATEST"} }: {initialQuery?: AdminQuery;initialSelected?:number|null}) {
   const {revision,readCurrent,readLocked:locked,deny,recoveryFeedback}=useAdminModeration()
@@ -103,11 +123,6 @@ function AdminPostResults({ initialSelected = null, initialQuery = {statuses: AD
   const sortControl = <div className="admin-sort-control"><label htmlFor="admin-post-sort">작성 시각 정렬</label><select id="admin-post-sort" value={query.sort??"LATEST"} onChange={e=>{const sort=e.target.value;if(sort==="LATEST"||sort==="OLDEST"){adjusted.current=false;apply({...query,statuses,sort,page:0},!!active?.error)}}}>{Object.entries(ADMIN_SORTS).map(([value,label])=><option key={value} value={value}>{label}</option>)}</select></div>
   return (
     <>
-      <header className="admin-heading">
-
-        <h1 tabIndex={-1} data-admin-list-heading>게시글 관리</h1>
-        <p>게시글의 제목과 공개 상태를 확인합니다.</p>
-      </header>
       {!selectedId&&recoveryFeedback}
       <section className="admin-panel admin-workspace admin-posts-panel" aria-label="게시글 목록 관리">
         <div className="admin-compact-toolbar"><form className="admin-filters admin-post-filters" onSubmit={event => {event.preventDefault(); adjusted.current = false; search(!!active?.error)}}>

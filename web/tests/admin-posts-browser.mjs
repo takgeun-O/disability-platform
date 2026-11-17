@@ -169,7 +169,8 @@ await run(
   "ADMIN entry/default query, server paging, search on Enter, filters and reset",
   async () => {
     const { context, p, state } = await setup()
-    await p.goto(base + "/admin")
+    // /admin은 대시보드다. 게시글 목록의 진입·필터 계약을 검증한다.
+    await p.goto(base + "/admin/posts")
     await ready(p)
     assert.equal(new URL(p.url()).pathname, "/admin/posts")
     assert.equal(reads(state).length, 1)
@@ -362,7 +363,7 @@ await run("page jump validation, first/last and exact non-interactive time", asy
   await context.close()
 })
 for (const entry of ['sidebar', 'header', 'mobile'])
- await run(`current menu during loading and later search: ${entry}`, async () => {
+ await run(`현재 게시글 메뉴 유지와 대시보드 왕복 후 검색: ${entry}`, async () => {
   const {context,p,state}=await setup('ADMIN', entry==='mobile'?390:1440)
   const g=gate();let first=true
   state.read=async(r,u)=>{if(first){first=false;g.arrive();await g.response}await r.fulfill({json:payload(Number(u.searchParams.get('page')))})}
@@ -372,8 +373,19 @@ for (const entry of ['sidebar', 'header', 'mobile'])
    else if(entry==='header')await p.getByRole('link',{name:'관리자',exact:true}).click()
    else {await p.getByRole('button',{name:'메뉴 열기'}).click();await p.locator('#iyum-mobile-navigation').getByRole('link',{name:'관리자',exact:true}).click()}
   }
-  await clickMenu();g.release();await ready(p);assert.equal(reads(state).length,1)
+  await clickMenu();g.release()
+  if(entry!=='sidebar') {
+   await p.waitForURL(base+'/admin')
+   assert.equal(await p.locator('.admin-results').count(),0)
+   await p.getByRole('link',{name:'게시글 관리',exact:true}).click()
+  }
+  await ready(p);assert.equal(reads(state).length,entry==='sidebar'?1:2)
   await clickMenu()
+  if(entry!=='sidebar') {
+   await p.waitForURL(base+'/admin')
+   await p.getByRole('link',{name:'게시글 관리',exact:true}).click()
+   await ready(p)
+  }
   await p.getByLabel('게시글 제목 검색',{exact:true}).fill('메뉴 유지')
   await p.getByRole('button',{name:'검색',exact:true}).click();await ready(p)
   await selectStatuses(p, '게시글 상태', ['HIDDEN']);await ready(p)
@@ -416,7 +428,9 @@ await run('page buttons retain focus, boundary fallback, focus diversion, error 
  await input.fill('1');await input.press('Enter');await ready(p)
  assert(await focused(input));assert.equal(await input.inputValue(),'1')
  const before=reads(state).length
- for(const name of ['게시글 관리','관리자'])await p.getByRole('link',{name,exact:true}).click()
+ // 현재 메뉴만 재조회 없이 유지된다. 헤더 관리자는 별도 대시보드 이동이다.
+ await p.getByRole('link',{name:'게시글 관리',exact:true}).click()
+ assert.equal(await p.getByRole('link',{name:'관리자',exact:true}).getAttribute('href'),'/admin')
  assert.equal(reads(state).length,before)
   state.read=r=>r.fulfill({json:pages(0)})
  await button('다시 시도').focus();await p.keyboard.press('Enter');await ready(p)

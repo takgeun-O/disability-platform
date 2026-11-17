@@ -427,6 +427,19 @@ public class DevCorsConfig {
                 adminDashboardReadCors
         );
 
+        // 관리자 게시글·댓글 요약 조회
+        CorsConfiguration adminContentSummaryReadCors =
+                new CorsConfiguration(cors);
+
+        adminContentSummaryReadCors.setAllowedMethods(
+                List.of("GET", "OPTIONS")
+        );
+
+        source.registerCorsConfiguration(
+                "/api/v1/admin/content/summary",
+                adminContentSummaryReadCors
+        );
+
         return source;
     }
 }
