@@ -59,7 +59,7 @@ type Actions = {
 };
 const Context = createContext<Actions | null>(null);
 export const useAdminModeration = () => useContext(Context)!;
-export default function AdminModeration({ children, reportCommentContext = false, inline = false, exitDialog = false, onDenied, recovery, onRecovery }: { children: ReactNode; reportCommentContext?: boolean; inline?: boolean; exitDialog?: boolean; onDenied?:()=>void; recovery?:ModerationTarget|null; onRecovery?:(target:ModerationTarget|null)=>void }) {
+export default function AdminModeration({ children, reportCommentContext = false, inline = false, exitDialog = false, onDenied, recovery, onRecovery, onSuccess }: { children: ReactNode; reportCommentContext?: boolean; inline?: boolean; exitDialog?: boolean; onDenied?:()=>void; onSuccess?:()=>void; recovery?:ModerationTarget|null; onRecovery?:(target:ModerationTarget|null)=>void }) {
   const guard = useNavigationGuard();
   const [exit, setExit] = useState<(() => void) | null>(null);
   const auth = useAuth(),
@@ -206,6 +206,7 @@ export default function AdminModeration({ children, reportCommentContext = false
         : response.changed
         ? `${target.commentId === undefined ? "게시글" : "댓글"} ${target.action === "hide" ? "숨김 처리를" : "숨김 해제를"} 완료했습니다.`
         : "이미 요청한 상태입니다. 추가 상태 변경과 운영 기록은 발생하지 않았습니다.";
+      onSuccess?.();
       setCompleted(true);
       setNotice(message);
       setToast(message);
