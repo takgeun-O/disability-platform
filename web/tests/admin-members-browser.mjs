@@ -1,3 +1,4 @@
+import { memberSummaryFixture } from "./helpers/member-summary-fixture.mjs"
 import assert from 'node:assert/strict'
 import fs from 'node:fs/promises'
 const {chromium}=await import(process.env.PLAYWRIGHT_MODULE??'playwright')
@@ -20,6 +21,7 @@ async function setup(width=1440){
  await c.route('http://127.0.0.1:8082/**',async r=>{
   const u=new URL(r.request().url());s.calls.push({url:u.pathname+u.search,method:r.request().method()})
   if(u.pathname.endsWith('/auth/me'))return r.fulfill(s.member?{json:s.member}:error(401,'AUTHENTICATION_REQUIRED'))
+  if(u.pathname===path+"/summary")return r.fulfill({json:memberSummaryFixture()})
   if(u.pathname===path)return s.list?s.list(r,u):r.fulfill({json:page(Number(u.searchParams.get('page')))})
   if(u.pathname.endsWith('/moderation-logs'))return r.fulfill({json:{items:[],page:Number(u.searchParams.get('page')),size:20,totalElements:0,totalPages:0,hasNext:false,hasPrevious:false}})
   if(u.pathname.startsWith(path+'/'))return s.detail?s.detail(r,u):r.fulfill({json:detail(Number(u.pathname.split('/').at(-1)))})
@@ -40,7 +42,7 @@ const frames=p=>p.evaluate(()=>new Promise(r=>requestAnimationFrame(()=>requestA
 async function run(name,fn){if(process.env.TEST_FILTER&&!new RegExp(process.env.TEST_FILTER).test(name))return;try{await fn();results.push({name,passed:true});console.log('PASS',name)}catch(e){results.push({name,passed:false,error:e.stack});console.log('FAIL',name,e.message);for(const c of contexts)for(const p of c.pages())await p.screenshot({path:`${out}/failure-${results.length}.png`,fullPage:true}).catch(()=>{})}finally{await Promise.all(contexts.splice(0).map(c=>c.close()))}}
 await run('search parameters, draft separation, sort, pagination, reset and no prefetch',async()=>{
  const{p,s}=await setup();await p.goto(base+'/admin/members',{waitUntil:'domcontentloaded'});await ready(p)
- assert.equal(reads(s).length,1);assert.equal(s.calls.filter(c=>/^\/api\/v1\/admin\/members\//.test(c.url)).length,0)
+ assert.equal(reads(s).length,1);assert.equal(s.calls.filter(c=>/^\/api\/v1\/admin\/members\/\d+(?:\/|\?|$)/.test(c.url)).length,0)
  assert.equal(new URLSearchParams(reads(s)[0].url.split('?')[1]).get('status'),null)
  await label(p,'검색 기준').selectOption('MEMBER_ID');await label(p,'검색어').fill('9223372036854775807');await button(p,'검색').click();await ready(p)
  assert.equal(new URLSearchParams(reads(s).at(-1).url.split('?')[1]).get('keyword'),'9223372036854775807')

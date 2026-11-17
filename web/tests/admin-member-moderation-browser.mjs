@@ -1,3 +1,4 @@
+import { memberSummaryFixture } from "./helpers/member-summary-fixture.mjs"
 import assert from 'node:assert/strict'
 import fs from 'node:fs/promises'
 const {chromium}=await import(process.env.PLAYWRIGHT_MODULE??'playwright')
@@ -28,6 +29,7 @@ async function setup(width=1920,height=1080){
   if(u.pathname.endsWith('/csrf'))return r.fulfill({json:{headerName:'X-CSRF-TOKEN',token:'mock-only'}})
   if(u.pathname.endsWith('/login')){s.member={...admin,memberId:8,nickname:'새 관리자'};return r.fulfill({json:s.member})}
   if(u.pathname.endsWith('/logout')){s.member=null;return r.fulfill({status:204})}
+  if(u.pathname===path+"/summary")return r.fulfill({json:memberSummaryFixture()})
   if(u.pathname===path){if(s.list)return s.list(r,u);const items=s.members.filter(m=>!u.searchParams.get('status')||m.status===u.searchParams.get('status'));return r.fulfill({json:page(items,Number(u.searchParams.get('page')))})}
   if(u.pathname.endsWith('/moderation-logs')){assert.equal(u.searchParams.has('sort'),false);if(s.history)return s.history(r,u);const id=Number(u.pathname.split('/').at(-2));return r.fulfill({json:page(s.logs.filter(l=>l.targetMemberId===id),Number(u.searchParams.get('page')))})}
   if(method==='POST'&&u.pathname.startsWith(path+'/')){
