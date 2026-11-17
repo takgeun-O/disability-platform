@@ -414,6 +414,19 @@ public class DevCorsConfig {
                 adminReportHandlingCors
         );
 
+        // 관리자 대시보드 조회
+        CorsConfiguration adminDashboardReadCors =
+                new CorsConfiguration(cors);
+
+        adminDashboardReadCors.setAllowedMethods(
+                List.of("GET", "OPTIONS")
+        );
+
+        source.registerCorsConfiguration(
+                "/api/v1/admin/dashboard",
+                adminDashboardReadCors
+        );
+
         return source;
     }
 }
