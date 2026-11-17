@@ -118,8 +118,8 @@ const ready = (p) =>
 const detail = (p) => p.locator('.report-detail[aria-busy="false"]').waitFor()
 const posts = (s) =>
   s.calls.filter((c) => c.method === "POST" && c.path.includes("/reports"))
-async function setup(width = 1440) {
-  const c = await browser.newContext({ viewport: { width, height: 900 } })
+async function setup(width = 1440, timezoneId) {
+  const c = await browser.newContext({ viewport: { width, height: 900 }, timezoneId })
   contexts.push(c)
   // External font availability is not part of the API/UI contract. Use system
   // fallback fonts so page load never depends on the Google Fonts network.
@@ -130,6 +130,8 @@ async function setup(width = 1440) {
     records: [record(11), record(12, "COMMENT"), record(13, "COMMENT", true)],
     calls: [],
     member: admin,
+    summary: null,
+    summaryData: { queriedAt: "2026-11-17T03:00:00Z", baseDate: "2026-11-17", counts: { pendingReportCount: 1007, todayReportCount: 30, todayHandledReportCount: 12 } },
     list: null,
     detail: null,
     mutation: null,
@@ -170,6 +172,7 @@ async function setup(width = 1440) {
       return r.fulfill({
         json: { headerName: "X-CSRF-TOKEN", token: "synthetic" },
       })
+    if (u.pathname === "/api/v1/admin/reports/summary") return s.summary ? s.summary(r, u) : r.fulfill({ json: s.summaryData })
     if (u.pathname === "/api/v1/admin/reports") {
       if (s.list) return s.list(r, u)
       const items = s.records
@@ -307,6 +310,116 @@ async function openReport(p, target) {
   await p.getByRole("dialog").waitFor()
   assert.equal(await p.getByRole("menu").count(),0)
 }
+const summaryReads = s => s.calls.filter(c => c.path === "/api/v1/admin/reports/summary")
+const summaryReady = p => p.locator('.report-summary [aria-busy="false"]').waitFor()
+const summaryNumbers = p => p.locator(".report-summary .dashboard-count dd:first-of-type").allTextContents()
+
+for (const width of [1920, 1440, 390, 320]) await run(`신고 요약 ${width}px 세 카드·한국 날짜·필터 독립성과 표시`, async () => {
+  const { p, s } = await setup(width, "America/Los_Angeles")
+  await p.goto(base + "/admin/reports"); await ready(p); await summaryReady(p)
+  assert.deepEqual(await summaryNumbers(p), ["1,007건", "30건", "12건"])
+  assert.deepEqual(await p.locator(".report-summary dt").allTextContents(), ["처리 대기", "오늘 접수", "오늘 종결"])
+  assert.equal(await p.locator('.report-summary time[datetime="2026-11-17"]').innerText(), "2026.11.17")
+  assert((await p.locator(".report-summary").innerText()).includes("2026.11.17. 12:00:00 (한국 시간)"))
+  assert.equal(await p.locator(".report-summary a").count(), 0)
+  const rects = await p.locator(".report-summary .dashboard-count").evaluateAll(es => es.map(e => ({ y: e.getBoundingClientRect().y, x: e.getBoundingClientRect().x })))
+  if (width >= 1440) assert.equal(new Set(rects.map(r => r.y)).size, 1)
+  else assert.equal(new Set(rects.map(r => r.x)).size, 1)
+  assert(await p.evaluate(() => document.documentElement.scrollWidth <= innerWidth))
+  await p.screenshot({ path: `${out}/summary-normal-${width}.png`, fullPage: true })
+  await p.getByLabel("대상", { exact: true }).selectOption("COMMENT"); await ready(p)
+  await p.getByLabel("신고 상태", { exact: true }).selectOption("RECEIVED"); await ready(p)
+  assert.equal(summaryReads(s).length, 1)
+  assert.deepEqual(await summaryNumbers(p), ["1,007건", "30건", "12건"])
+  s.summaryData.counts = { pendingReportCount: 0, todayReportCount: 0, todayHandledReportCount: 0 }
+  await btn(p, "요약 새로고침").click(); await summaryReady(p)
+  assert.deepEqual(await summaryNumbers(p), ["0건", "0건", "0건"])
+  assert.equal(summaryReads(s).length, 2)
+  assert.equal(await p.getByRole("status").filter({ hasText: "신고 요약 조회를 완료했습니다." }).count(), 1)
+  assert(await btn(p, "요약 새로고침").evaluate(e => e === document.activeElement))
+})
+
+for (const width of [1440, 390, 320]) await run(`신고 요약 ${width}px 최초 로딩·실패는 0이 아니며 목록과 입력을 유지한다`, async () => {
+  const { p, s } = await setup(width), g = gate()
+  s.summary = async r => { g.arrive(); await g.wait; return r.fulfill(fail(503, "ERROR")) }
+  await p.goto(base + "/admin/reports?selected=11"); await g.arrived; await detail(p)
+  await p.getByText("신고 요약을 불러오고 있습니다…", { exact: true }).waitFor()
+  assert.equal(await p.locator(".report-summary .dashboard-count").count(), 0)
+  assert(await btn(p, "요약 새로고침").isDisabled())
+  await p.screenshot({ path: `${out}/summary-loading-${width}.png`, fullPage: true })
+  await btn(p, "추가 조치 없이 처리 완료").click()
+  await p.getByLabel("처리 사유 (필수)").fill("입력 보존 확인")
+  g.release(); await p.locator('.report-summary [role="alert"]').waitFor()
+  assert.equal(await p.locator(".report-summary .dashboard-count").count(), 0)
+  assert.equal(await p.getByLabel("처리 사유 (필수)").inputValue(), "입력 보존 확인")
+  await p.screenshot({ path: `${out}/summary-error-${width}.png`, fullPage: true })
+  s.summary = null
+  await btn(p, "요약 다시 조회").click(); await summaryReady(p)
+  assert.equal(await p.getByLabel("처리 사유 (필수)").inputValue(), "입력 보존 확인")
+  s.summary = r => r.fulfill(fail(503, "ERROR"))
+  await btn(p, "요약 새로고침").click(); await p.locator('.report-summary [role="alert"]').waitFor()
+  assert.deepEqual(await summaryNumbers(p), ["1,007건", "30건", "12건"])
+  assert.equal(await p.locator('.report-summary time[datetime="2026-11-17T03:00:00Z"]').count(), 1)
+  await p.getByText("최신 요약 조회에 실패했습니다. 이전 수치와 조회 시각을 표시합니다.", { exact: true }).waitFor()
+})
+
+for (const action of ["resolve", "dismiss", "hide-and-resolve"]) await run(`신고 요약 ${action} 성공 후 GET 갱신과 단독 실패 복구는 POST를 반복하지 않는다`, async () => {
+  const { p, s } = await setup()
+  await p.goto(base + "/admin/reports?selected=11"); await detail(p); await summaryReady(p)
+  await btn(p, action === "resolve" ? "추가 조치 없이 처리 완료" : action === "dismiss" ? "신고 기각" : "숨김·처리 완료").click()
+  await p.getByLabel("처리 사유 (필수)").fill("요약 갱신 검증")
+  s.summary = r => r.fulfill(fail(503, "ERROR"))
+  await btn(p, action === "resolve" ? "처리 완료 확정" : action === "dismiss" ? "기각 확정" : "숨김·처리 완료 확정").click()
+  await detail(p); await p.locator('.report-summary [role="alert"]').waitFor()
+  assert.equal(posts(s).length, 1); assert.equal(summaryReads(s).length, 2)
+  assert.equal(await p.locator(".report-recovery").count(), 0)
+  assert(await p.getByRole("heading", { name: "신고 처리 결과", exact: true }).evaluate(e => e === document.activeElement))
+  s.summaryData = { ...s.summaryData, queriedAt: "2026-11-17T04:00:00Z", counts: { pendingReportCount: 1006, todayReportCount: 30, todayHandledReportCount: 13 } }
+  s.summary = null
+  await btn(p, "요약 다시 조회").click(); await summaryReady(p)
+  assert.deepEqual(await summaryNumbers(p), ["1,006건", "30건", "13건"])
+  assert.equal(posts(s).length, 1)
+  assert.equal(await p.getByRole("heading", { name: "신고 처리 결과", exact: true }).count(), 1)
+})
+
+await run("신고 요약의 늦은 이전 응답은 처리 후 최신 수치를 덮어쓰지 않는다", async () => {
+  const { p, s } = await setup(), g = gate()
+  await p.goto(base + "/admin/reports?selected=11"); await detail(p); await summaryReady(p)
+  const previous = structuredClone(s.summaryData)
+  s.summary = async r => { g.arrive(); await g.wait; return r.fulfill({ json: previous }) }
+  await btn(p, "요약 새로고침").click(); await g.arrived
+  s.summaryData.counts.pendingReportCount = 999
+  s.summary = null
+  await btn(p, "신고 기각").click(); await p.getByLabel("처리 사유 (필수)").fill("지연 응답 검증")
+  await btn(p, "기각 확정").click(); await detail(p); await summaryReady(p)
+  assert.equal((await summaryNumbers(p))[0], "999건")
+  g.release()
+  await p.waitForFunction(() => window.__reportsRead.filter(u => u.endsWith("/reports/summary")).length === 3)
+  assert.equal((await summaryNumbers(p))[0], "999건")
+  assert.equal(posts(s).length, 1)
+})
+
+for (const status of [401, 403]) await run(`신고 요약 ${status}는 기존 목록·상세·요약을 함께 보호한다`, async () => {
+  const { p, s } = await setup()
+  await p.goto(base + "/admin/reports?selected=11"); await detail(p); await summaryReady(p)
+  s.summary = r => r.fulfill(fail(status, status === 401 ? "AUTHENTICATION_REQUIRED" : "ACCESS_DENIED"))
+  await btn(p, "요약 새로고침").click()
+  await p.getByRole("heading", { name: status === 401 ? "로그인이 필요합니다" : "관리자 권한이 없습니다", exact: true }).waitFor()
+  assert.equal(await p.locator(".report-summary, .report-detail, .report-list").count(), 0)
+})
+
+await run("신고 요약은 전용 상세 처리 뒤 목록 복귀 시 다시 조회한다", async () => {
+  const { p, s } = await setup()
+  await p.goto(base + "/admin/reports/11"); await detail(p)
+  assert.equal(summaryReads(s).length, 0)
+  await btn(p, "신고 기각").click(); await p.getByLabel("처리 사유 (필수)").fill("전용 화면 종결")
+  await btn(p, "기각 확정").click(); await detail(p)
+  s.summaryData.counts.todayHandledReportCount = 55
+  await p.getByRole("link", { name: "신고 목록 보기", exact: true }).click(); await summaryReady(p)
+  assert.deepEqual(await summaryNumbers(p), ["1,007건", "30건", "55건"])
+  assert.equal(summaryReads(s).length, 1)
+})
+
 await run(
   "public post/comment report, own action absent, validation, payload and success",
   async () => {
@@ -1444,6 +1557,147 @@ for (const width of [1920, 1440, 390, 320]) {
     assert.deepEqual(s.errors, [])
   })
 }
+
+
+for (const width of [1920, 1440, 390, 320]) await run(`전용 상세 ${width}px 직접 진입·새로고침·페이지 스크롤·키보드`, async () => {
+  const { p, s } = await setup(width)
+  s.records[0].contentSnapshot = "신고 당시 긴 본문입니다. 긴문자열".repeat(100)
+  await p.goto(base + "/admin/reports/11"); await detail(p)
+  assert.equal(await p.getByRole("heading", { name: "신고 #11 상세", exact: true }).count(), 1)
+  assert.equal(await p.locator(".report-list, .report-filters, .dashboard-count, .admin-preview-body").count(), 0)
+  assert.equal(await p.locator('.admin-sidebar [aria-current="page"]').innerText(), "신고 관리")
+  assert.equal(await p.locator(".report-status-summary .report-content-badge").innerText(), "정상")
+  await p.reload(); await detail(p)
+  assert(s.calls.filter(c => c.path === "/api/v1/admin/reports/11").length >= 2)
+  assert(!s.calls.some(c => c.path === "/api/v1/admin/reports"))
+  const box = await p.locator(".report-page-content").boundingBox()
+  assert(box.width <= 1024)
+  assert(await p.evaluate(() => document.documentElement.scrollWidth <= innerWidth))
+  await btn(p, "처리 영역으로 이동").focus(); await p.keyboard.press("Enter")
+  assert(await p.evaluate(() => document.activeElement.textContent.includes("신고 처리")))
+  await p.screenshot({ path: `${out}/standalone-actions-${width}.png` })
+  await p.evaluate(() => window.scrollTo(0, 0))
+  await p.screenshot({ path: `${out}/standalone-${width}.png`, fullPage: true })
+  await p.getByRole("link", { name: "신고 목록 보기", exact: true }).click(); await ready(p)
+  assert.equal(new URL(p.url()).searchParams.get("status"), "ALL")
+  await p.goBack(); await detail(p)
+  await p.locator(".admin-sidebar").getByRole("link", { name: "신고 관리", exact: true }).click()
+  await p.waitForURL(u => u.pathname === "/admin/reports"); await ready(p)
+  assert.deepEqual(s.errors, [])
+})
+
+await run("전용 상세 잘못된 ID는 API 호출 없이 안내한다", async () => {
+  const { p, s } = await setup()
+  for (const id of ["0", "-1", "abc", "9007199254740992"]) {
+    await p.goto(base + `/admin/reports/${id}`)
+    await p.getByText("올바른 신고 ID가 필요합니다.", { exact: true }).waitFor()
+  }
+  assert(!s.calls.some(c => c.path.startsWith("/api/v1/admin/reports")))
+})
+
+for (const status of [404, 401, 403, 500]) await run(`전용 상세 ${status} 오류 구분과 정보 보호`, async () => {
+  const { p, s } = await setup()
+  s.detail = r => r.fulfill(fail(status, status === 404 ? "REPORT_NOT_FOUND" : status === 401 ? "AUTHENTICATION_REQUIRED" : status === 403 ? "ADMIN_REQUIRED" : "ERROR"))
+  await p.goto(base + "/admin/reports/11")
+  if (status === 401 || status === 403) {
+    await p.getByRole("heading", { name: status === 401 ? "로그인이 필요합니다" : "관리자 권한이 없습니다.", exact: true }).waitFor()
+    assert.equal(await p.locator(".report-detail, .report-status-summary").count(), 0)
+  } else {
+    await p.getByText(status === 404 ? "신고 기록을 찾을 수 없습니다." : "신고 상세를 불러오지 못했습니다.", { exact: true }).waitFor()
+    assert.equal(await p.locator(".report-status-summary").count(), 0)
+    s.detail = null
+    await btn(p, "최신 정보 다시 조회").click(); await detail(p)
+  }
+  assert(!s.calls.some(c => c.path === "/api/v1/admin/reports"))
+})
+
+for (const action of ["resolve", "dismiss", "hide-and-resolve"]) await run(`전용 상세 ${action} 처리 후 결과·포커스·GET 복구`, async () => {
+  const { p, s } = await setup()
+  await p.goto(base + "/admin/reports/11"); await detail(p)
+  await btn(p, action === "resolve" ? "추가 조치 없이 처리 완료" : action === "dismiss" ? "신고 기각" : "숨김·처리 완료").click()
+  await p.getByLabel("처리 사유 (필수)").fill("전용 화면 검토 사유")
+  const g = gate()
+  s.detail = async r => { g.arrive(); await g.wait; return r.fulfill(fail(500, "ERROR")) }
+  await btn(p, action === "resolve" ? "처리 완료 확정" : action === "dismiss" ? "기각 확정" : "숨김·처리 완료 확정").click()
+  await g.arrived
+  await p.getByRole("heading", { name: "신고 처리 결과", exact: true }).waitFor()
+  assert(await p.getByRole("heading", { name: "신고 처리 결과", exact: true }).evaluate(e => e === document.activeElement))
+  assert.equal(new URL(p.url()).pathname, "/admin/reports/11")
+  assert.equal(await p.getByLabel("처리 사유 (필수)").count(), 0)
+  g.release()
+  await p.getByText("조치는 완료됐습니다. 최신 정보를 불러오지 못했습니다. 다시 조회해 주세요.", { exact: true }).waitFor()
+  assert.equal(await p.locator(".report-status-summary .report-badge").innerText(), action === "dismiss" ? "기각" : "처리 완료")
+  s.detail = null
+  await btn(p, "최신 정보 다시 조회").click(); await detail(p)
+  assert.equal(await p.locator(".report-status-summary .report-content-badge").innerText(), action === "hide-and-resolve" ? "숨김" : "정상")
+  assert.equal(posts(s).length, 1)
+  assert(!s.calls.some(c => c.path === "/api/v1/admin/reports"))
+  await p.reload(); await detail(p)
+  assert.equal(await p.getByLabel("처리 사유 (필수)").count(), 0)
+  await p.screenshot({ path: `${out}/standalone-result-${action}.png`, fullPage: true })
+})
+
+for (const id of [11, 12]) await run(`전용 상세 콘텐츠 관리 왕복 ${id} 최신 상태와 저장된 처리 결과 유지`, async () => {
+  const { p, s } = await setup()
+  const item = s.records.find(r => r.reportId === id)
+  Object.assign(item, { status: "RESOLVED", handlingOutcome: "CONTENT_HIDDEN", handledAt: stamp, handledByMemberId: 7, handlingReason: "숨김 당시 사유" })
+  item.currentTarget.hiddenAt = stamp
+  await p.goto(base + `/admin/reports/${id}`); await detail(p)
+  await p.getByRole("link", { name: id === 11 ? "게시글 관리로 이동" : "신고된 댓글 관리로 이동", exact: true }).click()
+  await p.waitForURL(u => u.pathname === `/admin/${id === 11 ? "posts/71" : "comments/82"}`)
+  assert.equal(new URL(p.url()).searchParams.get("from"), `/admin/reports/${id}`)
+  await btn(p, id === 11 ? "게시글 숨김 해제" : "댓글 #82 숨김 해제").click()
+  await p.getByLabel("처리 사유 (필수)", { exact: true }).selectOption("OTHER")
+  await p.getByLabel("상세 사유", { exact: false }).fill("재검토 후 복원")
+  await btn(p, "숨김 해제 실행").click()
+  await btn(p, id === 11 ? "게시글 숨김 처리" : "댓글 #82 숨김 처리").waitFor()
+  await p.getByRole("link", { name: id === 12 ? "← 신고 #12로 돌아가기" : "← 신고 관리로", exact: true }).click(); await detail(p)
+  assert.equal(new URL(p.url()).pathname, `/admin/reports/${id}`)
+  assert.equal(await p.locator(".report-current-heading .report-content-badge").innerText(), "정상")
+  assert.equal(await p.getByText("처리 결과: 콘텐츠 숨김", { exact: true }).count(), 1)
+  assert.equal(posts(s).length, 0)
+  assert(!s.calls.some(c => c.path === "/api/v1/admin/reports"))
+})
+
+await run("전용 상세 입력 이탈 취소와 승인·뒤로가기 보호", async () => {
+  const { p } = await setup()
+  await p.goto(base + "/admin/posts/71?from=%2Fadmin%2Freports%2F11")
+  await p.getByRole("link", { name: "← 신고 관리로", exact: true }).click(); await detail(p)
+  await btn(p, "추가 조치 없이 처리 완료").click()
+  await p.getByLabel("처리 사유 (필수)").fill("아직 검토 중")
+  await p.getByRole("link", { name: "신고 목록 보기", exact: true }).click()
+  await btn(p, "계속 작성").click()
+  assert.equal(await p.getByLabel("처리 사유 (필수)").inputValue(), "아직 검토 중")
+  await p.goBack()
+  await btn(p, "계속 작성").click()
+  assert.equal(new URL(p.url()).pathname, "/admin/reports/11")
+  assert.equal(await p.getByLabel("처리 사유 (필수)").inputValue(), "아직 검토 중")
+  await p.getByRole("link", { name: "신고 목록 보기", exact: true }).click()
+  await btn(p, "입력 버리고 이동").click(); await ready(p)
+  assert.equal(new URL(p.url()).pathname, "/admin/reports")
+})
+
+await run("전용 상세 이전 신고 지연 응답은 새 신고에 반영되지 않는다", async () => {
+  const { p, s } = await setup()
+  await p.addInitScript(() => {
+    const original = fetch
+    window.fetch = (u, options) => original(u, String(u).endsWith("/admin/reports/11") ? { ...options, signal: undefined } : options)
+  })
+  const g = gate()
+  s.detail = async (r, u) => {
+    if (u.pathname.endsWith("/11")) { g.arrive(); await g.wait; return r.fulfill({ json: s.records[0] }) }
+    return r.fulfill({ json: s.records[1] })
+  }
+  await p.goto(base + "/admin/reports/11"); await g.arrived
+  // Use a real sidebar transition, then a new direct entry; no history mutation.
+  await p.locator(".admin-sidebar").getByRole("link", { name: "신고 관리", exact: true }).click(); await ready(p)
+  await p.getByRole("button", { name: /#12/ }).first().click(); await detail(p)
+  const finished = p.waitForEvent("requestfinished", { predicate: r => r.url().endsWith("/admin/reports/11") })
+  g.release(); await finished
+  await p.evaluate(() => new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r))))
+  assert.equal(await p.getByRole("heading", { name: "신고 #12 상세", exact: true }).count(), 1)
+  assert.equal(await p.getByRole("heading", { name: "신고 #11 상세", exact: true }).count(), 0)
+})
 
 await fs.writeFile(out + "/results.json", JSON.stringify(results, null, 2))
 await browser.close()

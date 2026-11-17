@@ -1,6 +1,6 @@
 "use client"
 import { useEffect, useState } from "react"
-import Link from "@/components/AppLink"
+import Link from "@/components/admin/AdminReportReturnLink"
 import { useAuth } from "@/components/AuthProvider"
 import { useNavigationRequest } from "@/components/NavigationGuard"
 import { AdminApiError } from "@/lib/admin-posts"
@@ -14,7 +14,7 @@ export default function AdminPostDetail(props: {postId:number;returnHref:string}
 }
 function DetailContent({postId,returnHref}: {postId:number;returnHref:string}) {
   const auth=useAuth(),scope=useNavigationRequest()
-  const originLabel = returnHref.split("?")[0] === "/admin/reports" ? "신고 관리" : returnHref.split("?")[0] === "/admin/operation-logs" ? "운영 기록" : "게시글 관리"
+  const originLabel = (returnHref.split("?")[0] === "/admin/reports" || returnHref.startsWith("/admin/reports/")) ? "신고 관리" : returnHref.split("?")[0] === "/admin/operation-logs" ? "운영 기록" : "게시글 관리"
   const { revision, readCurrent, locked, completed, open, deny: onForbidden } = useAdminModeration()
   const capture=auth.captureMemberRequest,memberId=auth.member!.memberId
   const [retry,setRetry]=useState(0)

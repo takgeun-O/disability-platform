@@ -26,7 +26,14 @@ export function adminListHref(query: AdminQuery, selected: number | null = null)
   return `/admin/posts?${params}`
 }
 export function adminReturnHref(value: unknown) {
-  // Only exact internal list paths are allowed. Never navigate to raw input.
+  const modalId = dashboardReturnReportId(value)
+  if (modalId !== null) return `/admin/reports/${modalId}?from=dashboard`
+  // Only canonical positive safe-integer detail paths and known lists are allowed.
+  if (typeof value === "string" && /^\/admin\/reports\/[1-9]\d*$/.test(value)) {
+    const id = adminSelectionId(value.slice("/admin/reports/".length))
+    if (id !== null) return `/admin/reports/${id}`
+  }
+  // Never navigate to raw input.
   if(typeof value !== "string" || !/^\/admin\/(posts|operation-logs|reports)(?:\?|$)/.test(value))return "/admin/posts"
   const url=new URL(value,"http://internal.invalid")
   if(url.origin!=="http://internal.invalid" || url.hash || !["/admin/posts","/admin/operation-logs","/admin/reports"].includes(url.pathname))return "/admin/posts"
@@ -59,4 +66,11 @@ export function adminSelectionId(value: unknown): number | null {
   if(typeof value!=="string" || !/^[1-9]\d*$/.test(value))return null
   const id=Number(value)
   return Number.isSafeInteger(id)?id:null
+}
+
+// A durable, exact internal return hint; hard entry still renders the detail page.
+export function dashboardReturnReportId(value: unknown): number | null {
+  if (typeof value !== "string") return null
+  const match = /^\/admin\/reports\/([1-9]\d*)\?from=dashboard$/.exec(value)
+  return match ? adminSelectionId(match[1]) : null
 }

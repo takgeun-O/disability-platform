@@ -61,7 +61,7 @@ const commentReads=s=>s.calls.filter(c=>/^\/api\/v1\/admin\/posts\/\d+\/comments
 const dialog=p=>p.getByRole('dialog')
 const openPost=async(p,id=101)=>{await p.goto(base+'/admin/posts');await ready(p);await select(p,id);await preview(p)}
 const openLog=async(p,id=203)=>{await p.goto(base+'/admin/operation-logs');await ready(p);await select(p,id,true);await singleReady(p)}
-const noOverflow=async p=>assert(await p.evaluate(()=>document.documentElement.scrollWidth<=innerWidth&&Array.from(document.querySelectorAll('.admin-content-dialog,.admin-dialog-body')).every(e=>e.scrollWidth<=e.clientWidth+1)))
+const noOverflow=async p=>assert(await p.evaluate(()=>document.documentElement.scrollWidth<=innerWidth&&Array.from(document.querySelectorAll('.admin-content-dialog,.admin-dialog-body,.admin-log-panel,.admin-log-panel-body')).every(e=>e.scrollWidth<=e.clientWidth+1)))
 const close=async p=>{await btn(p,'닫기').click();await dialog(p).waitFor({state:'detached'})}
 await run('followup uncertain close keeps recovery available without automatic POST',async()=>{
  const{p,context,s}=await setup()
@@ -76,25 +76,39 @@ await run('followup uncertain close keeps recovery available without automatic P
   assert.equal(s.calls.filter(c=>c.method==='POST'&&c.path.endsWith('/hide')).length,1)
  }finally{await context.close()}
 })
-await run('followup parent management retains comment conditions after changed=false',async()=>{
+await run('게시글 조치 changed=false 이후 댓글 검색과 페이지를 유지한다',async()=>{
  const{p,context,s}=await setup(),g=gate()
  try{
-  await openLog(p);await btn(p,'이 댓글 관리').click();await singleReady(p);await btn(p,'소속 게시글 보기').click();await preview(p);await btn(p,'댓글 관리로 이동').click();await commentReady(p)
+  await openPost(p);await btn(p,'댓글 관리로 이동').click();await commentReady(p)
   await p.getByLabel('댓글 본문 검색',{exact:true}).fill('현재');await btn(p,'댓글 검색').click();await commentReady(p)
   await p.locator('.admin-comment-results').waitFor();await p.getByRole('navigation',{name:'댓글 페이지'}).getByRole('button',{name:'다음',exact:true}).click();await commentReady(p)
-  s.commentDetail=async r=>{g.arrive();await g.wait;return r.fulfill({json:comment(900)})}
+  s.commentList=async (r,u,data)=>{g.arrive();await g.wait;return r.fulfill({json:data})}
+  // Another action already hid the same post; this response makes no further change.
+  s.posts[0]={...s.posts[0],status:'HIDDEN',hiddenAt:stamp}
   s.write=r=>r.fulfill({json:{postId:101,hidden:true,hiddenAt:stamp,changed:false}})
   await btn(p,'게시글 숨김 처리').click();await p.getByLabel('처리 사유 (필수)',{exact:true}).selectOption('SPAM_ADVERTISING');await btn(p,'숨김 처리 실행').click();await g.arrived
   assert.equal(await p.getByLabel('댓글 본문 검색',{exact:true}).inputValue(),'현재');g.release();await preview(p);await commentReady(p)
   assert.equal(await p.getByLabel('댓글 본문 검색',{exact:true}).inputValue(),'현재');assert.equal(new URLSearchParams(commentReads(s).at(-1).search).get('page'),'1')
  }finally{g.release();await context.close()}
 })
-await run('followup explicit close exits entire internal history before Back',async()=>{
+await run('운영 기록 패널 닫기와 뒤로가기·앞으로가기는 URL 선택과 일치한다',async()=>{
  const{p,context}=await setup()
  try{
-  await p.goto(base+'/admin/posts');await ready(p);await p.getByRole('link',{name:'운영 기록',exact:true}).click();await ready(p)
-  await select(p,203,true);await singleReady(p);await btn(p,'이 댓글 관리').click();await singleReady(p);await btn(p,'소속 게시글 보기').click();await preview(p)
-  await close(p);await ready(p);await p.goBack();await ready(p);assert.equal(await dialog(p).count(),0);assert.equal(new URL(p.url()).pathname,'/admin/posts')
+  await p.goto(base+'/admin/posts');await ready(p)
+  await p.getByRole('link',{name:'운영 기록',exact:true}).click();await ready(p)
+  await select(p,203,true);await singleReady(p)
+  assert.equal(await dialog(p).count(),0)
+  assert.equal(await btn(p,'댓글 #900 숨김 처리').isEnabled(),true)
+  await btn(p,'상세 닫기').click();await ready(p)
+  assert.equal(new URL(p.url()).searchParams.has('selected'),false)
+  assert.equal(await p.locator('.admin-preview-comment').count(),0)
+  assert(await selectRow(p,'기록 #203 상세').evaluate(e=>e===document.activeElement))
+  await p.goBack();await singleReady(p)
+  assert.equal(new URL(p.url()).searchParams.get('selected'),'203')
+  assert.equal(await dialog(p).count(),0)
+  await p.goForward();await ready(p)
+  assert.equal(new URL(p.url()).searchParams.has('selected'),false)
+  assert.equal(await p.locator('.admin-preview-comment').count(),0)
  }finally{await context.close()}
 })
 async function uncertain(p,s,status=500){
@@ -119,7 +133,7 @@ await run('followup uncertain Back confirm preserves recovery outside modal',asy
   assert((await p.locator('.admin-recovery').innerText()).includes('#101'));assert.equal(s.calls.filter(c=>c.method==='POST'&&c.path.endsWith('/hide')).length,1)
  }finally{await context.close()}
 })
-for(const width of [1440,320])await run(`followup compact comments and historical/current summary ${width}`,async()=>{
+for(const width of [1440,320])await run(`댓글 접기와 운영 기록 패널의 과거·현재 정보를 구분한다 ${width}`,async()=>{
  const{p,context,s}=await setup(width)
  try{
   s.posts[0].content='본문과 이모지 🦻\n'.repeat(80);await openPost(p);await btn(p,'댓글 관리로 이동').click();await commentReady(p)
@@ -127,26 +141,36 @@ for(const width of [1440,320])await run(`followup compact comments and historica
   const item=p.locator('[data-admin-comment-id="900"]');assert.equal(await item.getByText('기록 없음',{exact:true}).isVisible(),false)
   await item.locator('summary').focus();await p.keyboard.press('Enter');assert.equal(await item.getByText('기록 없음',{exact:true}).isVisible(),true)
   await noOverflow(p);await p.screenshot({path:`${out}/comments-expanded-${width}.png`});await item.locator('summary').press('Enter');await p.screenshot({path:`${out}/comments-collapsed-${width}.png`});await close(p)
-  await openLog(p);assert.equal(await p.getByText('기록 ID',{exact:true}).count(),0);assert.equal(await dialog(p).getByRole('heading',{name:'현재 댓글',exact:true}).count(),1);assert.equal(await p.getByText('조회한 현재 내용이며 조치 당시와 다를 수 있습니다.',{exact:true}).count(),1)
-  await noOverflow(p);await p.screenshot({path:`${out}/log-comment-${width}.png`});await close(p)
-  await select(p,201,true);await preview(p);assert.equal(await dialog(p).getByRole('heading',{name:'현재 게시글',exact:true}).count(),1);await noOverflow(p);await p.screenshot({path:`${out}/log-post-${width}.png`});await close(p)
+  await openLog(p);assert.equal(await p.getByText('기록 ID',{exact:true}).count(),0);assert.equal(await p.locator('.admin-log-panel').getByRole('heading',{name:'현재 댓글',exact:true}).count(),1);assert.equal(await p.getByText('조회한 현재 내용이며 조치 당시와 다를 수 있습니다.',{exact:true}).count(),1);assert.equal(await dialog(p).count(),0);assert.equal(await p.getByRole('region',{name:'당시 운영 조치',exact:true}).count(),1)
+  await noOverflow(p);await p.screenshot({path:`${out}/log-comment-${width}.png`});await btn(p,'상세 닫기').click();await ready(p)
+  await select(p,201,true);await preview(p);assert.equal(await p.locator('.admin-log-panel').getByRole('heading',{name:'현재 게시글',exact:true}).count(),1);await noOverflow(p);await p.screenshot({path:`${out}/log-post-${width}.png`});await btn(p,'상세 닫기').click();await ready(p)
   await uncertain(p,s);await btn(p,'닫기').click();await btn(p,'버리고 이동').click();await dialog(p).waitFor({state:'detached'});await ready(p);await p.screenshot({path:`${out}/uncertain-recovery-${width}.png`})
  }finally{await context.close()}
 })
-await run('followup close after reload does not assume previous list; forward can revisit closed flow',async()=>{
+await run('운영 기록 패널 새로고침·직접 진입 후 닫기는 목록 조건을 유지한다',async()=>{
  const{p,context}=await setup()
  try{
-  await openLog(p);await btn(p,'이 댓글 관리').click();await singleReady(p);await close(p);await ready(p)
-  await p.goForward();await singleReady(p);assert.equal(await dialog(p).count(),1)
-  await p.reload();await singleReady(p);await close(p);await ready(p);assert(!new URL(p.url()).searchParams.has('selected'))
-  await p.goto(base+'/admin/operation-logs?selected=203&view=manage&sort=OLDEST');await singleReady(p);await close(p);await ready(p);assert.equal(new URL(p.url()).searchParams.get('sort'),'OLDEST')
+  await openLog(p);await btn(p,'상세 닫기').click();await ready(p)
+  await p.goBack();await singleReady(p)
+  assert.equal(new URL(p.url()).searchParams.get('selected'),'203')
+  await p.reload();await singleReady(p)
+  await btn(p,'상세 닫기').click();await ready(p)
+  assert(!new URL(p.url()).searchParams.has('selected'))
+  assert.equal(await p.locator('.admin-preview-comment').count(),0)
+  await p.goBack();await singleReady(p);await p.goForward();await ready(p)
+  assert(!new URL(p.url()).searchParams.has('selected'))
+  await p.goto(base+'/admin/operation-logs?selected=203&sort=OLDEST');await singleReady(p)
+  await btn(p,'상세 닫기').click();await ready(p)
+  assert.equal(new URL(p.url()).searchParams.get('sort'),'OLDEST')
+  assert(!new URL(p.url()).searchParams.has('selected'))
+  assert.equal(await dialog(p).count(),0)
  }finally{await context.close()}
 })
 
-await run('followup parent comment action corrects last page without resetting applied keyword/status',async()=>{
+await run('댓글 조치로 마지막 페이지가 없어져도 검색어·상태를 유지하고 페이지를 보정한다',async()=>{
  const{p,context,s}=await setup()
  try{
-  await openLog(p);await btn(p,'이 댓글 관리').click();await singleReady(p);await btn(p,'소속 게시글 보기').click();await preview(p);await btn(p,'댓글 관리로 이동').click();await commentReady(p)
+  await openPost(p);await btn(p,'댓글 관리로 이동').click();await commentReady(p)
   await p.getByRole('checkbox',{name:'숨김',exact:true}).uncheck();await p.getByRole('checkbox',{name:'삭제',exact:true}).uncheck();await p.getByLabel('댓글 본문 검색',{exact:true}).fill('현재');await btn(p,'댓글 검색').click();await commentReady(p)
   await p.getByRole('navigation',{name:'댓글 페이지'}).getByRole('button',{name:'다음',exact:true}).click();await p.locator('[data-admin-comment-id="920"]').waitFor();await commentReady(p)
   await p.locator('[data-admin-comment-id="920"]').getByRole('button',{name:'댓글 #920 숨김 처리',exact:true}).click();await p.getByLabel('처리 사유 (필수)',{exact:true}).selectOption('SPAM_ADVERTISING');await btn(p,'숨김 처리 실행').click()
@@ -156,15 +180,15 @@ await run('followup parent comment action corrects last page without resetting a
   assert.equal(s.calls.filter(c=>c.method==='POST'&&c.path.endsWith('/hide')).length,1)
  }finally{await context.close()}
 })
-await run('followup parent anchor refresh failure keeps subtree and locks actions until retry',async()=>{
+await run('현재 부모 게시글 재조회 실패 시 댓글 조건과 하위 화면을 유지하고 조치를 잠근다',async()=>{
  const{p,context,s}=await setup()
  try{
-  await openLog(p);await btn(p,'이 댓글 관리').click();await singleReady(p);await btn(p,'소속 게시글 보기').click();await preview(p);await btn(p,'댓글 관리로 이동').click();await commentReady(p)
+  await openPost(p);await btn(p,'댓글 관리로 이동').click();await commentReady(p)
   await p.getByLabel('댓글 본문 검색',{exact:true}).fill('현재');await btn(p,'댓글 검색').click();await commentReady(p)
-  s.commentDetail=r=>r.fulfill({status:503,json:{code:'INTERNAL_SERVER_ERROR'}})
-  await btn(p,'게시글 숨김 처리').click();await p.getByLabel('처리 사유 (필수)',{exact:true}).selectOption('SPAM_ADVERTISING');await btn(p,'숨김 처리 실행').click();await btn(p,'댓글 정보 다시 시도').waitFor();await preview(p)
-  assert.equal(await p.getByLabel('댓글 본문 검색',{exact:true}).inputValue(),'현재');assert.equal(await btn(p,'게시글 숨김 해제').isDisabled(),true)
-  s.commentDetail=null;await btn(p,'댓글 정보 다시 시도').click();await btn(p,'게시글 숨김 해제').waitFor();await p.waitForFunction(()=>!Array.from(document.querySelectorAll('button')).find(b=>b.textContent==='게시글 숨김 해제')?.disabled)
+  s.detail=r=>r.fulfill({status:503,json:{code:'INTERNAL_SERVER_ERROR'}})
+  await btn(p,'게시글 숨김 처리').click();await p.getByLabel('처리 사유 (필수)',{exact:true}).selectOption('SPAM_ADVERTISING');await btn(p,'숨김 처리 실행').click();await btn(p,'게시글 다시 시도').waitFor();await preview(p)
+  assert.equal(await p.getByLabel('댓글 본문 검색',{exact:true}).inputValue(),'현재');assert.equal(await p.locator('.admin-preview-post .admin-moderation-primary').isDisabled(),true)
+  s.detail=null;await btn(p,'게시글 다시 시도').click();await btn(p,'게시글 숨김 해제').waitFor();await p.waitForFunction(()=>!Array.from(document.querySelectorAll('button')).find(b=>b.textContent==='게시글 숨김 해제')?.disabled)
   assert.equal(await p.getByLabel('댓글 본문 검색',{exact:true}).inputValue(),'현재')
  }finally{await context.close()}
 })

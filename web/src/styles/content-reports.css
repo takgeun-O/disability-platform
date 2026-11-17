@@ -134,3 +134,48 @@
 .report-status-summary .report-badge { margin:.25rem 0; white-space:nowrap; }
 .report-current-heading { display:flex; align-items:center; flex-wrap:wrap; gap:.5rem; }
 .report-status-freshness { color:#785000; background:#fff6e5; border-left:3px solid #c38a22; padding:.5rem .65rem; }
+
+/* Standalone detail shares content styles, not split-panel sizing or scrolling. */
+.report-page { max-width: 64rem; margin-inline: auto; }
+.report-page-navigation { display: flex; flex-wrap: wrap; gap: .8rem 1.5rem; margin-bottom: 1rem; }
+.report-page-navigation a { text-decoration: underline; }
+.report-page-content { padding: clamp(1rem, 3vw, 2rem); border: 1px solid #d6e3e9; border-radius: .8rem; background: white; min-width: 0; overflow-wrap: anywhere; }
+.report-page-content > .admin-heading { display: flex; flex-wrap: wrap; gap: 1rem; align-items: center; justify-content: space-between; }
+.report-page-content h1 { font-size: 1.6rem; }
+.report-page-content .report-detail section:last-child { border-bottom: 0; }
+
+/* Dashboard-only detail: one fixed heading and one scrolling content region. */
+.report-detail-modal.iyum-overlay { inset: 0; margin: auto; width: min(1060px, calc(100vw - 48px)); max-width: none; height: fit-content; max-height: min(90dvh, calc(var(--overlay-height, 100dvh) - 32px)); border-radius: 16px; overflow: hidden; }
+.report-detail-modal[open] { display: flex; flex-direction: column; }
+.report-modal-heading { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: .5rem; padding: 1rem 1.25rem; border-bottom: 1px solid #d6e3e9; flex: none; }
+.report-modal-heading h2 { font-size: 1.3rem; margin: 0; }
+.report-modal-heading > div { display: flex; gap: .5rem; flex-wrap: wrap; }
+.report-modal-body { overflow-y: auto; min-height: 0; padding: 1.25rem; overscroll-behavior: contain; }
+@media (max-width: 600px) {
+  .report-detail-modal.iyum-overlay { top: var(--overlay-top, 0px); bottom: auto; margin: 0; width: 100%; height: var(--overlay-height, 100dvh); max-height: var(--overlay-height, 100dvh); border-radius: 0; }
+  .report-modal-heading { padding: .6rem .75rem; }
+  .report-modal-heading h2 { font-size: 1.1rem; }
+  .report-modal-body { padding: .85rem; }
+}
+
+/* Report summary reuses dashboard card surfaces without changing the dashboard grid. */
+.report-summary { margin: 0 0 20px; min-width: 0; }
+.report-summary-heading { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 8px 16px; margin-bottom: 12px; }
+.report-summary-context, .report-summary-dates { display: flex; align-items: baseline; flex-wrap: wrap; gap: 4px 16px; }
+.report-summary-context { flex: 1; min-width: 0; }
+.report-summary-heading p { margin: 0; }
+.report-summary-heading button { flex-shrink: 0; }
+.report-summary-dates time { font-weight: 600; }
+.report-summary-heading p, .report-summary-status { color: #526c80; font-size: 14px; }
+.report-summary-status { margin: 8px 0 12px; }
+.report-summary .dashboard-error { margin-bottom: 12px; }
+.report-summary .dashboard-count { padding: 12px 16px; }
+.report-summary .dashboard-count.is-priority { padding-top: 9px; }
+.report-summary .dashboard-count dd:first-of-type { margin: 6px 0 2px; }
+.report-summary button[aria-disabled="true"] { opacity: .55; cursor: default; }
+.report-summary .report-summary-counts { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+@media (max-width: 900px) { .report-summary .report-summary-counts { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+@media (max-width: 600px) {
+  .report-summary .report-summary-counts { grid-template-columns: 1fr; }
+  .report-summary-context { flex-basis: 100%; }
+}

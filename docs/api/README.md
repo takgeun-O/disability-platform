@@ -2,7 +2,8 @@
 
 ## 관리자
 
-- [신고 목록·상세 조회](admin-report-read.md)
+- [대시보드 요약 및 처리 대기 신고](admin-dashboard.md)
+- [신고 요약·목록·상세 조회](admin-report-read.md)
 - [신고 처리 완료·기각](admin-report-handling.md)
 
 - [회원 목록·상세 조회](admin-member-read.md) — 읽기 전용 조회
