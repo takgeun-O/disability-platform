@@ -28,7 +28,9 @@ export default function AdminLogPanel({log,listHref,blocked,onClose,hidden,expan
   },[hidden,expanded])
   useLayoutEffect(()=>{
     if(!body.current)return
-    if(inlineTarget&&!wasAction.current){readScroll.current=body.current.scrollTop;body.current.scrollTop=0}
+    if(inlineTarget&&!wasAction.current){
+      readScroll.current=body.current.scrollTop;body.current.scrollTop=0
+    }
     if(!inlineTarget&&wasAction.current)body.current.scrollTop=readScroll.current
     wasAction.current=!!inlineTarget
   },[inlineTarget])
@@ -43,12 +45,14 @@ export default function AdminLogPanel({log,listHref,blocked,onClose,hidden,expan
     const workspace=node.querySelector<HTMLElement>('.admin-action-workspace')
     if(!body.current)return
     const px=(value:string)=>parseFloat(value)||0
-    const measure=()=>{
+    let revealFrame=0
+    const measure=(reveal=true)=>{
       if(hidden)return
       const box=getComputedStyle(node),bodyBox=getComputedStyle(body.current!)
       // The panel may start below the viewport top (e.g. compact detail).
-      // Use its actual available viewport, then subtract measured box-model costs.
-      const capacity=Math.max(0,window.innerHeight-Math.max(16,node.getBoundingClientRect().top)-16)
+      // Reading uses the available viewport; actions reserve the full viewport
+      // before bringing the panel to the top. Subtract measured box-model costs.
+      const capacity=Math.max(0,window.innerHeight-(inlineTarget?16:Math.max(16,node.getBoundingClientRect().top))-16)
       setPanelHeight(old=>old===capacity?old:capacity)
       if(!form||!reading||!workspace)return
       const space=getComputedStyle(workspace)
@@ -60,11 +64,21 @@ export default function AdminLogPanel({log,listHref,blocked,onClose,hidden,expan
         -form.getBoundingClientRect().height-px(space.rowGap)-px(space.paddingBottom)
       const height=reasonOpen||node.clientWidth<400||available<240?0:Math.floor(available)
       setReadHeight(old=>old===height?old:height)
+      // Summary/filter height and viewport changes must not strand a docked
+      // action form below the viewport. Reserve its height before scrolling.
+      if(!reveal)return
+      cancelAnimationFrame(revealFrame)
+      revealFrame=requestAnimationFrame(()=>{
+        if(!node.isConnected||hidden)return
+        const top=node.getBoundingClientRect().top
+        if(top>16)window.scrollBy({top:top-16,behavior:'instant'})
+      })
     }
-    const observer=new ResizeObserver(measure)
+    const observer=new ResizeObserver(()=>measure())
     for(const element of [form,history,header,node,workspace])if(element)observer.observe(element)
-    window.addEventListener('resize',measure);window.addEventListener('scroll',measure,{passive:true});measure()
-    return()=>{observer.disconnect();window.removeEventListener('resize',measure);window.removeEventListener('scroll',measure)}
+    const resized=()=>measure(),scrolled=()=>measure(false)
+    window.addEventListener('resize',resized);window.addEventListener('scroll',scrolled,{passive:true});measure()
+    return()=>{cancelAnimationFrame(revealFrame);observer.disconnect();window.removeEventListener('resize',resized);window.removeEventListener('scroll',scrolled)}
   },[inlineTarget,hidden,reasonOpen])
   const docked=!!inlineTarget&&readHeight>0
   useLayoutEffect(()=>{
