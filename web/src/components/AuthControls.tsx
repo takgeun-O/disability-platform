@@ -88,7 +88,7 @@ export default function AuthControls({ render, onLogoutSuccess, onCurrentPage }:
         ) : auth.status === 'authenticated' && auth.member ? (
           <>
             <span className="iyum-member-name"><span>{auth.member.nickname}</span><span className="iyum-member-honorific">님</span></span>
-            {auth.member.role === 'ADMIN' && !auth.pending && !auth.memberRequests.paused && <Link href="/admin/posts" onNavigate={event => { if (pathname === "/admin/posts") { event.preventDefault(); onCurrentPage?.(); } }} className="iyum-button" aria-current={pathname.startsWith('/admin') ? 'page' : undefined}>관리자</Link>}
+            {auth.member.role === 'ADMIN' && !auth.pending && !auth.memberRequests.paused && <Link href="/admin" onNavigate={event => { if (pathname === "/admin") { event.preventDefault(); onCurrentPage?.(); } }} className="iyum-button" aria-current={pathname.startsWith('/admin') ? 'page' : undefined}>관리자</Link>}
             <Link href="/mypage" onNavigate={event => { if (pathname === "/mypage") { event.preventDefault(); onCurrentPage?.(); } }} className="iyum-button iyum-mypage-link" aria-current={pathname === '/mypage' ? 'page' : undefined}>마이페이지</Link>
           </>
         ) : (

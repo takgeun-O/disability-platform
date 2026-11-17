@@ -1,14 +1,93 @@
-# 관리자 신고 목록·상세 조회 API
+# 관리자 신고 요약·목록·상세 조회 API
 
-현재 작업 트리의 `AdminReportReadController`, 조회 조건·서비스·저장소 및 응답 DTO 기준입니다. [신고 숨김·처리 완료·기각 API](admin-report-handling.md)를 별도로 제공합니다. [사용자 신고 접수](content-report-create.md)와 구분합니다.
+현재 작업 트리의 `AdminReportSummaryReadController`, `AdminReportReadController`, 조회 조건·서비스·저장소 및 응답 DTO 기준입니다. [신고 숨김·처리 완료·기각 API](admin-report-handling.md)를 별도로 제공합니다. [사용자 신고 접수](content-report-create.md)와 구분합니다.
 
 ## 인증 및 공통 정책
 
 - 관리자 로그인 세션 쿠키가 필요하며 GET에는 CSRF 토큰이 필요하지 않습니다. Bearer 인증을 사용하지 않습니다.
 - 현재 회원의 ACTIVE 상태, ADMIN 권한과 세션 credentialVersion을 검증합니다. 로그인 후 상태·권한·인증 버전 변경으로 기존 세션이 차단될 수 있습니다.
 - 성공 응답은 `Cache-Control: no-store`입니다. MVC 오류와 보안 필터 오류도 캐시 방지 정책을 적용하지만 헤더 전체 문자열은 같다고 보장하지 않습니다. CORS 거부는 공통 오류 JSON으로 보장하지 않습니다.
-- 날짜·시간 응답은 UTC ISO 8601입니다. 검색 날짜는 한국 시간(Asia/Seoul) 기준입니다.
+- 시각 응답은 UTC ISO 8601입니다. 검색 날짜와 요약 응답의 baseDate는 한국 시간(Asia/Seoul) 기준 날짜입니다.
 - 이 API는 관리자 전용입니다. 신고자 ID와 스냅샷을 일반 공개 응답으로 재노출하지 마세요. 이메일·비밀번호 해시·인증 버전은 응답에 없습니다.
+
+## 요약 `GET /api/v1/admin/reports/summary`
+
+신고 관리 화면의 전체 운영 요약입니다. 요청 파라미터와 요청 본문이 없습니다.
+목록의 필터·정렬·페이지 조건과 독립적으로 집계하며, 게시글·댓글 신고를 모두 포함합니다.
+동일 콘텐츠에 대한 여러 신고도 신고 한 건씩 각각 집계합니다. `/summary`는 고정 경로이며 기존 `/{reportId}` 상세 경로와 공존합니다.
+
+### 인증·응답
+
+- 관리자 로그인 세션 쿠키가 필요합니다. GET에는 CSRF 토큰이 필요하지 않습니다.
+- principal의 memberId와 credentialVersion으로 현재 ACTIVE 상태·인증 버전·ADMIN 역할을 집계 전에 검증합니다. 로그인 후 정보 변경으로 기존 세션이 차단될 수 있습니다.
+- 성공: **200 OK**, `Cache-Control: no-store`.
+- **401 AUTHENTICATION_REQUIRED**: 로그인 정보가 없거나 현재 세션이 유효하지 않음.
+- **403 ACCESS_DENIED**: Security의 관리자 권한 거부.
+- **403 ADMIN_REQUIRED**: 서비스의 관리자 권한 검증 실패.
+- MVC 오류도 `no-store`를 사용하며 보안 필터 오류 역시 `no-store`를 포함합니다. 전체 헤더 문자열이 같다고 보장하지 않습니다. CORS 거부는 `ApiErrorResponse` JSON을 보장하지 않습니다.
+- 오류 본문은 기존 `code`, `message`, `fieldErrors` 구조입니다. 메시지는 발생 계층에 따라 다를 수 있습니다.
+
+```json
+{
+  "code": "ADMIN_REQUIRED",
+  "message": "관리자 권한이 필요합니다.",
+  "fieldErrors": []
+}
+```
+
+### 필드 및 집계 기준
+
+아래 **모든 필드는 필수이며 null을 허용하지 않습니다**. 집계 대상이 없으면 숫자 0을 반환하고 필드를 생략하지 않습니다.
+
+| 필드 | 타입 | 의미 |
+| --- | --- | --- |
+| queriedAt | string / date-time | UTC ISO 8601 기준 시각. 집계 날짜 계산 기준 |
+| baseDate | string / date | queriedAt의 Asia/Seoul 날짜, yyyy-MM-dd |
+| counts | object | 전체 신고 집계, 필수·null 불가 |
+| counts.pendingReportCount | integer / int64, 최소 0 | 접수 날짜와 무관하게 현재 RECEIVED인 전체 신고 수 |
+| counts.todayReportCount | integer / int64, 최소 0 | createdAt 기준 오늘 접수 수. 현재 RECEIVED/RESOLVED/DISMISSED 상태와 무관 |
+| counts.todayHandledReportCount | integer / int64, 최소 0 | handledAt 기준 오늘 종결 수. RESOLVED·DISMISSED 포함, 접수 날짜와 무관 |
+
+화면의 `todayHandledReportCount` 문구는 **오늘 종결 신고**, 의미는 **처리 완료·기각 포함**입니다.
+예를 들어 어제 접수한 신고를 오늘 기각하면 오늘 접수 수에는 포함되지 않고 오늘 종결 수에는 포함됩니다.
+
+Clock에서 기준 시각을 한 번 읽어 queriedAt, baseDate와 기간을 계산합니다.
+오늘 기간은 **Asia/Seoul 오늘 시작 이상, 다음 날 시작 미만**입니다.
+2026-11-17 기준 UTC 범위는 `[2026-11-16T15:00:00Z, 2026-11-17T15:00:00Z)`입니다.
+queriedAt은 날짜 계산의 기준이며 **세 집계가 동일 DB 스냅샷이라는 보장은 없습니다**. 집계 쿼리 사이의 커밋으로 수치에 일시적인 차이가 있을 수 있습니다.
+
+현재 콘텐츠의 숨김·삭제 여부로 신고를 집계에서 제외하지 않습니다. 콘텐츠 상태와 신고 상태는 별개입니다.
+콘텐츠 숨김·복원·삭제만으로 신고 상태를 변경하지 않으며, 복원 후에도 종결된 신고와 저장된 처리 결과 이력은 유지됩니다.
+신고 처리 API는 선택한 신고 한 건에만 적용되고 같은 콘텐츠의 다른 신고를 일괄 종결하지 않습니다.
+기존 [대시보드 API](admin-dashboard.md)의 집계·응답 계약은 그대로입니다.
+
+### 정상 응답
+
+```json
+{
+  "queriedAt": "2026-11-17T03:00:00Z",
+  "baseDate": "2026-11-17",
+  "counts": {
+    "pendingReportCount": 7,
+    "todayReportCount": 3,
+    "todayHandledReportCount": 2
+  }
+}
+```
+
+### 집계 대상 없음
+
+```json
+{
+  "queriedAt": "2026-11-17T03:00:00Z",
+  "baseDate": "2026-11-17",
+  "counts": {
+    "pendingReportCount": 0,
+    "todayReportCount": 0,
+    "todayHandledReportCount": 0
+  }
+}
+```
 
 ## 목록 `GET /api/v1/admin/reports`
 

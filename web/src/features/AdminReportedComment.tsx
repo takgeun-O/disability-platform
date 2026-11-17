@@ -1,5 +1,5 @@
 "use client"
-import Link from "@/components/AppLink"
+import Link from "@/components/admin/AdminReportReturnLink"
 import AdminModeration from "@/components/admin/AdminModeration"
 import AdminCommentPreview from "@/components/admin/AdminCommentPreview"
 import { adminReturnHref, adminSelectionId } from "@/lib/admin-navigation"
@@ -8,8 +8,8 @@ import "@/styles/report-comment-management.css"
 export default function AdminReportedComment({ id, returnHref }: { id: number; returnHref: string }) {
   const safeReturn = adminReturnHref(returnHref)
   const url = new URL(safeReturn, "http://internal.invalid")
-  const fromReport = url.pathname === "/admin/reports"
-  const reportId = fromReport ? adminSelectionId(url.searchParams.get("selected")) : null
+  const fromReport = url.pathname === "/admin/reports" || url.pathname.startsWith("/admin/reports/")
+  const reportId = fromReport ? adminSelectionId(url.pathname.startsWith("/admin/reports/") ? url.pathname.slice("/admin/reports/".length) : url.searchParams.get("selected")) : null
   return <AdminModeration reportCommentContext={fromReport}>
     <section className="admin-panel report-comment-management">
       <header className="admin-heading">

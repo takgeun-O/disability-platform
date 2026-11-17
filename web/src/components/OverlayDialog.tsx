@@ -3,6 +3,60 @@
 import { useLayoutEffect, useRef, type ReactNode } from "react";
 import { useNavigationGuard } from "./NavigationGuard";
 
+// Dialogs share one document lock. Releasing an outer dialog during navigation
+// must not restore its body styles while an inner confirmation is still open.
+const openDialogs: HTMLDialogElement[] = [];
+let unlockDocument: (() => void) | null = null;
+const inactiveElements = new Map<HTMLElement, { inert: boolean; hidden: string | null }>();
+function updateInactiveBackground() {
+  for (const [element, saved] of inactiveElements) {
+    element.inert = saved.inert;
+    if (saved.hidden === null) element.removeAttribute("aria-hidden");
+    else element.setAttribute("aria-hidden", saved.hidden);
+  }
+  inactiveElements.clear();
+  let current: HTMLElement | undefined = openDialogs[openDialogs.length - 1];
+  while (current?.parentElement) {
+    for (const sibling of current.parentElement.children) {
+      if (!(sibling instanceof HTMLElement) || sibling === current) continue;
+      inactiveElements.set(sibling, { inert: sibling.inert, hidden: sibling.getAttribute("aria-hidden") });
+      sibling.inert = true;
+      sibling.setAttribute("aria-hidden", "true");
+    }
+    current = current.parentElement;
+    if (current === document.body) break;
+  }
+}
+function lockDialog(dialog: HTMLDialogElement) {
+  if (openDialogs.length === 0) {
+    const body = document.body, root = document.documentElement;
+    const scroll = { x: window.scrollX, y: window.scrollY };
+    const keys = ["position", "top", "left", "width", "paddingRight"] as const;
+    const saved = Object.fromEntries(keys.map(key => [key, body.style[key]]));
+    const overflow = root.style.overflow;
+    const gutter = window.innerWidth - root.clientWidth;
+    const padding = parseFloat(getComputedStyle(body).paddingRight);
+    root.style.overflow = "hidden";
+    Object.assign(body.style, { position: "fixed", top: `${-scroll.y}px`, left: `${-scroll.x}px`, width: "100%", paddingRight: `${padding + gutter}px` });
+    unlockDocument = () => {
+      for (const key of keys) body.style[key] = saved[key];
+      root.style.overflow = overflow;
+      window.scrollTo({ left: scroll.x, top: scroll.y, behavior: "instant" });
+    };
+  }
+  openDialogs.push(dialog);
+  updateInactiveBackground();
+}
+function unlockDialog(dialog: HTMLDialogElement) {
+  const index = openDialogs.indexOf(dialog);
+  if (index >= 0) openDialogs.splice(index, 1);
+  updateInactiveBackground();
+  if (openDialogs.length === 0) { unlockDocument?.(); unlockDocument = null; }
+}
+function isTopDialog(dialog: HTMLDialogElement) {
+  return openDialogs[openDialogs.length - 1] === dialog;
+}
+
 /** Native modal/inert behaviour; one form, one focus scope, one scroll lock. */
 export default function OverlayDialog({ children, titleId, descriptionId, className, onClose, initialFocus, returnFocus, mobileOnly = false, closeOnBackdropClick = true, closeOnNavigation = true, fallbackFocus }: {
   children: ReactNode; titleId: string; descriptionId?: string; className: string; onClose: () => void;
@@ -15,25 +69,15 @@ export default function OverlayDialog({ children, titleId, descriptionId, classN
   useLayoutEffect(() => {
     const dialog = dialogRef.current!;
     const previous = returnFocus ? document.querySelector<HTMLElement>(returnFocus) : document.activeElement as HTMLElement | null;
-    const body = document.body, root = document.documentElement;
-    const scroll = { x: window.scrollX, y: window.scrollY };
-    const keys = ["position", "top", "left", "width", "paddingRight"] as const;
-    const saved = Object.fromEntries(keys.map(key => [key, body.style[key]]));
-    const overflow = root.style.overflow;
-    const gutter = window.innerWidth - root.clientWidth;
-    const padding = parseFloat(getComputedStyle(body).paddingRight);
-    root.style.overflow = "hidden";
-    Object.assign(body.style, { position: "fixed", top: `${-scroll.y}px`, left: `${-scroll.x}px`, width: "100%", paddingRight: `${padding + gutter}px` });
+    lockDialog(dialog);
     let released = false;
     function release(restoreFocus: boolean) {
       if (released) return;
       released = true;
+      const wasTop = isTopDialog(dialog);
       dialog.close();
-      for (const key of keys) body.style[key] = saved[key];
-      root.style.overflow = overflow;
-      // Release synchronously BEFORE an approved route/history action runs.
-      window.scrollTo({ left: scroll.x, top: scroll.y, behavior: "instant" });
-      if (restoreFocus) { const destination = previous?.isConnected && previous.getClientRects().length ? previous : fallbackFocus ? document.querySelector<HTMLElement>(fallbackFocus) : null; destination?.focus({ preventScroll: true }); }
+      unlockDialog(dialog);
+      if (restoreFocus && wasTop) { const destination = previous?.isConnected && previous.getClientRects().length ? previous : fallbackFocus ? document.querySelector<HTMLElement>(fallbackFocus) : null; destination?.focus({ preventScroll: true }); }
     }
     function viewport() {
       const view = window.visualViewport;
@@ -57,13 +101,15 @@ export default function OverlayDialog({ children, titleId, descriptionId, classN
     };
   }, [subscribeNavigation, initialFocus, returnFocus, mobileOnly, closeOnNavigation, fallbackFocus]);
   return <dialog ref={dialogRef} className={`iyum-overlay ${className}`} aria-labelledby={titleId} aria-describedby={descriptionId}
-    onCancel={event => { event.preventDefault(); onClose(); }}
+    onCancel={event => { event.preventDefault(); event.stopPropagation(); if (isTopDialog(event.currentTarget)) onClose(); }}
     onClick={event => {
       if (!closeOnBackdropClick || event.target !== event.currentTarget) return;
       const box = event.currentTarget.getBoundingClientRect();
       if (event.clientX < box.left || event.clientX > box.right || event.clientY < box.top || event.clientY > box.bottom) onClose();
     }}
     onKeyDown={event => {
+      if (!isTopDialog(event.currentTarget)) return;
+      event.stopPropagation();
       if (event.key !== "Tab") return;
       const controls = Array.from(event.currentTarget.querySelectorAll<HTMLElement>(
         'a[href],button:not(:disabled),input:not(:disabled),textarea:not(:disabled),select:not(:disabled),summary,[tabindex]'
