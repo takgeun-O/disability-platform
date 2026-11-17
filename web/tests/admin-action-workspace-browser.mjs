@@ -13,7 +13,6 @@ const btn=(p,name)=>p.getByRole('button',{name,exact:true})
 const selectRow=(p,name)=>p.getByRole('row',{name,exact:true})
 const ready=p=>p.locator('.admin-results[aria-busy="false"]').waitFor()
 const preview=p=>p.locator('.admin-preview-post[aria-busy="false"]').waitFor()
-const gate=()=>{let arrive,release;return{arrived:new Promise(r=>arrive=r),wait:new Promise(r=>release=r),arrive:()=>arrive(),release:()=>release()}}
 async function setup(width=1440){
  const context=await browser.newContext({viewport:{width,height:1000}}),p=await context.newPage(),s={member:{...member},calls:[],errors:[],posts:[post(101),post(102,'HIDDEN'),post(103,'DELETED')],logs:[log(201),log(202),log(203,'COMMENT')],detail:null,list:null,commentDetail:null,commentList:null,write:null,comments:Array.from({length:21},(_,i)=>comment(900+i))}
  p.setDefaultTimeout(8000);p.on('pageerror',e=>s.errors.push(e.message))
@@ -21,6 +20,7 @@ async function setup(width=1440){
  await context.route('http://127.0.0.1:8082/**',async r=>{
   const u=new URL(r.request().url()),path=u.pathname,method=r.request().method();s.calls.push({path,search:u.search,method,payload:method==='POST'?r.request().postDataJSON():null})
   if(method==='OPTIONS')return r.fulfill({status:204,headers:{'access-control-allow-origin':base,'access-control-allow-credentials':'true','access-control-allow-methods':'GET, POST, OPTIONS','access-control-allow-headers':'content-type,x-csrf-token'}})
+  if(path==='/api/v1/admin/operation-logs/summary')return r.fulfill({json:{queriedAt:'2026-11-17T15:00:00Z',baseDate:'2026-11-18',counts:{totalOperationLogCount:3,todayOperationLogCount:3,todayHideCount:2,todayRestoreCount:1}}})
   if(path.endsWith('/auth/me'))return r.fulfill(s.member?{json:s.member}:{status:401,json:{code:'AUTHENTICATION_REQUIRED'}})
   if(path.endsWith('/csrf'))return r.fulfill({json:{headerName:'X-CSRF-TOKEN',token:'mock-only'}})
   if(path.endsWith('/login')){s.member={...member,memberId:99,nickname:'다른 관리자'};return r.fulfill({json:s.member})}
@@ -56,35 +56,34 @@ async function run(name,fn){if(process.env.TEST_FILTER&&!new RegExp(process.env.
 const singleReady=p=>p.locator('.admin-preview-comment[aria-busy="false"]').waitFor()
 const select=async(p,id,logs=false)=>selectRow(p,logs?`기록 #${id} 상세`:`게시글 #${id} 미리보기`).locator('.admin-badge').click()
 
-const dialog=p=>p.getByRole('dialog')
-const noOverflow=async p=>assert(await p.evaluate(()=>document.documentElement.scrollWidth<=innerWidth&&Array.from(document.querySelectorAll('.admin-content-dialog,.admin-dialog-body')).every(e=>e.scrollWidth<=e.clientWidth+1)))
-const close=async p=>{await btn(p,'닫기').click();await dialog(p).waitFor({state:'detached'})}
+const noOverflow=async p=>assert(await p.evaluate(()=>document.documentElement.scrollWidth<=innerWidth&&Array.from(document.querySelectorAll('.admin-content-dialog,.admin-dialog-body,.admin-log-panel,.admin-log-panel-body')).every(e=>e.scrollWidth<=e.clientWidth+1)))
 for(const width of [1440,320])for(const kind of ['POST','COMMENT'])for(const action of ['hide','restore'])await run(`action workspace ${width} ${kind} ${action}`,async()=>{
  const{p,context,s}=await setup(width)
  try{
   s.posts[0].status=action==='hide'?'VISIBLE':'HIDDEN';s.comments[0].status=action==='hide'?'VISIBLE':'HIDDEN'
   await p.goto(base+'/admin/operation-logs');await ready(p);await select(p,kind==='POST'?201:203,true);if(kind==='POST')await preview(p);else await singleReady(p)
-  await btn(p,kind==='POST'?'이 게시글 관리':'이 댓글 관리').click();if(kind==='POST')await preview(p);else await singleReady(p)
-  const label=kind==='POST'?'게시글':'댓글',operation=action==='hide'?'숨김 처리':'숨김 해제',trigger=btn(p,kind==='POST'?`게시글 ${operation}`:`댓글 #900 ${operation}`)
-  await trigger.click();const area=p.locator('.admin-action-workspace'),form=area.locator('.admin-inline-moderation'),body=p.locator('.admin-dialog-body'),field=form.getByLabel('처리 사유 (필수)',{exact:true}),submit=btn(p,`${operation} 실행`)
+  await p.locator('#admin-log-panel-title').waitFor()
+  const operation=action==='hide'?'숨김 처리':'숨김 해제',trigger=btn(p,kind==='POST'?`게시글 ${operation}`:`댓글 #900 ${operation}`)
+  await trigger.click();const area=p.locator('.admin-action-workspace'),form=area.locator('.admin-inline-moderation'),body=p.locator('.admin-log-panel-body'),field=form.getByLabel('처리 사유 (필수)',{exact:true}),submit=btn(p,`${operation} 실행`)
   await area.waitFor();assert.equal(await area.locator('.admin-full-content').textContent(),kind==='POST'?s.posts[0].content:s.comments[0].content)
   assert.equal(await btn(p,'댓글 관리로 이동').count(),0);assert.equal(await trigger.count(),0)
   const geometry=await area.evaluate(e=>{const a=e.querySelector('.admin-action-content').getBoundingClientRect(),b=e.querySelector('.admin-action-form').getBoundingClientRect();return{a:{x:a.x,y:a.y,width:a.width,right:a.right,bottom:a.bottom},b:{x:b.x,y:b.y,width:b.width}}})
-  if(width===1440){assert(geometry.a.right<geometry.b.x);assert(geometry.a.width/geometry.b.width>1.5);assert(Math.abs(geometry.a.y-geometry.b.y)<2)}else assert(geometry.b.y>=geometry.a.bottom)
+  assert(geometry.b.y>=geometry.a.bottom,'현재 우측 패널은 본문 다음에 조치 폼을 배치한다');assert(Math.abs(geometry.a.width-geometry.b.width)<2)
   await p.screenshot({path:`${out}/action-${kind}-${action}-${width}.png`})
-  if(width===1440){await body.evaluate(e=>e.scrollTop=450);assert(await field.evaluate(e=>{const r=e.getBoundingClientRect(),b=e.closest('.admin-dialog-body').getBoundingClientRect();return r.top>=b.top&&r.bottom<=b.bottom}));}
+  await field.focus();await p.waitForFunction(()=>{const e=document.querySelector('.admin-action-form select'),r=e.getBoundingClientRect(),b=e.closest('.admin-log-panel-body').getBoundingClientRect();return r.top>=b.top&&r.bottom<=Math.min(b.bottom,innerHeight)})
+  assert(await body.evaluate(e=>e.clientHeight>0))
   await submit.click();await form.getByText('처리 사유를 선택해 주세요.',{exact:true}).waitFor();assert(await field.evaluate(e=>e===document.activeElement));assert.equal(s.calls.filter(c=>c.method==='POST'&&/\/(hide|restore)$/.test(c.path)).length,0)
   await field.selectOption(action==='hide'?'PERSONAL_INFORMATION':'NO_VIOLATION')
   s.write=r=>r.fulfill({status:400,json:{code:'INVALID_REASON'}})
   for(let i=0;i<2;i++){await submit.click();await form.getByText('선택한 처리 사유를 확인해 주세요.',{exact:true}).waitFor();await p.waitForFunction(()=>document.querySelector('.admin-action-form select')===document.activeElement);assert.equal(await field.getAttribute('aria-invalid'),'true')}
-  await field.selectOption('OTHER');const detail=form.getByLabel('상세 사유 (필수)',{exact:true});await detail.fill('검토한 상세 내용');await submit.click();await form.getByText('상세 사유를 확인해 주세요. 앞뒤 공백을 제외하고 1~500자로 입력해 주세요.',{exact:true}).waitFor();assert(await detail.evaluate(e=>e===document.activeElement));
-  const metrics=await detail.evaluate(e=>{const b=e.closest('.admin-dialog-body').getBoundingClientRect(),r=e.getBoundingClientRect(),error=document.getElementById(e.getAttribute('aria-describedby').split(' ')[0]).getBoundingClientRect();return{top:r.top,bottom:error.bottom,bt:b.top,bb:b.bottom,scroll:scrollY,border:getComputedStyle(e).borderColor}})
-  assert(metrics.top>=metrics.bt&&metrics.bottom<=metrics.bb,JSON.stringify(metrics));assert.equal(metrics.scroll,0);assert.equal(metrics.border,'rgb(180, 35, 53)')
+  await field.selectOption('OTHER');const detail=form.getByLabel('상세 사유 (필수)',{exact:true});await detail.fill('검토한 상세 내용');await p.evaluate(()=>new Promise(r=>requestAnimationFrame(()=>requestAnimationFrame(r))));const documentPosition=await p.evaluate(()=>scrollY);await submit.click();await form.getByText('상세 사유를 확인해 주세요. 앞뒤 공백을 제외하고 1~500자로 입력해 주세요.',{exact:true}).waitFor();assert(await detail.evaluate(e=>e===document.activeElement));
+  const metrics=await detail.evaluate(e=>{const b=e.closest('.admin-log-panel-body').getBoundingClientRect(),r=e.getBoundingClientRect(),error=document.getElementById(e.getAttribute('aria-describedby').split(' ')[0]).getBoundingClientRect();return{top:r.top,bottom:error.bottom,bt:b.top,bb:b.bottom,scroll:scrollY,border:getComputedStyle(e).borderColor}})
+  assert(metrics.top>=metrics.bt&&metrics.bottom<=metrics.bb,JSON.stringify(metrics));assert.equal(metrics.scroll,documentPosition);assert.equal(metrics.border,'rgb(180, 35, 53)')
   await noOverflow(p);await p.screenshot({path:`${out}/server-error-${kind}-${action}-${width}.png`})
   s.write=null;await detail.fill('최종 확인한 상세 내용');await submit.click();await area.waitFor({state:'detached'});if(kind==='POST')await preview(p);else await singleReady(p)
   const marker=p.locator(`[data-moderation-location="101:${kind==='POST'?'post':900}"]`);await marker.getByRole('status').waitFor();await p.waitForFunction(()=>document.activeElement?.hasAttribute('data-moderation-location'))
   assert.equal(await marker.getAttribute('data-moderation-location'),await p.evaluate(()=>document.activeElement.getAttribute('data-moderation-location')))
-  await p.screenshot({path:`${out}/completed-${kind}-${action}-${width}.png`});await btn(p,'운영 기록으로 돌아가기').click();await dialog(p).getByRole('heading',{name:kind==='POST'?'운영 기록 · #201':'운영 기록 · #203',exact:true}).waitFor()
+  await p.screenshot({path:`${out}/completed-${kind}-${action}-${width}.png`});await btn(p,'상세 닫기').click();await p.locator('#admin-log-panel-title').waitFor({state:'detached'});assert(await p.locator(`[data-log-id="${kind==='POST'?201:203}"]`).evaluate(e=>e===document.activeElement))
  }finally{await context.close()}
 })
 for(const width of [1440,320])await run(`comment list location filter and cancel ${width}`,async()=>{

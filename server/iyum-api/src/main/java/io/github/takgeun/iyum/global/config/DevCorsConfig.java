@@ -313,6 +313,11 @@ public class DevCorsConfig {
                 adminOperationLogReadCors
         );
 
+        source.registerCorsConfiguration(
+                "/api/v1/admin/operation-logs/summary",
+                adminOperationLogReadCors
+        );
+
         // 관리자 회원 목록·상세 조회
         CorsConfiguration adminMemberReadCors =
                 new CorsConfiguration(cors);

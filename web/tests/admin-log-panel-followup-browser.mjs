@@ -19,6 +19,7 @@ async function setup(width=1440){
  await context.route('http://127.0.0.1:8082/**',async r=>{
   const u=new URL(r.request().url()),path=u.pathname,method=r.request().method();s.calls.push({path,search:u.search,method,payload:method==='POST'?r.request().postDataJSON():null})
   if(method==='OPTIONS')return r.fulfill({status:204,headers:{'access-control-allow-origin':base,'access-control-allow-credentials':'true','access-control-allow-methods':'GET, POST, OPTIONS','access-control-allow-headers':'content-type,x-csrf-token'}})
+  if(path==='/api/v1/admin/operation-logs/summary')return r.fulfill({json:{queriedAt:'2026-11-17T15:00:00Z',baseDate:'2026-11-18',counts:{totalOperationLogCount:3,todayOperationLogCount:3,todayHideCount:2,todayRestoreCount:1}}})
   if(path.endsWith('/auth/me'))return r.fulfill(s.member?{json:s.member}:{status:401,json:{code:'AUTHENTICATION_REQUIRED'}})
   if(path.endsWith('/csrf'))return r.fulfill({json:{headerName:'X-CSRF-TOKEN',token:'mock-only'}})
   if(path.endsWith('/login')){s.member={...member,memberId:99,nickname:'다른 관리자'};return r.fulfill({json:s.member})}
@@ -197,6 +198,17 @@ await run('resized textarea history and server error keep actions accessible',as
  const {p,context,s}=await setup(1920)
  try{
   await p.setViewportSize({width:1920,height:1080});await selectTarget(p,'COMMENT');await reason(p).selectOption('OTHER');await p.locator('textarea').fill('확인한 상세 내용');
+  // Wait for ResizeObserver layout before grabbing the native handle. The
+  // summary changes the initial scroll position; dragging a stale box misses it.
+  await p.locator('textarea').scrollIntoViewIfNeeded()
+  assert(await p.locator('textarea').evaluate(e=>new Promise(resolve=>{
+   let previous='',stable=0,frames=0
+   const sample=()=>{const r=e.getBoundingClientRect(),box=JSON.stringify([r.x,r.y,r.width,r.height]);stable=box===previous?stable+1:0;previous=box
+    if(stable>=3)return resolve(r.top>=0&&r.bottom<=innerHeight)
+    if(++frames>=60)return resolve(false)
+    requestAnimationFrame(sample)
+   };requestAnimationFrame(sample)
+  })),'native resize handle is visible and settled')
   // Native textarea resize handle, not a style mutation.
   const area=await p.locator('textarea').boundingBox();await p.mouse.move(area.x+area.width-5,area.y+area.height-5);await p.mouse.down();await p.mouse.move(area.x+area.width-5,area.y+area.height+180,{steps:12});await p.mouse.up();assert((await p.locator('textarea').boundingBox()).height>area.height+100,'native textarea resizing increased actual height');
   await reachActions(p)
@@ -269,6 +281,6 @@ await run('resize keeps active invalid detail ahead of reading restoration',asyn
    assert.equal(await field.inputValue(),'   ')
   }
   await p.screenshot({path:out+'/error-resize.png'});await field.fill('내용을 확인한 처리 사유');await reachActions(p);await p.keyboard.press('Enter');await p.locator('.admin-action-workspace').waitFor({state:'detached'});assert.equal(countWrites(s),1)
- }finally{await context.close()}
+ }finally{await p.screenshot({path:out+'/error-resize-final.png'});console.log('invalid detail bounds',await p.evaluate(()=>{const e=document.querySelector('textarea'),b=e?.closest('.admin-log-panel-body');return {field:e?.getBoundingClientRect().toJSON(),body:b?.getBoundingClientRect().toJSON(),active:document.activeElement?.tagName,scroll:scrollY,inner:innerHeight,docked:document.querySelector('.admin-log-panel')?.dataset.docked,error:document.querySelector('.admin-inline-moderation [role=alert]')?.getBoundingClientRect().toJSON()}}));await context.close()}
 })
 await fs.writeFile(out+'/results.json',JSON.stringify(results,null,2));await browser.close();console.log(`${results.filter(x=>x.passed).length}/${results.length} passed`);if(results.some(x=>!x.passed))process.exitCode=1

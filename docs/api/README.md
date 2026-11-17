@@ -15,6 +15,7 @@
 - [게시글·댓글 다중 상태 필터](admin-content-status-filter.md)
 - [댓글 목록 조회](admin-comment-read.md)
 - [댓글 단건 조회](admin-comment-detail-read.md)
+- [운영 기록 전체 요약](admin-operation-summary.md)
 - [운영 기록 조회](../Admin-Operation-Log-API.md)
 
 ## 커뮤니티·내 활동

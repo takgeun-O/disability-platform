@@ -2,7 +2,7 @@
 import { usePathname, useSearchParams } from "next/navigation"
 import type { ModerationTarget } from "@/lib/admin-moderation"
 import { isAdminRowSelection, isAdminRowKeyboardSelection } from "@/lib/admin-row-selection"
-import { useEffect, useLayoutEffect, useRef, useState } from "react"
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react"
 import { useAuth } from "@/components/AuthProvider"
 import { useNavigationRequest } from "@/components/NavigationGuard"
 import Link from "@/components/AppLink"
@@ -17,10 +17,21 @@ import { AdminApiError } from "@/lib/admin-posts"
 import { writtenTime } from "@/lib/written-time"
 import { DEFAULT_LOG_QUERY, LOG_SORTS, LOG_TARGETS, LOG_ACTIONS, getOperationLogs, logFilterError, type LogFilters, type LogQuery, type OperationLog, type OperationLogPage } from "@/lib/admin-operation-logs"
 import "@/styles/admin-operation-logs.css"
+import AdminOperationSummary, { useOperationSummary } from "@/components/admin/AdminOperationSummary"
 
 import { MODERATION_REASONS, isModerationReasonType } from "@/lib/moderation-reasons"
 
 export default function AdminOperationLogs() {
+  const auth = useAuth(), actor = auth.member!.memberId, capture = auth.captureMemberRequest
+  const [denied, setDenied] = useState(false)
+  const deny = useCallback(() => setDenied(true), [])
+  const protect = useCallback((failure: unknown) => {
+    if (!(failure instanceof AdminApiError)) return false
+    if (failure.status === 401) { capture(actor).expire(); return true }
+    if (failure.status === 403) { deny(); return true }
+    return false
+  }, [actor, capture, deny])
+  const summary = useOperationSummary(protect)
   const {values,navigation}=useAdminUrlQuery()
   const url=usePathname()+"?"+useSearchParams().toString()
   const [entry,setEntry]=useState({url,navigation})
@@ -28,7 +39,12 @@ export default function AdminOperationLogs() {
   // may remount the list. Remounting at approval could overwrite the destination URL.
   if(entry.url!==url)setEntry({url,navigation})
   const [recovery,setRecovery]=useState<ModerationTarget|null>(null)
-  return <AdminModeration inline exitDialog recovery={recovery} onRecovery={setRecovery} key={entry.navigation}><OperationLogResults initialQuery={adminLogQuery(values)} initialSelected={adminSelectionId(values.selected)} /></AdminModeration>
+  if (denied) return <div role="alert"><h1>관리자 권한이 없습니다</h1><p>이전 운영 기록 정보는 제거되었습니다.</p></div>
+  return <div className="admin-operation-summary-view">
+    <header className="admin-heading"><h1 tabIndex={-1} data-admin-list-heading>운영 기록</h1><p>게시글과 댓글의 숨김·복원 처리 내역을 확인하세요.</p></header>
+    <AdminOperationSummary {...summary} />
+    <AdminModeration inline exitDialog onSuccess={summary.refresh} onDenied={deny} recovery={recovery} onRecovery={setRecovery} key={entry.navigation}><OperationLogResults initialQuery={adminLogQuery(values)} initialSelected={adminSelectionId(values.selected)} /></AdminModeration>
+  </div>
 }
 function OperationLogResults({initialQuery,initialSelected}:{initialQuery:LogQuery;initialSelected:number|null}) {
   const auth = useAuth(), scope = useNavigationRequest()
@@ -112,7 +128,6 @@ function OperationLogResults({initialQuery,initialSelected}:{initialQuery:LogQue
   const filtered = !!displayQuery.reasonType || displayQuery.targetType !== "ALL" || displayQuery.action !== "ALL" || !!displayQuery.startDate || !!displayQuery.endDate
   const sortControl = <div className="admin-sort-control"><label htmlFor="admin-log-sort">처리 시각 정렬</label><select id="admin-log-sort" value={query.sort} onChange={e=>{const sort=e.target.value;if(sort==="LATEST"||sort==="OLDEST")change({...query,sort,page:0})}}>{Object.entries(LOG_SORTS).map(([value,label])=><option key={value} value={value}>{label}</option>)}</select></div>
   return <div className="admin-operation-view">
-    <header className="admin-heading"><h1 tabIndex={-1} data-admin-list-heading>운영 기록</h1><p>게시글과 댓글의 숨김·복원 처리 내역을 확인하세요.</p></header>
     {!selectedId&&recoveryFeedback}<section ref={workspace} className="admin-panel admin-workspace" aria-label="운영 기록 조회">
       <div className="admin-compact-toolbar" hidden={showingDetail}><form className="admin-filters admin-log-filters" noValidate onSubmit={event => {
         event.preventDefault()
