@@ -3,6 +3,8 @@ import HomeSearch from '@/components/HomeSearch';
 import DeadlinePanel from '@/components/DeadlinePanel';
 import Link from '@/components/AppLink';
 
+import { searchHref } from '@/lib/community-posts';
+
 const COMMUNITY_POSTS = [
   { id: 1, title: '보청기 보험 급여 기준 바뀐 거 아시나요?', category: '복지·제도', date: '2026.08.14', comments: 12 },
   { id: 2, title: '서울 강남구 청각장애인 수화통역 서비스 후기', category: '병원·기관 후기', date: '2026.08.13', comments: 7 },
@@ -34,7 +36,7 @@ export default function HomePage() {
         <p className="iyum-hero-intro">복잡한 정보는 쉽게, 필요한 경험은 가까이.</p>
         <HomeSearch />
         <div className="iyum-suggestions"><span>추천 검색어</span>
-          {['보청기 지원', '첫 착용', '센터 방문'].map(query => <Link key={query} href={`/search?q=${encodeURIComponent(query)}&area=전체`}>{query}</Link>)}
+          {['보청기 지원', '첫 착용', '센터 방문'].map(query => <Link key={query} href={searchHref(query)}>{query}</Link>)}
         </div>
       </div>
     </section>

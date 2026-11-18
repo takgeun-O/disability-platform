@@ -630,6 +630,102 @@ class PostReadServiceTest {
         verifyNoInteractions(commentRepository);
     }
 
+    @Test
+    void 검색어의_앞뒤_공백을_제거하고_검색된_글만_댓글_집계에_전달한다() {
+        clearInvocations(commentRepository);
+
+        Page<PostSummaryResult> result = postReadService.getPosts(
+                PostType.QUESTION,
+                PostTopic.HEARING_AID,
+                "  첫 번째 줄  ",
+                0,
+                20,
+                null
+        );
+
+        assertThat(result.getContent())
+                .extracting(PostSummaryResult::postId)
+                .containsExactly(firstQuestionId);
+
+        assertThat(result.getTotalElements()).isEqualTo(1);
+
+        assertThat(result.getContent().getFirst().matchedContentExcerpt())
+                .isEqualTo("첫 번째 줄\n두 번째 줄");
+
+        verify(commentRepository)
+                .countVisibleCommentsByPostIds(List.of(firstQuestionId));
+    }
+
+    @Test
+    void 검색어가_공백뿐이면_유형과_주제에_맞는_전체_목록을_반환한다() {
+        Page<PostSummaryResult> result = postReadService.getPosts(
+                PostType.QUESTION,
+                PostTopic.HEARING_AID,
+                " \t ",
+                0,
+                20,
+                null
+        );
+
+        assertThat(result.getContent())
+                .extracting(PostSummaryResult::postId)
+                .containsExactlyInAnyOrder(
+                        firstQuestionId,
+                        secondQuestionId
+                );
+
+        assertThat(result.getContent())
+                .allSatisfy(post ->
+                        assertThat(post.matchedContentExcerpt()).isNull()
+                );
+
+        assertThat(result.getTotalElements()).isEqualTo(2);
+    }
+
+    @Test
+    void 검색어가_100코드포인트를_초과하면_검색어_오류를_반환한다() {
+        String keyword = "가".repeat(101);
+
+        assertThatThrownBy(() ->
+                postReadService.getPosts(
+                        null,
+                        null,
+                        keyword,
+                        0,
+                        20,
+                        null
+                )
+        ).isInstanceOfSatisfying(
+                PostReadException.class,
+                exception -> assertThat(exception.getCode())
+                        .isEqualTo(
+                                PostReadException.Code.INVALID_SEARCH_KEYWORD
+                        )
+        );
+    }
+
+    @Test
+    void 제목으로_검색된_글도_본문에_검색어가_있을_때만_발췌문을_반환한다() {
+        Page<PostSummaryResult> result = postReadService.getPosts(
+                PostType.QUESTION,
+                PostTopic.HEARING_AID,
+                "질문",
+                0,
+                20,
+                null
+        );
+
+        assertThat(result.getContent())
+                .extracting(
+                        PostSummaryResult::postId,
+                        PostSummaryResult::matchedContentExcerpt
+                )
+                .containsExactlyInAnyOrder(
+                        tuple(firstQuestionId, null),
+                        tuple(secondQuestionId, "두 번째 질문의 본문")
+                );
+    }
+
     private void assertInvalidFeedCursor(
             Instant createdAt,
             Long postId

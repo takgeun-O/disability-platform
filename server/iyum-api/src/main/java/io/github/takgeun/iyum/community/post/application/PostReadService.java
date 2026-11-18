@@ -6,6 +6,7 @@ import io.github.takgeun.iyum.community.post.domain.Post;
 import io.github.takgeun.iyum.community.post.domain.PostTopic;
 import io.github.takgeun.iyum.community.post.domain.PostType;
 import io.github.takgeun.iyum.community.post.infrastructure.PostRepository;
+import io.github.takgeun.iyum.community.post.infrastructure.PostSearchRow;
 import jakarta.annotation.Nullable;
 import jakarta.validation.constraints.Null;
 import lombok.RequiredArgsConstructor;
@@ -41,28 +42,48 @@ public class PostReadService {
             int size,
             @Nullable Long viewerId
     ) {
-        validatePage(page, size);
-
-        PageRequest pageable = PageRequest.of(page, size);
-
-        Page<Post> posts = postRepository.findVisiblePosts(
+        return getPosts(
                 type,
                 topic,
+                null,
+                page,
+                size,
+                viewerId
+        );
+    }
+
+    public Page<PostSummaryResult> getPosts(
+            @Nullable PostType type,
+            @Nullable PostTopic topic,
+            @Nullable String keyword,
+            int page,
+            int size,
+            @Nullable Long viewerId
+    ) {
+        validatePage(page, size);
+
+        String normalizedKeyword = PostSearchKeyword.normalize(keyword);
+        PageRequest pageable = PageRequest.of(page, size);
+
+        Page<PostSearchRow> rows = postRepository.findVisiblePostSearchRows(
+                type,
+                topic,
+                normalizedKeyword,
                 pageable
         );
 
         // 현재 페이지에 게시글이 없으면 댓글 집계 쿼리 실행 X
         // 원래 Page의 전체 개수와 페이지 정보는 그대로 유지
-        if (!posts.hasContent()) {
-            return posts.map(
-                    post -> PostSummaryResult.from(post, 0L, 0L, false)
+        if (!rows.hasContent()) {
+            return rows.map(
+                    row -> PostSummaryResult.from(row.getPost(), 0L, 0L, false)
             );
         }
 
         // 현재 페이지에 포함된 게시글 ID만 추출한다.
-        List<Long> postIds = posts.getContent()
+        List<Long> postIds = rows.getContent()
                 .stream()
-                .map(Post::getId)
+                .map(row -> row.getPost().getId())
                 .toList();
 
         // 게시글마다 조회하지 않고 한번에 집계한다.
@@ -82,17 +103,34 @@ public class PostReadService {
         Map<Long, PostLikeState> likeStates =
                 postLikeReadService.getStates(postIds, viewerId);
 
-        return posts.map(post -> {
+        int keywordCodePointCount = normalizedKeyword == null
+                ? 0
+                : normalizedKeyword.codePointCount(0, normalizedKeyword.length());
+
+        // 제목 일치 여부를 검사할 필요 없음.
+        // 제목과 본문에 모두 검색어가 있으면 본문 발췌가 생성되고
+        // 제목에만 있으면 DB가 반환한 본문 위치가 0이어서 발췌문은 null
+        // 또한 이미 조회한 Post를 사용하므로 게시글별 상세 조회도 필요 없음
+        return rows.map(row -> {
+            Post post = row.getPost();
+
             PostLikeState likeState = likeStates.getOrDefault(
                     post.getId(),
                     PostLikeState.EMPTY
+            );
+
+            String matchedContentExcerpt = PostSearchExcerpt.fromBodyMatchPosition(
+                    post.getContent(),
+                    row.getBodyMatchPosition(),
+                    keywordCodePointCount
             );
 
             return PostSummaryResult.from(
                     post,
                     commentCounts.getOrDefault(post.getId(), 0L),
                     likeState.likeCount(),
-                    likeState.liked()
+                    likeState.liked(),
+                    matchedContentExcerpt
             );
         });
     }

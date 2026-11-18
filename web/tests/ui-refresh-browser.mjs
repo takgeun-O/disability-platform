@@ -55,7 +55,7 @@ try {
     assert.equal(await page.locator('.iyum-brand-symbol').count(), 2);
     assert.equal(await page.locator('.iyum-guide-art').count(), 2);
     assert(await page.getByRole('heading', { level: 1 }).isVisible());
-    assert(await page.getByRole('searchbox', { name: '통합 검색' }).isVisible());
+    assert(await page.getByRole('searchbox', { name: '커뮤니티 게시글 검색' }).isVisible());
   });
   await shot('after-home-1440', true); await shot('after-home-1440-top');
   await check('마감 공고 빈 상태가 기본·가상 항목은 명시적으로 펼쳐 보기', async () => {
@@ -78,13 +78,13 @@ try {
     await page.keyboard.press('Space'); await page.locator('#shortcuts-heading').click();
     assert.equal(await button.getAttribute('aria-expanded'), 'false');
   });
-  await check('빈 검색 오류·초점 및 기존 쿼리 경로 유지·예시 결과 안내', async () => {
+  await check('빈 검색 오류·초점 및 기존 쿼리 경로 유지·검색 범위 안내', async () => {
     await page.getByRole('button', { name: '검색', exact: true }).click();
     assert.equal(await page.locator('#hero-search').getAttribute('aria-invalid'), 'true');
     assert(await page.locator('#hero-search').evaluate(el => el === document.activeElement));
     await page.locator('#hero-search').fill('보청기 지원'); await page.keyboard.press('Enter'); await page.waitForURL('**/search?**');
     assert.equal(new URL(page.url()).searchParams.get('q'), '보청기 지원');
-    assert(await page.locator('.iyum-search-results-notice').isVisible());
+    assert(await page.getByText('커뮤니티 게시글의 제목과 본문을 검색합니다.').isVisible());
   });
   await page.setViewportSize({ width: 390, height: 844 }); await visit();
   await check('390px 바로가기→마감→커뮤니티→가이드 순서와 넘침 없음', async () => {

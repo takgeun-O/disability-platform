@@ -15,6 +15,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.Clock;
 import java.time.Instant;
 
 /**
@@ -31,6 +32,7 @@ public class PostModerationService {
     private final MemberRepository memberRepository;
     private final PostRepository postRepository;
     private final ContentModerationLogRepository logRepository;
+    private final Clock clock;
 
     // 여기서 회원ID와 인증 버전은 컨트롤러의 MemberPrincipal로부터 전달 받음
     // 요청 본문이나 쿼리 파라미터로 받지 않도록 주의
@@ -172,7 +174,7 @@ public class PostModerationService {
         }
 
         // 숨김 시각과 이력의 처리 시각에 같은 값을 사용한다.
-        Instant now = Instant.now();
+        Instant now = clock.instant();
 
         boolean changed = switch (action) {
             case HIDE -> post.hide(now);

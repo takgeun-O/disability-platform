@@ -29,35 +29,75 @@ public interface PostRepository extends JpaRepository<Post, Long> {
     //  type == QUESTION : 질문 글만 조회
     //
     // join fetch p.author : 게시글 가져올 때 작성자 엔티티도 함께 가져오기 (목록을 받은 뒤 작성자 닉네임을 읽을 때 추가 조회가 이어지는 상황 방지)
-    @Query(
-            value = """
-                    select p
-                    from Post p
-                    join fetch p.author
-                    where p.deletedAt is null
-                      and p.hiddenAt is null
-                      and (:type is null or p.type = :type)
-                      and (:topic is null or p.topic = :topic)
-                    order by p.createdAt desc, p.id desc
-                    """,
-            // Page에는 게시글 목록 뿐만 아니라 페이지 정보도 들어있음.
-            // 전체 개수를 알아야 하므로 필요한 경우 countQuery를 실행한다.
-            // 다만 Spring Data는 결과만으로 전체 개수를 알 수 있으면 개수 조회를 생략하기도 함.
-            // 그리고 중요한 것은 목록 쿼리와 개수 쿼리에 동일한 필터를 적용한 것
-            // 그래야 목록에서 삭제된 글을 제외했는데 개수에는 포함되면 화면에 잘못된 전체 개수와 페이지 수가 나오는 것을 방지할 수 있음.
-            // 그리고 개수만 세는 쿼리에는 작성자 fetch join과 정렬이 필요하지 않음. (당연히...)
-            countQuery = """
-                    select count(p)
-                    from Post p
-                    where p.deletedAt is null
-                      and p.hiddenAt is null
-                      and (:type is null or p.type = :type)
-                      and (:topic is null or p.topic = :topic)
-                    """
-    )
-    Page<Post> findVisiblePosts(
+    default Page<Post> findVisiblePosts(
             @Param("type") @Nullable PostType type,
             @Param("topic") @Nullable PostTopic topic,
+            Pageable pageable
+    ) {
+        return findVisiblePosts(
+                type,
+                topic,
+                null,
+                pageable
+        );
+    }
+
+    default Page<Post> findVisiblePosts(
+            @Param("type") @Nullable PostType type,
+            @Param("topic") @Nullable PostTopic topic,
+            @Param("keyword") @Nullable String keyword,
+            Pageable pageable
+    ) {
+        return findVisiblePostSearchRows(
+                type,
+                topic,
+                keyword,
+                pageable
+        ).map(PostSearchRow::getPost);
+    }
+
+    // bodyMatchPosition: 본문에서 검색어가 처음 등장하는 위치
+    // 검색어가 없으면 bodyMatchPosition = 0
+    // 검색어가 있으면 bodyMatchPosition = 본문에서 검색어의 첫 위치
+    @Query(
+            value = """
+                select
+                    p as post,
+                    case
+                        when coalesce(:keyword, '') = '' then 0
+                        else locate(lower(:keyword), lower(p.content))
+                    end as bodyMatchPosition
+                from Post p
+                join fetch p.author
+                where p.deletedAt is null
+                    and p.hiddenAt is null
+                    and (:type is null or p.type = :type)
+                    and (:topic is null or p.topic = :topic)
+                    and (
+                        coalesce(:keyword, '') = ''
+                        or locate(lower(:keyword), lower(p.title)) > 0
+                        or locate(lower(:keyword), lower(p.content)) > 0
+                    )
+                order by p.createdAt desc, p.id desc
+                """,
+            countQuery = """
+                select count(p)
+                from Post p
+                where p.deletedAt is null
+                    and p.hiddenAt is null
+                    and (:type is null or p.type = :type)
+                    and (:topic is null or p.topic = :topic)
+                    and (
+                        coalesce(:keyword, '') = ''
+                        or locate(lower(:keyword), lower(p.title)) > 0
+                        or locate(lower(:keyword), lower(p.content)) > 0
+                    )
+                """
+    )
+    Page<PostSearchRow> findVisiblePostSearchRows(
+            @Param("type") @Nullable PostType type,
+            @Param("topic") @Nullable PostTopic topic,
+            @Param("keyword") @Nullable String keyword,
             Pageable pageable
     );
 

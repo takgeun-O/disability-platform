@@ -22,6 +22,10 @@ public class PostReadException extends RuntimeException {
                 "게시글 목록의 커서 조건을 확인해 주세요."
         ),
 
+        INVALID_SEARCH_KEYWORD(
+                "검색어는 100자 이하여야 합니다."
+        ),
+
         POST_NOT_FOUND(
                 "게시글을 찾을 수 없습니다."
         );

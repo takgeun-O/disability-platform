@@ -24,11 +24,12 @@ type PostCommon = {
   liked: boolean
 }
 export type PostSummary = PostCommon & { commentCount: number }
+export type PostListItem = PostSummary & { matchedContentExcerpt: string | null }
 export type PostDetail = PostCommon & { content: string; updatedAt: string }
 export type FeedItem = PostSummary & { contentPreview: string }
 export type FeedPage = { items: FeedItem[]; hasNext: boolean; nextCursor: PostCursor | null }
 export type PostPage = {
-  items: PostSummary[]
+  items: PostListItem[]
   page: number
   size: number
   totalElements: number
@@ -84,23 +85,26 @@ function isSummary(v: unknown): v is PostSummary {
 export function isFeedItem(v: unknown): v is FeedItem {
   return object(v) && typeof v.contentPreview === "string" && [...v.contentPreview].length <= 200 && isSummary(v)
 }
-function isPage(v: unknown, query: PostQuery): v is PostPage {
+function isPage(v: unknown, query: PostQuery, size: number): v is PostPage {
   return (
     object(v) &&
     Array.isArray(v.items) &&
-    v.items.every(isSummary) &&
+    v.items.every((item: unknown): item is PostListItem =>
+      isSummary(item) && "matchedContentExcerpt" in item &&
+      (item.matchedContentExcerpt === null || typeof item.matchedContentExcerpt === "string"),
+    ) &&
     v.page === query.page &&
-    v.size === PAGE_SIZE &&
+    v.size === size &&
     nonnegative(v.totalElements) &&
     nonnegative(v.totalPages) &&
-    v.totalPages === Math.ceil(v.totalElements / PAGE_SIZE) &&
+    v.totalPages === Math.ceil(v.totalElements / size) &&
     typeof v.hasNext === "boolean" &&
     v.hasNext === query.page + 1 < v.totalPages &&
-    v.items.length <= PAGE_SIZE &&
+    v.items.length <= size &&
     v.items.length ===
       Math.max(
         0,
-        Math.min(PAGE_SIZE, v.totalElements - query.page * PAGE_SIZE),
+        Math.min(size, v.totalElements - query.page * size),
       ) &&
     new Set(v.items.map((item) => item.id)).size === v.items.length &&
     v.items.every(
@@ -138,6 +142,8 @@ function responseError(
   writing: boolean,
 ): CommunityApiError {
   const code = isApiError(body) ? body.code : ""
+  if (status === 400 && code === "INVALID_SEARCH_KEYWORD")
+    return new CommunityApiError(status, code, "검색어는 100자 이하여야 합니다.")
   if (status === 401 && code === "AUTHENTICATION_REQUIRED")
     return new CommunityApiError(
       status,
@@ -267,18 +273,20 @@ async function request(
   return { response, body }
 }
 export async function getPosts(
-  query: PostQuery,
+  query: PostQuery & { q?: string; size?: number },
   signal?: AbortSignal,
   baseUrl?: string,
 ): Promise<PostPage> {
   const params = new URLSearchParams(postQueryString(query))
+  if (query.q) params.set("q", query.q)
   params.set("page", String(query.page))
-  params.set("size", String(PAGE_SIZE))
+  const size = query.size ?? PAGE_SIZE
+  params.set("size", String(size))
   const { response, body } = await request("?" + params, {
     method: "GET",
     signal,
   }, false, baseUrl)
-  if (response.status !== 200 || !isPage(body, query))
+  if (response.status !== 200 || !isPage(body, query, size))
     throw responseError(response.status, body, false)
   return body
 }

@@ -6,7 +6,8 @@ const api = await loadTypeScript('../src/lib/community-api.ts', import.meta.url)
 const values = { type: 'QUESTION', topic: 'HEARING_AID', title: '  질문  ', content: '  첫 줄\n둘째 줄  ' };
 const item = { id: 7, type: 'QUESTION', topic: 'HEARING_AID', title: '질문', likeCount: 0, liked: false, author: { memberId: 2, nickname: '검토회원' }, createdAt: '2026-10-14T00:00:00Z' };
 const query = { type: 'QUESTION', topic: 'HEARING_AID', page: 0 };
-const page = { items: [{ ...item, commentCount: 0 }], page: 0, size: 20, totalElements: 1, totalPages: 1, hasNext: false };
+const listItem = { ...item, commentCount: 0, matchedContentExcerpt: null };
+const page = { items: [listItem], page: 0, size: 20, totalElements: 1, totalPages: 1, hasNext: false };
 const csrf = { headerName: 'X-CSRF-TOKEN', token: 'test-only' };
 function json(body, status = 200) { return new Response(JSON.stringify(body), { status, headers: { 'Content-Type': 'application/json;charset=UTF-8' } }); }
 async function withFetch(handler, run) {
@@ -55,12 +56,14 @@ test('POST는 새 CSRF를 먼저 받고 네 필드만 전송, 본문 원문 보�
 for (const [name, make] of [
   ['HTML', () => new Response('<html>login</html>', { status: 200, headers: { 'Content-Type': 'text/html' } })],
   ['깨진 JSON', () => new Response('{', { status: 200, headers: { 'Content-Type': 'application/json' } })],
-  ['누락 author', () => json({ ...page, items: [{ ...item, commentCount: 0, author: null }] })],
-  ['다른 필터 항목', () => json({ ...page, items: [{ ...item, commentCount: 0, type: 'GENERAL' }] })],
+  ['누락 author', () => json({ ...page, items: [{ ...listItem, author: null }] })],
+  ['다른 필터 항목', () => json({ ...page, items: [{ ...listItem, type: 'GENERAL' }] })],
+  ['발췌문 누락', () => json({ ...page, items: [{ ...item, commentCount: 0 }] })],
+  ['발췌문 타입 오류', () => json({ ...page, items: [{ ...listItem, matchedContentExcerpt: 1 }] })],
   ['잘못된 페이징', () => json({ ...page, page: 1 })],
   ['잘못된 totalPages', () => json({ ...page, totalPages: 4 })],
-  ['잘못된 날짜', () => json({ ...page, items: [{ ...item, commentCount: 0, createdAt: 'yesterday' }] })],
-  ['unknown enum', () => json({ ...page, items: [{ ...item, commentCount: 0, topic: 'OTHER' }] })],
+  ['잘못된 날짜', () => json({ ...page, items: [{ ...listItem, createdAt: 'yesterday' }] })],
+  ['unknown enum', () => json({ ...page, items: [{ ...listItem, topic: 'OTHER' }] })],
   ['서버 500', () => json({ code: 'SERVER_ERROR', message: 'private', fieldErrors: [] }, 500)],
 ]) test(`목록 응답 거절: ${name}`, async () => withFetch(async () => make(), async () => {
   await assert.rejects(api.getPosts(query), error => error instanceof api.CommunityApiError && !error.uncertain && !error.message.includes('private'));
@@ -123,8 +126,40 @@ test('서버용 공개 조회는 지정한 내부 base만 사용하고 자격증
 });
 
 for (const count of [0, 3, Number.MAX_SAFE_INTEGER]) test(`목록 commentCount 허용: ${count}`, async () => {
-  await withFetch(async () => json({...page, items:[{...item,commentCount:count}]}), async()=>assert.equal((await api.getPosts(query)).items[0].commentCount,count));
+  await withFetch(async () => json({...page, items:[{...listItem,commentCount:count}]}), async()=>assert.equal((await api.getPosts(query)).items[0].commentCount,count));
 });
 for (const count of [undefined, null, "3", -1, 1.5, Number.MAX_SAFE_INTEGER+1]) test(`목록 commentCount 거절: ${count}`, async () => {
-  await withFetch(async () => json({...page, items:[{...item,commentCount:count}]}), async()=>assert.rejects(api.getPosts(query),e=>e.code === 'UNEXPECTED_RESPONSE'));
+  await withFetch(async () => json({...page, items:[{...listItem,commentCount:count}]}), async()=>assert.rejects(api.getPosts(query),e=>e.code === 'UNEXPECTED_RESPONSE'));
 });
+
+test('검색 결과 복귀는 유효한 검색어와 페이지를 보존하고 다른 조건은 제거한다', () => {
+  const keyword = '보청기 % & _'
+  const href = model.searchHref(keyword, 2)
+  assert.equal(model.safeListReturn(href + '&extra=1#fragment'), href)
+  assert.equal(model.listReturnLabel(href), '검색 결과로 돌아가기')
+  assert.equal(model.safeListReturn('/search?q=++'), '/community/posts')
+  assert.equal(model.safeListReturn(model.searchHref('😀'.repeat(101))), '/community/posts')
+  assert.equal(model.safeListReturn('/search?q=abc&page=-2'), model.searchHref('abc'))
+})
+
+test('검색 유형은 서버 enum만 허용하고 상세 복귀에 페이지와 함께 유지한다', () => {
+  for (const type of ['QUESTION', 'REVIEW', 'GENERAL']) {
+    const href = model.searchHref('보청기', 2, type)
+    assert.equal(model.searchType(new URL(href, 'https://example.test').searchParams), type)
+    assert.equal(model.safeListReturn(href), href)
+  }
+  for (const type of ['ALL', 'unknown', '경험·후기']) {
+    assert.equal(model.safeListReturn('/search?q=abc&type=' + type + '&page=2'), '/search?q=abc&page=2')
+  }
+})
+
+test('빈 검색 주소는 목록 복귀를 예약하지 않고 유효한 검색 주소만 복원한다', () => {
+  for (const path of ['/search', '/search?q=++', '/search?q=' + '가'.repeat(101)]) {
+    assert.equal(model.safeListReturn(path), '/community/posts')
+    model.requestSearchScrollRestore(path)
+    assert.equal(model.consumeListReturn('/community/posts'), false)
+  }
+  const href = model.searchHref('보청기', 2, 'REVIEW')
+  model.requestSearchScrollRestore(href)
+  assert.equal(model.consumeListReturn(href), true)
+})

@@ -26,6 +26,7 @@ import org.springframework.test.web.servlet.MockMvc;
 import java.time.Instant;
 import java.util.List;
 
+import static org.hamcrest.Matchers.nullValue;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
@@ -81,7 +82,15 @@ class PostReadControllerTest {
     @Test
     void 비로그인으로_기본_목록을_조회할_수_있다()
             throws Exception {
-        when(postReadService.getPosts(null, null, 0, 20, null))
+        when(
+                postReadService.getPosts(
+                        null,
+                        null,
+                        null,
+                        0,
+                        20,
+                        null
+                ))
                 .thenReturn(new PageImpl<>(
                         List.of(summary(123L)),
                         PageRequest.of(0, 20),
@@ -122,28 +131,50 @@ class PostReadControllerTest {
                         .doesNotExist())
                 .andExpect(jsonPath("$.items[0].content")
                         .doesNotExist())
+                .andExpect(jsonPath("$.items[0].matchedContentExcerpt")
+                        .hasJsonPath())
+                .andExpect(jsonPath("$.items[0].matchedContentExcerpt")
+                        .value(nullValue()))
                 .andExpect(jsonPath("$.page").value(0))
                 .andExpect(jsonPath("$.size").value(20))
                 .andExpect(jsonPath("$.totalElements").value(1))
                 .andExpect(jsonPath("$.totalPages").value(1))
                 .andExpect(jsonPath("$.hasNext").value(false));
 
-        verify(postReadService).getPosts(null, null, 0, 20, null);
+        verify(postReadService)
+                .getPosts(
+                        null,
+                        null,
+                        null,
+                        0,
+                        20,
+                        null
+                );
     }
 
     @Test
     void 필터와_페이지_조건을_서비스에_전달한다()
             throws Exception {
-        when(postReadService.getPosts(
-                PostType.QUESTION,
-                PostTopic.HEARING_AID,
-                1,
-                2, null
-        )).thenReturn(new PageImpl<>(
-                List.of(summary(123L), summary(124L)),
-                PageRequest.of(1, 2),
-                5
-        ));
+        when(
+                postReadService.getPosts(
+                        PostType.QUESTION,
+                        PostTopic.HEARING_AID,
+                        null,
+                        1,
+                        2,
+                        null
+                ))
+                .thenReturn(
+                        new PageImpl<>(
+                                List.of(summary(123L),
+                                        summary(124L)
+                                ),
+                                PageRequest.of(
+                                        1,
+                                        2
+                                ),
+                                5
+                        ));
 
         mockMvc.perform(get(BASE)
                         .param("type", "QUESTION")
@@ -161,6 +192,7 @@ class PostReadControllerTest {
         verify(postReadService).getPosts(
                 PostType.QUESTION,
                 PostTopic.HEARING_AID,
+                null,
                 1,
                 2, null
         );
@@ -169,7 +201,15 @@ class PostReadControllerTest {
     @Test
     void 게시글이_없으면_빈_배열과_페이지_정보를_반환한다()
             throws Exception {
-        when(postReadService.getPosts(null, null, 0, 20, null))
+        when(
+                postReadService.getPosts(
+                        null,
+                        null,
+                        null,
+                        0,
+                        20,
+                        null
+                ))
                 .thenReturn(Page.empty(PageRequest.of(0, 20)));
 
         mockMvc.perform(get(BASE))
@@ -256,7 +296,16 @@ class PostReadControllerTest {
             int page,
             int size
     ) throws Exception {
-        when(postReadService.getPosts(null, null, page, size, null))
+
+        when(
+                postReadService.getPosts(
+                        null,
+                        null,
+                        null,
+                        page,
+                        size,
+                        null
+                ))
                 .thenThrow(new PostReadException(
                         PostReadException.Code.INVALID_PAGE_REQUEST
                 ));
@@ -268,9 +317,15 @@ class PostReadControllerTest {
                 .andExpect(jsonPath("$.code")
                         .value("INVALID_PAGE_REQUEST"));
 
-        verify(postReadService).getPosts(
-                null, null, page, size, null
-        );
+        verify(postReadService)
+                .getPosts(
+                        null,
+                        null,
+                        null,
+                        page,
+                        size,
+                        null
+                );
     }
 
     @ParameterizedTest
@@ -393,7 +448,15 @@ class PostReadControllerTest {
     @Test
     void 목록_응답에_댓글_개수를_숫자로_포함한다()
             throws Exception {
-        when(postReadService.getPosts(null, null, 0, 20, null))
+        when(
+                postReadService.getPosts(
+                        null,
+                        null,
+                        null,
+                        0,
+                        20,
+                        null
+                ))
                 .thenReturn(new PageImpl<>(
                         List.of(
                                 summary(123L, 3L),
@@ -422,7 +485,90 @@ class PostReadControllerTest {
                         .value(0))
                 .andExpect(jsonPath("$.totalElements").value(2));
 
-        verify(postReadService).getPosts(null, null, 0, 20, null);
+        verify(postReadService)
+                .getPosts(
+                        null,
+                        null,
+                        null,
+                        0,
+                        20,
+                        null
+                );
+    }
+
+    @Test
+    void 비로그인_검색에서_검색어와_필터와_페이지_조건을_서비스에_전달한다()
+            throws Exception {
+        String keyword = "  보청기 적응  ";
+
+        when(postReadService.getPosts(
+                PostType.QUESTION,
+                PostTopic.HEARING_AID,
+                keyword,
+                1,
+                2,
+                null
+        )).thenReturn(new PageImpl<>(
+                List.of(summary(123L), summary(124L)),
+                PageRequest.of(1, 2),
+                5
+        ));
+
+        mockMvc.perform(get(BASE)
+                        .param("q", keyword)
+                        .param("type", "QUESTION")
+                        .param("topic", "HEARING_AID")
+                        .param("page", "1")
+                        .param("size", "2"))
+                .andExpect(status().isOk())
+                .andExpect(header().string(
+                        HttpHeaders.CACHE_CONTROL,
+                        "no-store"
+                ))
+                .andExpect(jsonPath("$.items.length()").value(2))
+                .andExpect(jsonPath("$.items[0].id").value(123))
+                .andExpect(jsonPath("$.page").value(1))
+                .andExpect(jsonPath("$.size").value(2))
+                .andExpect(jsonPath("$.totalElements").value(5))
+                .andExpect(jsonPath("$.totalPages").value(3))
+                .andExpect(jsonPath("$.hasNext").value(true));
+
+        verify(postReadService).getPosts(
+                PostType.QUESTION,
+                PostTopic.HEARING_AID,
+                keyword,
+                1,
+                2,
+                null
+        );
+    }
+
+    @Test
+    void 검색어_길이_초과_예외를_400으로_반환한다()
+            throws Exception {
+        String keyword = "가".repeat(101);
+
+        when(postReadService.getPosts(
+                null,
+                null,
+                keyword,
+                0,
+                20,
+                null
+        )).thenThrow(new PostReadException(
+                PostReadException.Code.INVALID_SEARCH_KEYWORD
+        ));
+
+        mockMvc.perform(get(BASE)
+                        .param("q", keyword))
+                .andExpect(status().isBadRequest())
+                .andExpect(header().string(
+                        HttpHeaders.CACHE_CONTROL,
+                        "no-store"
+                ))
+                .andExpect(jsonPath("$.code")
+                        .value("INVALID_SEARCH_KEYWORD"))
+                .andExpect(jsonPath("$.fieldErrors").isEmpty());
     }
 
     private PostSummaryResult summary(Long postId) {
@@ -442,7 +588,8 @@ class PostReadControllerTest {
                 CREATED_AT,
                 commentCount,
                 0L,
-                false
+                false,
+                null
         );
     }
 }
