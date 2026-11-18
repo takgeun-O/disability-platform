@@ -137,7 +137,7 @@ public class PostController {
             summary = "게시글 목록 조회",
             description = """
                     로그인 없이 조회할 수 있습니다.
-                    글 유형과 주제를 생략하면 전체를 조회합니다.
+                    공개 게시글에 선택한 글 유형, 주제, 검색어를 함께 적용합니다.
                     작성 일시 내림차순, ID 내림차순으로 정렬합니다.
                     """
     )
@@ -153,7 +153,7 @@ public class PostController {
             ),
             @ApiResponse(
                     responseCode = "400",
-                    description = "잘못된 조회 조건",
+                    description = "잘못된 조회 조건: 페이지 범위(INVALID_PAGE_REQUEST), 파라미터 변환(INVALID_REQUEST_PARAMETER), 검색어 길이 초과(INVALID_SEARCH_KEYWORD)",
                     content = @Content(
                             schema = @Schema(
                                     implementation = ApiErrorResponse.class
@@ -177,6 +177,20 @@ public class PostController {
             @RequestParam(name = "topic", required = false)
             @Nullable PostTopic topic,
 
+            // 선택 파라미터 q를 받아 검색 서비스에 연결
+            // 홈 검색창에서 사용할 백엔드 진입점에 사용
+            @Parameter(
+                    description = """
+                            제목 또는 본문에 포함된 문구를 검색합니다.
+                            영문 대소문자를 구분하지 않으며 %와 _도 문자 그대로 검색합니다.
+                            String.strip()으로 앞뒤 공백을 제거한 후 최대 100 유니코드 코드 포인트까지 허용합니다.
+                            생략하거나 공백만 입력하면 검색어 조건을 적용하지 않습니다.
+                            """,
+                    example = "실시간 자막"
+            )
+            @RequestParam(name = "q", required = false)
+            @Nullable String keyword,
+
             @Parameter(description = "페이지 번호. 0부터 시작")
             @RequestParam(name = "page", defaultValue = "0")
             int page,
@@ -190,7 +204,12 @@ public class PostController {
 
         PostListResponse response = PostListResponse.from(
                 postReadService.getPosts(
-                        type, topic, page, size, viewerId
+                        type,
+                        topic,
+                        keyword,
+                        page,
+                        size,
+                        viewerId
                 )
         );
 

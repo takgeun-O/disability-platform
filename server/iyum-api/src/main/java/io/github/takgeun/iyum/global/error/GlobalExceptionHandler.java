@@ -289,11 +289,11 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
             PostReadException exception
     ) {
         HttpStatus status = switch (exception.getCode()) {
-            case INVALID_PAGE_REQUEST, INVALID_CURSOR ->
-                    HttpStatus.BAD_REQUEST;
+            case INVALID_PAGE_REQUEST,
+                 INVALID_CURSOR,
+                 INVALID_SEARCH_KEYWORD -> HttpStatus.BAD_REQUEST;
 
-            case POST_NOT_FOUND ->
-                    HttpStatus.NOT_FOUND;
+            case POST_NOT_FOUND -> HttpStatus.NOT_FOUND;
         };
 
         return ResponseEntity
@@ -370,11 +370,9 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
             CommentReadException exception
     ) {
         HttpStatus status = switch (exception.getCode()) {
-            case INVALID_PAGE_REQUEST, INVALID_CURSOR ->
-                    HttpStatus.BAD_REQUEST;
+            case INVALID_PAGE_REQUEST, INVALID_CURSOR -> HttpStatus.BAD_REQUEST;
 
-            case POST_NOT_FOUND ->
-                    HttpStatus.NOT_FOUND;
+            case POST_NOT_FOUND -> HttpStatus.NOT_FOUND;
         };
 
         return ResponseEntity
@@ -424,11 +422,9 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
         HttpStatus status = switch (exception.getCode()) {
             case MEMBER_NOT_FOUND -> HttpStatus.UNAUTHORIZED;
 
-            case MEMBER_NOT_ACTIVE, NOT_COMMENT_AUTHOR ->
-                    HttpStatus.FORBIDDEN;
+            case MEMBER_NOT_ACTIVE, NOT_COMMENT_AUTHOR -> HttpStatus.FORBIDDEN;
 
-            case POST_NOT_FOUND, COMMENT_NOT_FOUND ->
-                    HttpStatus.NOT_FOUND;
+            case POST_NOT_FOUND, COMMENT_NOT_FOUND -> HttpStatus.NOT_FOUND;
         };
 
         String code = switch (exception.getCode()) {
@@ -458,11 +454,9 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
         HttpStatus status = switch (exception.getCode()) {
             case MEMBER_NOT_FOUND -> HttpStatus.UNAUTHORIZED;
 
-            case MEMBER_NOT_ACTIVE, NOT_COMMENT_AUTHOR ->
-                    HttpStatus.FORBIDDEN;
+            case MEMBER_NOT_ACTIVE, NOT_COMMENT_AUTHOR -> HttpStatus.FORBIDDEN;
 
-            case POST_NOT_FOUND, COMMENT_NOT_FOUND ->
-                    HttpStatus.NOT_FOUND;
+            case POST_NOT_FOUND, COMMENT_NOT_FOUND -> HttpStatus.NOT_FOUND;
         };
 
         String code = switch (exception.getCode()) {
@@ -531,15 +525,14 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
                     exception.getMessage()
             );
 
-            case INVALID_NICKNAME, NICKNAME_ALREADY_EXISTS ->
-                    new ApiErrorResponse(
-                            exception.getCode().name(),
-                            exception.getMessage(),
-                            List.of(new ApiErrorResponse.FieldError(
-                                    "nickname",
-                                    exception.getMessage()
-                            ))
-                    );
+            case INVALID_NICKNAME, NICKNAME_ALREADY_EXISTS -> new ApiErrorResponse(
+                    exception.getCode().name(),
+                    exception.getMessage(),
+                    List.of(new ApiErrorResponse.FieldError(
+                            "nickname",
+                            exception.getMessage()
+                    ))
+            );
         };
 
         return ResponseEntity.status(status)
@@ -606,8 +599,7 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
         HttpStatus status = switch (exception.getCode()) {
             case MEMBER_NOT_FOUND -> HttpStatus.UNAUTHORIZED;
             case MEMBER_NOT_ACTIVE -> HttpStatus.FORBIDDEN;
-            case INVALID_PAGE_REQUEST, INVALID_CURSOR ->
-                    HttpStatus.BAD_REQUEST;
+            case INVALID_PAGE_REQUEST, INVALID_CURSOR -> HttpStatus.BAD_REQUEST;
         };
 
         String code = switch (exception.getCode()) {
@@ -645,8 +637,7 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
         HttpStatus status = switch (exception.getCode()) {
             case MEMBER_NOT_FOUND -> HttpStatus.UNAUTHORIZED;
             case MEMBER_NOT_ACTIVE -> HttpStatus.FORBIDDEN;
-            case INVALID_PAGE_REQUEST, INVALID_CURSOR ->
-                    HttpStatus.BAD_REQUEST;
+            case INVALID_PAGE_REQUEST, INVALID_CURSOR -> HttpStatus.BAD_REQUEST;
         };
 
         String code = switch (exception.getCode()) {
@@ -675,8 +666,7 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
         HttpStatus status = switch (exception.getCode()) {
             case MEMBER_NOT_FOUND -> HttpStatus.UNAUTHORIZED;
             case MEMBER_NOT_ACTIVE -> HttpStatus.FORBIDDEN;
-            case INVALID_PASSWORD, PASSWORD_MISMATCH ->
-                    HttpStatus.BAD_REQUEST;
+            case INVALID_PASSWORD, PASSWORD_MISMATCH -> HttpStatus.BAD_REQUEST;
         };
 
         ApiErrorResponse body = switch (exception.getCode()) {
@@ -690,15 +680,14 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
                     exception.getMessage()
             );
 
-            case INVALID_PASSWORD, PASSWORD_MISMATCH ->
-                    new ApiErrorResponse(
-                            exception.getCode().name(),
-                            exception.getMessage(),
-                            List.of(new ApiErrorResponse.FieldError(
-                                    "currentPassword",
-                                    exception.getMessage()
-                            ))
-                    );
+            case INVALID_PASSWORD, PASSWORD_MISMATCH -> new ApiErrorResponse(
+                    exception.getCode().name(),
+                    exception.getMessage(),
+                    List.of(new ApiErrorResponse.FieldError(
+                            "currentPassword",
+                            exception.getMessage()
+                    ))
+            );
         };
 
         return ResponseEntity.status(status)
@@ -712,24 +701,22 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
     ) {
         ApiErrorResponse body = switch (exception.getCode()) {
 
-            case PASSWORD_RESET_TOKEN_INVALID ->
-                    ApiErrorResponse.of(
-                            exception.getCode().name(),
-                            exception.getMessage()
-                    );
+            case PASSWORD_RESET_TOKEN_INVALID -> ApiErrorResponse.of(
+                    exception.getCode().name(),
+                    exception.getMessage()
+            );
 
             case PASSWORD_RESET_PASSWORD_INVALID,
-                 PASSWORD_RESET_PASSWORD_UNCHANGED ->
-                    new ApiErrorResponse(
-                            exception.getCode().name(),
-                            exception.getMessage(),
-                            List.of(
-                                    new ApiErrorResponse.FieldError(
-                                            "newPassword",
-                                            exception.getMessage()
-                                    )
+                 PASSWORD_RESET_PASSWORD_UNCHANGED -> new ApiErrorResponse(
+                    exception.getCode().name(),
+                    exception.getMessage(),
+                    List.of(
+                            new ApiErrorResponse.FieldError(
+                                    "newPassword",
+                                    exception.getMessage()
                             )
-                    );
+                    )
+            );
         };
 
         return ResponseEntity
@@ -824,11 +811,9 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
 
             case INVALID_REASON -> HttpStatus.BAD_REQUEST;
 
-            case POST_NOT_FOUND, COMMENT_NOT_FOUND ->
-                    HttpStatus.NOT_FOUND;
+            case POST_NOT_FOUND, COMMENT_NOT_FOUND -> HttpStatus.NOT_FOUND;
 
-            case POST_DELETED, COMMENT_DELETED ->
-                    HttpStatus.CONFLICT;
+            case POST_DELETED, COMMENT_DELETED -> HttpStatus.CONFLICT;
         };
 
         return ResponseEntity
@@ -845,20 +830,16 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
             AdminContentReadException exception
     ) {
         HttpStatus status = switch (exception.getCode()) {
-            case AUTHENTICATION_REQUIRED ->
-                    HttpStatus.UNAUTHORIZED;
+            case AUTHENTICATION_REQUIRED -> HttpStatus.UNAUTHORIZED;
 
-            case ADMIN_REQUIRED ->
-                    HttpStatus.FORBIDDEN;
+            case ADMIN_REQUIRED -> HttpStatus.FORBIDDEN;
 
             case INVALID_PAGE_REQUEST,
                  INVALID_SEARCH_KEYWORD,
                  INVALID_REQUEST_PARAMETER,
-                 INVALID_DATE_RANGE ->
-                    HttpStatus.BAD_REQUEST;
+                 INVALID_DATE_RANGE -> HttpStatus.BAD_REQUEST;
 
-            case POST_NOT_FOUND, COMMENT_NOT_FOUND ->
-                    HttpStatus.NOT_FOUND;
+            case POST_NOT_FOUND, COMMENT_NOT_FOUND -> HttpStatus.NOT_FOUND;
         };
 
         return ResponseEntity
@@ -875,14 +856,11 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
             AdminOperationLogReadException exception
     ) {
         HttpStatus status = switch (exception.getCode()) {
-            case AUTHENTICATION_REQUIRED ->
-                    HttpStatus.UNAUTHORIZED;
+            case AUTHENTICATION_REQUIRED -> HttpStatus.UNAUTHORIZED;
 
-            case ADMIN_REQUIRED ->
-                    HttpStatus.FORBIDDEN;
+            case ADMIN_REQUIRED -> HttpStatus.FORBIDDEN;
 
-            case INVALID_PAGE_REQUEST, INVALID_DATE_RANGE ->
-                    HttpStatus.BAD_REQUEST;
+            case INVALID_PAGE_REQUEST, INVALID_DATE_RANGE -> HttpStatus.BAD_REQUEST;
         };
 
         return ResponseEntity
@@ -899,19 +877,15 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
             AdminMemberReadException exception
     ) {
         HttpStatus status = switch (exception.getCode()) {
-            case AUTHENTICATION_REQUIRED ->
-                    HttpStatus.UNAUTHORIZED;
+            case AUTHENTICATION_REQUIRED -> HttpStatus.UNAUTHORIZED;
 
-            case ADMIN_REQUIRED ->
-                    HttpStatus.FORBIDDEN;
+            case ADMIN_REQUIRED -> HttpStatus.FORBIDDEN;
 
             case INVALID_REQUEST_PARAMETER,
                  INVALID_PAGE_REQUEST,
-                 INVALID_SEARCH_KEYWORD ->
-                    HttpStatus.BAD_REQUEST;
+                 INVALID_SEARCH_KEYWORD -> HttpStatus.BAD_REQUEST;
 
-            case MEMBER_NOT_FOUND ->
-                    HttpStatus.NOT_FOUND;
+            case MEMBER_NOT_FOUND -> HttpStatus.NOT_FOUND;
         };
 
         return ResponseEntity
@@ -928,22 +902,17 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
             AdminMemberModerationException exception
     ) {
         HttpStatus status = switch (exception.getCode()) {
-            case AUTHENTICATION_REQUIRED ->
-                    HttpStatus.UNAUTHORIZED;
+            case AUTHENTICATION_REQUIRED -> HttpStatus.UNAUTHORIZED;
 
             case ADMIN_REQUIRED,
                  SELF_MODERATION_NOT_ALLOWED,
-                 ADMIN_TARGET_NOT_ALLOWED ->
-                    HttpStatus.FORBIDDEN;
+                 ADMIN_TARGET_NOT_ALLOWED -> HttpStatus.FORBIDDEN;
 
-            case INVALID_REASON ->
-                    HttpStatus.BAD_REQUEST;
+            case INVALID_REASON -> HttpStatus.BAD_REQUEST;
 
-            case MEMBER_NOT_FOUND ->
-                    HttpStatus.NOT_FOUND;
+            case MEMBER_NOT_FOUND -> HttpStatus.NOT_FOUND;
 
-            case MEMBER_STATUS_NOT_ALLOWED ->
-                    HttpStatus.CONFLICT;
+            case MEMBER_STATUS_NOT_ALLOWED -> HttpStatus.CONFLICT;
         };
 
         return ResponseEntity
@@ -960,20 +929,15 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
             ContentReportCreateException exception
     ) {
         HttpStatus status = switch (exception.getCode()) {
-            case AUTHENTICATION_REQUIRED ->
-                    HttpStatus.UNAUTHORIZED;
+            case AUTHENTICATION_REQUIRED -> HttpStatus.UNAUTHORIZED;
 
-            case INVALID_REASON ->
-                    HttpStatus.BAD_REQUEST;
+            case INVALID_REASON -> HttpStatus.BAD_REQUEST;
 
-            case SELF_REPORT_NOT_ALLOWED ->
-                    HttpStatus.FORBIDDEN;
+            case SELF_REPORT_NOT_ALLOWED -> HttpStatus.FORBIDDEN;
 
-            case POST_NOT_FOUND, COMMENT_NOT_FOUND ->
-                    HttpStatus.NOT_FOUND;
+            case POST_NOT_FOUND, COMMENT_NOT_FOUND -> HttpStatus.NOT_FOUND;
 
-            case REPORT_ALREADY_EXISTS ->
-                    HttpStatus.CONFLICT;
+            case REPORT_ALREADY_EXISTS -> HttpStatus.CONFLICT;
         };
 
         return ResponseEntity
@@ -990,19 +954,15 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
             AdminReportReadException exception
     ) {
         HttpStatus status = switch (exception.getCode()) {
-            case AUTHENTICATION_REQUIRED ->
-                    HttpStatus.UNAUTHORIZED;
+            case AUTHENTICATION_REQUIRED -> HttpStatus.UNAUTHORIZED;
 
-            case ADMIN_REQUIRED ->
-                    HttpStatus.FORBIDDEN;
+            case ADMIN_REQUIRED -> HttpStatus.FORBIDDEN;
 
             case INVALID_REQUEST_PARAMETER,
                  INVALID_PAGE_REQUEST,
-                 INVALID_DATE_RANGE ->
-                    HttpStatus.BAD_REQUEST;
+                 INVALID_DATE_RANGE -> HttpStatus.BAD_REQUEST;
 
-            case REPORT_NOT_FOUND ->
-                    HttpStatus.NOT_FOUND;
+            case REPORT_NOT_FOUND -> HttpStatus.NOT_FOUND;
         };
 
         return ResponseEntity
@@ -1019,20 +979,15 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
             AdminReportHandlingException exception
     ) {
         HttpStatus status = switch (exception.getCode()) {
-            case AUTHENTICATION_REQUIRED ->
-                    HttpStatus.UNAUTHORIZED;
+            case AUTHENTICATION_REQUIRED -> HttpStatus.UNAUTHORIZED;
 
-            case ADMIN_REQUIRED ->
-                    HttpStatus.FORBIDDEN;
+            case ADMIN_REQUIRED -> HttpStatus.FORBIDDEN;
 
-            case REPORT_NOT_FOUND ->
-                    HttpStatus.NOT_FOUND;
+            case REPORT_NOT_FOUND -> HttpStatus.NOT_FOUND;
 
-            case REPORT_ALREADY_HANDLED ->
-                    HttpStatus.CONFLICT;
+            case REPORT_ALREADY_HANDLED -> HttpStatus.CONFLICT;
 
-            case INVALID_HANDLING_REASON ->
-                    HttpStatus.BAD_REQUEST;
+            case INVALID_HANDLING_REASON -> HttpStatus.BAD_REQUEST;
         };
 
         return ResponseEntity
@@ -1049,11 +1004,9 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
             AdminDashboardReadException exception
     ) {
         HttpStatus status = switch (exception.getCode()) {
-            case AUTHENTICATION_REQUIRED ->
-                    HttpStatus.UNAUTHORIZED;
+            case AUTHENTICATION_REQUIRED -> HttpStatus.UNAUTHORIZED;
 
-            case ADMIN_REQUIRED ->
-                    HttpStatus.FORBIDDEN;
+            case ADMIN_REQUIRED -> HttpStatus.FORBIDDEN;
         };
 
         return ResponseEntity

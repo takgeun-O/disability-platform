@@ -170,7 +170,7 @@ class AdminOperationSummaryReadSessionIntegrationTest {
     }
 
     @Test
-    void 실제_숨김_복원과_중복_요청의_결과가_요약에_반영된다() throws Exception {
+    void 실제_숨김_복원과_중복_요청과의_결과가_요약에_반영된다() throws Exception {
         Long postId = transactions.execute(transaction -> {
             var author = entityManager.find(Member.class, admin.getId());
             Post post = Post.create(

@@ -20,6 +20,7 @@
 
 ## 커뮤니티·내 활동
 
+- [공개 게시글 목록 검색](community-post-search.md)
 - [댓글 본문 수정 시각](comment-content-updated-at.md)
 - [댓글 정렬](community-comment-sorting.md)
 - [마이페이지 콘텐츠 공개 상태](mypage-content-visibility.md)

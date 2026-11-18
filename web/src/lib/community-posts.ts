@@ -78,6 +78,32 @@ export function listQuery(params: Pick<URLSearchParams, "get">, pathname: string
   const space = topicByPath(pathname)
   return space ? { ...query, topic: space.topic } : query
 }
+export function searchKeywordError(keyword: string): string {
+  if (!keyword) return "검색어를 입력해주세요"
+  return characterCount(keyword) > 100 ? "검색어는 100자 이하여야 합니다." : ""
+}
+
+export const SEARCH_PAGE_SIZE = 5
+
+// 검색 URL의 페이지는 1부터, 공개 목록 API의 페이지는 0부터 시작한다.
+export function searchPage(params: Pick<URLSearchParams, "get">): number {
+  const value = params.get("page") ?? "1"
+  const page = Number(value)
+  return /^[1-9]\d*$/.test(value) && page - 1 <= Math.floor(2147483647 / SEARCH_PAGE_SIZE) ? page : 1
+}
+
+export function searchType(params: Pick<URLSearchParams, "get">): PostType | "" {
+  const type = params.get("type")
+  return type === "QUESTION" || type === "REVIEW" || type === "GENERAL" ? type : ""
+}
+
+export function searchHref(keyword: string, page = 1, type: PostType | "" = ""): string {
+  const params = new URLSearchParams({ q: keyword })
+  if (type) params.set("type", type)
+  if (page > 1) params.set("page", String(page))
+  return "/search?" + params
+}
+
 export function safeListReturn(value: string | null, fallback = "/community/posts"): string {
   const defaultPath = (isPostListPath(fallback) || fallback === "/mypage") ? fallback : "/community/posts"
   // 알려진 목록/주제 경로와 검증한 조건만 허용한다. 상세·작성·미등록 slug는 제외한다.
@@ -87,10 +113,14 @@ export function safeListReturn(value: string | null, fallback = "/community/post
     if (
       !value.startsWith("/") ||
       url.origin !== "https://iyum.invalid" ||
-      (!isPostListPath(url.pathname) && url.pathname !== "/mypage") ||
+      (!isPostListPath(url.pathname) && url.pathname !== "/mypage" && url.pathname !== "/search") ||
       /[\\\u0000-\u001f]/.test(value)
     )
       return defaultPath
+    if (url.pathname === "/search") {
+      const keyword = normalizeTitle(url.searchParams.get("q") ?? "")
+      return searchKeywordError(keyword) ? defaultPath : searchHref(keyword, searchPage(url.searchParams), searchType(url.searchParams))
+    }
     if (url.pathname === "/mypage") return !url.search && !url.hash ? "/mypage" : defaultPath
     return listHref(listQuery(url.searchParams, url.pathname), url.pathname, parsePostCursor(url.searchParams))
   } catch {
@@ -100,6 +130,7 @@ export function safeListReturn(value: string | null, fallback = "/community/post
 // The label follows the validated destination, including direct-entry fallbacks.
 export function listReturnLabel(back: string): string {
   const destination = safeListReturn(back)
+  if (destination.startsWith("/search?")) return "검색 결과로 돌아가기"
   if (destination === "/mypage") return "마이페이지로 돌아가기"
   const space = topicByPath(destination.split("?")[0])
   return space ? `${space.name} 게시글 목록으로` : "게시글 목록으로"
@@ -155,6 +186,10 @@ export function rememberListScroll(href: string): void {
 // 복귀 의도는 메모리에만 둔다. 주소 직접 입력/새로고침은 과거 저장 위치를 소비하지 않는다.
 let returningToList: string | null = null
 export function requestListScrollRestore(href: string): void { returningToList = href }
+export function requestSearchScrollRestore(value: string): void {
+  const href = safeListReturn(value)
+  if (href.startsWith("/search?")) requestListScrollRestore(href)
+}
 export function listenForListReturn(): () => void {
   const pop = () => {
     if (isPostListPath(location.pathname))

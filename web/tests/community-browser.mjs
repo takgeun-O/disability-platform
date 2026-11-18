@@ -359,8 +359,14 @@ try {
     await form(page).getByRole('button', { name: '취소', exact: true }).click(); await page.getByRole('button', { name: '계속 작성', exact: true }).click();
     release(); await page.waitForURL('**/community/posts/1?**'); await page.locator('.community-post-body').waitFor(); state.post = null;
   });
-  await check('홈·검색 예시 게시글에서 가짜 ID 상세로 연결하지 않음', async () => {
-    for (const path of ['/', '/search?q=보청기']) { await page.goto(base + path); assert.equal(await page.locator('main a[href]').evaluateAll(links => links.filter(a => /^\/community\/posts\/\d/.test(a.getAttribute('href'))).length), 0); }
+  await check('홈 예시는 상세 링크가 없고 검색은 응답의 게시글 ID에만 연결한다', async () => {
+    await page.goto(base + '/');
+    assert.equal(await page.locator('main a[href^="/community/posts/"]').count(), 0);
+    await page.goto(base + '/search?q=보청기');
+    const links = page.locator('main ol a');
+    await links.first().waitFor();
+    const paths = await links.evaluateAll(nodes => nodes.map(a => new URL(a.href).pathname));
+    assert.deepEqual(paths, listBody(state.calls.list.at(-1)).items.map(item => '/community/posts/' + item.id));
   });
   await context.close();
   await check('브라우저 런타임 오류 없음', async () => assert.deepEqual(errors, []));

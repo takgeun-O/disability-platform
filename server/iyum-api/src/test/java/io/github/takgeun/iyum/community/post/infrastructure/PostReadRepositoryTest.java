@@ -384,6 +384,174 @@ class PostReadRepositoryTest {
         ).isEmpty();
     }
 
+    @Test
+    void 제목이나_본문이_일치하는_공개_게시글만_필터와_페이지_건수에_포함한다() {
+        // 제목만 일치하는 공개 글
+        jdbcTemplate.update(
+                "update community_posts set title = ? where id = ?",
+                "LIVE 자막 사용 후기",
+                recentQuestionId
+        );
+
+        // 본문만 일치하는 공개 글
+        // 나머지 세 글은 각각 유형 불일치, 주제 불일치, 삭제 상태다.
+        jdbcTemplate.update(
+                """
+                update community_posts
+                set content = ?
+                where id in (?, ?, ?, ?)
+                """,
+                "회의에서 Live 자막을 사용했습니다.",
+                oldQuestionId,
+                hearingAidGeneralId,
+                sameTimeQuestionId,
+                deletedId
+        );
+
+        // 검색어와 유형·주제가 모두 일치하지만 숨겨진 글
+        Member author = memberRepository.findById(firstAuthorId)
+                .orElseThrow();
+
+        Long hiddenId = createPost(
+                author,
+                PostType.QUESTION,
+                PostTopic.HEARING_AID,
+                "LIVE 자막 설정",
+                BASE_TIME.plusSeconds(600)
+        );
+
+        jdbcTemplate.update(
+                "update community_posts set hidden_at = ? where id = ?",
+                Timestamp.from(BASE_TIME.plusSeconds(601)),
+                hiddenId
+        );
+
+        // 같은 유형·주제의 공개 글이어도 검색어가 없으면 제외돼야 한다.
+        createPost(
+                author,
+                PostType.QUESTION,
+                PostTopic.HEARING_AID,
+                "배터리 교체 주기",
+                BASE_TIME.plusSeconds(700)
+        );
+
+        entityManager.clear();
+
+        Page<Post> first = postRepository.findVisiblePosts(
+                PostType.QUESTION,
+                PostTopic.HEARING_AID,
+                "live 자막",
+                PageRequest.of(0, 1)
+        );
+
+        Page<Post> second = postRepository.findVisiblePosts(
+                PostType.QUESTION,
+                PostTopic.HEARING_AID,
+                "live 자막",
+                PageRequest.of(1, 1)
+        );
+
+        assertThat(first.getContent())
+                .extracting(Post::getId)
+                .containsExactly(recentQuestionId);
+
+        assertThat(second.getContent())
+                .extracting(Post::getId)
+                .containsExactly(oldQuestionId);
+
+        assertThat(first.getTotalElements()).isEqualTo(2);
+        assertThat(first.getTotalPages()).isEqualTo(2);
+        assertThat(first.hasNext()).isTrue();
+        assertThat(second.hasNext()).isFalse();
+    }
+
+    @Test
+    void 퍼센트와_밑줄은_입력한_문자_그대로_검색한다() {
+        jdbcTemplate.update(
+                "update community_posts set title = ? where id = ?",
+                "보청기 50%_할인 안내",
+                oldQuestionId
+        );
+
+        jdbcTemplate.update(
+                "update community_posts set title = ? where id = ?",
+                "보청기 50특별_할인 안내",
+                recentQuestionId
+        );
+
+        jdbcTemplate.update(
+                "update community_posts set title = ? where id = ?",
+                "보청기 50%X할인 안내",
+                latestGeneralId
+        );
+
+        Page<Post> result = postRepository.findVisiblePosts(
+                null,
+                null,
+                "50%_할인",
+                PageRequest.of(0, 10)
+        );
+
+        assertThat(result.getContent())
+                .extracting(Post::getId)
+                .containsExactly(oldQuestionId);
+
+        assertThat(result.getTotalElements()).isEqualTo(1);
+    }
+
+    @Test
+    void 공개_검색은_본문의_첫_일치_위치를_반환하고_제목만_일치하면_0을_반환한다() {
+        jdbcTemplate.update(
+                "update community_posts set content = ? where id = ?",
+                "😀CAFÉ 그리고 café",
+                oldQuestionId
+        );
+
+        jdbcTemplate.update(
+                "update community_posts set title = ? where id = ?",
+                "café 방문 후기",
+                recentQuestionId
+        );
+
+        Page<PostSearchRow> result = postRepository.findVisiblePostSearchRows(
+                null,
+                null,
+                "café",
+                PageRequest.of(0, 10)
+        );
+
+        assertThat(result.getTotalElements()).isEqualTo(2);
+
+        assertThat(result.getContent())
+                .extracting(row -> row.getPost().getId())
+                .containsExactly(recentQuestionId, oldQuestionId);
+
+        assertThat(result.getContent())
+                .extracting(PostSearchRow::getBodyMatchPosition)
+                .containsExactly(0, 2);
+    }
+
+    @Test
+    void 본문_검색은_마침표와_연속_공백을_문자_그대로_비교한다() {
+        String updateContent =
+                "update community_posts set content = ? where id = ?";
+
+        jdbcTemplate.update(updateContent, "A.B  안내", oldQuestionId);
+        jdbcTemplate.update(updateContent, "AXB  안내", recentQuestionId);
+        jdbcTemplate.update(updateContent, "A.B 안내", latestGeneralId);
+
+        Page<PostSearchRow> result = postRepository.findVisiblePostSearchRows(
+                null,
+                null,
+                "a.b  안내",
+                PageRequest.of(0, 10)
+        );
+
+        assertThat(result.getContent())
+                .extracting(row -> row.getPost().getId())
+                .containsExactly(oldQuestionId);
+    }
+
     private Member createMember(
             String email,
             String nickname

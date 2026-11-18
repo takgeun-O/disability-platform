@@ -78,7 +78,7 @@ test('all GET shapes require count/boolean; detail still needs no commentCount; 
   try {
     await withFetch(async (_url, options) => {
       calls++; assert.equal(options.method, 'GET'); assert.equal(options.credentials, 'include'); assert.equal(options.cache, 'no-store')
-      return json(shape === 'detail' ? current : shape === 'feed' ? { items: [{ ...current, contentPreview: '미리보기', commentCount: 0 }], hasNext: false, nextCursor: null } : { items: [{ ...current, commentCount: 0 }], page: 0, size: 20, totalElements: 1, totalPages: 1, hasNext: false })
+      return json(shape === 'detail' ? current : shape === 'feed' ? { items: [{ ...current, contentPreview: '미리보기', commentCount: 0 }], hasNext: false, nextCursor: null } : { items: [{ ...current, commentCount: 0, matchedContentExcerpt: null }], page: 0, size: 20, totalElements: 1, totalPages: 1, hasNext: false })
     }, async () => {
       for (shape of ['detail', 'feed', 'list']) {
         const read = () => shape === 'detail' ? api.getPost('7') : shape === 'feed' ? api.getFeed(query) : api.getPosts(query)

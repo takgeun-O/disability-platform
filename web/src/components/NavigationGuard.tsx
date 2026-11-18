@@ -1,6 +1,7 @@
 'use client';
 import { createContext, useCallback, useContext, useEffect, useLayoutEffect, useRef, useState, type ReactNode } from 'react';
 
+import { requestSearchScrollRestore } from '@/lib/community-posts';
 import { createNavigationRequestScope } from '@/lib/navigation-request';
 
 type Guard = {
@@ -69,6 +70,10 @@ export function NavigationGuardProvider({children}: {children: ReactNode}) {
       if (!dirty.current || bypass || delta === 0) {
         // proceed에서 이미 알린 pop은 중복 처리하지 않는다. 복원용 pop도 위에서 제외한다.
         if (!bypass && delta !== 0) notifyNavigation();
+        // 상세가 먼저 언마운트되어도 검색 결과 렌더 전에 복귀 의도를 기록한다.
+        if (location.pathname === '/search') {
+          requestSearchScrollRestore(location.pathname + location.search);
+        }
         index = target; bypass = false; return;
       }
       event.stopImmediatePropagation();

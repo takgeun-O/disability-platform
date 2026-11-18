@@ -1,9 +1,11 @@
 package io.github.takgeun.iyum.community.post.api.dto;
 
+import com.fasterxml.jackson.annotation.JsonInclude;
 import io.github.takgeun.iyum.community.post.application.PostSummaryResult;
 import io.github.takgeun.iyum.community.post.domain.PostTopic;
 import io.github.takgeun.iyum.community.post.domain.PostType;
 import io.swagger.v3.oas.annotations.media.Schema;
+import jakarta.annotation.Nullable;
 
 import java.time.Instant;
 
@@ -34,7 +36,19 @@ public record PostSummaryResponse(
                 description = "현재 로그인한 회원의 좋아요 여부. 비로그인은 false",
                 example = "true"
         )
-        boolean liked
+        boolean liked,
+
+        @JsonInclude(JsonInclude.Include.ALWAYS)
+        @Schema(
+                description = """
+                본문에서 검색어가 처음 일치한 부분과 앞뒤 최대 40코드포인트씩의 원문.
+                생략된 쪽에는 말줄임표(…)를 붙인다.
+                검색어가 없거나 본문에 일치하는 부분이 없으면 null이다.
+                """,
+                requiredMode = Schema.RequiredMode.REQUIRED,
+                types = {"string", "null"}
+        )
+        @Nullable String matchedContentExcerpt
 ) {
 
     public static PostSummaryResponse from(
@@ -49,7 +63,8 @@ public record PostSummaryResponse(
                 result.createdAt(),
                 result.commentCount(),
                 result.likeCount(),
-                result.liked()
+                result.liked(),
+                result.matchedContentExcerpt()
         );
     }
 }
