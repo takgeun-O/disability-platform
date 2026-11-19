@@ -31,6 +31,7 @@ export type PostQuery = {
 }
 export const PAGE_SIZE = 20
 export const DEFAULT_QUERY: PostQuery = { type: "", topic: "", page: 0 }
+export const HOME_RECENT_QUERY = { ...DEFAULT_QUERY, size: 4 }
 
 function enumOrLabel<T extends string>(
   value: string | null,

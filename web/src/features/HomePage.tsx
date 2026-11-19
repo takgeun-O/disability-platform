@@ -1,18 +1,18 @@
+import { Suspense } from 'react';
+import HomeRecentPosts from '@/components/HomeRecentPosts';
+import { readPublicPosts } from '@/lib/community-server';
 import Image from 'next/image';
 import HomeSearch from '@/components/HomeSearch';
 import DeadlinePanel from '@/components/DeadlinePanel';
 import Link from '@/components/AppLink';
 
-import { searchHref } from '@/lib/community-posts';
+import { HOME_RECENT_QUERY, searchHref } from '@/lib/community-posts';
 
-const COMMUNITY_POSTS = [
-  { id: 1, title: '보청기 보험 급여 기준 바뀐 거 아시나요?', category: '복지·제도', date: '2026.08.14', comments: 12 },
-  { id: 2, title: '서울 강남구 청각장애인 수화통역 서비스 후기', category: '병원·기관 후기', date: '2026.08.13', comments: 7 },
-  { id: 3, title: '직장 면접 시 청각장애 고지 어떻게 하셨나요?', category: '일상·경험', date: '2026.08.12', comments: 24 },
-  { id: 4, title: '2026년 장애인 보조기기 교부사업 신청 완료했어요', category: '복지·제도', date: '2026.08.11', comments: 9 },
-  { id: 5, title: '인공와우 수술 전 꼭 알아야 할 것들', category: '정보 공유', date: '2026.08.10', comments: 18 },
-]
-
+async function RecentPosts() {
+  const { data } = await readPublicPosts(HOME_RECENT_QUERY);
+  const posts = data?.items.map(({ id, title, commentCount }) => ({ id, title, commentCount }));
+  return <HomeRecentPosts initialPosts={posts ?? null} />;
+}
 
 const SHORTCUTS = [
   { title: '지원 대상이 궁금해요', description: '보청기 지원 조건부터 확인하기', href: '/validation/hearing-aid-health-insurance', icon: 'people' },
@@ -50,15 +50,12 @@ export default function HomePage() {
     <div className="iyum-container iyum-home-grid">
       <DeadlinePanel />
       <section className="iyum-community-preview" aria-labelledby="community-heading">
-        <div className="iyum-section-heading"><div className="iyum-community-title"><h2 id="community-heading">최근 질문과 경험</h2><span className="iyum-badge">예시</span></div>
+        <div className="iyum-section-heading"><div className="iyum-community-title"><h2 id="community-heading">커뮤니티</h2></div>
           <Link className="iyum-button iyum-button-outline" href="/community/posts/create?type=질문·답변">질문 남기기</Link></div>
-        <p className="iyum-community-note">홈의 글은 예시입니다. 선택하면 실제 커뮤니티 목록으로 이동합니다.</p>
-        <div className="iyum-community-toolbar"><span>최근 게시글</span><Link className="iyum-text-link" href="/community">전체 보기 <span aria-hidden="true">→</span></Link></div>
-        <ol className="iyum-posts" aria-label="최근 게시글 목록">{COMMUNITY_POSTS.map(post => <li key={post.id}>
-          <Link href="/community"><span className="iyum-post-category">{post.category}</span>
-            <span className="iyum-post-content"><strong>{post.title}</strong><time dateTime={post.date.replace(/\./g, '-')}>{post.date}</time></span>
-            <span className="iyum-post-comments" aria-label={`댓글 ${post.comments}개`}>댓글 {post.comments}</span>
-          </Link></li>)}</ol>
+        <div className="iyum-community-toolbar"><span>최근 글</span><Link className="iyum-text-link" href="/community">전체 보기 <span aria-hidden="true">→</span></Link></div>
+        <Suspense fallback={<p role="status">최근 글을 불러오는 중입니다.</p>}>
+          <RecentPosts />
+        </Suspense>
       </section>
       <section className="iyum-guides" aria-labelledby="guides-heading"><h2 id="guides-heading">주요 정보 가이드</h2>
         <Link className="iyum-card iyum-guide-link" href="/validation/hearing-aid-health-insurance">
