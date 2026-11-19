@@ -39,3 +39,12 @@ test('reconcile60: server counts, removal, no new top insertion, bounded reads',
  assert.equal(calls,3);assert.equal(result.items.length,59);assert(!result.items.some(p=>p.id===101||p.id===70));assert(result.items.every(p=>p.commentCount===5));assert.equal(result.nextCursor.postId,41)
 })
 test('too many new posts bounds refresh and fails instead of erasing snapshot',async()=>{let calls=0;const previous={...page,segments:1,version:0};await assert.rejects(cache.reconcileFeed(query,null,previous,new AbortController().signal,async()=>{calls++;return{...page,items:[row(100)]}}),/목록 변화/);assert.equal(calls,3);assert.equal(previous.items.length,2)})
+
+test('홈 피드는 요청한 4건을 초과한 응답을 거부한다', async () => {
+  const readHome = () => api.getFeed(model.HOME_RECENT_QUERY, null, undefined, 'https://api.example.test')
+  const items = [5, 4, 3, 2, 1].map(row)
+  await response({ items, hasNext: false, nextCursor: null }, () => assert.rejects(readHome()))
+  await response({ items: items.slice(0, 4), hasNext: false, nextCursor: null }, async () => {
+    assert.equal((await readHome()).items.length, 4)
+  })
+})

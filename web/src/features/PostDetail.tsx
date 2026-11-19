@@ -20,7 +20,7 @@ import {
   type PostDetail as Detail,
 } from "@/lib/community-api"
 import { isMissingPost, type InitialPostDetail, type ReadError } from "@/lib/community-load"
-import { safeListReturn, listReturnLabel, requestListScrollRestore, listenForListReturn } from "@/lib/community-posts"
+import { HOME_RECENT_HREF, safeListReturn, listReturnLabel, requestListScrollRestore, listenForListReturn } from "@/lib/community-posts"
 
 import { topicByValue, topicPath } from "@/lib/community-topics"
 
@@ -85,6 +85,8 @@ export default function PostDetail({ initial, initialComments }: { initial: Init
   const error = !loading ? result.error : undefined
   const space = post && topicByValue(post.topic)
   const back = safeListReturn(params.get("from"), space ? topicPath(space) : "/community/posts")
+  const returningHome = back === HOME_RECENT_HREF
+  const restoreList = returningHome ? undefined : () => requestListScrollRestore(back)
   const backLabel = listReturnLabel(back)
   return (
     <main id="main-content" className="community-screen">
@@ -96,8 +98,8 @@ export default function PostDetail({ initial, initialComments }: { initial: Init
         <Link
           className="iyum-text-link community-back"
           href={back}
-          onNavigate={() => requestListScrollRestore(back)}
-          scroll={false}
+          onNavigate={restoreList}
+          scroll={returningHome}
         >
           ← {backLabel}
         </Link>
@@ -150,8 +152,8 @@ export default function PostDetail({ initial, initialComments }: { initial: Init
           <Link
             className="iyum-button iyum-button-outline"
             href={back}
-          onNavigate={() => requestListScrollRestore(back)}
-            scroll={false}
+            onNavigate={restoreList}
+            scroll={returningHome}
           >
             {backLabel}
           </Link>

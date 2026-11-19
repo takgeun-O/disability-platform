@@ -26,4 +26,4 @@ export async function readPublicComments(id: string): Promise<PublicResult<Comme
   catch (e) { return { data: null, error: { status: e instanceof CommentError ? e.status : 0, code: e instanceof CommentError ? e.code : "UNEXPECTED_RESPONSE", message: e instanceof CommentError ? e.message : "댓글을 불러오지 못했습니다." } } }
 }
 
-export const readPublicFeed = (query: PostQuery, cursor: PostCursor | null = null) => read(() => getFeed(query, cursor, undefined, apiBase()))
+export const readPublicFeed = (query: PostQuery & { size?: number }, cursor: PostCursor | null = null) => read(() => getFeed(query, cursor, undefined, apiBase()))
