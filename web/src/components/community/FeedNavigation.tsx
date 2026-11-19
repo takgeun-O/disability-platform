@@ -1,5 +1,7 @@
 "use client"
-import { useRef, useState } from "react"
+import { type Ref, useImperativeHandle, useLayoutEffect, useRef, useState } from "react"
+import { getWeeklyBest, type FeedItem } from "@/lib/community-api"
+import type { PublicResult } from "@/lib/community-load"
 import Link from "@/components/AppLink"
 import { COMMUNITY_TOPICS, topicPath } from "@/lib/community-topics"
 import { listHref, type PostQuery } from "@/lib/community-posts"
@@ -23,10 +25,70 @@ export function FeedNavigation({ query }: { query: PostQuery }) {
     </button>
   </nav>
 }
-export function FeedBest({ name }: { name: string }) {
-  return <aside className="feed-best" aria-labelledby="feed-best-title">
-    <div><h2 id="feed-best-title">{name} 베스트</h2><button type="button" disabled aria-label="이번 주 기간 선택 준비 중">이번 주 <span aria-hidden="true">⌄</span> · 준비 중</button></div>
-    <p>인기 게시글을 준비하고 있어요.</p>
+export function FeedBest({ initial, href, onLeaving, ref }: {
+  ref: Ref<() => void>
+  initial: PublicResult<FeedItem[]>
+  href: string
+  onLeaving: () => void
+}) {
+  const [items, setItems] = useState(initial.data)
+  const [busy, setBusy] = useState(false)
+  const sequence = useRef(0)
+  const [failed, setFailed] = useState(initial.data === null)
+  const section = useRef<HTMLElement>(null)
+  const oldBottom = useRef<number | null>(null)
+  useLayoutEffect(() => {
+    if (oldBottom.current !== null && section.current) {
+      window.scrollBy({ top: section.current.getBoundingClientRect().bottom - oldBottom.current, behavior: "instant" })
+      oldBottom.current = null
+    }
+  }, [items, failed])
+
+  function saveOffset() {
+    const bottom = section.current?.getBoundingClientRect().bottom
+    if (bottom !== undefined && (bottom < 0 || document.activeElement?.closest(".feed-posts"))) {
+      oldBottom.current = bottom
+    }
+  }
+
+  async function refresh() {
+    const id = ++sequence.current
+    setBusy(true)
+    try {
+      const result = await getWeeklyBest()
+      if (id !== sequence.current) return
+      saveOffset()
+      setItems(result)
+      setFailed(false)
+    } catch {
+      if (id !== sequence.current) return
+      if (!failed) saveOffset()
+      setFailed(true)
+    } finally {
+      if (id === sequence.current) setBusy(false)
+    }
+  }
+  useImperativeHandle(ref, () => refresh)
+
+  const failureMessage = items === null ? "주간 베스트를 불러오지 못했어요."
+    : items.length ? "순위를 갱신하지 못했어요. 이전 순위를 표시하고 있어요."
+    : "순위를 갱신하지 못했어요. 이전 조회에서는 주간 베스트에 오른 글이 없었어요."
+
+  return <aside ref={section} className="feed-best" aria-labelledby="feed-best-title">
+    <h2 id="feed-best-title">주간 베스트</h2>
+    <p>최근 7일 동안 작성된 글 중 좋아요가 많은 순서예요.</p>
+    {failed && <div>
+      <p role="status">{busy ? "주간 베스트를 불러오고 있어요." : failureMessage}</p>
+      <button type="button" className="iyum-text-link" disabled={busy} onClick={refresh}>다시 시도</button>
+    </div>}
+    {items && (items.length === 0 ? !failed && <p>아직 주간 베스트에 오른 글이 없어요.</p> :
+      <ol>{items.map((post, index) => <li key={post.id}>
+        <Link href={`/community/posts/${post.id}?from=${encodeURIComponent(href)}`} onNavigate={onLeaving} prefetch={false}>
+          <span className="feed-best-rank">{index + 1}<span className="sr-only">위</span></span>
+          <strong>{post.title}</strong>
+          <span className="feed-best-count">좋아요 {post.likeCount}개</span>
+        </Link>
+      </li>)}</ol>)}
   </aside>
 }
 export function FeedAvatar() {

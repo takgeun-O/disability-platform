@@ -1,5 +1,8 @@
 package io.github.takgeun.iyum.community.post.api;
 
+import io.github.takgeun.iyum.auth.security.MemberPrincipal;
+import io.github.takgeun.iyum.member.domain.MemberRole;
+import io.github.takgeun.iyum.member.domain.MemberStatus;
 import io.github.takgeun.iyum.member.infrastructure.MemberRepository;
 import io.github.takgeun.iyum.community.post.application.*;
 import io.github.takgeun.iyum.community.post.domain.PostTopic;
@@ -31,9 +34,11 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.csrf;
+import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.user;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.options;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.result.MockMvcResultHandlers.print;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
 
 @WebMvcTest(
@@ -569,6 +574,174 @@ class PostReadControllerTest {
                 .andExpect(jsonPath("$.code")
                         .value("INVALID_SEARCH_KEYWORD"))
                 .andExpect(jsonPath("$.fieldErrors").isEmpty());
+    }
+
+    @Test
+    void 비로그인으로_주간_베스트를_조회하면_서비스의_순서대로_반환한다()
+            throws Exception {
+        PostAuthorResult author =
+                new PostAuthorResult(7L, "질문작성자");
+
+        PostFeedItemResult first = new PostFeedItemResult(
+                120L,
+                PostType.QUESTION,
+                PostTopic.HEARING_AID,
+                "첫 보청기 상담 경험",
+                "상담에서 도움이 되었던 질문입니다.",
+                author,
+                CREATED_AT,
+                2L,
+                5L,
+                false
+        );
+
+        PostFeedItemResult second = new PostFeedItemResult(
+                125L,
+                PostType.QUESTION,
+                PostTopic.HEARING_AID,
+                "보청기 착용 질문",
+                "처음 착용할 때 궁금한 점입니다.",
+                author,
+                CREATED_AT,
+                0L,
+                1L,
+                false
+        );
+
+        when(postReadService.getWeeklyBestPosts(20, null))
+                .thenReturn(List.of(first, second));
+
+//        디버그용
+//        var response = mockMvc.perform(get(BASE + "/weekly-best"))
+//                .andDo(print());
+//
+//        verify(postReadService)
+//                .getWeeklyBestPosts(20, null);
+//
+//        response.andExpect(status().isOk())
+//                .andExpect(jsonPath("$.items.length()").value(2));
+//        디버그용
+
+        mockMvc.perform(get(BASE + "/weekly-best"))
+                .andExpect(status().isOk())
+                .andExpect(header().string(
+                        HttpHeaders.CACHE_CONTROL,
+                        "no-store"
+                ))
+                .andExpect(jsonPath("$.items.length()").value(2))
+                .andExpect(jsonPath("$.items[0].id").value(120))
+                .andExpect(jsonPath("$.items[0].likeCount").value(5))
+                .andExpect(jsonPath("$.items[0].liked").value(false))
+                .andExpect(jsonPath("$.items[1].id").value(125));
+
+        verify(postReadService)
+                .getWeeklyBestPosts(20, null);
+    }
+
+    @Test
+    void 주간_베스트가_없으면_빈_목록을_반환한다()
+            throws Exception {
+        when(postReadService.getWeeklyBestPosts(4, null))
+                .thenReturn(List.of());
+
+        mockMvc.perform(get(BASE + "/weekly-best")
+                        .param("size", "4"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.items").isArray())
+                .andExpect(jsonPath("$.items.length()").value(0));
+
+        verify(postReadService)
+                .getWeeklyBestPosts(4, null);
+    }
+
+    @Test
+    void 로그인한_회원의_ID를_전달하고_주간_베스트에_내_좋아요를_표시한다()
+            throws Exception {
+        MemberPrincipal principal = new MemberPrincipal(
+                7L,
+                "weekly-reader@example.com",
+                "test-password-hash",
+                "주간독자",
+                MemberStatus.ACTIVE,
+                MemberRole.USER,
+                0L
+        );
+
+        // 보안 필터가 7번 회원의 로그인 상태를 유효한 것으로 확인한다.
+        when(memberRepository.existsByIdAndStatusAndCredentialVersionAndRole(
+                7L,
+                MemberStatus.ACTIVE,
+                0L,
+                MemberRole.USER
+        )).thenReturn(true);
+
+        PostFeedItemResult item = new PostFeedItemResult(
+                120L,
+                PostType.QUESTION,
+                PostTopic.HEARING_AID,
+                "첫 보청기 상담 경험",
+                "상담에서 도움이 되었던 질문입니다.",
+                new PostAuthorResult(9L, "질문작성자"),
+                CREATED_AT,
+                2L,
+                5L,
+                true
+        );
+
+        when(postReadService.getWeeklyBestPosts(4, 7L))
+                .thenReturn(List.of(item));
+
+        mockMvc.perform(
+                        get(BASE + "/weekly-best")
+                                .with(user(principal))
+                                .param("size", "4")
+                )
+                .andExpect(status().isOk())
+                .andExpect(header().string(
+                        HttpHeaders.CACHE_CONTROL,
+                        "no-store"
+                ))
+                .andExpect(jsonPath("$.items.length()").value(1))
+                .andExpect(jsonPath("$.items[0].id").value(120))
+                .andExpect(jsonPath("$.items[0].likeCount").value(5))
+                .andExpect(jsonPath("$.items[0].liked").value(true));
+
+        verify(postReadService)
+                .getWeeklyBestPosts(4, 7L);
+    }
+
+    @Test
+    void 주간_베스트의_조회_개수가_범위를_벗어나면_400을_반환한다()
+            throws Exception {
+        when(postReadService.getWeeklyBestPosts(51, null))
+                .thenThrow(new PostReadException(
+                        PostReadException.Code.INVALID_PAGE_REQUEST
+                ));
+
+        mockMvc.perform(
+                        get(BASE + "/weekly-best")
+                                .param("size", "51")
+                )
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code")
+                        .value("INVALID_PAGE_REQUEST"));
+
+        verify(postReadService)
+                .getWeeklyBestPosts(51, null);
+    }
+
+    @Test
+    void 주간_베스트의_조회_개수가_숫자가_아니면_400을_반환한다()
+            throws Exception {
+        mockMvc.perform(
+                        get(BASE + "/weekly-best")
+                                .param("size", "abc")
+                )
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code")
+                        .value("INVALID_REQUEST_PARAMETER"));
+
+        verifyNoInteractions(postReadService);
     }
 
     private PostSummaryResult summary(Long postId) {

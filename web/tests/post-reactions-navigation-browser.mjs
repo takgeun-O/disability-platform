@@ -74,11 +74,12 @@ async function check(name, run) {
   finally { for (const c of browser.contexts()) await c.close() }
 }
 try {
-  for (const width of [1440,390,320]) for (const path of ['/community','/mypage','/community/topics/hearing-aid']) await check(`read-only likes and comments navigation ${path} ${width}`, async () => {
+  for (const width of [1440,390,320]) for (const path of ['/community','/mypage','/community/topics/hearing-aid']) await check(`좋아요 버튼과 댓글 이동 ${path} ${width}`, async () => {
     const {p,state} = await fixture({width,path})
     const row = p.locator(path === '/mypage' ? '.mypage-post-list li' : '[data-feed-id]').first()
-    assert.equal(await row.getByRole('button', {name:/좋아요/}).count(),path==='/mypage'?1:0)
-    assert.match(await row.locator(path==='/mypage'?'[data-post-like]':'.post-like-count').innerText(),/좋아요 2/)
+    await row.locator('[data-post-like] button').waitFor()
+    assert.equal(await row.getByRole('button', {name:/좋아요/}).count(),1)
+    assert.match(await row.locator('[data-post-like]').innerText(),/좋아요 2/)
     let link=row.locator('.post-comment-link')
     if (path === '/mypage') {
       assert.equal(await link.getAttribute('aria-expanded'),'false')
@@ -100,8 +101,8 @@ try {
     const label=path==='/mypage'?'마이페이지로 돌아가기':path.includes('/topics/')?'보청기 게시글 목록으로':'게시글 목록으로'
     for (const name of [`← ${label}`,label]) assert.equal(await p.getByRole('link',{name,exact:true}).getAttribute('href'),path)
     await p.getByRole('link',{name:`← ${label}`,exact:true}).click(); await p.waitForURL(u=>u.pathname===path)
-    await p.waitForFunction(path=>document.querySelector(path==='/mypage'?'[data-post-like]':'.post-like-count')?.textContent.includes('좋아요 3'),path)
-    if(path==='/mypage')assert.equal(await row.locator('[data-post-like] button').getAttribute('aria-pressed'),'true');else assert((await row.locator('.post-like-count').ariaSnapshot()).includes('내가 좋아요한 게시글'))
+    await p.waitForFunction(()=>document.querySelector('[data-post-like]')?.textContent.includes('좋아요 3'))
+    assert.equal(await row.locator('[data-post-like] button').getAttribute('aria-pressed'),'true')
     assert.equal(state.calls.filter(c=>c.path.endsWith('/like')).length,1)
   })
   await check('noJS comments remains a native anchor and likes text',async()=>{

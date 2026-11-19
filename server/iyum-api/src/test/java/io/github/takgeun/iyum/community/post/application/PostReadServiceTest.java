@@ -3,8 +3,10 @@ package io.github.takgeun.iyum.community.post.application;
 import io.github.takgeun.iyum.community.comment.domain.Comment;
 import io.github.takgeun.iyum.community.comment.infrastructure.CommentRepository;
 import io.github.takgeun.iyum.community.post.domain.Post;
+import io.github.takgeun.iyum.community.post.domain.PostLike;
 import io.github.takgeun.iyum.community.post.domain.PostTopic;
 import io.github.takgeun.iyum.community.post.domain.PostType;
+import io.github.takgeun.iyum.community.post.infrastructure.PostLikeRepository;
 import io.github.takgeun.iyum.community.post.infrastructure.PostRepository;
 import io.github.takgeun.iyum.member.domain.Member;
 import io.github.takgeun.iyum.member.infrastructure.MemberRepository;
@@ -75,6 +77,9 @@ class PostReadServiceTest {
     @Autowired
     MemberRepository memberRepository;
 
+    @Autowired
+    PostLikeRepository postLikeRepository;
+
     // 실제 Repository를 실행하면서 호출 횟수와 전달값도 확인하기 위해 사용
     // 집계 결과를 가짜로 지정하지 않고 실제 Testcontainers DB에서 조회할 것
     @MockitoSpyBean
@@ -91,6 +96,7 @@ class PostReadServiceTest {
     void setUp() {
         // 테스트 전용 DB: 외래키 관계에 따라 댓글부터 삭제한다.
         commentRepository.deleteAllInBatch();
+        postLikeRepository.deleteAllInBatch();
         postRepository.deleteAllInBatch();
         memberRepository.deleteAllInBatch();
 
@@ -724,6 +730,83 @@ class PostReadServiceTest {
                         tuple(firstQuestionId, null),
                         tuple(secondQuestionId, "두 번째 질문의 본문")
                 );
+    }
+
+    @Test
+    void 주간_베스트에_공개_댓글_수와_조회자의_좋아요_상태를_반영한다() {
+        Member reader = Member.createPending(
+                "weekly-reader@example.com",
+                "test-password-hash",
+                "주간독자"
+        );
+
+        reader.activeAfterEmailVerification();
+        reader = memberRepository.saveAndFlush(reader);
+
+        Post post = postRepository.findById(secondQuestionId)
+                .orElseThrow();
+
+        postLikeRepository.saveAndFlush(
+                PostLike.create(post, reader)
+        );
+
+        commentRepository.saveAndFlush(
+                Comment.create(post, reader, "공개 댓글")
+        );
+
+        List<PostFeedItemResult> guestItems =
+                postReadService.getWeeklyBestPosts(
+                        4,
+                        null
+                );
+
+        List<PostFeedItemResult> memberItems =
+                postReadService.getWeeklyBestPosts(
+                        4,
+                        reader.getId()
+                );
+
+        assertThat(guestItems)
+                .singleElement()
+                .satisfies(item -> {
+                    assertThat(item.postId())
+                            .isEqualTo(secondQuestionId);
+
+                    assertThat(item.contentPreview())
+                            .isEqualTo("두 번째 질문의 본문");
+
+                    assertThat(item.commentCount()).isEqualTo(1L);
+                    assertThat(item.likeCount()).isEqualTo(1L);
+                    assertThat(item.liked()).isFalse();
+                });
+
+        assertThat(memberItems)
+                .singleElement()
+                .satisfies(item -> {
+                    assertThat(item.postId())
+                            .isEqualTo(secondQuestionId);
+
+                    assertThat(item.likeCount()).isEqualTo(1L);
+                    assertThat(item.liked()).isTrue();
+                });
+    }
+
+    @ParameterizedTest
+    @ValueSource(ints = {0, 51})
+    void 주간_베스트의_조회_개수가_범위를_벗어나면_거절한다(
+            int size
+    ) {
+        // validateFeedSize(size) 호출을 빠뜨리면 잡을 수 있음.
+
+        assertThatThrownBy(() ->
+                postReadService.getWeeklyBestPosts(size, null)
+        ).isInstanceOfSatisfying(
+                PostReadException.class,
+                exception -> assertThat(exception.getCode())
+                        .isEqualTo(
+                                PostReadException.Code.INVALID_PAGE_REQUEST
+                        )
+        );
     }
 
     private void assertInvalidFeedCursor(

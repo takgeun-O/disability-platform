@@ -4,7 +4,7 @@ import assert from 'node:assert/strict'
 import fs from 'node:fs/promises'
 const { chromium } = await import(process.env.PLAYWRIGHT_MODULE ?? 'playwright')
 const base = process.env.BASE_URL ?? 'http://127.0.0.1:8464'
-const apiOrigin = 'http://127.0.0.1:8082'
+const apiOrigin = process.env.API_BASE_URL ?? 'http://127.0.0.1:8082'
 const out = process.env.LIKE_ARTIFACT_DIR ?? '/private/tmp/iyum-post-like-browser'
 await fs.mkdir(out, { recursive: true })
 const stamp = '2026-10-25T00:00:00.123456Z'
@@ -67,7 +67,7 @@ async function fixture({ width = 1440, anonymous = false, javascript = true, cou
     return r.fulfill({ status: 500, json: failure('UNEXPECTED') })
   })
   const response = await p.goto(base + path)
-  if (javascript) { await p.waitForFunction(() => document.querySelector('.iyum-header')); if (path.startsWith("/community/posts/1000")) await settle(p); else await listState(p) }
+  if (javascript) { await p.waitForFunction(() => document.querySelector('.iyum-header')); if (path.startsWith("/community/posts/1000")) await settle(p); else await listState(p,1000,false,2,anonymous) }
   return { ctx, p, state, response }
 }
 async function login(p, email = 'review@example.test') {
@@ -80,7 +80,12 @@ async function check(name, run) {
   finally { for (const c of browser.contexts()) await c.close() }
 }
 function row(p,id=1000) { return p.locator(`[data-feed-id="${id}"], [data-member-post-id="${id}"]`) }
-async function listState(p,id=1000,liked=false,count=2) {
+async function listState(p,id=1000,liked=false,count=2,readonly=false) {
+  if(!readonly){
+    await settle(p,id,liked,count)
+    assert.equal(await row(p,id).getByRole('button',{name:liked?'좋아요 취소':'좋아요 등록'}).count(),1)
+    return button(p,id)
+  }
   const r=row(p,id), label=r.locator('.post-like-count')
   await p.waitForFunction(({id,liked,count})=>{
     const e=document.querySelector(`[data-feed-id="${id}"] .post-like-count, [data-member-post-id="${id}"] .post-like-count`)
@@ -102,7 +107,7 @@ async function back(p,path='/community') {
 try {
   await check('anonymous SSR/noJS readonly count; no cookies to SSR', async()=>{
     const {p,response}=await fixture({javascript:false,anonymous:true,path:'/community'})
-    assert.equal(response.status(),200);await listState(p);await p.screenshot({path:`${out}/nojs.png`})
+    assert.equal(response.status(),200);await listState(p,1000,false,2,true);await p.screenshot({path:`${out}/nojs.png`})
   })
   await check('guest detail prompt, login return position, no auto-register',async()=>{
     const {p,state}=await fixture({anonymous:true});await button(p).scrollIntoViewIfNeeded();const y=await p.evaluate(()=>scrollY)
@@ -110,7 +115,7 @@ try {
     await p.waitForURL(u=>u.pathname==='/login');await login(p);await p.waitForURL(u=>u.pathname==='/community/posts/1000');await settle(p)
     await p.waitForFunction(y=>Math.abs(scrollY-y)<5,y);assert.equal(state.calls.filter(c=>c.path.endsWith('/like')).length,0)
   })
-  await check('PUT DELETE PUT, readonly public/own count and accessible selected state',async()=>{
+  await check('PUT DELETE PUT, public/own count and accessible selected state',async()=>{
     const {p,state}=await fixture()
     for(const [liked,count] of [[true,3],[false,2],[true,3]]) {await button(p).click();await settle(p,1000,liked,count)}
     assert.deepEqual(state.calls.filter(c=>c.path.endsWith('/like')).map(c=>c.method),['PUT','DELETE','PUT'])
@@ -209,11 +214,11 @@ try {
     await button(p).click();await requested.promise;await p.getByRole('button',{name:'로그아웃',exact:true}).first().click()
     await p.getByRole('link',{name:'로그인',exact:true}).first().waitFor();release.resolve();await completed.promise
     await p.evaluate(()=>new Promise(r=>requestAnimationFrame(()=>requestAnimationFrame(r))))
-    await settle(p);assert.equal(await p.getByRole('dialog').count(),0);await back(p);await listState(p)
+    await settle(p);assert.equal(await p.getByRole('dialog').count(),0);await back(p);await listState(p,1000,false,2,true)
   })
   await check('logout and other account remove selected a11y state without document reload',async()=>{
     const{p}=await fixture();await button(p).click();await settle(p,1000,true,3);await back(p);await listState(p,1000,true,3)
-    await p.getByRole('button',{name:'로그아웃',exact:true}).first().click();await listState(p,1000,false,3)
+    await p.getByRole('button',{name:'로그아웃',exact:true}).first().click();await listState(p,1000,false,3,true)
     await p.getByRole('link',{name:'로그인',exact:true}).first().click();await login(p,'other@example.test');await p.waitForURL(u=>u.pathname!=='/login')
     if(new URL(p.url()).pathname!=='/community')await p.getByRole('link',{name:'커뮤니티',exact:true}).first().click();await listState(p,1000,false,3)
   })
@@ -234,10 +239,10 @@ try {
     await p.goBack(); await p.waitForFunction(n => document.querySelectorAll('[data-feed-id]').length === n, count); await p.waitForFunction(y => Math.abs(scrollY - y) < 12, y); await listState(p, 950, true, 3)
   })
 
-  for(const width of [1440,390,320]) for(const path of ['/community','/mypage']) await check(`readonly a11y, layout and detail key action ${path} ${width}`,async()=>{
+  for(const width of [1440,390,320]) for(const path of ['/community','/mypage']) await check(`like button a11y, layout and detail key action ${path} ${width}`,async()=>{
     const {p,state}=await fixture({width,path});posts[0].title='긴 제목 '.repeat(20);posts[0].likeCount=Number.MAX_SAFE_INTEGER
     await p.reload();await listState(p,1000,false,Number.MAX_SAFE_INTEGER);assert(await p.evaluate(()=>document.documentElement.scrollWidth<=innerWidth))
-    const link=row(p).locator('.post-comment-link');await link.focus();await p.keyboard.press('Shift+Tab');assert(!await row(p).locator('.post-like-count').evaluate(e=>e.contains(document.activeElement)))
+    const link=row(p).locator('.post-comment-link');await link.focus();await p.keyboard.press('Shift+Tab');assert(await button(p).evaluate(e=>e===document.activeElement))
     await p.screenshot({path:`${out}/list-${path==='/mypage'?'mine':'public'}-${width}.png`})
     await openPost(p);await settle(p,1000,false,Number.MAX_SAFE_INTEGER);const b=button(p);state.write=r=>r.fulfill({json:{postId:1000,liked:true,likeCount:12}});await b.focus();await p.keyboard.press('Enter');await settle(p,1000,true,12);assert(await b.evaluate(e=>e===document.activeElement));assert.equal(await b.evaluate(e=>getComputedStyle(e).color),'rgb(196, 63, 80)');await p.screenshot({path:`${out}/detail-${path==='/mypage'?'mine':'public'}-${width}.png`})
   })

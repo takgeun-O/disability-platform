@@ -379,6 +379,19 @@ export function olderThan(item: { createdAt: string; id: number }, cursor: PostC
   const time = instantKey(item.createdAt), boundary = instantKey(cursor.createdAt)
   return time < boundary || (time === boundary && item.id < cursor.postId)
 }
+const WEEKLY_BEST_SIZE = 5
+
+export async function getWeeklyBest(baseUrl?: string): Promise<FeedItem[]> {
+  const { response, body } = await request(
+    "/weekly-best?size=" + WEEKLY_BEST_SIZE, { method: "GET" }, false, baseUrl,
+  )
+  if (response.status !== 200 || !object(body) || !Array.isArray(body.items) ||
+      body.items.length > WEEKLY_BEST_SIZE || !body.items.every(isFeedItem)) {
+    throw responseError(response.status, body, false)
+  }
+  return body.items
+}
+
 export async function getFeed(query: PostQuery & { size?: number }, cursor: PostCursor | null = null, signal?: AbortSignal, baseUrl?: string): Promise<FeedPage> {
   const params = new URLSearchParams(postQueryString({ ...query, page: 0 }))
   const size = query.size ?? PAGE_SIZE

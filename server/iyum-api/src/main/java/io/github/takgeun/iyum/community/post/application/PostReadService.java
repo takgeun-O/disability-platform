@@ -5,16 +5,21 @@ import io.github.takgeun.iyum.community.comment.infrastructure.PostCommentCount;
 import io.github.takgeun.iyum.community.post.domain.Post;
 import io.github.takgeun.iyum.community.post.domain.PostTopic;
 import io.github.takgeun.iyum.community.post.domain.PostType;
+import io.github.takgeun.iyum.community.post.infrastructure.PostLikeRepository;
 import io.github.takgeun.iyum.community.post.infrastructure.PostRepository;
 import io.github.takgeun.iyum.community.post.infrastructure.PostSearchRow;
 import jakarta.annotation.Nullable;
 import jakarta.validation.constraints.Null;
 import lombok.RequiredArgsConstructor;
+import org.jspecify.annotations.NonNull;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Isolation;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.Clock;
+import java.time.Duration;
 import java.time.Instant;
 import java.util.HashMap;
 import java.util.List;
@@ -33,7 +38,10 @@ public class PostReadService {
 
     private final PostRepository postRepository;
     private final CommentRepository commentRepository;
+    private final PostLikeRepository postLikeRepository;
     private final PostLikeReadService postLikeReadService;
+    private final Clock clock;
+
 
     public Page<PostSummaryResult> getPosts(
             @Nullable PostType type,
@@ -218,41 +226,8 @@ public class PostReadService {
             );
         }
 
-        // 실제 반환할 게시글의 댓글 수만 집계된다.
-        List<Long> postIds = returnedPosts.stream()
-                .map(Post::getId)
-                .toList();
-
-        List<PostCommentCount> counts =
-                commentRepository.countVisibleCommentsByPostIds(postIds);
-
-        Map<Long, Long> commentCounts = new HashMap<>();
-
-        for (PostCommentCount count : counts) {
-            commentCounts.put(
-                    count.getPostId(),
-                    count.getCommentCount()
-            );
-        }
-
-        Map<Long, PostLikeState> likeStates =
-                postLikeReadService.getStates(postIds, viewerId);
-
-        List<PostFeedItemResult> items = returnedPosts.stream()
-                .map(post -> {
-                    PostLikeState likeState = likeStates.getOrDefault(
-                            post.getId(),
-                            PostLikeState.EMPTY
-                    );
-
-                    return PostFeedItemResult.from(
-                            post,
-                            commentCounts.getOrDefault(post.getId(), 0L),
-                            likeState.likeCount(),
-                            likeState.liked()
-                    );
-                })
-                .toList();
+        List<PostFeedItemResult> items =
+                toFeedItems(returnedPosts, viewerId);
 
         PostCursor nextCursor = null;
 
@@ -272,6 +247,104 @@ public class PostReadService {
                 hasNext,
                 nextCursor
         );
+    }
+
+    /**
+     * 주간 인기 게시글 피드 조회
+     */
+    // 순위 선정과 응답용 좋아요 집계가 동일한 스냅샷을 읽는다.
+    @Transactional(readOnly = true, isolation = Isolation.REPEATABLE_READ)
+    public List<PostFeedItemResult> getWeeklyBestPosts(
+            int size,
+            @Nullable Long viewerId
+    ) {
+        validateFeedSize(size);
+
+        Instant asOf = clock.instant();
+        Instant fromInclusive = asOf.minus(Duration.ofDays(7));
+
+        List<Long> rankedIds = postLikeRepository.findWeeklyBestPostIds(
+                fromInclusive,
+                asOf,
+                // 주간베스트는 상위 size건을 가져오는 조회라서
+                // 다음 페이지 확인용 한 건이 필요하지 않음.
+                // 또한 findVisiblePostsInRankOrder() 가 빈 ID 목록을 바로 반환하도록 해서
+                // 베스트 글이 0건이면 후속 게시글·댓글 좋아요 조회도 저절로 생략될 것.
+                PageRequest.of(0, size)
+        );
+
+        List<Post> rankedPosts =
+                postRepository.findVisiblePostsInRankOrder(rankedIds);
+
+        return toFeedItems(rankedPosts, viewerId);
+    }
+
+    /**
+     * 이미 조회한 게시글 목록에 댓글 수와 좋아요 정보를 붙여서
+     * 화면에 전달할 결과 객체 목록으로 변환
+     */
+    private List<PostFeedItemResult> toFeedItems(
+            // DB에서 이미 조회한 Post 객체 목록
+            List<Post> posts,
+            // 현재 목록을 보는 회원의 ID. 비로그인이면 null
+            // 게시글 작성자의 ID가 아니라
+            // 내가 이 게시글에 좋아요를 눌렀는지 확인하기 위한 ID
+            @Nullable Long viewerId
+    ) {
+
+        if(posts.isEmpty()) {
+            return List.of();
+        }
+
+        // 실제 반환할 게시글의 댓글 수만 집계된다.
+        List<Long> postIds = posts.stream()
+                .map(Post::getId)
+                .toList();
+
+        // 실제 반환할 게시글별 공개 댓글 수를 집계한다.
+        List<PostCommentCount> counts =
+                commentRepository.countVisibleCommentsByPostIds(postIds);
+
+        // 댓글 수를 조회하고, 게시글 ID로 찾기 쉬운 Map으로 정리
+        // 현재 반환할 게시글들의 공개 댓글 수를 일괄 조회한 후 Map에 담는다.
+//         게시글 ID → 댓글 수
+//        {
+//            30L → 5L,
+//            20L → 2L
+//        }
+        Map<Long, Long> commentCounts = new HashMap<>();
+        for (PostCommentCount count : counts) {
+            commentCounts.put(
+                    count.getPostId(),
+                    count.getCommentCount()
+            );
+        }
+
+        // 좋아요 수와 조회자의 좋아요 여부 가져오기
+        // 반환값은 게시글 ID로 좋아요 상태를 찾을 수 있는 Map
+        Map<Long, PostLikeState> likeStates =
+                postLikeReadService.getStates(postIds, viewerId);
+
+        // 게시글 하나씩 결과 객체로 변환
+        List<PostFeedItemResult> items = posts.stream()
+                .map(post -> {
+                    PostLikeState likeState = likeStates.getOrDefault(
+                            post.getId(),
+                            PostLikeState.EMPTY // 비로그인 시
+                    );
+
+                    return PostFeedItemResult.from(
+                            post,
+                            commentCounts.getOrDefault(post.getId(), 0L),
+                            likeState.likeCount(),
+                            likeState.liked()
+                    );
+                })
+                .toList();
+
+        // 피드의 게시글 항목 목록 반환
+        // 반환 타입: List<PostFeedItemResult>
+        return items;
     }
 
     private void validatePage(int page, int size) {

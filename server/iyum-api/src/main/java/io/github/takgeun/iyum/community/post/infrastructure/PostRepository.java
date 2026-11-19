@@ -13,8 +13,7 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
 import java.time.Instant;
-import java.util.List;
-import java.util.Optional;
+import java.util.*;
 
 public interface PostRepository extends JpaRepository<Post, Long> {
 
@@ -323,4 +322,72 @@ public interface PostRepository extends JpaRepository<Post, Long> {
             @Param("afterId") Long afterId,
             Pageable pageable
     );
+
+    /**
+     * 전달받은 ID에 해당하는 공개 게시글과 작성자 조회
+     *
+     * 주의할 점은 where p.id in :postIds에서
+     * IN은 조회 대상을 지정할 뿐, 입력 목록의 순서를 보장하지 않는다.
+     */
+    @Query("""
+            select p
+            from Post p
+            join fetch p.author
+            where p.id in :postIds
+                and p.deletedAt is null
+                and p.hiddenAt is null
+            """)
+    List<Post> findVisiblePostsWithAuthorByIds(
+            @Param("postIds") List<Long> postIds
+    );
+
+    /**
+     * 순위대로 정렬된 게시글 ID 목록을 받아
+     * 그 순서 그대로 실제 게시글 객체 목록을 만들어 반환하는 메서드
+     * 그 중 숨김·삭제된 게시글은 제외한다.
+     *
+     * 참고로 default 메서드는 인터페이스 안에서 구현까지 제공하는 메서드임.
+     * 일반적으로 인터페이스에서는 선언만 하는데 default 를 사용하면
+     * {...} 안에 실행할 코드를 직접 작성할 수 있음.
+     */
+    default List<Post> findVisiblePostsInRankOrder(
+            // findWeeklyBestPostIds()가 반환한 순위순 게시글 ID 목록
+            // order by count(pl) desc, p.createdAt desc, p.id desc
+            List<Long> rankedIds
+    ) {
+        // 조회할 게시글이 없으므로 DB에 추가로 조회하지 않고
+        // 빈 목록을 바로 반환하고 종료
+        if (rankedIds.isEmpty()) {
+            return List.of();
+        }
+
+        // 1. 순위를 계산해서 게시글 "ID만" 가져온다.
+        // 실제 게시글을 조회하고 ID로 찾을 수 있게 저장
+        // findVisiblePostsWithAuthorByIds 의 where절은
+        // 입력 목록의 순서를 보장하지 않는다.
+        // 따라서 순서에 관계 없이 꺼낼 수 있도록 Map에 저장한다.
+        Map<Long, Post> postsById = new HashMap<>();
+        for (Post post : findVisiblePostsWithAuthorByIds(rankedIds)) {
+            postsById.put(post.getId(), post);
+        }
+
+        // 2. 해당 ID들의 게시글·작성자를 가져오고 원래 순서대로 정렬한다.
+        // 원래 순위 목록을 따라 게시글을 다시 배치한다.
+        // 여기서는 DB가 반환한 순서가 아니라 입력 받은 rankedIds 순서대로 반복
+        List<Post> rankedPosts = new ArrayList<>(postsById.size());
+        // 입력 받은 rankedIds 순서대로 반복
+        for (Long id : rankedIds) {
+            Post post = postsById.get(id);
+
+            // null 체크 이유
+            // 순위 ID를 조회한 뒤, 실제 게시글을 가져오기 전에
+            // 해당 게시글이 숨김 처리될 수 있으므로 null인 게시글은 건너뛴다.
+            if (post != null) {
+                rankedPosts.add(post);
+            }
+        }
+
+        // 이로써 원래 순위가 복원된다.
+        return rankedPosts;
+    }
 }

@@ -1,5 +1,5 @@
 "use client"
-import { useId, useState, useSyncExternalStore, useEffect } from "react"
+import { useId, useRef, useState, useSyncExternalStore, useEffect } from "react"
 import { useRouter } from "next/navigation"
 import { useAuth } from "@/components/AuthProvider"
 import { useNavigationGuard, useNavigationRequest } from "@/components/NavigationGuard"
@@ -8,12 +8,14 @@ import { requestListScrollRestore } from "@/lib/community-posts"
 import { postChanged } from "@/lib/community-mutations"
 import CommunityDialog from "./CommunityDialog"
 
-export default function PostLikeButton({ post, onLeaving }: { post: LikeState & { id: number }; onLeaving?: () => void }) {
+export default function PostLikeButton({ post, onLeaving, onChanged }: { post: LikeState & { id: number }; onLeaving?: () => void; onChanged?: () => void }) {
   const auth = useAuth(), { likes } = auth, scope = useNavigationRequest(), guard = useNavigationGuard(), router = useRouter(), uid = useId()
   const state = useSyncExternalStore(likes.subscribe, () => likes.get(post.id), () => undefined)
+  const readSequence = useRef(0)
   const [prompt, setPrompt] = useState(false)
   const [feedback, setFeedback] = useState<{ revision: number; message: string; uncertain: boolean } | null>(null)
-  const error = feedback?.revision === auth.memberRequests.revision ? feedback : null
+  const error = feedback?.revision === auth.memberRequests.revision &&
+    (!feedback.uncertain || !state || state.needsRead) ? feedback : null
   const authenticated = auth.status === "authenticated" && !!auth.member && !auth.pending
   const liked = authenticated && (state?.liked ?? false), count = state?.likeCount ?? post.likeCount
   const blocked = auth.status === "checking" || !!auth.pending || auth.memberRequests.paused || !!state?.pending
@@ -33,9 +35,14 @@ export default function PostLikeButton({ post, onLeaving }: { post: LikeState & 
     // An unknown outcome must be read back before another explicit mutation.
     if (!state || state.needsRead || error?.uncertain) {
       const ticket = likes.read()
-      try { const data = await getPost(String(post.id)); if (current()) ticket.accept([data]) }
-      catch (cause) {
-        if (!current()) return
+      const sequence = ++readSequence.current
+      const canApply = () => sequence === readSequence.current && current() && ticket.canAccept(post.id)
+      try {
+        const data = await getPost(String(post.id))
+        if (!canApply()) return
+        if (ticket.accept([data])) onChanged?.()
+      } catch (cause) {
+        if (!canApply()) return
         if (cause instanceof CommunityApiError && cause.status === 401) { session.expire(); setPrompt(true); return }
         if (cause instanceof CommunityApiError && cause.code === "POST_NOT_FOUND") postChanged(String(post.id))
         setFeedback({ revision: auth.memberRequests.revision, message: cause instanceof CommunityApiError ? cause.message : "좋아요 상태를 확인하지 못했습니다. 다시 확인해 주세요.", uncertain: true })
@@ -46,7 +53,10 @@ export default function PostLikeButton({ post, onLeaving }: { post: LikeState & 
     if (!operation) return
     try {
       const result = await changePostLike(post.id, !liked, current)
-      if (result && session.isCurrent() && operation.valid()) operation.commit(result)
+      if (result && session.isCurrent() && operation.valid()) {
+        operation.commit(result)
+        if (scope.isActive()) onChanged?.()
+      }
     } catch (cause) {
       if (!session.isCurrent() || !operation.valid()) return
       const e = cause instanceof CommunityApiError ? cause : null

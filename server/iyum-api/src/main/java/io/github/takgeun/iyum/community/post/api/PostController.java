@@ -572,4 +572,65 @@ public class PostController {
                 .cacheControl(CacheControl.noStore())
                 .build();
     }
+
+    @GetMapping(
+            value = "/weekly-best",
+            produces = MediaType.APPLICATION_JSON_VALUE
+    )
+    @Operation(
+            summary = "주간 베스트 게시글 조회",
+            description = """
+                    최근 7일 동안 작성된 공개 게시글 중 현재 좋아요가 1개 이상인 글을 조회합니다.
+                    좋아요 수가 많은 순서로 정렬하고, 동률이면 작성 시각과 게시글 ID가 큰 순서로 정렬합니다.
+                    로그인 없이 조회할 수 있습니다.
+                    """
+    )
+    @ApiResponses({
+            @ApiResponse(
+                    responseCode = "200",
+                    description = "순위순 게시글 목록. 대상이 없으면 items는 빈 배열입니다.",
+                    content = @Content(
+                            schema = @Schema(implementation = PostWeeklyBestResponse.class)
+                    )
+            ),
+            @ApiResponse(
+                    responseCode = "400",
+                    description = "size 범위 초과(INVALID_PAGE_REQUEST) 또는 정수 변환 실패(INVALID_REQUEST_PARAMETER)",
+                    content = @Content(
+                            schema = @Schema(implementation = ApiErrorResponse.class)
+                    )
+            )
+    })
+    public ResponseEntity<PostWeeklyBestResponse> getWeeklyBestPosts(
+            @Parameter(hidden = true)
+            @AuthenticationPrincipal MemberPrincipal principal,
+
+            @Parameter(
+                    description = "조회할 최대 게시글 수",
+                    schema = @Schema(
+                            type = "integer",
+                            format = "int32",
+                            minimum = "1",
+                            maximum = "50",
+                            defaultValue = "20"
+                    )
+            )
+            @RequestParam(name = "size", defaultValue = "20")
+            int size
+    ) {
+        Long viewerId = principal == null
+                ? null
+                : principal.getMemberId();
+
+        PostWeeklyBestResponse response = PostWeeklyBestResponse.from(
+                postReadService.getWeeklyBestPosts(
+                        size,
+                        viewerId
+                )
+        );
+
+        return ResponseEntity.ok()
+                .cacheControl(CacheControl.noStore())
+                .body(response);
+    }
 }

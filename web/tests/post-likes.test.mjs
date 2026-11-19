@@ -17,6 +17,27 @@ test('shared post lock, other posts independent; old GET cannot overwrite confir
   assert.equal(store.get(7).likeCount, 11); assert.equal(store.get(7).liked, true); assert.equal(store.get(7).pending, false)
   store.read().accept([{ ...initial, likeCount: 12, liked: true }]); assert.equal(store.get(7).likeCount, 12)
 })
+test('한 조회에서 확인한 여러 변경을 한 번 알리고 겹친 조회와 동일 값은 제외한다', () => {
+  const store = createPostLikes()
+  const rows = [initial, { ...initial, id: 8 }]
+  assert.equal(store.read().accept(rows), false)
+  const markUncertain = () => {
+    for (const row of rows) {
+      const write = store.change(row.id)
+      write.uncertain()
+      write.finish()
+    }
+  }
+  markUncertain()
+  const earlier = store.read(), batch = store.read(), later = store.read()
+  const recovered = [{ ...initial, liked: true }, { ...rows[1], likeCount: 3 }]
+  assert.equal(batch.accept(recovered), true)
+  assert.equal(earlier.accept(rows), false)
+  assert.equal(later.accept(recovered), false)
+  markUncertain()
+  assert.equal(store.read().accept(recovered), false)
+  assert(recovered.every(row => !store.get(row.id).needsRead))
+})
 for (const next of ['A:new-login', 'B', 'anonymous']) test(`old success/read/finally cannot affect ${next}`, () => {
   const store = createPostLikes(); store.setContext('A:1'); store.read().accept([initial])
   const read = store.read(), mutation = store.change(7)

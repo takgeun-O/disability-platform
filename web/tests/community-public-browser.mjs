@@ -21,9 +21,20 @@ try {
  const post=listing.items.find(p=>p.title.startsWith('[로컬 UI 검증]')) ?? listing.items[0];
  const query='type='+post.type+'&topic='+post.topic;
  await check('기존 DB 목록·초기 HTML·hydration 중복 요청 없음',async()=>{
-  let publicReads=0;const count=r=>{if(r.url().includes('/api/v1/community/posts'))publicReads++;};page.on('request',count);
-  await page.goto(base+'/community/posts');await ready();assert.equal(await page.locator('[data-feed-id]').count(),listing.items.length);
-  await page.waitForTimeout(250);assert.equal(publicReads,0);page.off('request',count);
+  const feedReads=[]
+  const count=request=>{
+   const url=new URL(request.url())
+   if(url.origin===api && request.method()==='GET' && url.pathname==='/api/v1/community/posts/feed' && !url.searchParams.has('afterId'))feedReads.push(url.search)
+  }
+  page.on('request',count)
+  const session=page.waitForResponse(r=>r.url()===api+'/api/v1/auth/me')
+  await page.goto(base+'/community/posts')
+  assert.equal((await session).status(),401)
+  await page.waitForFunction(()=>!!history.state?.iyumFeedEntry)
+  await page.waitForLoadState('networkidle')
+  await ready()
+  assert.equal(await page.locator('[data-feed-id]').count(),listing.items.length)
+  assert.deepEqual(feedReads,[]);page.off('request',count)
   const nojs=await browser.newContext({javaScriptEnabled:false});const p=await nojs.newPage();await p.goto(base+'/community/posts');assert(await p.getByRole('link',{name:post.title,exact:true}).isVisible());await nojs.close();
  });
  await check('실제 공개 상세·작성자/본문 초기 HTML·필터 복귀',async()=>{
@@ -41,7 +52,7 @@ try {
  await check('1440/390/320 실제 피드·상세·카테고리 펼침',async()=>{
   for(const width of [1440,390,320]){
    await page.setViewportSize({width,height:width>760?1000:844});await page.goto(base+'/community/posts?'+query);await ready();
-   assert(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth));assert(await page.locator('.feed-best').isVisible());assert(await page.locator('.feed-best button').isDisabled());
+   assert(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth));assert.equal(await page.locator('.feed-best').count(),0);
    assert(await page.getByRole('link',{name:'＋ 글쓰기',exact:true}).isVisible());await shot('real-list-'+width);
    if(width<760){await page.locator('.feed-expand').click();assert.equal(await page.locator('.feed-expand').getAttribute('aria-expanded'),'true');await page.keyboard.press('Escape');assert(await page.locator('.feed-expand').evaluate(el=>el===document.activeElement));assert(await page.locator('.feed-tabs').evaluate(el=>el.scrollWidth<=el.clientWidth));}
    if(width!==320){await page.goto(base+'/community/posts/'+post.id);await page.locator('.community-post-body').waitFor();await shot('real-detail-'+width);}

@@ -1,7 +1,7 @@
 import { getComments, CommentError, type CommentPage } from "./community-comments"
 import "server-only"
 import { cache } from "react"
-import { CommunityApiError, getPost, getPosts, getFeed } from "./community-api"
+import { CommunityApiError, getPost, getPosts, getFeed, getWeeklyBest } from "./community-api"
 import type { PostQuery, PostCursor } from "./community-posts"
 import type { PublicResult } from "./community-load"
 
@@ -27,3 +27,5 @@ export async function readPublicComments(id: string): Promise<PublicResult<Comme
 }
 
 export const readPublicFeed = (query: PostQuery & { size?: number }, cursor: PostCursor | null = null) => read(() => getFeed(query, cursor, undefined, apiBase()))
+
+export const readPublicWeeklyBest = () => read(() => getWeeklyBest(apiBase()))
