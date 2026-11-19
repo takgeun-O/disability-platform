@@ -18,14 +18,18 @@ export function createPostLikes() {
     },
     read() {
       const started = ++clock, captured = epoch
-      return { valid: () => captured === epoch, accept(items: (LikeState & { id: number })[]) {
-        if (captured !== epoch) return
+      const canAccept = (id: number) => captured === epoch && !pending.has(id) && (entries.get(id)?.order ?? 0) <= started
+      return { valid: () => captured === epoch, canAccept, accept(items: (LikeState & { id: number })[]) {
+        if (captured !== epoch) return false
+        let recoveredChange = false
         for (const item of items) {
-          const old = entries.get(item.id)
-          if (pending.has(item.id) || (old && old.order > started)) continue
+          if (!canAccept(item.id)) continue
+          const previous = entries.get(item.id)
+          if (previous?.needsRead && (previous.liked !== item.liked || previous.likeCount !== item.likeCount)) recoveredChange = true
           entries.set(item.id, { liked: item.liked, likeCount: item.likeCount, pending: false, order: started })
         }
         emit()
+        return recoveredChange
       } }
     },
     change(id: number) {

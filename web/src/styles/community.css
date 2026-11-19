@@ -218,10 +218,15 @@
 .feed-tabs a:hover { background:var(--iyum-surface); color:var(--iyum-primary); }
 .feed-expand { flex:0 0 44px; display:flex; align-items:center; justify-content:center; width:44px; height:44px; border:1px solid var(--iyum-border); border-radius:50%; background:var(--iyum-surface); color:var(--iyum-ink); cursor:pointer; }
 .feed-best { border:1px solid var(--iyum-border); background:linear-gradient(110deg,#effaff,#f6fbfd); border-radius:12px; padding:14px 18px; margin-bottom:22px; }
-.feed-best > div { display:flex; flex-wrap:wrap; align-items:center; gap:16px; }
 .feed-best h2 { font-size:20px; margin:0; color:var(--iyum-ink); }
-.feed-best button { font:inherit; font-size:13px; color:var(--iyum-muted); border:0; background:transparent; padding:4px 0; cursor:not-allowed; }
 .feed-best p { margin:7px 0 0; font-size:14px; color:var(--iyum-muted); }
+.feed-best ol { list-style:none; margin:12px 0 0; padding:0; }
+.feed-best li + li { border-top:1px solid var(--iyum-border); }
+.feed-best li a { display:grid; grid-template-columns:2ch minmax(0,1fr) auto; align-items:baseline; gap:12px; padding:12px 4px; color:var(--iyum-ink); text-decoration:none; }
+.feed-best li a:hover strong { text-decoration:underline; }
+.feed-best li strong { overflow-wrap:anywhere; }
+.feed-best-rank { color:var(--iyum-primary); font-weight:700; }
+.feed-best-count { white-space:nowrap; font-size:14px; color:var(--iyum-muted); }
 .feed-list-heading { display:flex; align-items:center; justify-content:space-between; gap:12px; }
 .feed-list-heading h2 { margin:0; font-size:23px; color:var(--iyum-ink); }
 .feed-list-heading > span { font-size:14px; color:var(--iyum-muted); }
@@ -275,6 +280,7 @@
   .feed-heading > a { grid-column:2; grid-row:1; }
   .feed-best { padding:12px 14px; margin-bottom:16px; }
   .feed-best h2 { font-size:18px; }
+  .feed-best li strong { display:-webkit-box; -webkit-box-orient:vertical; -webkit-line-clamp:2; overflow:hidden; }
   .feed-list-heading h2 { font-size:21px; }
   .feed-heading-actions > span { display:none; }
   .feed-list-heading { flex-wrap:wrap; gap:4px 10px; }

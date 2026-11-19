@@ -12,25 +12,24 @@ import io.github.takgeun.iyum.member.domain.Member;
 import io.github.takgeun.iyum.member.domain.MemberRole;
 import io.github.takgeun.iyum.member.domain.MemberStatus;
 import io.github.takgeun.iyum.member.infrastructure.MemberRepository;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.params.ParameterizedTest;
-import org.junit.jupiter.params.provider.CsvSource;
-import org.junit.jupiter.params.provider.EnumSource;
-import org.junit.jupiter.params.provider.MethodSource;
-import org.junit.jupiter.params.provider.NullSource;
-import org.junit.jupiter.params.provider.ValueSource;
+import org.junit.jupiter.params.provider.*;
 import org.mockito.ArgumentCaptor;
-import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.test.util.ReflectionTestUtils;
 
+import java.time.Clock;
 import java.time.Instant;
+import java.time.ZoneOffset;
 import java.util.Optional;
 import java.util.stream.Stream;
 
-import static org.assertj.core.api.Assertions.*;
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.Mockito.*;
 
 @ExtendWith(MockitoExtension.class)
@@ -55,8 +54,22 @@ class PostModerationServiceTest {
     @Mock
     ContentModerationLogRepository logRepository;
 
-    @InjectMocks
     PostModerationService service;
+
+    @BeforeEach
+    void setUp() {
+        Clock clock = Clock.fixed(
+                Instant.parse("2026-10-29T12:00:00Z"),
+                ZoneOffset.UTC
+        );
+
+        service = new PostModerationService(
+                memberRepository,
+                postRepository,
+                logRepository,
+                clock
+        );
+    }
 
     @ParameterizedTest
     @EnumSource(ModerationAction.class)

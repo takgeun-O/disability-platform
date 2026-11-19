@@ -1,6 +1,7 @@
 package io.github.takgeun.iyum.community.post.infrastructure;
 
 import io.github.takgeun.iyum.community.post.domain.Post;
+import io.github.takgeun.iyum.community.post.domain.PostLike;
 import io.github.takgeun.iyum.community.post.domain.PostTopic;
 import io.github.takgeun.iyum.community.post.domain.PostType;
 import io.github.takgeun.iyum.member.domain.Member;
@@ -21,7 +22,9 @@ import org.testcontainers.junit.jupiter.Testcontainers;
 import org.testcontainers.postgresql.PostgreSQLContainer;
 
 import java.sql.Timestamp;
+import java.time.Duration;
 import java.time.Instant;
+import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
@@ -67,6 +70,9 @@ class PostReadRepositoryTest {
 
     @Autowired
     MemberRepository memberRepository;
+
+    @Autowired
+    PostLikeRepository postLikeRepository;
 
     @Autowired
     EntityManager entityManager;
@@ -552,6 +558,156 @@ class PostReadRepositoryTest {
                 .containsExactly(oldQuestionId);
     }
 
+    @Test
+    void 주간_베스트를_한_건_조회하면_최신글보다_좋아요가_많은_글이_먼저_나온다() {
+        Instant asOf = BASE_TIME;
+        Instant fromInclusive = asOf.minus(Duration.ofDays(7));
+
+        Member author = createMember("best.author@example.com", "베스트작성자");
+        Member readerOne = createMember("best.one@example.com", "베스트독자하나");
+        Member readerTwo = createMember("best.two@example.com", "베스트독자둘");
+
+        Long popularPostId = createPost(
+                author, PostType.GENERAL, PostTopic.DAILY,
+                "6일 전 작성한 인기 글", asOf.minus(Duration.ofDays(6))
+        );
+        Long newerPostId = createPost(
+                author, PostType.GENERAL, PostTopic.DAILY,
+                "1분 전 작성한 최신 글", asOf.minusSeconds(60)
+        );
+
+        Post popularPost = entityManager.getReference(Post.class, popularPostId);
+        Post newerPost = entityManager.getReference(Post.class, newerPostId);
+
+        entityManager.persist(PostLike.create(popularPost, readerOne));
+        entityManager.persist(PostLike.create(popularPost, readerTwo));
+        entityManager.persist(PostLike.create(newerPost, readerOne));
+        entityManager.flush();
+        entityManager.clear();
+
+        var result = postLikeRepository.findWeeklyBestPostIds(
+                fromInclusive, asOf, PageRequest.of(0, 1)
+        );
+
+        assertThat(result).containsExactly(popularPostId);
+    }
+
+    @Test
+    void 주간_베스트는_정확히_7일_전부터_기준_시각까지_작성된_글을_포함한다() {
+        Instant asOf = BASE_TIME;
+        Instant fromInclusive = asOf.minus(Duration.ofDays(7));
+
+        Member author = entityManager.getReference(Member.class, firstAuthorId);
+        Member reader = createMember("boundary.reader@example.com", "경계독자");
+
+        Long beforeStartId = createPost(
+                author, PostType.GENERAL, PostTopic.DAILY,
+                "시작 1초 전", fromInclusive.minusSeconds(1)
+        );
+        Long atStartId = createPost(
+                author, PostType.GENERAL, PostTopic.DAILY,
+                "정확히 7일 전", fromInclusive
+        );
+        Long afterEndId = createPost(
+                author, PostType.GENERAL, PostTopic.DAILY,
+                "기준 시각 1초 후", asOf.plusSeconds(1)
+        );
+
+        addLike(beforeStartId, reader);
+        addLike(atStartId, reader);
+        addLike(oldQuestionId, reader);
+        addLike(afterEndId, reader);
+        entityManager.flush();
+        entityManager.clear();
+
+        var result = postLikeRepository.findWeeklyBestPostIds(
+                fromInclusive, asOf, PageRequest.of(0, 10)
+        );
+
+        assertThat(result).containsExactly(oldQuestionId, atStartId);
+    }
+
+    @Test
+    void 주간_베스트는_숨김글과_삭제글과_좋아요가_없는_글을_제외한다() {
+        Instant asOf = BASE_TIME.plusSeconds(600);
+        Member reader = createMember("visible.reader@example.com", "공개독자");
+
+        addLike(oldQuestionId, reader);       // 공개, 좋아요 1개
+        addLike(recentQuestionId, reader);    // 좋아요를 받은 뒤 숨김
+        addLike(deletedId, reader);           // 삭제 후에도 좋아요 행이 남은 상태
+        // latestGeneralId 등 나머지 공개 글은 좋아요 0개
+
+        Post hiddenPost = entityManager.find(Post.class, recentQuestionId);
+        hiddenPost.hide(asOf);
+
+        entityManager.flush();
+        entityManager.clear();
+
+        var result = postLikeRepository.findWeeklyBestPostIds(
+                asOf.minus(Duration.ofDays(7)), asOf, PageRequest.of(0, 10)
+        );
+
+        assertThat(result).containsExactly(oldQuestionId);
+    }
+
+    @Test
+    void 주간_베스트는_좋아요가_같으면_작성_시각과_ID_내림차순으로_조회한다() {
+        Instant asOf = BASE_TIME.plusSeconds(600);
+        Member reader = createMember("ranking.reader@example.com", "순위독자");
+
+        addLike(latestGeneralId, reader);      // BASE_TIME + 300초
+        addLike(recentQuestionId, reader);     // BASE_TIME + 200초, 작은 ID
+        addLike(sameTimeQuestionId, reader);   // BASE_TIME + 200초, 큰 ID
+        entityManager.flush();
+        entityManager.clear();
+
+        var result = postLikeRepository.findWeeklyBestPostIds(
+                asOf.minus(Duration.ofDays(7)), asOf, PageRequest.of(0, 10)
+        );
+
+        assertThat(result).containsExactly(
+                latestGeneralId,
+                sameTimeQuestionId,
+                recentQuestionId
+        );
+    }
+
+    @Test
+    void 베스트_ID_순서를_유지하면서_현재_공개된_글과_작성자만_조회한다() {
+        Post hiddenPost = entityManager.find(Post.class, recentQuestionId);
+        hiddenPost.hide(BASE_TIME.plusSeconds(600));
+
+        entityManager.flush();
+        entityManager.clear();
+
+        List<Long> rankedIds = List.of(
+                oldQuestionId,
+                recentQuestionId,     // 숨김
+                deletedId,            // 삭제
+                Long.MAX_VALUE,       // 존재하지 않음
+                latestGeneralId
+        );
+
+        List<Post> result = postRepository.findVisiblePostsInRankOrder(rankedIds);
+
+        // 조회 후 영속성 컨텍스트를 비워도 작성자 닉네임을 읽을 수 있어야 한다.
+        entityManager.clear();
+
+        assertThat(result)
+                .extracting(Post::getId)
+                .containsExactly(oldQuestionId, latestGeneralId);
+
+        assertThat(result)
+                .extracting(post -> post.getAuthor().getNickname())
+                .containsExactly("작성자하나", "작성자둘");
+    }
+
+    @Test
+    void 베스트_ID가_비어_있으면_빈_목록을_반환한다() {
+        assertThat(postRepository.findVisiblePostsInRankOrder(List.of()))
+                .isEmpty();
+    }
+
     private Member createMember(
             String email,
             String nickname
@@ -597,5 +753,13 @@ class PostReadRepositoryTest {
         );
 
         return post.getId();
+    }
+
+    private void addLike(
+            Long postId,
+            Member reader
+    ) {
+        Post post = entityManager.getReference(Post.class, postId);
+        entityManager.persist(PostLike.create(post, reader));
     }
 }

@@ -2,6 +2,7 @@
 import WrittenTime from "@/components/WrittenTime"
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react"
 import CommentSuccessToast from "@/components/community/CommentSuccessToast"
+import PostLikeButton from "@/components/community/PostLikeButton"
 import PostListReactions from "@/components/community/PostListReactions"
 import { useAuth } from "@/components/AuthProvider"
 import { useRouter } from "next/navigation"
@@ -9,11 +10,11 @@ import Link from "@/components/AppLink"
 import { useNavigationRequest } from "@/components/NavigationGuard"
 import { FeedAvatar, FeedBest, FeedNavigation } from "@/components/community/FeedNavigation"
 import { getPostVersion, usePostVersion } from "@/lib/community-mutations"
-import { CommunityApiError, getFeed } from "@/lib/community-api"
+import { CommunityApiError, getFeed, type FeedItem } from "@/lib/community-api"
 import { cacheFeed, readFeedCache, setFeedReturn, takeFeedReturn, mergeFeed, reconcileFeed, MAX_FEED_SEGMENTS, type FeedSnapshot, type FeedPosition } from "@/lib/community-feed"
 import { consumeListReturn, listHref, POST_TYPES, POST_TOPICS } from "@/lib/community-posts"
 import { topicByValue, type CommunityTopic } from "@/lib/community-topics"
-import type { InitialFeed } from "@/lib/community-load"
+import type { InitialFeed, PublicResult } from "@/lib/community-load"
 
 function position(): FeedPosition {
   const rows = [...document.querySelectorAll<HTMLElement>("[data-feed-id]")]
@@ -22,9 +23,11 @@ function position(): FeedPosition {
   return { id: row ? Number(row.dataset.feedId) : undefined, next: Number(rows[index+1]?.dataset.feedId) || undefined,
     previous: Number(rows[index-1]?.dataset.feedId) || undefined, offset: row?.getBoundingClientRect().top ?? 0, y: window.scrollY }
 }
-export default function PostList({ initial, space }: { initial: InitialFeed; space?: CommunityTopic }) {
+export default function PostList({ initial, space, best }: { initial: InitialFeed; space?: CommunityTopic; best: PublicResult<FeedItem[]> | null }) {
   const { likes, memberRequests, status, pending } = useAuth()
   const authKey = `${memberRequests.revision}:${status}:${pending}`, loadedAuth = useRef("")
+  const freshPublicFeed = useRef(false)
+  const refreshBest = useRef<(() => void) | null>(null)
   const router = useRouter(), scope = useNavigationRequest()
   const version = usePostVersion("list"), href = initial.href
   const [view, setView] = useState<FeedSnapshot>({ ...(initial.data ?? { items: [], hasNext: false, nextCursor: null }), segments: 1, version: 0 })
@@ -53,6 +56,7 @@ export default function PostList({ initial, space }: { initial: InitialFeed; spa
     const saved = (oldId && readFeedCache(oldId, href)) || (returnId && readFeedCache(returnId, href))
     entry.current = oldId && readFeedCache(oldId, href) ? oldId : crypto.randomUUID()
     history.replaceState({ ...history.state, iyumFeedEntry: entry.current }, "")
+    freshPublicFeed.current = !saved && initial.data !== null
     if (saved) {
       currentView.current = saved; setView(saved); pendingPosition.current = saved.position ?? null
       setRestoring(!!saved.position); setAuto(false); setError(null)
@@ -64,7 +68,7 @@ export default function PostList({ initial, space }: { initial: InitialFeed; spa
     const scroll = () => { if (initialized && scope.isActive()) save() }
     window.addEventListener("scroll", scroll, { passive: true })
     return () => { cancelAnimationFrame(frame); if (initialized && scope.isActive()) save(); request.current?.abort(); busyRef.current = false; window.removeEventListener("scroll", scroll) }
-  }, [href, save, scope])
+  }, [href, save, scope, initial.data])
   useLayoutEffect(() => {
     if (!ready || !pendingPosition.current) return
     const target = pendingPosition.current
@@ -113,7 +117,8 @@ export default function PostList({ initial, space }: { initial: InitialFeed; spa
         await getFeed(initial.query, null, controller.signal) : await reconcileFeed(initial.query, initial.cursor, previous, controller.signal)
       if (!valid() || requestedVersion !== getPostVersion("list")) return
       const refreshForAuth = loadedAuth.current !== authKey && previous.version === requestedVersion
-      likeRead.accept(data.items); loadedAuth.current = authKey
+      if (likeRead.accept(data.items)) refreshBest.current?.()
+      loadedAuth.current = authKey
       // Preserve the current anchor, including scrolling during the request.
       if (kind === "refresh" && !latest) { pendingPosition.current = position(); setRestoring(true); if (!refreshForAuth) setAuto(false) }
       const updated = { ...data, items: kind === "more" ? mergeFeed(previous.items, data.items) : data.items,
@@ -131,8 +136,17 @@ export default function PostList({ initial, space }: { initial: InitialFeed; spa
     }
   }, [initial.query, initial.cursor, href, scope, likes, authKey, status, pending, memberRequests.paused])
   useEffect(() => {
-    if (ready && !restoring && (currentView.current.version !== version || loadedAuth.current !== authKey)) void load("refresh")
-  }, [ready, restoring, version, authKey, load])
+    if (!ready || restoring || status === "checking" || pending || memberRequests.paused) return
+    if (freshPublicFeed.current) {
+      freshPublicFeed.current = false
+      // 서버의 첫 피드는 비회원 응답이다. 로그인 회원은 개인 좋아요 상태를 다시 받는다.
+      if (status === "anonymous" && currentView.current.version === version) {
+        loadedAuth.current = authKey
+        return
+      }
+    }
+    if (currentView.current.version !== version || loadedAuth.current !== authKey) void load("refresh")
+  }, [ready, restoring, version, authKey, status, pending, memberRequests.paused, load])
   useEffect(() => {
     if (!ready || restoring || view.version !== version || busy || error || !auto || !view.hasNext || view.segments >= MAX_FEED_SEGMENTS || !sentinel.current || !("IntersectionObserver" in window)) return
     const observer = new IntersectionObserver(entries => { if (entries.some(e => e.isIntersecting)) void load("more") }, { rootMargin: "120px" })
@@ -148,7 +162,7 @@ export default function PostList({ initial, space }: { initial: InitialFeed; spa
       <header className="feed-heading"><div><h1>{selected?.name ?? "커뮤니티"}</h1><p>{selected ? selected.guidance : "서로의 질문과 경험을 나눠요. 공식 정보와 개인 경험은 구분하고, 개인정보는 보호해 주세요."}</p></div>
         <Link className="iyum-button iyum-button-primary" href={`/community/posts/create?${create}`} onNavigate={leaving}>＋ 글쓰기</Link></header>
       <FeedNavigation query={initial.query} />
-      <FeedBest name={name} />
+      {best && <FeedBest ref={refreshBest} initial={best} href={href} onLeaving={leaving} />}
       <section aria-label="게시글 피드"><div className="feed-list-heading"><h2>{name} 게시글</h2><div className="feed-heading-actions"><span>최신순</span>        <div className="feed-refresh"><button className="feed-refresh-button" aria-label="최신 목록 새로고침" aria-busy={busy === "refresh"} aria-disabled={!!busy} onClick={() => {
           if (busyRef.current) return
           if (initial.cursor) router.push(listHref(initial.query, pathname))
@@ -170,7 +184,8 @@ export default function PostList({ initial, space }: { initial: InitialFeed; spa
             <FeedAvatar/><div className="feed-post-content"><div className="feed-author"><strong>{post.author.nickname}</strong><div className="feed-meta"><span>{POST_TOPICS[post.topic]}</span><span>{POST_TYPES[post.type]}</span><WrittenTime value={post.createdAt} /></div></div>
             <h3><Link href={`/community/posts/${post.id}?from=${encodeURIComponent(href)}`} onNavigate={leaving} prefetch={false}>{post.title}</Link></h3>
             <p className="feed-preview">{post.contentPreview}</p>
-            <PostListReactions post={post} href={`/community/posts/${post.id}?from=${encodeURIComponent(href)}`} onLeaving={leaving}/>
+            <PostListReactions likeControl={status === "authenticated" ? <PostLikeButton post={post}
+              onChanged={() => refreshBest.current?.()} /> : undefined} post={post} href={`/community/posts/${post.id}?from=${encodeURIComponent(href)}`} onLeaving={leaving}/>
           </div></article></li>)}
         </ol>
         <div ref={sentinel} className="feed-end">

@@ -7,7 +7,7 @@ import { loadTypeScript } from "./helpers/load-typescript.mjs"
 const { isCommentPage } = await loadTypeScript("../src/lib/community-comments.ts", import.meta.url)
 const { chromium } = await import(process.env.PLAYWRIGHT_MODULE ?? "playwright")
 const base = process.env.BASE_URL ?? "http://127.0.0.1:8451",
-  api = "http://127.0.0.1:8082"
+  api = process.env.API_BASE_URL ?? "http://127.0.0.1:8082"
 const output =
   process.env.COMMUNITY_ARTIFACT_DIR ?? "/private/tmp/iyum-comments-browser"
 await fs.mkdir(output, { recursive: true })
@@ -1183,7 +1183,7 @@ try {
       await p.getByText("댓글 1",{exact:true}).waitFor()
       const location=p.url()
       // Complete the new authenticated likes read before controlling the explicit refresh.
-      await p.waitForFunction(()=>document.querySelector('.post-like-count')&&document.querySelector('.feed-posts')?.getAttribute('aria-busy')==='false')
+      await p.waitForFunction(()=>document.querySelector('[data-like-ready="true"]')&&document.querySelector('.feed-posts')?.getAttribute('aria-busy')==='false')
       state.get=async(r,u)=>{
         if(u.pathname!=="/api/v1/community/posts/feed")return r.fulfill(read(u))
         const old=read(u);state.get=null
