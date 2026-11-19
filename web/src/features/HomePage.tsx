@@ -1,17 +1,16 @@
 import { Suspense } from 'react';
 import HomeRecentPosts from '@/components/HomeRecentPosts';
-import { readPublicPosts } from '@/lib/community-server';
+import { readPublicFeed } from '@/lib/community-server';
 import Image from 'next/image';
 import HomeSearch from '@/components/HomeSearch';
 import DeadlinePanel from '@/components/DeadlinePanel';
 import Link from '@/components/AppLink';
 
-import { HOME_RECENT_QUERY, searchHref } from '@/lib/community-posts';
+import { HOME_RECENT_ID, HOME_RECENT_QUERY, searchHref } from '@/lib/community-posts';
 
 async function RecentPosts() {
-  const { data } = await readPublicPosts(HOME_RECENT_QUERY);
-  const posts = data?.items.map(({ id, title, commentCount }) => ({ id, title, commentCount }));
-  return <HomeRecentPosts initialPosts={posts ?? null} />;
+  const { data } = await readPublicFeed(HOME_RECENT_QUERY);
+  return <HomeRecentPosts initialPosts={data?.items ?? null} />;
 }
 
 const SHORTCUTS = [
@@ -49,10 +48,12 @@ export default function HomePage() {
     </section>
     <div className="iyum-container iyum-home-grid">
       <DeadlinePanel />
-      <section className="iyum-community-preview" aria-labelledby="community-heading">
-        <div className="iyum-section-heading"><div className="iyum-community-title"><h2 id="community-heading">커뮤니티</h2></div>
-          <Link className="iyum-button iyum-button-outline" href="/community/posts/create?type=질문·답변">질문 남기기</Link></div>
-        <div className="iyum-community-toolbar"><span>최근 글</span><Link className="iyum-text-link" href="/community">전체 보기 <span aria-hidden="true">→</span></Link></div>
+      <section id={HOME_RECENT_ID} className="iyum-community-preview" aria-labelledby="community-heading">
+        <div className="iyum-section-heading">
+          <h2 id="community-heading">커뮤니티</h2>
+          <Link className="iyum-text-link" href="/community">전체 보기 <span aria-hidden="true">→</span></Link>
+        </div>
+        <div className="iyum-community-toolbar"><span>최근 글</span></div>
         <Suspense fallback={<p role="status">최근 글을 불러오는 중입니다.</p>}>
           <RecentPosts />
         </Suspense>

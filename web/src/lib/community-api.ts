@@ -379,12 +379,13 @@ export function olderThan(item: { createdAt: string; id: number }, cursor: PostC
   const time = instantKey(item.createdAt), boundary = instantKey(cursor.createdAt)
   return time < boundary || (time === boundary && item.id < cursor.postId)
 }
-export async function getFeed(query: PostQuery, cursor: PostCursor | null = null, signal?: AbortSignal, baseUrl?: string): Promise<FeedPage> {
+export async function getFeed(query: PostQuery & { size?: number }, cursor: PostCursor | null = null, signal?: AbortSignal, baseUrl?: string): Promise<FeedPage> {
   const params = new URLSearchParams(postQueryString({ ...query, page: 0 }))
-  params.set("size", String(PAGE_SIZE))
+  const size = query.size ?? PAGE_SIZE
+  params.set("size", String(size))
   if (cursor) { params.set("afterCreatedAt", cursor.createdAt); params.set("afterId", String(cursor.postId)) }
   const { response, body } = await request("/feed?" + params, { method: "GET", signal }, false, baseUrl)
-  if (response.status !== 200 || !object(body) || !Array.isArray(body.items) || body.items.length > PAGE_SIZE ||
+  if (response.status !== 200 || !object(body) || !Array.isArray(body.items) || body.items.length > size ||
     !body.items.every(isFeedItem) ||
     typeof body.hasNext !== "boolean") throw responseError(response.status, body, false)
   const items = body.items as FeedItem[], last = items.at(-1)

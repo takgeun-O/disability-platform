@@ -120,7 +120,7 @@
 .iyum-guides { grid-area: guides; min-width: 0; }
 .iyum-guides h2 { font-size: 24px; }
 .iyum-section-heading { display: flex; justify-content: space-between; align-items: center; gap: 20px; }
-.iyum-community-title { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; }
+.iyum-community-preview { scroll-margin-top: 16px; }
 .iyum-community-toolbar { display: flex; align-items: center; justify-content: space-between; min-height: 50px; margin-top: 8px; color: var(--iyum-primary); font-size: 14px; }
 .iyum-community-toolbar > span { align-self: stretch; display: flex; align-items: center; border-bottom: 2px solid var(--iyum-primary); padding-inline: 8px; font-weight: 600; }
 .iyum-posts { list-style: none; padding: 0; margin: 0 0 12px; border-top: 1px solid var(--iyum-border); }
@@ -128,8 +128,11 @@
 .iyum-posts a { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 16px; padding: 16px 4px; text-decoration: none; color: var(--iyum-ink); }
 .iyum-posts a:hover { background: var(--iyum-mist); }
 .iyum-post-title { font-size: 17px; font-weight: 600; word-break: keep-all; overflow-wrap: anywhere; }
-.iyum-post-comments { color: var(--iyum-muted); font-size: 14px; }
-.iyum-post-comments { white-space: nowrap; }
+.iyum-post-copy { display: grid; min-width: 0; gap: 4px; }
+.iyum-post-byline, .iyum-post-reactions { display: flex; align-items: baseline; gap: 10px; color: var(--iyum-muted); font-size: 14px; }
+.iyum-post-byline { flex-wrap: wrap; overflow-wrap: anywhere; }
+.iyum-post-preview { overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+.iyum-post-reactions { white-space: nowrap; }
 .iyum-empty-state { margin-block: 16px; padding: 16px; border-radius: 6px; background: var(--iyum-mist); }
 .iyum-empty-state p { font-size: 14px; color: var(--iyum-muted); }
 .iyum-empty-state .iyum-empty-title { font-size: 16px; font-weight: 600; color: var(--iyum-ink); margin-bottom: 8px; }
@@ -229,7 +232,7 @@
   .iyum-empty-state { padding: 16px; }
   .iyum-section-heading { flex-wrap: wrap; gap: 12px; }
   .iyum-section-heading .iyum-button { min-height: 44px; }
-  .iyum-posts a { grid-template-columns: minmax(0, 1fr) auto; gap: 8px 12px; padding: 18px 0; }
+  .iyum-posts a { grid-template-columns: minmax(0, 1fr); gap: 8px; padding: 18px 0; }
   .iyum-post-title { font-size: 16px; }
   .iyum-home-grid { padding-bottom: 40px; }
   .iyum-about { padding-block: 36px; }

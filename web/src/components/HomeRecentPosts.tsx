@@ -1,21 +1,22 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useSyncExternalStore } from 'react';
 import Link from './AppLink';
-import { getPosts } from '@/lib/community-api';
-import { HOME_RECENT_QUERY } from '@/lib/community-posts';
+import { writtenTime } from '@/lib/written-time';
+import { writtenClock } from '@/lib/written-clock';
+import { getFeed, type FeedItem } from '@/lib/community-api';
+import { HOME_RECENT_HREF, HOME_RECENT_QUERY } from '@/lib/community-posts';
 
-type RecentPost = { id: number; title: string; commentCount: number };
-
-export default function HomeRecentPosts({ initialPosts }: { initialPosts: RecentPost[] | null }) {
-  const [retriedPosts, setRetriedPosts] = useState<RecentPost[] | null>(null);
+export default function HomeRecentPosts({ initialPosts }: { initialPosts: FeedItem[] | null }) {
+  const [retriedPosts, setRetriedPosts] = useState<FeedItem[] | null>(null);
   const [loading, setLoading] = useState(false);
+  const now = useSyncExternalStore(writtenClock.subscribe, writtenClock.getSnapshot, writtenClock.getServerSnapshot);
   const posts = initialPosts ?? retriedPosts;
 
   async function retry() {
     setLoading(true);
     try {
-      const page = await getPosts(HOME_RECENT_QUERY);
+      const page = await getFeed(HOME_RECENT_QUERY);
       setRetriedPosts(page.items);
     } catch {
       setRetriedPosts(null);
@@ -33,9 +34,19 @@ export default function HomeRecentPosts({ initialPosts }: { initialPosts: Recent
 
   return <ol className="iyum-posts" aria-label="최근 게시글 목록">
     {posts.map(post => <li key={post.id}>
-      <Link href={`/community/posts/${post.id}`} prefetch={false}>
-        <strong className="iyum-post-title">{post.title}</strong>
-        <span className="iyum-post-comments">댓글 {post.commentCount}</span>
+      <Link href={`/community/posts/${post.id}?from=${encodeURIComponent(HOME_RECENT_HREF)}`} prefetch={false}>
+        <span className="iyum-post-copy">
+          <span className="iyum-post-byline">
+            <span>{post.author.nickname}</span>
+            <time dateTime={post.createdAt}>{writtenTime(post.createdAt, now).label}</time>
+          </span>
+          <strong className="iyum-post-title">{post.title}</strong>
+          {post.contentPreview.trim() && <span className="iyum-post-preview">{post.contentPreview}</span>}
+        </span>
+        <span className="iyum-post-reactions">
+          <span>좋아요 {post.likeCount}개</span>
+          <span>댓글 {post.commentCount}개</span>
+        </span>
       </Link>
     </li>)}
   </ol>;
