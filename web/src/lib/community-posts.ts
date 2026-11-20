@@ -33,6 +33,8 @@ export const PAGE_SIZE = 20
 export const DEFAULT_QUERY: PostQuery = { type: "", topic: "", page: 0 }
 export const HOME_RECENT_ID = "home-recent-posts"
 export const HOME_RECENT_HREF = "/#" + HOME_RECENT_ID
+export const HOME_WEEKLY_HREF = "/?tab=weekly#" + HOME_RECENT_ID
+export const isHomeListReturn = (value: string | null) => value === HOME_RECENT_HREF || value === HOME_WEEKLY_HREF
 export const HOME_RECENT_QUERY = { ...DEFAULT_QUERY, size: 4 }
 
 function enumOrLabel<T extends string>(
@@ -110,7 +112,7 @@ export function searchHref(keyword: string, page = 1, type: PostType | "" = ""):
 export function safeListReturn(value: string | null, fallback = "/community/posts"): string {
   const defaultPath = (isPostListPath(fallback) || fallback === "/mypage") ? fallback : "/community/posts"
   // 알려진 목록/주제 경로와 검증한 조건만 허용한다. 상세·작성·미등록 slug는 제외한다.
-  if (value === HOME_RECENT_HREF) return value
+  if (value && isHomeListReturn(value)) return value
   if (!value) return defaultPath
   try {
     const url = new URL(value, "https://iyum.invalid")
@@ -134,7 +136,7 @@ export function safeListReturn(value: string | null, fallback = "/community/post
 // The label follows the validated destination, including direct-entry fallbacks.
 export function listReturnLabel(back: string): string {
   const destination = safeListReturn(back)
-  if (destination === HOME_RECENT_HREF) return "홈으로 돌아가기"
+  if (isHomeListReturn(destination)) return "홈으로 돌아가기"
   if (destination.startsWith("/search?")) return "검색 결과로 돌아가기"
   if (destination === "/mypage") return "마이페이지로 돌아가기"
   const space = topicByPath(destination.split("?")[0])

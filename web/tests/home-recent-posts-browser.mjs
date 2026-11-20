@@ -12,6 +12,10 @@ const postsPath = "/api/v1/community/posts/feed"
 const empty = { items: [], hasNext: false, nextCursor: null }
 let server, fail = false, feed = empty
 const homeReturn = "/#home-recent-posts"
+const weeklyReturn = "/?tab=weekly#home-recent-posts"
+const weeklyPath = "/api/v1/community/posts/weekly-best"
+let weeklyItems = [], weeklyFailed = false
+const weeklyRequests = []
 const requests = []
 const story = {
   id: 2, type: "GENERAL", topic: "DAILY", title: "첫 출근에 동료에게 전하고 싶었던 이야기 ".repeat(4).trim(),
@@ -56,6 +60,12 @@ try {
         if (!item) { res.writeHead(404).end(); return }
         const body = detail[2] ? empty : { ...item, content: item.title, updatedAt: item.createdAt }
         res.writeHead(200, { "Content-Type": "application/json" }).end(JSON.stringify(body))
+        return
+      }
+      if (url.pathname === weeklyPath) {
+        weeklyRequests.push(url.search)
+        res.writeHead(weeklyFailed ? 503 : 200, { "Content-Type": "application/json" })
+        res.end(JSON.stringify(weeklyFailed ? {} : { items: weeklyItems }))
         return
       }
       if (url.pathname !== postsPath) { res.writeHead(404).end(); return }
@@ -123,6 +133,112 @@ try {
         await page.getByRole("heading", { name: item.title, exact: true }).first().waitFor()
         await page.getByRole("link", { name: "← 홈으로 돌아가기" }).click()
       }
+      const recent = section.getByRole("link", { name: "최근 글", exact: true })
+      const weekly = section.getByRole("link", { name: "주간 인기", exact: true })
+      const weeklyRows = section.getByRole("list", { name: "주간 인기 게시글 목록" }).getByRole("listitem")
+      weeklyItems = [story, blankStories[0], blankStories[1], blankStories[3]].map((post, index) => ({ ...post, likeCount: 4 - index }))
+      const before = weeklyRequests.length
+      await page.goto(base)
+      await rows.first().waitFor()
+      assert.equal(weeklyRequests.length, before)
+      assert.match(await rows.first().innerText(), /미리보기 없는 글 4/)
+      const toolbar = section.getByRole("navigation", { name: "홈 커뮤니티 목록" })
+      await toolbar.evaluate(el => window.scrollBy({
+        top: el.getBoundingClientRect().top - innerHeight / 2, behavior: "instant",
+      }))
+      const toolbarTop = () => toolbar.evaluate(el => el.getBoundingClientRect().top)
+      for (const [tab, href, list] of [
+        [weekly, "/?tab=weekly", "주간 인기 게시글 목록"],
+        [recent, "/", "최근 게시글 목록"],
+      ]) {
+        await tab.focus()
+        const beforeTop = await toolbarTop()
+        assert.ok(Math.abs(beforeTop - (mobile ? 844 : 900) / 2) <= 2)
+        await page.keyboard.press("Enter")
+        await page.waitForURL(new URL(href, base).href)
+        await section.getByRole("list", { name: list }).getByRole("listitem").first().waitFor()
+        const afterTop = await toolbarTop()
+        console.log(width, href, "탭 상단 px", beforeTop, "→", afterTop)
+        assert.ok(Math.abs(afterTop - beforeTop) <= 2)
+        assert.equal(await tab.getAttribute("aria-current"), "page")
+        assert.ok(await tab.evaluate(el => document.activeElement === el))
+      }
+      await weekly.click()
+      await weeklyRows.nth(3).waitFor()
+      assert.equal(await weekly.getAttribute("aria-current"), "page")
+      await page.reload()
+      await weeklyRows.nth(3).waitFor()
+      assert.equal(page.url(), new URL("/?tab=weekly", base).href)
+      assert.deepEqual(await weeklyRows.locator(".iyum-post-title").allTextContents(),
+        weeklyItems.map((item, i) => (i + 1) + "위 " + item.title))
+      assert.equal(weeklyRequests.at(-1), "?size=4")
+      const title = await weeklyRows.first().locator("strong").boundingBox()
+      const reactions = await weeklyRows.first().locator(".iyum-post-reactions").boundingBox()
+      assert.ok(mobile ? reactions.y >= title.y + title.height - 1 : reactions.x >= title.x + title.width - 1)
+      assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth))
+      await section.scrollIntoViewIfNeeded()
+      await capture(page, "weekly-" + width)
+      const open = weeklyRows.first().getByRole("link")
+      for (const back of ["browser", "link"]) {
+        await open.scrollIntoViewIfNeeded()
+        const fromUrl = page.url()
+        const fromY = await page.evaluate(() => scrollY)
+        assert.ok(fromY > 0)
+        if (mobile) await open.tap()
+        else await open.click()
+        const home = page.getByRole("link", { name: "← 홈으로 돌아가기", exact: true })
+        assert.equal(await home.getAttribute("href"), weeklyReturn)
+        if (back === "browser") await page.goBack()
+        else await home.click()
+        await page.waitForURL(back === "browser" ? fromUrl : new URL(weeklyReturn, base).href)
+        await weeklyRows.first().waitFor()
+        assert.equal(await weekly.getAttribute("aria-current"), "page")
+        if (back === "browser") {
+          const restoredY = await page.evaluate(() => scrollY)
+          console.log(width, "뒤로 가기", fromUrl, fromY, "→", restoredY)
+          assert.ok(Math.abs(fromY - restoredY) <= 2)
+        } else assert.ok(await section.locator("h2").evaluate(el => {
+          const rect = el.getBoundingClientRect()
+          return rect.top >= 0 && rect.bottom <= innerHeight
+        }))
+      }
+      weeklyItems = weeklyItems.slice(0, 1)
+      await page.reload()
+      await weeklyRows.first().waitFor()
+      assert.equal(await weeklyRows.count(), 1)
+      weeklyItems = []
+      await page.reload()
+      await section.getByText("최근 7일 동안 작성된 글 중 아직 좋아요를 받은 글이 없어요.").waitFor()
+      weeklyFailed = true
+      await page.reload()
+      const retry = section.getByRole("button", { name: "다시 시도" })
+      await retry.waitFor()
+      let finish
+      const delayedRetry = new Promise(resolve => { finish = resolve })
+      await page.route("**" + weeklyPath + "?*", async route => {
+        assert.equal(new URL(route.request().url()).search, "?size=4")
+        await delayedRetry
+        await route.fulfill({ json: { items: [{ ...story, likeCount: 1 }] } })
+      })
+      const pending = page.waitForRequest(req => new URL(req.url()).pathname === weeklyPath)
+      await retry.click()
+      await pending
+      await section.getByText("주간 인기 글을 불러오는 중입니다.").waitFor()
+      await recent.click()
+      await section.getByRole("list", { name: "최근 게시글 목록" }).waitFor()
+      finish()
+      await page.waitForLoadState("networkidle")
+      assert.equal(page.url(), new URL("/", base).href)
+      assert.equal(await recent.getAttribute("aria-current"), "page")
+      assert.match(await rows.first().innerText(), /미리보기 없는 글 4/)
+      await page.goto(new URL(weeklyReturn, base).href)
+      await page.unroute("**" + weeklyPath + "?*")
+      await page.route("**" + weeklyPath + "?*", route => route.fulfill({ json: { items: [{ ...story, likeCount: 1 }] } }))
+      await retry.click()
+      await weeklyRows.first().waitFor()
+      assert.equal(await weeklyRows.count(), 1)
+      weeklyFailed = false
+      console.log(width, "주간 인기 4건·1건·0건, 순위, 오류 복구, 탭 전환, 상세 왕복 통과")
       console.log(width, "모의 빈 목록·실패·재시도 로딩·복구 및 검색 입력 보존 통과")
     } else {
       const response = await fetch(new URL(postsPath + "?size=4", api))
@@ -201,7 +317,25 @@ try {
         await topicRow.locator("h3 a").click()
         const topicBack = page.locator(".community-back")
         assert.equal(await topicBack.getAttribute("href"), topic)
+        await topicBack.click()
+        await page.waitForURL(new URL(topic, base).href)
       }
+      const rankedResponse = await fetch(new URL(weeklyPath + "?size=4", api))
+      assert.equal(rankedResponse.status, 200)
+      const ranked = (await rankedResponse.json()).items
+      await page.goto(base)
+      await section.getByRole("link", { name: "주간 인기" }).click()
+      const rankedRows = section.getByRole("listitem")
+      if (ranked.length) {
+        await section.getByRole("list", { name: "주간 인기 게시글 목록" }).waitFor()
+        assert.deepEqual(await rankedRows.locator("strong").allTextContents(),
+          ranked.map((item, index) => (index + 1) + "위 " + item.title))
+        assert.deepEqual(await rankedRows.locator("a").evaluateAll(links => links.map(a => a.pathname)),
+          ranked.map(item => "/community/posts/" + item.id))
+      } else await section.getByText("최근 7일 동안 작성된 글 중 아직 좋아요를 받은 글이 없어요.").waitFor()
+      await section.scrollIntoViewIfNeeded()
+      await capture(page, "weekly-live-" + width)
+      console.log(width, "실제 최근 글 / 주간 인기 ID", items.map(item => item.id), ranked.map(item => item.id))
       console.log(width, "실제 API와 행 일치, 댓글 클릭·상세·키보드·전체 보기·홈 검색 이동 통과", JSON.stringify(items.map(({ id, likeCount, commentCount }) => ({ id, likeCount, commentCount }))))
     }
     await context.close()

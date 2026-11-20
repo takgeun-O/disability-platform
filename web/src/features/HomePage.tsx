@@ -1,6 +1,6 @@
 import { Suspense } from 'react';
 import HomeRecentPosts from '@/components/HomeRecentPosts';
-import { readPublicFeed } from '@/lib/community-server';
+import { readPublicFeed, readPublicWeeklyBest } from '@/lib/community-server';
 import Image from 'next/image';
 import HomeSearch from '@/components/HomeSearch';
 import DeadlinePanel from '@/components/DeadlinePanel';
@@ -8,7 +8,11 @@ import Link from '@/components/AppLink';
 
 import { HOME_RECENT_ID, HOME_RECENT_QUERY, searchHref } from '@/lib/community-posts';
 
-async function RecentPosts() {
+async function CommunityPosts({ weekly }: { weekly: boolean }) {
+  if (weekly) {
+    const { data } = await readPublicWeeklyBest("", HOME_RECENT_QUERY.size);
+    return <HomeRecentPosts weekly initialPosts={data} />;
+  }
   const { data } = await readPublicFeed(HOME_RECENT_QUERY);
   return <HomeRecentPosts initialPosts={data?.items ?? null} />;
 }
@@ -25,7 +29,7 @@ function ShortcutIcon({ kind }: { kind: string }) {
   </svg>;
 }
 
-export default function HomePage() {
+export default function HomePage({ weekly }: { weekly: boolean }) {
   return <main id="main-content" className="iyum-home">
     <section className="iyum-hero" aria-labelledby="home-heading">
       <div className="iyum-hero-art" aria-hidden="true"><Image src="/images/home/iyum-glass-tree-hero-v1.png" alt="" fill sizes="(max-width: 600px) 600px, 1180px" preload /></div>
@@ -53,9 +57,12 @@ export default function HomePage() {
           <h2 id="community-heading">커뮤니티</h2>
           <Link className="iyum-text-link" href="/community">전체 보기 <span aria-hidden="true">→</span></Link>
         </div>
-        <div className="iyum-community-toolbar"><span>최근 글</span></div>
-        <Suspense fallback={<p role="status">최근 글을 불러오는 중입니다.</p>}>
-          <RecentPosts />
+        <nav className="iyum-community-toolbar" aria-label="홈 커뮤니티 목록">
+          <Link href="/" scroll={false} prefetch={false} aria-current={!weekly ? "page" : undefined}>최근 글</Link>
+          <Link href="/?tab=weekly" scroll={false} prefetch={false} aria-current={weekly ? "page" : undefined}>주간 인기</Link>
+        </nav>
+        <Suspense key={weekly ? "weekly" : "recent"} fallback={<p role="status">{weekly ? "주간 인기 글을" : "최근 글을"} 불러오는 중입니다.</p>}>
+          <CommunityPosts weekly={weekly} />
         </Suspense>
       </section>
       <section className="iyum-guides" aria-labelledby="guides-heading"><h2 id="guides-heading">주요 정보 가이드</h2>
