@@ -381,14 +381,14 @@ export function olderThan(item: { createdAt: string; id: number }, cursor: PostC
 }
 const WEEKLY_BEST_SIZE = 5
 
-export async function getWeeklyBest(topic: PostQuery["topic"], baseUrl?: string): Promise<FeedItem[]> {
-  const params = new URLSearchParams({ size: String(WEEKLY_BEST_SIZE) })
+export async function getWeeklyBest(topic: PostQuery["topic"], baseUrl?: string, size = WEEKLY_BEST_SIZE): Promise<FeedItem[]> {
+  const params = new URLSearchParams({ size: String(size) })
   if (topic) params.set("topic", topic)
   const { response, body } = await request(
     "/weekly-best?" + params, { method: "GET" }, false, baseUrl,
   )
   if (response.status !== 200 || !object(body) || !Array.isArray(body.items) ||
-      body.items.length > WEEKLY_BEST_SIZE || !body.items.every(isFeedItem)) {
+      body.items.length > size || !body.items.every(isFeedItem)) {
     throw responseError(response.status, body, false)
   }
   return body.items

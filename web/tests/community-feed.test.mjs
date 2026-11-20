@@ -48,3 +48,22 @@ test('홈 피드는 요청한 4건을 초과한 응답을 거부한다', async (
     assert.equal((await readHome()).items.length, 4)
   })
 })
+
+test('홈 주간 인기는 4건까지 허용하고 커뮤니티는 전체·토픽별로 5건을 요청한다', async () => {
+  const original = globalThis.fetch
+  const urls = []
+  const items = [5, 4, 3, 2, 1].map(row)
+  globalThis.fetch = async url => {
+    urls.push(new URL(url).search)
+    return Response.json({ items })
+  }
+  try {
+    const base = 'https://api.example.test'
+    await assert.rejects(api.getWeeklyBest('', base, 4))
+    assert.equal((await api.getWeeklyBest('', base)).length, 5)
+    assert.equal((await api.getWeeklyBest('HEARING_AID', base)).length, 5)
+    assert.deepEqual(urls, ['?size=4', '?size=5', '?size=5&topic=HEARING_AID'])
+  } finally {
+    globalThis.fetch = original
+  }
+})

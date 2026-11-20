@@ -121,8 +121,10 @@
 .iyum-guides h2 { font-size: 24px; }
 .iyum-section-heading { display: flex; justify-content: space-between; align-items: center; gap: 20px; }
 .iyum-community-preview { scroll-margin-top: 16px; }
-.iyum-community-toolbar { display: flex; align-items: center; justify-content: space-between; min-height: 50px; margin-top: 8px; color: var(--iyum-primary); font-size: 14px; }
-.iyum-community-toolbar > span { align-self: stretch; display: flex; align-items: center; border-bottom: 2px solid var(--iyum-primary); padding-inline: 8px; font-weight: 600; }
+.iyum-community-toolbar { display: flex; align-items: center; gap: 8px; min-height: 50px; margin-top: 8px; color: var(--iyum-primary); font-size: 14px; }
+.iyum-community-toolbar a { align-self: stretch; display: flex; align-items: center; border-bottom: 2px solid transparent; padding-inline: 8px; text-decoration: none; color: var(--iyum-muted); }
+.iyum-community-toolbar a[aria-current] { border-color: var(--iyum-primary); color: var(--iyum-primary); font-weight: 600; }
+.iyum-post-rank { color: var(--iyum-primary); white-space: nowrap; }
 .iyum-posts { list-style: none; padding: 0; margin: 0 0 12px; border-top: 1px solid var(--iyum-border); }
 .iyum-posts li { border-bottom: 1px solid var(--iyum-border); }
 .iyum-posts a { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 16px; padding: 16px 4px; text-decoration: none; color: var(--iyum-ink); }
