@@ -595,7 +595,10 @@ public class PostController {
             ),
             @ApiResponse(
                     responseCode = "400",
-                    description = "size 범위 초과(INVALID_PAGE_REQUEST) 또는 정수 변환 실패(INVALID_REQUEST_PARAMETER)",
+                    description = """
+                        size 범위 초과(INVALID_PAGE_REQUEST) 또는 정수 변환 실패(INVALID_REQUEST_PARAMETER)
+                        잘못된 topic값은 INVALID_REQUEST_PARAMETER에 해당한다.
+                        """,
                     content = @Content(
                             schema = @Schema(implementation = ApiErrorResponse.class)
                     )
@@ -604,6 +607,10 @@ public class PostController {
     public ResponseEntity<PostWeeklyBestResponse> getWeeklyBestPosts(
             @Parameter(hidden = true)
             @AuthenticationPrincipal MemberPrincipal principal,
+
+            @Parameter(description = "게시글 토픽. 생략하면 전체 토픽에서 순위를 조회합니다.")
+            @RequestParam(name = "topic", required = false)
+            @Nullable PostTopic topic,
 
             @Parameter(
                     description = "조회할 최대 게시글 수",
@@ -624,6 +631,7 @@ public class PostController {
 
         PostWeeklyBestResponse response = PostWeeklyBestResponse.from(
                 postReadService.getWeeklyBestPosts(
+                        topic,
                         size,
                         viewerId
                 )

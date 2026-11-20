@@ -17,7 +17,7 @@ export default async function CommunityListPage({ searchParams, space, pathname 
   if ((params.has("afterId") || params.has("afterCreatedAt")) && !cursor) redirect(listHref(query, path))
   const [feed, best] = await Promise.all([
     readPublicFeed(query, cursor),
-    path === "/community" && !query.topic ? readPublicWeeklyBest() : null,
+    space || path === "/community" ? readPublicWeeklyBest(query.topic) : null,
   ])
   return <PostList key={href} space={space} best={best} initial={{ ...feed, query, cursor, href }} />
 }

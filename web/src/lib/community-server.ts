@@ -28,4 +28,4 @@ export async function readPublicComments(id: string): Promise<PublicResult<Comme
 
 export const readPublicFeed = (query: PostQuery & { size?: number }, cursor: PostCursor | null = null) => read(() => getFeed(query, cursor, undefined, apiBase()))
 
-export const readPublicWeeklyBest = () => read(() => getWeeklyBest(apiBase()))
+export const readPublicWeeklyBest = (topic: PostQuery["topic"]) => read(() => getWeeklyBest(topic, apiBase()))

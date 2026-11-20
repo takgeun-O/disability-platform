@@ -608,7 +608,7 @@ class PostReadControllerTest {
                 false
         );
 
-        when(postReadService.getWeeklyBestPosts(20, null))
+        when(postReadService.getWeeklyBestPosts(null, 20, null))
                 .thenReturn(List.of(first, second));
 
 //        디버그용
@@ -616,7 +616,7 @@ class PostReadControllerTest {
 //                .andDo(print());
 //
 //        verify(postReadService)
-//                .getWeeklyBestPosts(20, null);
+//                .getWeeklyBestPosts(null, 20, null);
 //
 //        response.andExpect(status().isOk())
 //                .andExpect(jsonPath("$.items.length()").value(2));
@@ -635,13 +635,13 @@ class PostReadControllerTest {
                 .andExpect(jsonPath("$.items[1].id").value(125));
 
         verify(postReadService)
-                .getWeeklyBestPosts(20, null);
+                .getWeeklyBestPosts(null, 20, null);
     }
 
     @Test
     void 주간_베스트가_없으면_빈_목록을_반환한다()
             throws Exception {
-        when(postReadService.getWeeklyBestPosts(4, null))
+        when(postReadService.getWeeklyBestPosts(null, 4, null))
                 .thenReturn(List.of());
 
         mockMvc.perform(get(BASE + "/weekly-best")
@@ -651,7 +651,44 @@ class PostReadControllerTest {
                 .andExpect(jsonPath("$.items.length()").value(0));
 
         verify(postReadService)
-                .getWeeklyBestPosts(4, null);
+                .getWeeklyBestPosts(null, 4, null);
+    }
+
+    @Test
+    void 비로그인으로_토픽을_지정하면_해당_토픽을_서비스에_전달한다()
+            throws Exception {
+        when(postReadService.getWeeklyBestPosts(PostTopic.HEARING_AID, 4, null))
+                .thenReturn(List.of());
+
+        mockMvc.perform(
+                        get(BASE + "/weekly-best")
+                                .param("topic", "HEARING_AID")
+                                .param("size", "4")
+                )
+                .andExpect(status().isOk())
+                .andExpect(header().string(
+                        HttpHeaders.CACHE_CONTROL,
+                        "no-store"
+                ))
+                .andExpect(jsonPath("$.items").isArray())
+                .andExpect(jsonPath("$.items.length()").value(0));
+
+        verify(postReadService)
+                .getWeeklyBestPosts(PostTopic.HEARING_AID, 4, null);
+    }
+
+    @Test
+    void 주간_베스트에_존재하지_않는_토픽을_전달하면_400을_반환한다()
+            throws Exception {
+        mockMvc.perform(
+                        get(BASE + "/weekly-best")
+                                .param("topic", "UNKNOWN_TOPIC")
+                )
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code")
+                        .value("INVALID_REQUEST_PARAMETER"));
+
+        verifyNoInteractions(postReadService);
     }
 
     @Test
@@ -688,7 +725,7 @@ class PostReadControllerTest {
                 true
         );
 
-        when(postReadService.getWeeklyBestPosts(4, 7L))
+        when(postReadService.getWeeklyBestPosts(null, 4, 7L))
                 .thenReturn(List.of(item));
 
         mockMvc.perform(
@@ -707,13 +744,13 @@ class PostReadControllerTest {
                 .andExpect(jsonPath("$.items[0].liked").value(true));
 
         verify(postReadService)
-                .getWeeklyBestPosts(4, 7L);
+                .getWeeklyBestPosts(null, 4, 7L);
     }
 
     @Test
     void 주간_베스트의_조회_개수가_범위를_벗어나면_400을_반환한다()
             throws Exception {
-        when(postReadService.getWeeklyBestPosts(51, null))
+        when(postReadService.getWeeklyBestPosts(null, 51, null))
                 .thenThrow(new PostReadException(
                         PostReadException.Code.INVALID_PAGE_REQUEST
                 ));
@@ -727,7 +764,7 @@ class PostReadControllerTest {
                         .value("INVALID_PAGE_REQUEST"));
 
         verify(postReadService)
-                .getWeeklyBestPosts(51, null);
+                .getWeeklyBestPosts(null, 51, null);
     }
 
     @Test

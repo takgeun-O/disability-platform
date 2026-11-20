@@ -24,6 +24,7 @@ import org.testcontainers.junit.jupiter.Testcontainers;
 import org.testcontainers.postgresql.PostgreSQLContainer;
 
 import java.sql.Timestamp;
+import java.time.Clock;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.List;
@@ -76,56 +77,82 @@ class PostWeeklyBestIntegrationTest {
     @Autowired
     PostLikeRepository postLikeRepository;
 
-    @MockitoSpyBean
-    PostLikeReadService postLikeReadService;
-
     @Autowired
     JdbcTemplate jdbcTemplate;
 
+    @Autowired
+    Clock clock;
+
+    @MockitoSpyBean
+    PostLikeReadService postLikeReadService;
+
     @Test
-    void 비회원이_주간_베스트를_조회하면_좋아요가_있는_공개_글만_순위대로_반환한다()
+    void 비회원이_주간_베스트를_조회하면_전체와_선택한_토픽의_순위를_각각_반환한다()
             throws Exception {
         Member author = saveMember("author@example.test", "베스트작성자");
         Member readerOne = saveMember("one@example.test", "첫번째독자");
         Member readerTwo = saveMember("two@example.test", "두번째독자");
+        Member readerThree = saveMember("three@example.test", "세번째독자");
 
-        Post popularPost = savePost(author, "어제 작성한 인기 글");
-        Post newerPost = savePost(author, "오늘 작성한 최신 글");
-        Post hiddenPost = savePost(author, "좋아요를 받은 뒤 숨긴 글");
-        savePost(author, "아직 좋아요가 없는 공개 글");
+        Post dailyPost = savePost(author, PostTopic.DAILY, "일상 토픽 인기 글");
+        Post popularPost = savePost(author, PostTopic.HEARING_AID, "보청기 인기 글");
+        Post newerPost = savePost(author, PostTopic.HEARING_AID, "보청기 최신 글");
+        Post hiddenPost = savePost(author, PostTopic.HEARING_AID, "숨긴 보청기 글");
+        Post unlikedPost = savePost(author, PostTopic.HEARING_AID, "좋아요가 없는 보청기 글");
 
-        // 최신순으로 잘못 조회하면 newerPost가 먼저 나오도록 시간을 지정한다.
-        Instant now = Instant.now();
-        setCreatedAt(popularPost, now.minus(Duration.ofDays(1)));
-        setCreatedAt(newerPost, now.minusSeconds(60));
+        Instant asOf = clock.instant();
+        setCreatedAt(dailyPost, asOf.minus(Duration.ofHours(2)));
+        setCreatedAt(popularPost, asOf.minus(Duration.ofDays(1)));
+        setCreatedAt(newerPost, asOf.minusSeconds(60));
+        setCreatedAt(unlikedPost, asOf.minusSeconds(30));
 
         postLikeRepository.saveAllAndFlush(List.of(
+                PostLike.create(dailyPost, readerOne),
+                PostLike.create(dailyPost, readerTwo),
+                PostLike.create(dailyPost, readerThree),
                 PostLike.create(popularPost, readerOne),
                 PostLike.create(popularPost, readerTwo),
                 PostLike.create(newerPost, readerOne),
-                PostLike.create(hiddenPost, readerOne)
+                PostLike.create(hiddenPost, readerOne),
+                PostLike.create(hiddenPost, readerTwo),
+                PostLike.create(hiddenPost, readerThree)
         ));
 
-        hiddenPost.hide(now);
+        hiddenPost.hide(asOf);
         postRepository.saveAndFlush(hiddenPost);
+        setCreatedAt(hiddenPost, asOf.minusSeconds(120));
 
-        mockMvc.perform(
-                        get(API_PATH)
-                                .param("size", "4")
-                )
+        // 전체 탭에서는 일상 글이 1위다.
+        mockMvc.perform(get(API_PATH)
+                        .param("size", "2"))
                 .andExpect(status().isOk())
-                .andExpect(header().string(
-                        HttpHeaders.CACHE_CONTROL,
-                        "no-store"
-                ))
+                .andExpect(header().string(HttpHeaders.CACHE_CONTROL, "no-store"))
                 .andExpect(jsonPath("$.items.length()").value(2))
-                .andExpect(jsonPath("$.items[0].id")
-                        .value(popularPost.getId()))
+                .andExpect(jsonPath("$.items[0].id").value(dailyPost.getId()))
+                .andExpect(jsonPath("$.items[0].likeCount").value(3))
+                .andExpect(jsonPath("$.items[1].id").value(popularPost.getId()));
+
+        // 보청기 탭에서는 더 오래됐어도 좋아요가 많은 보청기 글이 1위다.
+        mockMvc.perform(get(API_PATH)
+                        .param("topic", "HEARING_AID")
+                        .param("size", "2"))
+                .andExpect(status().isOk())
+                .andExpect(header().string(HttpHeaders.CACHE_CONTROL, "no-store"))
+                .andExpect(jsonPath("$.items.length()").value(2))
+                .andExpect(jsonPath("$.items[0].id").value(popularPost.getId()))
                 .andExpect(jsonPath("$.items[0].likeCount").value(2))
                 .andExpect(jsonPath("$.items[0].liked").value(false))
-                .andExpect(jsonPath("$.items[1].id")
-                        .value(newerPost.getId()))
+                .andExpect(jsonPath("$.items[1].id").value(newerPost.getId()))
                 .andExpect(jsonPath("$.items[1].likeCount").value(1));
+
+        // 조회 여유가 있어도 숨긴 글과 좋아요가 없는 글은 포함되지 않는다.
+        mockMvc.perform(get(API_PATH)
+                        .param("topic", "HEARING_AID")
+                        .param("size", "4"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.items.length()").value(2))
+                .andExpect(jsonPath("$.items[0].id").value(popularPost.getId()))
+                .andExpect(jsonPath("$.items[1].id").value(newerPost.getId()));
     }
 
     @Test
@@ -176,10 +203,18 @@ class PostWeeklyBestIntegrationTest {
             Member author,
             String title
     ) {
+        return savePost(author, PostTopic.DAILY, title);
+    }
+
+    private Post savePost(
+            Member author,
+            PostTopic topic,
+            String title
+    ) {
         Post post = Post.create(
                 author,
                 PostType.GENERAL,
-                PostTopic.DAILY,
+                topic,
                 title,
                 "주간 베스트 조회를 확인하는 본문입니다."
         );

@@ -162,7 +162,7 @@ export default function PostList({ initial, space, best }: { initial: InitialFee
       <header className="feed-heading"><div><h1>{selected?.name ?? "커뮤니티"}</h1><p>{selected ? selected.guidance : "서로의 질문과 경험을 나눠요. 공식 정보와 개인 경험은 구분하고, 개인정보는 보호해 주세요."}</p></div>
         <Link className="iyum-button iyum-button-primary" href={`/community/posts/create?${create}`} onNavigate={leaving}>＋ 글쓰기</Link></header>
       <FeedNavigation query={initial.query} />
-      {best && <FeedBest ref={refreshBest} initial={best} href={href} onLeaving={leaving} />}
+      {best && <FeedBest topic={initial.query.topic} ref={refreshBest} initial={best} href={href} onLeaving={leaving} />}
       <section aria-label="게시글 피드"><div className="feed-list-heading"><h2>{name} 게시글</h2><div className="feed-heading-actions"><span>최신순</span>        <div className="feed-refresh"><button className="feed-refresh-button" aria-label="최신 목록 새로고침" aria-busy={busy === "refresh"} aria-disabled={!!busy} onClick={() => {
           if (busyRef.current) return
           if (initial.cursor) router.push(listHref(initial.query, pathname))

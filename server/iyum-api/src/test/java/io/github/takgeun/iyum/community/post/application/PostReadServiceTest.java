@@ -789,6 +789,30 @@ class PostReadServiceTest {
                     assertThat(item.likeCount()).isEqualTo(1L);
                     assertThat(item.liked()).isTrue();
                 });
+
+        // 토픽별 검증 추가
+        List<PostFeedItemResult> hearingAidItems =
+                postReadService.getWeeklyBestPosts(
+                        PostTopic.HEARING_AID,
+                        4,
+                        reader.getId()
+                );
+
+        assertThat(hearingAidItems)
+                .singleElement()
+                .satisfies(item -> {
+                    assertThat(item.postId()).isEqualTo(secondQuestionId);
+                    assertThat(item.liked()).isTrue();
+                });
+
+        List<PostFeedItemResult> dailyItems =
+                postReadService.getWeeklyBestPosts(
+                        PostTopic.DAILY,
+                        4,
+                        reader.getId()
+                );
+
+        assertThat(dailyItems).isEmpty();
     }
 
     @ParameterizedTest

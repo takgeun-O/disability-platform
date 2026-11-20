@@ -1,8 +1,18 @@
 # 주간 베스트 게시글 API
 
+전체 토픽 조회
+
 ```http
 GET /api/v1/community/posts/weekly-best?size=4
 ```
+
+보청기 토픽 조회
+
+```http
+GET /api/v1/community/posts/weekly-best?size=4&topic=HEARING_AID
+```
+
+선택 파라미터 `topic`은 게시글 토픽 enum 값이다. 생략하면 전체 토픽에서, 지정하면 해당 토픽의 공개 글에서 순위를 선정한다. 글 유형은 순위 조건에 포함되지 않는다.
 
 공개 조회이며 성공 응답은 `Cache-Control: no-store`다. 선택적 정수 `size`는 반환할 최대 건수다. 기본값은 20이고 1부터 50까지 허용한다.
 
@@ -14,7 +24,7 @@ GET /api/v1/community/posts/weekly-best?size=4
 
 `items`는 현재 좋아요 수 내림차순, 동률이면 작성 시각 내림차순, 두 값이 같으면 게시글 ID 내림차순이다. 각 항목은 공개 피드와 동일한 `PostFeedItemResponse`다. `contentPreview`는 공백을 정리한 최대 200 유니코드 코드포인트의 본문 미리보기다. `likeCount`는 전체 좋아요 수이고, `liked`는 로그인 회원 본인의 좋아요 여부다. 비회원이면 항상 `false`다.
 
-다음은 비회원이 4건을 요청했을 때 대상이 2건인 경우의 HTTP 200 응답이다.
+다음은 비회원이 전체 토픽에서 4건을 요청했을 때 대상이 2건인 경우의 HTTP 200 응답이다.
 
 ```json
 {
@@ -59,3 +69,4 @@ GET /api/v1/community/posts/weekly-best?size=4
 |---|---|---|
 | `size=0`, `size=51` | 400 | `INVALID_PAGE_REQUEST` |
 | `size=abc` | 400 | `INVALID_REQUEST_PARAMETER` |
+| `topic=UNKNOWN_TOPIC` | 400 | `INVALID_REQUEST_PARAMETER` |
