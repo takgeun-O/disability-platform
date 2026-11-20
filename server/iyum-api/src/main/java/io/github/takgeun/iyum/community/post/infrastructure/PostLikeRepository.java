@@ -2,6 +2,7 @@ package io.github.takgeun.iyum.community.post.infrastructure;
 
 import io.github.takgeun.iyum.community.post.domain.Post;
 import io.github.takgeun.iyum.community.post.domain.PostLike;
+import io.github.takgeun.iyum.community.post.domain.PostTopic;
 import jakarta.annotation.Nullable;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
@@ -80,4 +81,27 @@ public interface PostLikeRepository
             @Param("asOf") Instant asOf,
             Pageable pageable
     );
+
+    /**
+     * 토픽별 조회
+     */
+    @Query("""
+            select p.id
+            from PostLike pl
+            join pl.post p
+            where p.deletedAt is null
+                and p.hiddenAt is null
+                and p.topic = :topic
+                and p.createdAt >= :fromInclusive
+                and p.createdAt <= :asOf
+            group by p.id, p.createdAt
+            order by count(pl) desc, p.createdAt desc, p.id desc
+            """)
+    List<Long> findWeeklyBestPostIds(
+            @Param("fromInclusive") Instant fromInclusive,
+            @Param("asOf") Instant asOf,
+            @Param("topic") PostTopic topic,
+            Pageable pageable
+    );
+
 }

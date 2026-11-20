@@ -250,11 +250,48 @@ public class PostReadService {
     }
 
     /**
+     * 주간 인기 게시글 피드 조회 (전체 토픽)
+     */
+    // 순위 선정과 응답용 좋아요 집계가 동일한 스냅샷을 읽는다.
+    // 전체 토픽 조회와 특정 토픽 조회 모두 외부 진입점이므로
+    // 각 메서드에 REPEATABLE_READ를 지정한다.
+    // 같은 클래스 내부 호출에서는 호출 대상의 @Transactional이 새로 적용되지 않는다.
+    @Transactional(
+            readOnly = true,
+            // 하나의 트랜잭션 안에서 여러 번 조회할 때 (이 메서드는 DB 조회를 3번 함)
+            // 다른 트랜잭션의 변경 때문에 읽은 데이터가 달라지는 것을 막는 격리 수준
+            // 여기서는 READ_COMMITTED를 사용하면 쿼리 사이에 좋아요가 변할 경우
+            // 정렬에 사용한 좋아요 수와 화면에 표시할 좋아요 수가 달라질 수 있음.
+            isolation = Isolation.REPEATABLE_READ
+    )
+    public List<PostFeedItemResult> getWeeklyBestPosts(
+            int size,
+            @Nullable Long viewerId
+    ) {
+        // 참고로 내부 호출은 Spring 프록시를 거치지 않는다.
+        // 즉 2인자 getWeeklyBestPosts()가 호출될 경우
+        // 3인자 getWeeklyBestPosts()의 설정은 적용되지 않는다.
+        // (당연히 2인자 트랜잭션에 참여하니까!)
+        return getWeeklyBestPosts(null, size, viewerId);
+    }
+
+    /**
      * 주간 인기 게시글 피드 조회
      */
     // 순위 선정과 응답용 좋아요 집계가 동일한 스냅샷을 읽는다.
-    @Transactional(readOnly = true, isolation = Isolation.REPEATABLE_READ)
+    // 전체 토픽 조회와 특정 토픽 조회 모두 외부 진입점이므로
+    // 각 메서드에 REPEATABLE_READ를 지정한다.
+    // 같은 클래스 내부 호출에서는 호출 대상의 @Transactional이 새로 적용되지 않는다.
+    @Transactional(
+            readOnly = true,
+            // 하나의 트랜잭션 안에서 여러 번 조회할 때
+            // 다른 트랜잭션의 변경 때문에 읽은 데이터가 달라지는 것을 막는 격리 수준
+            // 여기서는 READ_COMMITTED를 사용하면 쿼리 사이에 좋아요가 변할 경우
+            // 정렬에 사용한 좋아요 수와 화면에 표시할 좋아요 수가 달라질 수 있음.
+            isolation = Isolation.REPEATABLE_READ
+    )
     public List<PostFeedItemResult> getWeeklyBestPosts(
+            @Nullable PostTopic topic,
             int size,
             @Nullable Long viewerId
     ) {
@@ -262,20 +299,31 @@ public class PostReadService {
 
         Instant asOf = clock.instant();
         Instant fromInclusive = asOf.minus(Duration.ofDays(7));
+        PageRequest pageRequest = PageRequest.of(0, size);
 
-        List<Long> rankedIds = postLikeRepository.findWeeklyBestPostIds(
-                fromInclusive,
-                asOf,
-                // 주간베스트는 상위 size건을 가져오는 조회라서
-                // 다음 페이지 확인용 한 건이 필요하지 않음.
-                // 또한 findVisiblePostsInRankOrder() 가 빈 ID 목록을 바로 반환하도록 해서
-                // 베스트 글이 0건이면 후속 게시글·댓글 좋아요 조회도 저절로 생략될 것.
-                PageRequest.of(0, size)
-        );
+        List<Long> rankedIds;
+        if(topic == null) {
+            // 좋아요 수를 기준으로 순위 산정 (DB 조회 1번)
+            rankedIds = postLikeRepository.findWeeklyBestPostIds(
+                    fromInclusive,
+                    asOf,
+                    pageRequest
+            );
+        } else {
+            // 좋아요 수를 기준으로 순위 산정 (DB 조회 1번)
+            rankedIds = postLikeRepository.findWeeklyBestPostIds(
+                    fromInclusive,
+                    asOf,
+                    topic,
+                    pageRequest
+            );
+        }
 
+        // 선정된 게시글의 실제 정보 조회 (DB 조회 2번)
         List<Post> rankedPosts =
                 postRepository.findVisiblePostsInRankOrder(rankedIds);
 
+        // 댓글 수와 좋아요 수를 조회해서 응답 구성 (DB 조회 3번)
         return toFeedItems(rankedPosts, viewerId);
     }
 

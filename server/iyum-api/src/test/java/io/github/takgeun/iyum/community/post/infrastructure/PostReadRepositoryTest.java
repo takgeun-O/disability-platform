@@ -625,6 +625,25 @@ class PostReadRepositoryTest {
         );
 
         assertThat(result).containsExactly(oldQuestionId, atStartId);
+
+        // 기존 날짜 경계 테스트 검증 추가
+        var dailyResult = postLikeRepository.findWeeklyBestPostIds(
+                fromInclusive,
+                asOf,
+                PostTopic.DAILY,
+                PageRequest.of(0, 10)
+        );
+
+        assertThat(dailyResult).containsExactly(atStartId);
+
+        var hearingAidResult = postLikeRepository.findWeeklyBestPostIds(
+                fromInclusive,
+                asOf,
+                PostTopic.HEARING_AID,
+                PageRequest.of(0, 10)
+        );
+
+        assertThat(hearingAidResult).containsExactly(oldQuestionId);
     }
 
     @Test
@@ -706,6 +725,137 @@ class PostReadRepositoryTest {
     void 베스트_ID가_비어_있으면_빈_목록을_반환한다() {
         assertThat(postRepository.findVisiblePostsInRankOrder(List.of()))
                 .isEmpty();
+    }
+
+    @Test
+    void 토픽별_주간_베스트는_해당_토픽의_글만_대상으로_순위를_매긴다() {
+        Instant asOf = BASE_TIME;
+        Instant fromInclusive = asOf.minus(Duration.ofDays(7));
+
+        Member author = entityManager.getReference(Member.class, firstAuthorId);
+        Member readerOne = createMember("topic.one@example.com", "토픽독자하나");
+        Member readerTwo = createMember("topic.two@example.com", "토픽독자둘");
+        Member readerThree = createMember("topic.three@example.com", "토픽독자셋");
+
+        Long dailyPostId = createPost(
+                author, PostType.GENERAL, PostTopic.DAILY,
+                "일상 토픽 인기 글", asOf.minus(Duration.ofHours(2))
+        );
+        Long popularHearingAidPostId = createPost(
+                author, PostType.QUESTION, PostTopic.HEARING_AID,
+                "첫 보청기 상담에서 무엇을 물어보셨나요?", asOf.minus(Duration.ofDays(2))
+        );
+        Long newerHearingAidPostId = createPost(
+                author, PostType.QUESTION, PostTopic.HEARING_AID,
+                "보청기 착용 첫날이 궁금해요", asOf.minusSeconds(60)
+        );
+
+        // 일상 글 3개, 보청기 토픽의 오래된 글 2개, 최신 글 1개
+        addLike(dailyPostId, readerOne);
+        addLike(dailyPostId, readerTwo);
+        addLike(dailyPostId, readerThree);
+
+        addLike(popularHearingAidPostId, readerOne);
+        addLike(popularHearingAidPostId, readerTwo);
+
+        addLike(newerHearingAidPostId, readerOne);
+
+        entityManager.flush();
+        entityManager.clear();
+
+        var result = postLikeRepository.findWeeklyBestPostIds(
+                fromInclusive,
+                asOf,
+                PostTopic.HEARING_AID,
+                PageRequest.of(0, 2)
+        );
+
+        assertThat(result).containsExactly(
+                popularHearingAidPostId,
+                newerHearingAidPostId
+        );
+    }
+
+    @Test
+    void 토픽별_주간_베스트는_선택한_토픽_안에서_좋아요가_가장_많은_글을_반환한다() {
+        Instant asOf = BASE_TIME;
+        Instant fromInclusive = asOf.minus(Duration.ofDays(7));
+
+        Member author = entityManager.getReference(Member.class, firstAuthorId);
+        Member readerOne = createMember("topic.one@example.com", "토픽독자하나");
+        Member readerTwo = createMember("topic.two@example.com", "토픽독자둘");
+        Member readerThree = createMember("topic.three@example.com", "토픽독자셋");
+
+        Long dailyPostId = createPost(
+                author, PostType.GENERAL, PostTopic.DAILY,
+                "일상 인기 글", asOf.minus(Duration.ofHours(2))
+        );
+        Long popularHearingAidPostId = createPost(
+                author, PostType.QUESTION, PostTopic.HEARING_AID,
+                "첫 보청기 상담에서 무엇을 물어보셨나요?", asOf.minus(Duration.ofDays(2))
+        );
+        Long newerHearingAidPostId = createPost(
+                author, PostType.QUESTION, PostTopic.HEARING_AID,
+                "보청기 착용 첫날이 궁금해요", asOf.minusSeconds(60)
+        );
+
+        addLike(dailyPostId, readerOne);
+        addLike(dailyPostId, readerTwo);
+        addLike(dailyPostId, readerThree);
+        addLike(popularHearingAidPostId, readerOne);
+        addLike(popularHearingAidPostId, readerTwo);
+        addLike(newerHearingAidPostId, readerOne);
+
+        entityManager.flush();
+        entityManager.clear();
+
+        PageRequest topOne = PageRequest.of(0, 1);
+
+        var overallBest = postLikeRepository.findWeeklyBestPostIds(
+                fromInclusive, asOf, topOne
+        );
+        var hearingAidBest = postLikeRepository.findWeeklyBestPostIds(
+                fromInclusive, asOf, PostTopic.HEARING_AID, topOne
+        );
+
+        assertThat(overallBest).containsExactly(dailyPostId);
+        assertThat(hearingAidBest).containsExactly(popularHearingAidPostId);
+    }
+
+    @Test
+    void 토픽별_주간_베스트는_좋아요가_같으면_작성_시각과_ID_내림차순으로_조회한다() {
+        Instant asOf = BASE_TIME.plusSeconds(600);
+        Instant fromInclusive = asOf.minus(Duration.ofDays(7));
+
+        Member author = entityManager.getReference(Member.class, firstAuthorId);
+        Member reader = createMember("topic.ranking@example.com", "토픽순위독자");
+
+        Long laterIdAtSameTime = createPost(
+                author,
+                PostType.GENERAL,
+                PostTopic.DAILY,
+                "같은 시각에 작성한 두 번째 일상 글",
+                BASE_TIME.plusSeconds(200)
+        );
+
+        addLike(latestGeneralId, reader);      // DAILY, 기준 + 300초
+        addLike(sameTimeQuestionId, reader);   // DAILY, 기준 + 200초, 작은 ID
+        addLike(laterIdAtSameTime, reader);    // DAILY, 기준 + 200초, 큰 ID
+        entityManager.flush();
+        entityManager.clear();
+
+        var result = postLikeRepository.findWeeklyBestPostIds(
+                fromInclusive,
+                asOf,
+                PostTopic.DAILY,
+                PageRequest.of(0, 10)
+        );
+
+        assertThat(result).containsExactly(
+                latestGeneralId,
+                laterIdAtSameTime,
+                sameTimeQuestionId
+        );
     }
 
     private Member createMember(

@@ -3,7 +3,7 @@ import { type Ref, useImperativeHandle, useLayoutEffect, useRef, useState } from
 import { getWeeklyBest, type FeedItem } from "@/lib/community-api"
 import type { PublicResult } from "@/lib/community-load"
 import Link from "@/components/AppLink"
-import { COMMUNITY_TOPICS, topicPath } from "@/lib/community-topics"
+import { COMMUNITY_TOPICS, topicByValue, topicPath } from "@/lib/community-topics"
 import { listHref, type PostQuery } from "@/lib/community-posts"
 
 export function FeedNavigation({ query }: { query: PostQuery }) {
@@ -25,7 +25,8 @@ export function FeedNavigation({ query }: { query: PostQuery }) {
     </button>
   </nav>
 }
-export function FeedBest({ initial, href, onLeaving, ref }: {
+export function FeedBest({ initial, topic, href, onLeaving, ref }: {
+  topic: PostQuery["topic"]
   ref: Ref<() => void>
   initial: PublicResult<FeedItem[]>
   href: string
@@ -55,7 +56,7 @@ export function FeedBest({ initial, href, onLeaving, ref }: {
     const id = ++sequence.current
     setBusy(true)
     try {
-      const result = await getWeeklyBest()
+      const result = await getWeeklyBest(topic)
       if (id !== sequence.current) return
       saveOffset()
       setItems(result)
@@ -70,18 +71,20 @@ export function FeedBest({ initial, href, onLeaving, ref }: {
   }
   useImperativeHandle(ref, () => refresh)
 
+  const space = topicByValue(topic)
+  const location = space ? `${space.name} 토픽` : "커뮤니티"
   const failureMessage = items === null ? "주간 베스트를 불러오지 못했어요."
     : items.length ? "순위를 갱신하지 못했어요. 이전 순위를 표시하고 있어요."
     : "순위를 갱신하지 못했어요. 이전 조회에서는 주간 베스트에 오른 글이 없었어요."
 
   return <aside ref={section} className="feed-best" aria-labelledby="feed-best-title">
     <h2 id="feed-best-title">주간 베스트</h2>
-    <p>최근 7일 동안 작성된 글 중 좋아요가 많은 순서예요.</p>
+    {items && items.length > 0 && <p>최근 7일 동안 {location}에 작성된 글을 좋아요가 많은 순서로 보여드려요.</p>}
     {failed && <div>
       <p role="status">{busy ? "주간 베스트를 불러오고 있어요." : failureMessage}</p>
       <button type="button" className="iyum-text-link" disabled={busy} onClick={refresh}>다시 시도</button>
     </div>}
-    {items && (items.length === 0 ? !failed && <p>아직 주간 베스트에 오른 글이 없어요.</p> :
+    {items && (items.length === 0 ? !failed && <p>최근 7일 동안 {location}에 작성된 글 중 현재 좋아요가 있는 글이 없어요.</p> :
       <ol>{items.map((post, index) => <li key={post.id}>
         <Link href={`/community/posts/${post.id}?from=${encodeURIComponent(href)}`} onNavigate={onLeaving} prefetch={false}>
           <span className="feed-best-rank">{index + 1}<span className="sr-only">위</span></span>

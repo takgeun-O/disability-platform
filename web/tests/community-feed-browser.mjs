@@ -13,7 +13,7 @@ const make=id=>({id,type:'QUESTION',topic:'HEARING_AID',title:`[검증 예시] �
 let posts=[],comments=[],serverCalls=[]
 let bestResponse={status:200,json:{items:[]}}
 function response(u){
- if(u.pathname.endsWith('/weekly-best'))return bestResponse
+ if(u.pathname.endsWith('/weekly-best'))return typeof bestResponse==='function'?bestResponse(u):bestResponse
  if(u.pathname.endsWith('/comments'))return{status:200,json:{items:comments,hasNext:false,nextCursor:null}}
  if(u.pathname.endsWith('/feed')){
   let rows=posts.filter(p=>(!u.searchParams.get('type')||p.type===u.searchParams.get('type'))&&(!u.searchParams.get('topic')||p.topic===u.searchParams.get('topic')))
@@ -66,18 +66,21 @@ async function more(p,n){for(let i=1;i<n;i++){await p.getByRole('button',{name:'
 async function enter(p,id){const el=p.locator(`[data-feed-id="${id}"]`);await el.evaluate(e=>window.scrollBy(0,e.getBoundingClientRect().top-120));const y=await p.evaluate(()=>scrollY);await el.locator('h3 a').click();await p.locator('.community-back').waitFor();return y}
 try{
  for (const width of [390,1440]) await check(`좋아요 취소·추가가 서버 순위와 다음 후보에 반영된다 ${width}`,async()=>{
-  const ranking=()=>posts.filter(post=>post.likeCount>0).sort((a,b)=>b.likeCount-a.likeCount||b.id-a.id).slice(0,5)
+  const ranking=(topic)=>posts.filter(post=>post.likeCount>0 && (!topic || post.topic===topic)).sort((a,b)=>b.likeCount-a.likeCount||b.id-a.id).slice(0,5)
   const {ctx,p,state}=await fixture({width,prepare(posts){
    posts[0].title='보청기 착용 후 달라진 일상과 회의에서 나눈 이야기 '.repeat(3).trim()
    posts[1].title='공백없는한글제목'.repeat(10)
    for(const [i,n] of [5,4,3,2,1,1].entries())posts[i].likeCount=n
+   posts[0].topic='DAILY'
+   posts[1].type='REVIEW'
    posts[4].liked=true
-   bestResponse={status:200,json:{items:ranking()}}
+   bestResponse=u=>({status:200,json:{items:ranking(u.searchParams.get('topic'))}})
   }})
   try{
    const best=p.locator('.feed-best'), links=best.locator('li a')
    const ids=()=>links.evaluateAll(nodes=>nodes.map(a=>Number(new URL(a.href).pathname.split('/').at(-1))))
    assert.deepEqual(await ids(),[1000,999,998,997,996])
+   assert.deepEqual(await best.locator('p').allTextContents(),['최근 7일 동안 커뮤니티에 작성된 글을 좋아요가 많은 순서로 보여드려요.'])
    for(const i of [0,1]){
     const title=links.nth(i).locator('strong')
     assert.equal(await title.textContent(),posts[i].title)
@@ -99,11 +102,12 @@ try{
     if(dropResponse){dropResponse=false;return route.abort('connectionreset')}
     return route.fulfill({json:{postId:post.id,liked:add,likeCount:post.likeCount}})
    }
+   let topic=''
    state.get=async(route,u)=>{
     if(!u.pathname.endsWith('/weekly-best'))return route.fulfill(response(u))
-    assert.equal(u.search,'?size=5')
+    assert.deepEqual(Object.fromEntries(u.searchParams),topic?{size:'5',topic}:{size:'5'})
     if(failRead)return route.fulfill({status:503,json:failure('SERVER_ERROR')})
-    const body=JSON.stringify({items:ranking()})
+    const body=JSON.stringify({items:ranking(topic)})
     if(hold){hold=false;await delayed}
     return route.fulfill({contentType:'application/json',body})
    }
@@ -165,12 +169,36 @@ try{
    assert.deepEqual(state.calls.slice(beforeRetry).map(c=>[c.method,c.path]),[['GET','/api/v1/community/posts/weekly-best']])
    assert.equal(await best.getByRole('status').count(),0)
    assert.match(await last.innerText(),/좋아요 0/)
-   await p.goto(base+'/community/topics/hearing-aid')
+   topic='HEARING_AID'
+   const path='/community/topics/hearing-aid?type=QUESTION'
+   await p.locator('.feed-tabs').getByRole('link',{name:'보청기',exact:true}).click()
+   for(const [label,type] of [['일반','GENERAL'],['경험·후기','REVIEW'],['질문·답변','QUESTION']]){
+    await p.locator('.feed-types').getByRole('link',{name:label}).click()
+    await p.waitForURL(base+'/community/topics/hearing-aid?type='+type)
+    assert.deepEqual(await ids(),[999,998,997,995])
+   }
+   assert.deepEqual(await best.locator('p').allTextContents(),['최근 7일 동안 보청기 토픽에 작성된 글을 좋아요가 많은 순서로 보여드려요.'])
+   await best.screenshot({path:output+`/topic-filled-${width}.png`})
+   await p.waitForURL(base+path)
+   await p.reload()
    await toggle(995).waitFor()
+   assert.deepEqual(await ids(),[999,998,997,995])
+   // 999는 경험·후기다. 질문 유형 필터는 하단 피드에만 적용된다.
+   assert.equal(await p.locator('[data-feed-id="999"]').count(),0)
    const topicReads=reads()
+   failRead=true
    await toggle(995).click()
-   await until(async()=>await toggle(995).getAttribute('aria-pressed')==='true')
-   assert.equal(reads(),topicReads)
+   await best.getByRole('button',{name:'다시 시도'}).waitFor()
+   assert.deepEqual(await ids(),[999,998,997,995])
+   failRead=false
+   await best.getByRole('button',{name:'다시 시도'}).click()
+   await until(async()=> (await links.last().innerText()).includes('좋아요 2개'))
+   assert.equal(reads(),topicReads+2)
+   assert.deepEqual(await ids(),[999,998,997,995])
+   await links.first().click()
+   await p.locator('.community-back').click()
+   await p.waitForURL(base+path)
+   assert.deepEqual(await ids(),[999,998,997,995])
   }finally{bestResponse={status:200,json:{items:[]}};await ctx.close()}
  })
  for(const overlap of [false,true]) await check(`응답 유실 후 최신 목록 새로고침으로 5위가 복구된다 · ${overlap?'재확인 요청과 겹침':'피드만 조회'}`,async()=>{
@@ -297,21 +325,52 @@ try{
    state.get=(route,u)=>u.pathname.endsWith('/weekly-best')?route.fulfill({status:503,json:failure('SERVER_ERROR')}):route.fulfill(response(u))
    await button.click()
    await best.getByText('순위를 갱신하지 못했어요. 이전 조회에서는 주간 베스트에 오른 글이 없었어요.').waitFor()
-   assert.equal(await best.getByText('아직 주간 베스트에 오른 글이 없어요.').count(),0)
+   assert.equal(await best.getByText('최근 7일 동안 커뮤니티에 작성된 글 중 현재 좋아요가 있는 글이 없어요.').count(),0)
    await best.screenshot({path:output+'/weekly-empty-refresh-error.png'})
    assert.equal(await button.getAttribute('aria-pressed'),'true')
   }finally{await ctx.close()}
  })
- await check('빈 순위는 최신 글을 채우지 않고 토픽은 순위를 요청하지 않는다',async()=>{
+ await check('탭 이동 후 이전 보청기 순위 응답이 자유·일상 순위를 덮지 않는다',async()=>{
+  const {ctx,p,state}=await fixture({path:'/community/topics/hearing-aid',prepare(posts){
+   posts[1].topic='DAILY'
+   bestResponse=u=>u.searchParams.get('topic')==='HEARING_AID'
+    ? {status:503,json:failure('SERVER_ERROR')}
+    : {status:200,json:{items:[{...posts[1],likeCount:5}]}}
+  }})
+  let release
+  try{
+   const best=p.locator('.feed-best')
+   state.get=async(route,u)=>{
+    if(!u.pathname.endsWith('/weekly-best'))return route.fulfill(response(u))
+    assert.equal(u.searchParams.get('topic'),'HEARING_AID')
+    await new Promise(resolve=>{release=resolve})
+    return route.fulfill({json:{items:[{...posts[0],likeCount:2}]}})
+   }
+   await best.getByRole('button',{name:'다시 시도'}).click()
+   await until(()=>!!release)
+   await p.locator('.feed-tabs').getByRole('link',{name:'자유·일상'}).click()
+   await p.waitForURL(base+'/community/topics/daily')
+   await best.getByText(posts[1].title,{exact:true}).waitFor()
+   release()
+   await p.waitForLoadState('networkidle')
+   assert.deepEqual(await best.locator('li strong').allTextContents(),[posts[1].title])
+  }finally{release?.();bestResponse={status:200,json:{items:[]}};await ctx.close()}
+ })
+ await check('전체와 토픽의 빈 순위는 첫 HTML에 각 범위의 안내를 표시한다',async()=>{
   const {ctx,p}=await fixture({js:false})
   try {
-   await p.locator('.feed-best').getByText('아직 주간 베스트에 오른 글이 없어요.').waitFor()
+   assert.deepEqual(await p.locator('.feed-best p').allTextContents(),['최근 7일 동안 커뮤니티에 작성된 글 중 현재 좋아요가 있는 글이 없어요.'])
    assert.equal(await p.locator('.feed-best li').count(),0)
    assert(serverCalls.includes('/api/v1/community/posts/weekly-best?size=5'))
    serverCalls=[]
    await p.goto(base+'/community/topics/hearing-aid')
-   assert.equal(await p.locator('.feed-best').count(),0)
-   assert(!serverCalls.some(call=>call.includes('/weekly-best')))
+   assert.deepEqual(await p.locator('.feed-best p').allTextContents(),['최근 7일 동안 보청기 토픽에 작성된 글 중 현재 좋아요가 있는 글이 없어요.'])
+   assert.equal(await p.locator('.feed-best li').count(),0)
+   assert(serverCalls.includes('/api/v1/community/posts/weekly-best?size=5&topic=HEARING_AID'))
+   for(const width of [390,1440]){
+    await p.setViewportSize({width,height:950})
+    await p.locator('.feed-best').screenshot({path:output+`/topic-empty-${width}.png`})
+   }
   } finally {await ctx.close()}
  })
  for(const width of [1440,390]) await check(`normal motion ${width}: first painted detail at top; 60-row link/back restoration`,async()=>{
