@@ -208,6 +208,13 @@ async function request(
     throw commentError(response.status, null, writing);
   return body;
 }
+export async function getBestComments(postId: string, signal?: AbortSignal, base?: string): Promise<Comment[]> {
+  const body = await request(postId, "/best", { method: "GET", signal }, false, base);
+  if (!obj(body) || !Array.isArray(body.items) || body.items.length > 3 || !body.items.every(comment))
+    throw commentError(200, null, false);
+  return body.items;
+}
+
 export async function getComments(
   postId: string,
   after: CommentCursor | null = null,

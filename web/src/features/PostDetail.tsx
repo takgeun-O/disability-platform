@@ -3,7 +3,7 @@ import WrittenTime from "@/components/WrittenTime"
 import PostLikeButton from "@/components/community/PostLikeButton"
 import { useAuth } from "@/components/AuthProvider"
 import Comments from "@/components/community/Comments"
-import type { CommentPage } from "@/lib/community-comments"
+import type { Comment, CommentPage } from "@/lib/community-comments"
 import type { PublicResult } from "@/lib/community-load"
 import PostActions from "@/components/community/PostActions"
 import { usePostVersion } from "@/lib/community-mutations"
@@ -24,7 +24,7 @@ import { isHomeListReturn, safeListReturn, listReturnLabel, requestListScrollRes
 
 import { topicByValue, topicPath } from "@/lib/community-topics"
 
-export default function PostDetail({ initial, initialComments }: { initial: InitialPostDetail; initialComments: PublicResult<CommentPage> }) {
+export default function PostDetail({ initial, initialComments, initialBest }: { initial: InitialPostDetail; initialComments: PublicResult<CommentPage>; initialBest: Comment[] | null }) {
   const { postId } = useParams<{ postId: string }>()
   const { likes, memberRequests, status, pending } = useAuth()
   const params = useSearchParams()
@@ -146,7 +146,7 @@ export default function PostDetail({ initial, initialComments }: { initial: Init
           </article>
         )}
         {(initial.data || result.post) && (
-          <Comments key={postId} postId={postId} initial={initialComments} returnTo={`/community/posts/${postId}?from=${encodeURIComponent(back)}`} />
+          <Comments key={postId} postId={postId} initial={initialComments} initialBest={initialBest} returnTo={`/community/posts/${postId}?from=${encodeURIComponent(back)}`} />
         )}
         {post && (
           <Link

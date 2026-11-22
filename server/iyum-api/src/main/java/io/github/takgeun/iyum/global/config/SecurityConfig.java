@@ -141,7 +141,8 @@ public class SecurityConfig {
                                     "/api/v1/auth/password-reset/validate",
                                     "/api/v1/community/posts",
                                     "/api/v1/community/posts/*",
-                                    "/api/v1/community/posts/*/comments"
+                                    "/api/v1/community/posts/*/comments",
+                                    "/api/v1/community/posts/*/comments/best"
                             )
                             .permitAll();
 

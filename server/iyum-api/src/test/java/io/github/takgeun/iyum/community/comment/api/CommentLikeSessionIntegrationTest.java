@@ -2,6 +2,7 @@ package io.github.takgeun.iyum.community.comment.api;
 
 import io.github.takgeun.iyum.community.comment.application.CommentDeleteService;
 import io.github.takgeun.iyum.community.comment.domain.Comment;
+import io.github.takgeun.iyum.community.comment.domain.CommentLike;
 import io.github.takgeun.iyum.community.comment.infrastructure.CommentLikeRepository;
 import io.github.takgeun.iyum.community.comment.infrastructure.CommentRepository;
 import io.github.takgeun.iyum.community.post.application.PostDeleteService;
@@ -656,6 +657,52 @@ class CommentLikeSessionIntegrationTest {
 
         assertThat(commentLikeRepository.countByComment_Id(commentId))
                 .isEqualTo(1L);
+    }
+
+    @Test
+    void 비로그인으로_베스트_댓글을_조회하면_좋아요_10개인_댓글은_포함하고_9개인_댓글은_제외한다()
+            throws Exception {
+        Post post = postRepository.findById(postId)
+                .orElseThrow();
+
+        Comment bestComment = commentRepository.findById(commentId)
+                .orElseThrow();
+
+        Comment belowThreshold = commentRepository.saveAndFlush(
+                Comment.create(post, other, "좋아요가 9개인 댓글")
+        );
+
+        // 두 댓글 모두 좋아요 9개에서 시작한다.
+        String passwordHash = passwordEncoder.encode(PASSWORD);
+
+        for (int i = 1; i <= 9; i++) {
+            Member reader = saveActiveMember(
+                    "best-reader-" + i + "@example.com",
+                    "베스트독자" + i,
+                    passwordHash
+            );
+
+            commentLikeRepository.save(CommentLike.create(bestComment, reader));
+            commentLikeRepository.save(CommentLike.create(belowThreshold, reader));
+        }
+
+        // 기존 change() 헬퍼는 setUp()에서 만든 commentId에 좋아요를 등록한다.
+        CsrfSession client = login(other.getEmail());
+        assertSuccess(change("PUT", client), true, 10);
+
+        // 조회 요청에는 로그인 세션을 전달하지 않는다.
+        mockMvc.perform(
+                        get("/api/v1/community/posts/{postId}/comments/best", postId)
+                )
+                .andExpect(status().isOk())
+                .andExpect(header().string(
+                        HttpHeaders.CACHE_CONTROL,
+                        containsString("no-store")
+                ))
+                .andExpect(jsonPath("$.items.length()").value(1))
+                .andExpect(jsonPath("$.items[0].commentId").value(commentId))
+                .andExpect(jsonPath("$.items[0].likeCount").value(10))
+                .andExpect(jsonPath("$.items[0].liked").value(false));
     }
 
     private CsrfSession login(String email) throws Exception {

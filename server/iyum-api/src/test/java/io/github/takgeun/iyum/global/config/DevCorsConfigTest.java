@@ -47,6 +47,29 @@ class DevCorsConfigTest {
     @MockitoBean CommentDeleteService commentDeleteService;
 
     @Test
+    void 베스트_댓글은_개발_프론트의_조회만_허용한다() throws Exception {
+        String path = "/api/v1/community/posts/7/comments/best";
+        when(commentReadService.getBestComments(7L, null)).thenReturn(List.of());
+
+        mockMvc.perform(get(path).header(HttpHeaders.ORIGIN, ORIGIN))
+                .andExpect(status().isOk())
+                .andExpect(header().string(HttpHeaders.ACCESS_CONTROL_ALLOW_ORIGIN, ORIGIN))
+                .andExpect(header().string(HttpHeaders.ACCESS_CONTROL_ALLOW_CREDENTIALS, "true"));
+
+        mockMvc.perform(options(path).header(HttpHeaders.ORIGIN, ORIGIN)
+                        .header(HttpHeaders.ACCESS_CONTROL_REQUEST_METHOD, "GET"))
+                .andExpect(status().isOk())
+                .andExpect(header().string(HttpHeaders.ACCESS_CONTROL_ALLOW_METHODS, "GET,OPTIONS"));
+        for (String method : List.of("POST", "PUT", "DELETE")) {
+            mockMvc.perform(options(path).header(HttpHeaders.ORIGIN, ORIGIN)
+                            .header(HttpHeaders.ACCESS_CONTROL_REQUEST_METHOD, method))
+                    .andExpect(status().isForbidden());
+        }
+        mockMvc.perform(get(path).header(HttpHeaders.ORIGIN, "https://other.example"))
+                .andExpect(status().isForbidden());
+    }
+
+    @Test
     void commentCorsAndCsrfBoundaries() throws Exception {
         String collection = "/api/v1/community/posts/7/comments";
         String item = collection + "/10";

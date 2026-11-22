@@ -15,6 +15,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.data.auditing.DateTimeProvider;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
@@ -410,6 +411,204 @@ class CommentLikeRepositoryTest {
         assertThat(results).isEmpty();
     }
 
+    @Test
+    void 베스트_댓글은_현재_게시글에서_좋아요가_10개_이상인_댓글만_반환한다() {
+        Member author = saveActiveMember(
+                "best-author@example.com",
+                "베스트작성자"
+        );
+
+        Post currentPost = savePost(author);
+        Post otherPost = savePost(author);
+
+        Comment nineLikes = saveComment(currentPost, author, "좋아요 9개인 댓글");
+        Comment tenLikes = saveComment(currentPost, author, "좋아요 10개인 댓글");
+        Comment otherPostComment = saveComment(otherPost, author, "다른 게시글의 댓글");
+
+        // 같은 회원은 한 댓글에 한 번씩만 좋아요를 누른다.
+        for (int i = 1; i <= 11; i++) {
+            Member reader = saveActiveMember(
+                    "best-reader-" + i + "@example.com",
+                    "베스트독자" + i
+            );
+
+            if (i <= 9) {
+                commentLikeRepository.save(CommentLike.create(nineLikes, reader));
+            }
+
+            if (i <= 10) {
+                commentLikeRepository.save(CommentLike.create(tenLikes, reader));
+            }
+
+            commentLikeRepository.save(CommentLike.create(otherPostComment, reader));
+        }
+
+        entityManager.flush();
+        entityManager.clear();
+
+        List<Long> result = commentLikeRepository.findBestCommentIds(
+                currentPost.getId(),
+                PageRequest.of(0, 3)
+        );
+
+        assertThat(result).containsExactly(tenLikes.getId());
+    }
+
+    @Test
+    void 베스트_댓글을_숨기거나_삭제하면_차순위가_올라오고_복원하면_원래_순위로_돌아온다() {
+        Member author = saveActiveMember(
+                "best-ranking-author@example.com",
+                "순위작성자"
+        );
+
+        Post post = savePost(author);
+
+        // 좋아요가 적은 댓글부터 저장해서, 등록 순서와 인기 순서가 다르게 한다.
+        Comment fourth = saveComment(post, author, "좋아요 10개");
+        Comment third = saveComment(post, author, "좋아요 11개");
+        Comment second = saveComment(post, author, "좋아요 12개");
+        Comment first = saveComment(post, author, "좋아요 13개");
+
+        for (int i = 1; i <= 13; i++) {
+            Member reader = saveActiveMember(
+                    "best-ranking-reader-" + i + "@example.com",
+                    "순위독자" + i
+            );
+
+            commentLikeRepository.save(CommentLike.create(first, reader));
+
+            if (i <= 12) {
+                commentLikeRepository.save(CommentLike.create(second, reader));
+            }
+
+            if (i <= 11) {
+                commentLikeRepository.save(CommentLike.create(third, reader));
+            }
+
+            if (i <= 10) {
+                commentLikeRepository.save(CommentLike.create(fourth, reader));
+            }
+        }
+
+        assertBestCommentIds(post.getId(), first, second, third);
+
+        second.hide(CREATED_TIME.plusSeconds(60));
+        assertBestCommentIds(post.getId(), first, third, fourth);
+
+        second.restore();
+        assertBestCommentIds(post.getId(), first, second, third);
+
+        second.delete(CREATED_TIME.plusSeconds(120));
+        assertBestCommentIds(post.getId(), first, third, fourth);
+    }
+
+    @Test
+    void 좋아요가_같으면_먼저_작성된_댓글을_우선하고_작성_시각도_같으면_ID가_작은_댓글을_우선한다() {
+        Member author = saveActiveMember(
+                "best-tie-author@example.com",
+                "동률작성자"
+        );
+        Post post = savePost(author);
+
+        Instant later = CREATED_TIME.plusSeconds(60);
+        when(dateTimeProvider.getNow())
+                .thenReturn(Optional.of(later));
+
+        Comment tiedFirst = saveComment(post, author, "같은 시각의 첫 번째 댓글");
+        Comment tiedSecond = saveComment(post, author, "같은 시각의 두 번째 댓글");
+        Comment tiedThird = saveComment(post, author, "같은 시각의 세 번째 댓글");
+
+        // 가장 큰 ID를 갖지만 작성 시각은 가장 이르다.
+        when(dateTimeProvider.getNow())
+                .thenReturn(Optional.of(CREATED_TIME));
+
+        Comment earliest = saveComment(post, author, "가장 먼저 작성된 댓글");
+
+        when(dateTimeProvider.getNow())
+                .thenReturn(Optional.of(later.plusSeconds(60)));
+
+        List<Comment> comments = List.of(tiedFirst, tiedSecond, tiedThird, earliest);
+
+        for (int i = 1; i <= 10; i++) {
+            Member reader = saveActiveMember(
+                    "best-tie-reader-" + i + "@example.com",
+                    "동률독자" + i
+            );
+
+            for (Comment comment : comments) {
+                commentLikeRepository.save(CommentLike.create(comment, reader));
+            }
+        }
+
+        assertBestCommentIds(
+                post.getId(),
+                earliest,
+                tiedFirst,
+                tiedSecond
+        );
+
+        // 3위 댓글의 좋아요가 10개에서 9개로 줄면 기존 4위가 진입한다.
+        Member reader = memberRepository.findByEmail("best-tie-reader-10@example.com")
+                .orElseThrow();
+        CommentLike lastLike = commentLikeRepository.findByComment_IdAndMember_Id(
+                tiedSecond.getId(),
+                reader.getId()
+        ).orElseThrow();
+
+        commentLikeRepository.delete(lastLike);
+        assertBestCommentIds(post.getId(), earliest, tiedFirst, tiedThird);
+    }
+
+    @Test
+    void 좋아요가_10개인_베스트_댓글은_한_명이_취소하면_다음_조회에서_제외된다() {
+        Member author = saveActiveMember(
+                "best-cancel-author@example.com",
+                "취소검증작성자"
+        );
+
+        Post post = savePost(author);
+        Comment comment = saveComment(post, author, "좋아요 취소 경계 검증");
+
+        for (int i = 1; i <= 9; i++) {
+            Member reader = saveActiveMember(
+                    "best-cancel-reader-" + i + "@example.com",
+                    "취소검증독자" + i
+            );
+
+            commentLikeRepository.save(CommentLike.create(comment, reader));
+        }
+
+        Member tenthReader = saveActiveMember(
+                "best-cancel-reader-10@example.com",
+                "취소검증독자10"
+        );
+
+        CommentLike tenthLike = commentLikeRepository.saveAndFlush(
+                CommentLike.create(comment, tenthReader)
+        );
+
+        PageRequest topThree = PageRequest.of(0, 3);
+
+        List<Long> beforeCancel = commentLikeRepository.findBestCommentIds(
+                post.getId(),
+                topThree
+        );
+
+        assertThat(beforeCancel).containsExactly(comment.getId());
+
+        commentLikeRepository.delete(tenthLike);
+        commentLikeRepository.flush();
+
+        List<Long> afterCancel = commentLikeRepository.findBestCommentIds(
+                post.getId(),
+                topThree
+        );
+
+        assertThat(commentLikeRepository.countByComment_Id(comment.getId()))
+                .isEqualTo(9L);
+        assertThat(afterCancel).isEmpty();
+    }
+
     private Member saveActiveMember(String email, String nickname) {
         Member member = Member.createPending(
                 email,
@@ -437,6 +636,26 @@ class CommentLikeRepositoryTest {
     private Comment saveComment(Post post, Member author, String content) {
         return commentRepository.saveAndFlush(
                 Comment.create(post, author, content)
+        );
+    }
+
+    private void assertBestCommentIds(
+            Long postId,
+            Comment first,
+            Comment second,
+            Comment third
+    ) {
+        entityManager.flush();
+
+        List<Long> result = commentLikeRepository.findBestCommentIds(
+                postId,
+                PageRequest.of(0, 3)
+        );
+
+        assertThat(result).containsExactly(
+                first.getId(),
+                second.getId(),
+                third.getId()
         );
     }
 }

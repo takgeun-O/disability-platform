@@ -1,11 +1,9 @@
 package io.github.takgeun.iyum.community.comment.infrastructure;
 
-import io.github.takgeun.iyum.community.comment.domain.Comment;
 import io.github.takgeun.iyum.community.comment.domain.CommentLike;
 import jakarta.annotation.Nullable;
-import jakarta.persistence.LockModeType;
+import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
-import org.springframework.data.jpa.repository.Lock;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
@@ -48,5 +46,27 @@ public interface CommentLikeRepository
     List<CommentLikeSummary> findSummariesByCommentIds(
             @Param("commentIds") List<Long> commentIds,
             @Param("viewerId") @Nullable Long viewerId  // 비로그인일 때 viewerId=null
+    );
+
+    /**
+     * 베스트 댓글 조회 메서드
+     */
+    @Query("""
+            select c.id
+            from CommentLike cl
+            join cl.comment c
+            join c.post p
+            where p.id = :postId
+                and p.deletedAt is null
+                and p.hiddenAt is null
+                and c.deletedAt is null
+                and c.hiddenAt is null
+            group by c.id, c.createdAt
+            having count(cl) >= 10
+            order by count(cl) desc, c.createdAt asc, c.id asc
+            """)
+    List<Long> findBestCommentIds(
+            @Param("postId") Long postId,
+            Pageable pageable
     );
 }
