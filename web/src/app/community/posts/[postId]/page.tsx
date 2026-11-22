@@ -1,7 +1,7 @@
 import type { Metadata } from "next"
 import { notFound } from "next/navigation"
 import PostDetail from "@/features/PostDetail"
-import { readPublicPost, readPublicComments } from "@/lib/community-server"
+import { readPublicPost, readPublicComments, readPublicBestComments } from "@/lib/community-server"
 import { isMissingPost } from "@/lib/community-load"
 
 type Props = { params: Promise<{ postId: string }> }
@@ -32,6 +32,6 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
 export default async function Page({ params }: Props) {
   const { postId, result } = await load(params)
   // 무JS 공개 열람을 위해 첫 댓글까지 해결한 뒤 렌더링한다. 게시글 404 판단은 먼저 유지한다.
-  const comments = await readPublicComments(postId)
-  return <PostDetail key={postId} initial={result} initialComments={comments} />
+  const [comments, best] = await Promise.all([readPublicComments(postId), readPublicBestComments(postId)])
+  return <PostDetail key={postId} initial={result} initialComments={comments} initialBest={best.data} />
 }

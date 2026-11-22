@@ -303,7 +303,7 @@ public interface CommentRepository
     );
 
     /**
-     * 댓글 일괄 조회 추가
+     * 댓글 일괄 조회
      * <p>
      * 인기순 조회 등에서 선택한 댓글들의 본문과 작성자를
      * 한번에 조회한다.

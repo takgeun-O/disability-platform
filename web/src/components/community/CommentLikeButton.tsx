@@ -7,7 +7,8 @@ import { changeCommentLike, CommentError, type Comment } from "@/lib/community-c
 import { memberCommentsChanged, postCommentsChanged } from "@/lib/community-mutations"
 import CommunityDialog from "./CommunityDialog"
 
-export default function CommentLikeButton({ postId, comment, ready, reread, returnTo }: {
+export default function CommentLikeButton({ postId, comment, ready, reread, returnTo, onChanged }: {
+  onChanged?: () => void
   returnTo?: "/mypage"; postId: string; comment: Comment; ready: boolean; reread: (commentId: number) => Promise<boolean | undefined>
 }) {
   const auth = useAuth(), store = auth.commentLikes, scope = useNavigationRequest(), guard = useNavigationGuard(), router = useRouter(), uid = useId()
@@ -15,10 +16,10 @@ export default function CommentLikeButton({ postId, comment, ready, reread, retu
   const [prompt, setPrompt] = useState(false)
   const [checking, setChecking] = useState<number | null>(null)
   const [feedback, setFeedback] = useState<{ revision: number; message: string; uncertain: boolean } | null>(null)
-  const error = feedback?.revision === auth.memberRequests.revision ? feedback : null
+  const needsRead = !ready || !state || state.needsRead
+  const error = feedback?.revision === auth.memberRequests.revision && (!feedback.uncertain || needsRead) ? feedback : null
   const authenticated = auth.status === "authenticated" && !!auth.member && !auth.pending
   const liked = authenticated && !!state?.liked
-  const needsRead = !ready || !state || state.needsRead || error?.uncertain
   const blocked = auth.status === "checking" || !!auth.pending || auth.memberRequests.paused || !!state?.pending || checking === auth.memberRequests.revision
   async function act() {
     if (blocked || !scope.isActive()) return
@@ -31,7 +32,8 @@ export default function CommentLikeButton({ postId, comment, ready, reread, retu
       setChecking(auth.memberRequests.revision)
       try {
         const ok = await reread(comment.commentId)
-        if (current() && ok === false) setFeedback({ revision: auth.memberRequests.revision, message: "댓글 좋아요 상태를 확인하지 못했습니다. 다시 확인해 주세요.", uncertain: true })
+        if (!current()) return
+        if (ok === false) setFeedback({ revision: auth.memberRequests.revision, message: "댓글 좋아요 상태를 확인하지 못했습니다. 다시 확인해 주세요.", uncertain: true })
       } finally { if (current()) setChecking(null) }
       return
     }
@@ -44,6 +46,7 @@ export default function CommentLikeButton({ postId, comment, ready, reread, retu
       if (result && session.isCurrent() && operation.valid()) {
         operation.commit(result)
         memberCommentsChanged()
+        if (current()) onChanged?.()
       } else if (operation.valid()) operation.uncertain()
     } catch (cause) {
       if (!operation.valid()) return

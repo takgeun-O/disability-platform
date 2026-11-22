@@ -33,6 +33,7 @@ import CommentSuccessToast from "./CommentSuccessToast";
 import {
   changeComment,
   CommentError,
+  getBestComments,
   getComments,
   commentCursorKey,
   commentError,
@@ -61,11 +62,13 @@ type Editor = {
 export default function Comments({
   postId,
   initial,
+  initialBest,
   returnTo,
 }: {
   postId: string;
   returnTo: string;
   initial: PublicResult<CommentPage>;
+  initialBest: Comment[] | null;
 }) {
   const identityVersion = usePostVersion("public-identity");
   const auth = useAuth();
@@ -86,6 +89,38 @@ export default function Comments({
     autoStalled = useRef(false);
   const { list: commentList, capture: captureTransition } =
     useCommentTransition();
+  const [best, setBest] = useState(initialBest);
+  const bestRequest = useRef<AbortController | null>(null);
+  const listOffset = useRef<number | null>(null);
+  async function refreshBest() {
+    bestRequest.current?.abort();
+    const request = new AbortController();
+    bestRequest.current = request;
+    const session = auth.member ? auth.captureMemberRequest(auth.member.memberId) : null;
+    let next: Comment[] | null;
+    try {
+      next = await getBestComments(postId, request.signal);
+    } catch {
+      next = null;
+    }
+    if (request.signal.aborted || !scope.isActive() || (session && !session.isCurrent())) return;
+    const list = commentList.current;
+    if (list && (list.getBoundingClientRect().top < 0 || list.contains(document.activeElement))) {
+      listOffset.current = list.getBoundingClientRect().top;
+    }
+    setBest(next);
+  }
+  useLayoutEffect(() => {
+    if (listOffset.current !== null && commentList.current) {
+      window.scrollBy({ top: commentList.current.getBoundingClientRect().top - listOffset.current, behavior: "instant" });
+      listOffset.current = null;
+    }
+  }, [best, commentList]);
+  useEffect(() => {
+    const cancel = () => bestRequest.current?.abort();
+    const unsubscribe = subscribeNavigation(cancel);
+    return () => { cancel(); unsubscribe(); };
+  }, [subscribeNavigation]);
   const [displayedSort, setDisplayedSort] = useState<CommentSort>("OLDEST");
   const removed = useRef(new Set<number>());
   const [page, setPage] = useState<CommentPage>(
@@ -120,6 +155,14 @@ export default function Comments({
   } | null>(null);
   const [notice, setNotice] = useState("");
   const [linkedComment, setLinkedComment] = useState<number | null>(null);
+  const [arrival, setArrival] = useState<{ commentId: number } | null>(null);
+  useEffect(() => {
+    if (!arrival) return;
+    const timer = window.setTimeout(() => {
+      setArrival(current => current === arrival ? null : current);
+    }, 2000);
+    return () => window.clearTimeout(timer);
+  }, [arrival]);
   const [linkNotice, setLinkNotice] = useState("");
   const [created, setCreated] = useState<
     { commentId: number; content: string }[]
@@ -196,7 +239,7 @@ export default function Comments({
     more = false,
     automatic = false,
     targetId?: number,
-    announce = false,
+    refresh?: "manual" | "retry",
   ) {
     if (
       reading.current ||
@@ -228,6 +271,7 @@ export default function Comments({
     setLoading(true);
     setReadError("");
     setReadMore(more);
+    if (refresh === "manual") void refreshBest();
     try {
       const seen = new Set(more ? cursors.current : []);
       const track = (data: CommentPage) => {
@@ -316,8 +360,17 @@ export default function Comments({
           }
           return previous;
         });
+        const recoveredLike = fetched.some(({ commentId }) =>
+          auth.commentLikes.get(commentId)?.needsRead && likeRead.canAccept(commentId)
+        );
         likeRead.accept(fetched.map((c) => ({ ...c, id: c.commentId })));
 
+        const missingBestComment =
+          targetId !== undefined && !result.hasNext &&
+          likeRead.canAccept(targetId) &&
+          best?.some(comment => comment.commentId === targetId) &&
+          !result.items.some(comment => comment.commentId === targetId);
+        if (refresh !== "manual" && (recoveredLike || missingBestComment)) void refreshBest();
         setLoadedContext(likeContext);
 
         // A moving popularity cursor may return only known IDs. Keep its cursor,
@@ -352,7 +405,7 @@ export default function Comments({
           items: result.items.filter((c) => !removed.current.has(c.commentId)),
         });
 
-        if (announce)
+        if (refresh)
           showToast(
             "댓글 목록을 새로고침했습니다.",
             () => likeRead.valid() && scope.isActive(),
@@ -378,6 +431,7 @@ export default function Comments({
 
   function switchSort(next: CommentSort) {
     if (next === sortRef.current || writing.current) return;
+    setLinkedComment(null);
     sortRef.current = next;
     setSort(next);
     cancelRead();
@@ -400,6 +454,16 @@ export default function Comments({
   }, [focusTarget, scope]);
   useEffect(() => cancelRead, [cancelRead]);
 
+  const cancelLinkSearch = useEffectEvent((event: PointerEvent | KeyboardEvent) => {
+    // Shift+Tab sends a separate Shift keydown before focus moves.
+    if (event instanceof KeyboardEvent && event.key === "Shift") return;
+    // Keep the destination while tabbing to the failed page's retry button.
+    if (readError && event instanceof KeyboardEvent && event.key === "Tab") return;
+    if (event.target instanceof Element && event.target.closest("#comments-read-retry") &&
+        !(event instanceof KeyboardEvent && event.key === "Tab")) return;
+    setLinkedComment(null);
+  });
+
   // An explicit comment link may point beyond the first public cursor page.
   useEffect(() => {
     const select = () => {
@@ -409,7 +473,7 @@ export default function Comments({
       setLinkNotice("");
     };
     select();
-    const cancel = () => setLinkedComment(null);
+    const cancel = (event: PointerEvent | KeyboardEvent) => cancelLinkSearch(event);
     window.addEventListener("hashchange", select);
     window.addEventListener("pointerdown", cancel);
     window.addEventListener("keydown", cancel);
@@ -423,14 +487,13 @@ export default function Comments({
     if (
       !linkedComment ||
       !scope.isActive() ||
-      reading.current ||
-      writing.current ||
-      readError
+      writing.current
     )
       return;
     const target = document.getElementById(`comment-${linkedComment}`);
     if (target) {
       target.focus({ preventScroll: true });
+      setArrival({ commentId: linkedComment });
       target.scrollIntoView({
         behavior: matchMedia("(prefers-reduced-motion: reduce)").matches
           ? "instant"
@@ -438,9 +501,12 @@ export default function Comments({
         block: "center",
       });
       setLinkedComment(null);
+    } else if (reading.current || readError) {
+      return;
     } else if (page.hasNext && page.nextCursor) {
       void load(true);
     } else {
+      void refreshBest();
       setLinkNotice(
         "해당 댓글을 찾을 수 없어요. 삭제되었거나 더 이상 표시되지 않는 댓글일 수 있습니다.",
       );
@@ -450,7 +516,7 @@ export default function Comments({
   useEffect(() => {
     const frame = requestAnimationFrame(() => followComment());
     return () => cancelAnimationFrame(frame);
-  }, [linkedComment, page, loading, readError]);
+  }, [linkedComment, page, loading, readError, busy]);
 
   const refreshIdentity = useEffectEvent(() => {
     cancelRead();
@@ -652,6 +718,7 @@ export default function Comments({
               : "댓글을 삭제했습니다.";
         showToast(message, session.isCurrent);
       }
+      if (method !== "POST") void refreshBest();
       if (method === "DELETE") {
         removeItem(result);
       }
@@ -806,7 +873,7 @@ export default function Comments({
           disabled={loading || busy}
           aria-label="목록 새로고침"
           aria-busy={loading && !readMore}
-          onClick={() => void load(false, false, undefined, true)}
+          onClick={() => void load(false, false, undefined, "manual")}
         >
           <svg
             width="16"
@@ -959,11 +1026,35 @@ export default function Comments({
           )}
         </form>
       </div>
-      <CommentSortMenu
-        value={sort}
-        onChange={switchSort}
-        disabled={busy || !!auth.pending || auth.memberRequests.paused}
-      />
+      {best === null && <p className="community-help" role="status">
+        베스트 댓글을 불러오지 못했어요. <button type="button" className="iyum-text-link" onClick={refreshBest}>베스트 댓글 다시 시도</button>
+      </p>}
+      {best && best.length > 0 && <section className="community-best-comments" aria-labelledby="best-comments-title">
+        <h3 id="best-comments-title">베스트 댓글</h3>
+        <ol>{best.map(comment => <li key={comment.commentId} data-best-comment={comment.commentId}>
+          <strong>{comment.author.nickname}</strong>
+          <p>{comment.content}</p>
+          <div className="community-best-comment-actions">
+            <span>좋아요 {comment.likeCount.toLocaleString("ko-KR")}개</span>
+            <a href={`#comment-${comment.commentId}`} onClick={event => {
+              if (event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
+              event.preventDefault();
+              const hash = event.currentTarget.hash;
+              if (location.hash !== hash) history.replaceState(history.state, "", hash);
+              setLinkNotice("");
+              setLinkedComment(comment.commentId);
+            }}>해당 댓글로 이동</a>
+          </div>
+        </li>)}</ol>
+      </section>}
+      <div className="community-comment-list-heading">
+        {!!best?.length && <h3>전체 댓글</h3>}
+        <CommentSortMenu
+          value={sort}
+          onChange={switchSort}
+          disabled={busy || !!auth.pending || auth.memberRequests.paused}
+        />
+      </div>
       {linkNotice && (
         <p role="status" className="community-help">
           {linkNotice}
@@ -992,7 +1083,8 @@ export default function Comments({
           <button
             className="iyum-text-link"
             disabled={loading || busy}
-            onClick={() => void load(readMore, false, undefined, !readMore)}
+            id="comments-read-retry"
+            onClick={() => void load(readMore, false, undefined, readMore ? undefined : "retry")}
           >
             댓글 조회 다시 시도
           </button>
@@ -1015,6 +1107,7 @@ export default function Comments({
             key={c.commentId}
             comment={c}
             anchorId={`comment-${c.commentId}`}
+            arrived={arrival?.commentId === c.commentId}
             body={
               editor?.id === c.commentId
                 ? editForm()
@@ -1024,6 +1117,7 @@ export default function Comments({
               <CommentLikeButton
                 postId={postId}
                 comment={c}
+                onChanged={refreshBest}
                 ready={loadedContext === likeContext}
                 reread={(id) => load(false, false, id)}
               />

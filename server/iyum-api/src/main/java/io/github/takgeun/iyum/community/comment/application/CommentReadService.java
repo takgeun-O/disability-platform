@@ -1,6 +1,7 @@
 package io.github.takgeun.iyum.community.comment.application;
 
 import io.github.takgeun.iyum.community.comment.domain.Comment;
+import io.github.takgeun.iyum.community.comment.infrastructure.CommentLikeRepository;
 import io.github.takgeun.iyum.community.comment.infrastructure.CommentPopularityRow;
 import io.github.takgeun.iyum.community.comment.infrastructure.CommentRepository;
 import io.github.takgeun.iyum.community.post.infrastructure.PostRepository;
@@ -21,18 +22,18 @@ import java.util.stream.Collectors;
 /**
  * 한 게시글의 댓글을 등록순·최신순·인기순으로 조회하고
  * 좋아요 정보와 다음 페이지 커서까지 묶어서 반환하는 서비스
- *
+ * <p>
  * REPEATABLE_READ
  * 여러 조회의 기준을 맞추기 위한 설정.
- *  인기순 응답 하나를 만드는 동안에 여러 조회가 실행된다.
- *  - 인기순 집계 조회
- *  - 댓글 본문 조회
- *  - 현재 회원의 좋아요 상태 조회
- *  PostgreSQL에서 이 작업들이 하나의 REPEATABLE_READ 트랜잭션으로 실행되면
- *  같은 DB 스냅샷을 기준으로 조회할 수 있게 된다.
- *  예를 들어 인기순 집계 직후 다른 사용자가 댓글을 삭제하더라도
- *  이 삭제 요청의 뒤이은 본문 조회는 같은 스냅샷을 기준으로 읽을 수 있다.
- *  즉, "순위에는 있는데 본문은 사라지는" 불일치를 줄이기 위한 목적
+ * 인기순 응답 하나를 만드는 동안에 여러 조회가 실행된다.
+ * - 인기순 집계 조회
+ * - 댓글 본문 조회
+ * - 현재 회원의 좋아요 상태 조회
+ * PostgreSQL에서 이 작업들이 하나의 REPEATABLE_READ 트랜잭션으로 실행되면
+ * 같은 DB 스냅샷을 기준으로 조회할 수 있게 된다.
+ * 예를 들어 인기순 집계 직후 다른 사용자가 댓글을 삭제하더라도
+ * 이 삭제 요청의 뒤이은 본문 조회는 같은 스냅샷을 기준으로 읽을 수 있다.
+ * 즉, "순위에는 있는데 본문은 사라지는" 불일치를 줄이기 위한 목적
  */
 @Service
 @RequiredArgsConstructor
@@ -42,8 +43,12 @@ import java.util.stream.Collectors;
 )
 public class CommentReadService {
 
-    private final CommentRepository commentRepository;
+    private static final int BEST_COMMENT_LIMIT = 3;
+
     private final PostRepository postRepository;
+    private final CommentRepository commentRepository;
+    private final CommentLikeRepository commentLikeRepository;
+
     private final CommentLikeReadService commentLikeReadService;
 
     /**
@@ -97,12 +102,12 @@ public class CommentReadService {
     /**
      * 정렬 조건을 사용하는 새로운 조회 진입점.
      * 공통 진입점에서 게시글을 확인하고 조회 개수를 정한다.
-     *
+     * <p>
      * 예시 요청
      * getComments(
-     *         50L,
-     *         new CommentReadQuery(CommentSort.LATEST, null, 2),
-     *         7L
+     * 50L,
+     * new CommentReadQuery(CommentSort.LATEST, null, 2),
+     * 7L
      * );
      */
     public CommentListResult getComments(
@@ -340,7 +345,7 @@ public class CommentReadService {
                     // 다만 첫 페이지 요청과 다음 페이지 요청까지 같은 스냅샷으로 유지되는 것은 아님
                     // 요청 사이에 좋아요 수가 바뀌면 인기순 위치도 바뀔 수 있기 때문에
                     // 이 코드만으로는 페이지 간 중복·누락까지 완전히 막지는 못함.
-                    if(comment == null) {
+                    if (comment == null) {
                         throw new IllegalStateException(
                                 "인기순 댓글의 본문 조회 결과가 일치하지 않습니다."
                         );
@@ -365,7 +370,7 @@ public class CommentReadService {
 
         CommentCursor nextCursor = null;
 
-        if(hasNext) {
+        if (hasNext) {
             CommentPopularityRow last = returnedRows.getLast();
 
             nextCursor = new CommentCursor(
@@ -381,6 +386,55 @@ public class CommentReadService {
                 hasNext,
                 nextCursor
         );
+    }
+
+    public List<CommentResult> getBestComments(
+            Long postId,
+            @Nullable Long viewerId
+    ) {
+        validatePost(postId);
+
+        List<Long> rankedIds = commentLikeRepository.findBestCommentIds(
+                postId,
+                PageRequest.of(0, BEST_COMMENT_LIMIT)
+        );
+
+        if (rankedIds.isEmpty()) {
+            return List.of();
+        }
+
+        Map<Long, Comment> commentsById = commentRepository.findVisibleCommentsByIds(postId, rankedIds)
+                .stream()
+                .collect(Collectors.toMap(
+                        Comment::getId,
+                        Function.identity()
+                ));
+
+        Map<Long, CommentLikeState> likeStates =
+                commentLikeReadService.getStates(rankedIds, viewerId);
+
+        // rankedIds 순서로 조립한다.
+        // 예를 들어 순위 조회 결과가 [42, 17] 이면
+        // 본문 조회가 [17, 42]로 반환되어도 응답은 [42, 17]이어야 한다.
+        // IN 조회의 반환 순서에 의존하면 이 부분이 깨질 수 있음.
+        return rankedIds.stream()
+                .map(commentId -> {
+                    Comment comment = commentsById.get(commentId);
+                    CommentLikeState likeState = likeStates.get(commentId);
+
+                    // 일반 댓글은 좋아요 0개가 가능하지만 베스트로 선정된 댓글은
+                    // 같은 스냅샷에서 이미 좋아요가 10개 이상임.
+                    // 비로그인 사용자도 전체 좋아요 수는 그대로 받고 liked만 false가 되어야 한다.
+                    if (comment == null || likeState == null) {
+                        throw new IllegalStateException(
+                                "베스트 댓글의 본문 또는 좋아요 집계가 없습니다. commentId="
+                                        + commentId
+                        );
+                    }
+
+                    return CommentResult.from(comment, likeState);
+                })
+                .toList();
     }
 
     private void validatePost(Long postId) {

@@ -527,6 +527,89 @@ class CommentReadControllerTest {
         verifyNoMoreInteractions(commentReadService);
     }
 
+    @ParameterizedTest
+    @ValueSource(booleans = {false, true})
+    void 베스트_댓글은_로그인_상태에_맞는_조회자로_호출하고_서비스_순서대로_반환한다(
+            boolean loggedIn
+    ) throws Exception {
+        Long viewerId = loggedIn ? 7L : null;
+
+        MockHttpServletRequestBuilder request = get(API_PATH + "/best");
+
+        if (loggedIn) {
+            givenActiveMember();
+            request.with(user(principal()));
+        }
+
+        CommentAuthorResult author = new CommentAuthorResult(8L, "댓글작성자");
+
+        CommentResult first = new CommentResult(
+                120L,
+                "상담 전에 질문을 메모해 갔어요.",
+                author,
+                TIME,
+                TIME,
+                null,
+                18L,
+                loggedIn
+        );
+
+        CommentResult second = new CommentResult(
+                101L,
+                "저도 미리 적어 두니 도움이 됐어요.",
+                author,
+                TIME,
+                TIME,
+                null,
+                10L,
+                false
+        );
+
+        when(commentReadService.getBestComments(123L, viewerId))
+                .thenReturn(List.of(first, second));
+
+        mockMvc.perform(request)
+                .andExpect(status().isOk())
+                .andExpect(header().string(
+                        HttpHeaders.CACHE_CONTROL,
+                        "no-store"
+                ))
+                .andExpect(jsonPath("$.items.length()").value(2))
+                .andExpect(jsonPath("$.items[0].commentId").value(120))
+                .andExpect(jsonPath("$.items[0].likeCount").value(18))
+                .andExpect(jsonPath("$.items[0].liked").value(loggedIn))
+                .andExpect(jsonPath("$.items[1].commentId").value(101))
+                .andExpect(jsonPath("$.items[1].likeCount").value(10))
+                .andExpect(jsonPath("$.items[1].liked").value(false));
+
+        verify(commentReadService).getBestComments(123L, viewerId);
+    }
+
+    @Test
+    void 베스트_댓글_후보가_없으면_빈_items를_반환한다() throws Exception {
+        when(commentReadService.getBestComments(123L, null))
+                .thenReturn(List.of());
+
+        mockMvc.perform(get(API_PATH + "/best"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.items").isArray())
+                .andExpect(jsonPath("$.items").isEmpty());
+
+        verify(commentReadService).getBestComments(123L, null);
+    }
+
+    @Test
+    void 조회할_수_없는_게시글의_베스트_댓글은_404를_반환한다() throws Exception {
+        when(commentReadService.getBestComments(123L, null))
+                .thenThrow(new CommentReadException(
+                        CommentReadException.Code.POST_NOT_FOUND
+                ));
+
+        mockMvc.perform(get(API_PATH + "/best"))
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.code").value("POST_NOT_FOUND"));
+    }
+
     private CommentListResult emptyResult() {
         return new CommentListResult(
                 List.of(),

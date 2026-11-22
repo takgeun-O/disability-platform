@@ -1,4 +1,4 @@
-import { getComments, CommentError, type CommentPage } from "./community-comments"
+import { getBestComments, getComments, CommentError, type CommentPage } from "./community-comments"
 import "server-only"
 import { cache } from "react"
 import { CommunityApiError, getPost, getPosts, getFeed, getWeeklyBest } from "./community-api"
@@ -11,13 +11,14 @@ async function read<T>(request: () => Promise<T>): Promise<PublicResult<T>> {
   try {
     return { data: await request(), error: null }
   } catch (error) {
-    return { data: null, error: error instanceof CommunityApiError
+    return { data: null, error: error instanceof CommunityApiError || error instanceof CommentError
       ? { status: error.status, code: error.code, message: error.message }
       : { status: 0, code: "UNEXPECTED_RESPONSE", message: "게시글을 불러오지 못했습니다. 다시 시도해 주세요." } }
   }
 }
 // no-store: 요청 간 데이터 캐시는 없다. cache()는 같은 렌더의 metadata/page 조회만 합친다.
 export const readPublicPost = cache((id: string) => read(() => getPost(id, undefined, apiBase())))
+export const readPublicBestComments = (id: string) => read(() => getBestComments(id, undefined, apiBase()))
 export const readPublicPosts = (query: PostQuery) => read(() => getPosts(query, undefined, apiBase()))
 
 // 댓글 장애는 게시글 오류/404로 승격하지 않는다. 초기 조회에도 인증 정보를 보내지 않는다.

@@ -50,10 +50,16 @@ function read(url) {
     return { ...legacy, json: { items: legacy.json.items.map(p => ({...p, contentPreview: p.content})), hasNext: false, nextCursor: null } }
   }
 
+  if (url.pathname.endsWith("/comments/best")) {
+    const items = comments.filter(c => c.likeCount >= 10).sort((a,b) => b.likeCount - a.likeCount || a.commentId - b.commentId).slice(0,3)
+    return {status:200,json:{items}}
+  }
   if (url.pathname.endsWith("/comments")) {
     if (readFail) return { status: 503, json: failure("SERVER_ERROR") }
     const after = Number(url.searchParams.get("afterId") ?? 0)
-    const rest = comments.filter((c) => c.commentId > after),
+    const sort = url.searchParams.get("sort") ?? "OLDEST"
+    const ordered = sort === "LATEST" ? [...comments].reverse() : comments
+    const rest = after ? ordered.slice(ordered.findIndex(c => c.commentId === after) + 1) : ordered,
       items = rest.slice(0, 20),
       hasNext = rest.length > 20
     const last = items.at(-1)
@@ -63,7 +69,7 @@ function read(url) {
         items,
         hasNext,
         nextCursor: hasNext
-          ? { createdAt: last.createdAt, commentId: last.commentId, sort: "OLDEST", likeCount: null }
+          ? { createdAt: last.createdAt, commentId: last.commentId, sort, likeCount: null }
           : null,
       },
     }
@@ -197,7 +203,294 @@ async function settled(p,id=1,liked=false,count=0){await p.waitForFunction(({id,
 function gate(){let release,reach;const reached=new Promise(r=>reach=r),promise=new Promise(r=>release=r);return{reached,release,hold:async()=>{reach();await promise}}}
 async function logout(p){await p.getByRole('button',{name:'로그아웃',exact:true}).click();await p.getByRole('link',{name:'로그인',exact:true}).first().waitFor()}
 async function login(p,email='review@example.test'){await btn(p).click();await p.getByRole('button',{name:'로그인하기',exact:true}).click();await p.locator('input[name=email]').fill(email);await p.locator('input[name=password]').fill('Fixture-only-1!');await p.locator('main').getByRole('button',{name:'로그인',exact:true}).click();await p.waitForURL(u=>u.pathname==='/community/posts/7')}
+async function selectSort(p, label, value) {
+  await p.getByRole('button', { name: /^댓글 정렬:/ }).click()
+  const response = p.waitForResponse(r => {
+    const url = new URL(r.url())
+    return url.pathname.endsWith('/comments') && url.searchParams.get('sort') === value
+  })
+  await p.getByRole('menuitemradio', { name: label }).click()
+  await (await response).finished()
+  await p.waitForLoadState('networkidle')
+}
 try {
+ for (const width of [390, 1440]) await check(`베스트 댓글 경계·차순위·두 줄 미리보기와 일반 목록 보존 ${width}`,async()=>{
+  const {p,state}=await fixture(member,45)
+  await p.setViewportSize({width,height:900})
+  const best=p.getByRole('region',{name:'베스트 댓글',exact:true})
+  assert.equal(await best.count(),0)
+  assert.equal(await p.getByRole("heading", {name:"전체 댓글", exact:true}).count(), 0)
+  for(const [id,count] of [[1,10],[2,10],[40,15],[41,10]]){
+    comments[id-1].likeCount=count
+    comments[id-1].content='한 줄에 담기 어려운 긴 상담 경험을 나눕니다. '.repeat(24)
+  }
+  state.liked.add('123:1')
+  await p.getByRole('button',{name:'목록 새로고침',exact:true}).click()
+  await settled(p,1,true,10)
+  const ids=()=>best.locator('li').evaluateAll(nodes=>nodes.map(el=>Number(el.dataset.bestComment)))
+  assert.deepEqual(await ids(),[40,1,2])
+  assert.equal(await p.locator('#comment-40').count(),0)
+  for(const preview of await best.locator('li p').all()){
+    assert.ok(await preview.evaluate(el=>el.scrollHeight>el.clientHeight && el.clientHeight<=parseFloat(getComputedStyle(el).lineHeight)*2+1))
+  }
+  await p.locator('#comment-draft').fill('작성 중인 내용')
+  const listReads=()=>state.calls.filter(call=>call.method==='GET'&&call.path.endsWith('/comments')).length
+  const before=listReads()
+  await btn(p).click()
+  await best.locator('[data-best-comment="41"]').waitFor()
+  assert.deepEqual(await ids(),[40,2,41])
+  assert.equal(await p.locator('#comment-draft').inputValue(),'작성 중인 내용')
+  assert.equal(listReads(),before)
+  await btn(p).click()
+  await best.locator('[data-best-comment="1"]').waitFor()
+  assert.deepEqual(await ids(),[40,1,2])
+ })
+ await check('베스트 댓글의 수정·삭제와 수동 조회 실패 후 복구',async()=>{
+  const {p,state}=await fixture(member,3)
+  comments[0].likeCount=12
+  const best=p.getByRole('region',{name:'베스트 댓글',exact:true})
+  const refresh=p.getByRole('button',{name:'목록 새로고침',exact:true})
+  await refresh.click()
+  await best.waitFor()
+  await p.locator('#comment-edit-button-1').click()
+  await p.locator('#comment-edit-1').fill('수정한 베스트 댓글 본문')
+  await p.getByRole('button',{name:'댓글 저장'}).click()
+  await best.getByText('수정한 베스트 댓글 본문',{exact:true}).waitFor()
+  state.get=(route,u,result)=>u.pathname.endsWith('/best')
+    ? route.fulfill({status:503,json:failure('SERVER_ERROR')}) : route.fulfill(result)
+  await refresh.click()
+  const retry=p.getByRole('button',{name:'베스트 댓글 다시 시도'})
+  await retry.waitFor()
+  await p.locator('#comment-draft').fill('조회 실패 중에도 유지되는 초안')
+  assert.equal(await p.locator('.community-comment-list li[id]').count(),3)
+  state.get=null
+  await retry.click()
+  await best.waitFor()
+  await p.locator('#comment-1').getByRole('button',{name:'댓글 삭제',exact:true}).click()
+  await p.getByRole('button',{name:'댓글 삭제하기'}).click()
+  await best.waitFor({state:'detached'})
+  assert.equal(await p.locator('#comment-draft').inputValue(),'조회 실패 중에도 유지되는 초안')
+ })
+ await check('뒤늦은 베스트 조회가 최신 순위를 덮지 않는다',async()=>{
+  const {p,state}=await fixture(member,2)
+  comments[0].likeCount=9
+  const delayed=gate()
+  let first=true
+  state.get=async(route,u,result)=>{
+    if(first && u.pathname.endsWith('/best')){
+      first=false
+      await delayed.hold()
+    }
+    return route.fulfill(result)
+  }
+  await p.getByRole('button',{name:'목록 새로고침',exact:true}).click()
+  await delayed.reached
+  try {
+    await settled(p,1,false,9)
+    await btn(p).click()
+    await p.locator('[data-best-comment="1"]').waitFor()
+  } finally { delayed.release() }
+  await p.waitForLoadState('networkidle')
+  assert.deepEqual(await p.locator('[data-best-comment]').allTextContents(),
+    [comments[0].author.nickname+comments[0].content+'좋아요 10개해당 댓글로 이동'])
+ })
+ for (const width of [390, 1440]) await check(`베스트 원문 이동·반복 선택·마지막 링크 포커스 ${width}px`, async () => {
+  const { p, state } = await fixture(member, 45)
+  await p.setViewportSize({ width, height: 900 })
+  await settled(p)
+  for (const id of [1, 21, 42]) comments[id - 1].likeCount = 10
+  await p.locator('#comments-refresh').click()
+  const link = id => p.locator(`[data-best-comment="${id}"]`).getByRole('link', { name: '해당 댓글로 이동' })
+  const focused = id => p.waitForFunction(id => document.activeElement?.id === 'comment-' + id, id)
+  await link(42).waitFor()
+  await selectSort(p, '최신순', 'LATEST')
+  const draft = p.locator('#comment-draft')
+  await draft.fill('이동해도 유지할 초안')
+  const cursors = []
+  const last = gate()
+  state.get = async (route, url, result) => {
+    if (url.pathname.endsWith('/comments')) {
+      assert.equal(url.searchParams.get('sort'), 'LATEST')
+      const cursor = url.searchParams.get('afterId')
+      cursors.push(cursor)
+      if (cursor === '6') await last.hold()
+    }
+    return route.fulfill(result)
+  }
+  const marked = () => p.locator('.community-comment-list .comment-arrived').evaluateAll(nodes => nodes.map(n => n.id))
+  const heading = p.getByRole('heading', {name:'전체 댓글', exact:true})
+  const sort = p.getByRole('button', {name:'댓글 정렬: 최신순'})
+  const headerBox = await heading.boundingBox(), sortBox = await sort.boundingBox()
+  assert.ok(headerBox.x + headerBox.width < sortBox.x && headerBox.y < sortBox.y + sortBox.height && headerBox.y + headerBox.height > sortBox.y)
+  const actions = link(42).locator('..')
+  const countBox = await actions.locator('span').boundingBox(), linkBox = await link(42).boundingBox()
+  assert.ok(countBox.x + countBox.width < linkBox.x && linkBox.height >= 44)
+  await p.locator('.community-best-comments').evaluate(el => scrollBy(0, el.getBoundingClientRect().top - 110))
+  await p.screenshot({path: `${output}/best-and-list-${width}.png`})
+  await link(42).focus()
+  await p.keyboard.press('Enter')
+  await focused(42)
+  assert.deepEqual(await marked(), ['comment-42'])
+  const geometry = () => p.locator('#comment-42').evaluate(el => {
+    const r = el.getBoundingClientRect(), body = el.querySelector('p').getBoundingClientRect()
+    return [r.height, body.x - r.x, body.y - r.y]
+  })
+  const highlighted = await geometry()
+  await p.screenshot({path: `${output}/arrival-${width}.png`})
+  await p.locator('#comment-42.comment-arrived').waitFor({state:'detached',timeout:3500})
+  assert.deepEqual(await geometry(), highlighted)
+  assert.equal(await p.evaluate(() => document.activeElement.id), 'comment-42')
+  assert.ok(await p.locator('#comment-42').evaluate(el => el.matches(':focus-visible') && getComputedStyle(el).outlineStyle !== 'none'))
+  assert.deepEqual(cursors, [])
+  await link(21).click()
+  await focused(21)
+  assert.deepEqual(cursors, ['26'])
+  assert.equal(new URL(p.url()).hash, '#comment-21')
+  assert.deepEqual(await marked(), ['comment-21'])
+  // Cross the first arrival's deadline while the second one is still active.
+  await p.waitForTimeout(1100)
+  await link(21).focus()
+  await p.keyboard.press('Enter')
+  await focused(21)
+  assert.deepEqual(cursors, ['26'])
+  await p.waitForTimeout(1100)
+  assert.deepEqual(await marked(), ['comment-21'])
+  await link(1).click()
+  await last.reached
+  try {
+    await link(42).click()
+    await focused(42)
+  } finally { last.release() }
+  await settled(p, 1, false, 10)
+  await p.waitForLoadState('networkidle')
+  assert.equal(await p.evaluate(() => document.activeElement.id), 'comment-42')
+  assert.deepEqual(await marked(), ['comment-42'])
+  assert.equal(new URL(p.url()).hash, '#comment-42')
+  assert.deepEqual(cursors, ['26', '6'])
+  assert.equal(await draft.inputValue(), '이동해도 유지할 초안')
+  await p.locator('[data-best-comment="42"]').scrollIntoViewIfNeeded()
+  await p.screenshot({path: `${output}/best-comment-link-${width}.png`})
+ })
+ for (const key of ['Tab', 'Shift+Tab']) await check(`다음 원문을 기다리다 ${key}으로 이동하면 사용자의 포커스와 스크롤을 유지한다`, async () => {
+  const { p, state } = await fixture(member, 45)
+  await settled(p)
+  for (const id of [1, 21, 42]) comments[id - 1].likeCount = 10
+  await p.locator('#comments-refresh').click()
+  const link = p.locator('[data-best-comment="21"] a')
+  await link.waitFor()
+  const pending = gate()
+  state.get = async (route, url, result) => {
+    if (url.searchParams.get('afterId') === '20') await pending.hold()
+    return route.fulfill(result)
+  }
+  await link.focus()
+  await p.keyboard.press('Enter')
+  await pending.reached
+  const chosen = p.locator(`[data-best-comment="${key === 'Tab' ? 42 : 1}"] a`)
+  let y
+  try {
+    await p.keyboard.press(key)
+    assert.ok(await chosen.evaluate(el => el === document.activeElement))
+    y = await p.evaluate(() => scrollY)
+  } finally { pending.release() }
+  await settled(p, 21, false, 10)
+  await p.waitForLoadState('networkidle')
+  assert.ok(await chosen.evaluate(el => el === document.activeElement))
+  assert.equal(await p.evaluate(() => scrollY), y)
+  assert.equal(await p.locator('.comment-arrived').count(), 0)
+ })
+ for (const direction of ['Tab', 'Shift+Tab']) await check(`페이지 조회 실패 후 ${direction}으로 재시도에 접근해 원문 강조까지 복구한다`, async () => {
+  const { p, state } = await fixture(member, 25)
+  await settled(p)
+  comments[20].likeCount = 12
+  await p.locator('#comments-refresh').click()
+  const link = p.locator('[data-best-comment="21"] a')
+  await link.waitFor()
+  const cursors = []
+  state.get = (route, url, result) => {
+    if (url.pathname.endsWith('/comments')) {
+      cursors.push(url.searchParams.get('afterId'))
+      if (cursors.length === 1) return route.fulfill({status:503, json:failure('SERVER_ERROR')})
+    }
+    return route.fulfill(result)
+  }
+  const hasFocus = locator => locator.evaluate(el => el === document.activeElement)
+  async function tabTo(locator) {
+    for (let i = 0; i < 60 && !await hasFocus(locator); i++) await p.keyboard.press('Tab')
+    assert.ok(await hasFocus(locator))
+  }
+  await tabTo(link)
+  await p.keyboard.press('Enter')
+  const retry = p.getByRole('button', {name:'댓글 조회 다시 시도'})
+  await retry.waitFor()
+  await tabTo(retry)
+  if (direction === 'Shift+Tab') {
+    await p.keyboard.press('Tab')
+    assert.ok(!await hasFocus(retry))
+    assert.ok(await p.evaluate(() => document.activeElement.matches('button, a[href], input, textarea, select, [tabindex="0"]')))
+    await p.keyboard.press('Shift+Tab')
+    assert.ok(await hasFocus(retry))
+  }
+  await p.keyboard.press('Enter')
+  await settled(p, 21, false, 12)
+  assert.deepEqual(cursors, ['20','20'])
+  console.log(direction, 'retry loaded comment-21; GET afterId:', cursors.join(' → '))
+  await p.waitForFunction(() => document.activeElement.id === 'comment-21')
+  await p.locator('#comment-21.comment-arrived:focus').waitFor()
+  console.log(direction, 'highlighted focus:', await p.evaluate(() => document.activeElement.id))
+ })
+ await check('베스트 원문 조회 실패는 커서에서 재시도하고 마지막 페이지 누락 때만 순위를 갱신한다', async () => {
+  const { p, state } = await fixture(member, 45)
+  await settled(p)
+  for (const [id, count] of [[42, 15], [3, 13], [2, 12], [1, 10]]) comments[id - 1].likeCount = count
+  await p.locator('#comments-refresh').click()
+  const link = p.locator('[data-best-comment="42"] a')
+  await link.waitFor()
+  comments = comments.filter(c => c.commentId !== 42)
+  const reads = []
+  state.get = (route, url, result) => {
+    if (url.pathname.endsWith('/best')) reads.push('best')
+    if (url.pathname.endsWith('/comments')) {
+      reads.push(url.searchParams.get('afterId'))
+      if (reads.length === 1) return route.fulfill({status:503, json:failure('SERVER_ERROR')})
+    }
+    return route.fulfill(result)
+  }
+  await link.click()
+  const retry = p.getByRole('button', { name: '댓글 조회 다시 시도' })
+  await retry.waitFor()
+  const missing = p.getByText('해당 댓글을 찾을 수 없어요.', {exact:false})
+  assert.equal(await missing.count(), 0)
+  assert.deepEqual(reads, ['20'])
+  await retry.focus()
+  await p.keyboard.press('Enter')
+  await missing.waitFor()
+  await link.waitFor({state:'detached'})
+  assert.deepEqual(reads, ['20', '20', '40', 'best'])
+  assert.deepEqual(await p.locator('[data-best-comment]').evaluateAll(nodes => nodes.map(n => Number(n.dataset.bestComment))), [3, 2, 1])
+ })
+ await check('해시 직접 진입과 정렬 변경 중 이전 원문 탐색 취소', async () => {
+  const { p, state } = await fixture(member, 45)
+  comments[41].likeCount = 12
+  await p.goto('about:blank')
+  await p.goto(base + '/community/posts/7#comment-21')
+  await p.waitForFunction(() => document.activeElement?.id === 'comment-21')
+  const pending = gate()
+  state.get = async (route, url, result) => {
+    if (url.searchParams.get('afterId') === '40') await pending.hold()
+    return route.fulfill(result)
+  }
+  await p.locator('[data-best-comment="42"] a').click()
+  await pending.reached
+  try {
+    await p.getByRole('button', {name:/^댓글 정렬:/}).click()
+    await p.getByRole('menuitemradio', {name:'최신순'}).click()
+    await settled(p, 45)
+  } finally { pending.release() }
+  await p.waitForLoadState('networkidle')
+  assert.notEqual(await p.evaluate(() => document.activeElement.id), 'comment-42')
+  assert.equal(await p.locator('.community-comment-list > li').count(), 20)
+ })
  await check('noJS anonymous comment content/count remain visible without personalized SSR',async()=>{
   comments=[{...item(1),likeCount:12}]
   const ctx=await browser.newContext({javaScriptEnabled:false}),p=await ctx.newPage()
@@ -227,13 +520,197 @@ try {
   const{p,state}=await fixture(member,1);await settled(p);state.write=async r=>{comments[0].likeCount=12;state.liked.add('123:1');if(mode==='network')return r.abort();if(mode==='500')return r.fulfill({status:500,json:failure('SERVER_ERROR')});if(mode==='bad-json')return r.fulfill({status:200,contentType:'text/html',body:'bad'});return r.fulfill({json:{postId:8,commentId:1,liked:true,likeCount:12}})}
   await btn(p).click();await reaction(p).getByRole('alert').waitFor();assert.equal(await btn(p).getAttribute('aria-pressed'),'false');await btn(p).click();await settled(p,1,true,12);assert.equal(writes(state).length,1)
  })
+ for (const width of [390, 1440]) await check(`응답 유실 후 재확인으로 베스트 댓글과 하트 위치를 복구한다 ${width}px`, async () => {
+  const { p, state } = await fixture(member, 45)
+  await p.setViewportSize({ width, height: 900 })
+  await settled(p)
+  const target = comments[20]
+  comments[0].likeCount = 12
+  target.likeCount = 9
+  await p.locator('#comments-refresh').click()
+  const best = p.getByRole('region', { name: '베스트 댓글', exact: true })
+  await best.locator('[data-best-comment="1"]').waitFor()
+  await p.getByRole('button', { name: '댓글 더 보기', exact: true }).click()
+  await settled(p, 21, false, 9)
+  const rows = () => p.locator('.community-comment-list > li').evaluateAll(nodes => nodes.map(n => n.id))
+  const loaded = await rows()
+  assert.equal(loaded.length, 40)
+  const draft = p.locator('#comment-draft')
+  await draft.fill('재확인 중에도 보존할 초안')
+  const button = btn(p, 21)
+  const top = () => button.evaluate(el => el.getBoundingClientRect().top)
+  const endpoint = '/api/v1/community/posts/7/comments'
+  const ranking = () => best.locator('li').evaluateAll(nodes => nodes.map(n => Number(n.dataset.bestComment)))
+  for (const liked of [true, false]) {
+    const method = liked ? 'PUT' : 'DELETE'
+    state.write = route => {
+      assert.equal(route.request().method(), method)
+      assert.equal(new URL(route.request().url()).pathname, endpoint + '/21/like')
+      const key = `${member.memberId}:21`
+      if (liked) state.liked.add(key)
+      else state.liked.delete(key)
+      target.likeCount += liked ? 1 : -1
+      return route.abort('connectionreset')
+    }
+    await button.evaluate(el => el.scrollIntoView({ block: 'center', behavior: 'instant' }))
+    const before = await top()
+    assert.ok(before > 0 && before < 850)
+    const writeStart = writes(state).length
+    await button.click()
+    const retry = reaction(p, 21).getByRole('button', { name: '댓글 좋아요 상태 다시 확인' })
+    await retry.waitFor()
+    assert.deepEqual(await ranking(), liked ? [1] : [1, 21])
+    const beforeRead = await top()
+    const start = state.calls.length
+    await retry.click()
+    await best.locator('[data-best-comment="21"]').waitFor({ state: liked ? 'visible' : 'detached' })
+    await settled(p, 21, liked, liked ? 10 : 9)
+    assert.deepEqual(await ranking(), liked ? [1, 21] : [1])
+    assert.deepEqual(state.calls.slice(start), [
+      { method: 'GET', path: endpoint }, { method: 'GET', path: endpoint },
+      { method: 'GET', path: endpoint + '/best' },
+    ])
+    assert.equal(writes(state).length - writeStart, 1)
+    assert.deepEqual(await rows(), loaded)
+    assert.equal(await draft.inputValue(), '재확인 중에도 보존할 초안')
+    const after = await top()
+    console.log(`${width}px ${method}: before=${before}, beforeRead=${beforeRead}, after=${after}`)
+    assert.ok(Math.abs(after - before) <= 2 && Math.abs(after - beforeRead) <= 2)
+  }
+ })
+ for (const method of ['PUT', 'DELETE']) await check(`응답이 유실된 ${method}를 정렬 변경으로 복구한다`, async () => {
+  const { p, state } = await fixture(member, 22)
+  const endpoint = '/api/v1/community/posts/7/comments'
+  const liked = method === 'PUT'
+  const id = 8
+  const target = comments[id - 1]
+  const key = `${member.memberId}:${id}`
+  const rank = () => p.locator('[data-best-comment]').evaluateAll(nodes => nodes.map(node => Number(node.dataset.bestComment)))
+  await settled(p)
+  comments[0].likeCount = 12
+  target.likeCount = liked ? 9 : 10
+  if (!liked) state.liked.add(key)
+  await p.locator('#comments-refresh').click()
+  await settled(p, id, !liked, target.likeCount)
+  await p.locator('[data-best-comment="1"]').waitFor()
+  assert.deepEqual(await rank(), liked ? [1] : [1, id])
+  const draft = p.locator('#comment-draft')
+  await draft.fill('정렬 중에도 남는 초안')
+  state.write = route => {
+    assert.equal(route.request().method(), method)
+    assert.equal(new URL(route.request().url()).pathname, endpoint + '/' + id + '/like')
+    if (liked) state.liked.add(key)
+    else state.liked.delete(key)
+    target.likeCount += liked ? 1 : -1
+    return route.abort('connectionreset')
+  }
+  await btn(p, id).click()
+  await reaction(p, id).getByRole('button', { name: '댓글 좋아요 상태 다시 확인' }).waitFor()
+  const start = state.calls.length
+  await selectSort(p, '최신순', 'LATEST')
+  await settled(p, id, liked, target.likeCount)
+  assert.deepEqual({
+    best: await rank(), label: await btn(p, id).getAttribute('aria-label'),
+    alerts: await reaction(p, id).getByRole('alert').count(),
+    requests: state.calls.slice(start),
+  }, {
+    best: liked ? [1, id] : [1], label: liked ? '댓글 좋아요 취소' : '댓글 좋아요 등록',
+    alerts: 0, requests: [{ method: 'GET', path: endpoint }, { method: 'GET', path: endpoint + '/best' }],
+  })
+  assert.deepEqual(writes(state), [{ method, path: endpoint + '/' + id + '/like' }])
+  assert.equal(await draft.inputValue(), '정렬 중에도 남는 초안')
+  const normal = state.calls.length
+  await selectSort(p, '등록순', 'OLDEST')
+  assert.deepEqual(state.calls.slice(normal), [{method: 'GET', path: endpoint}])
+ })
+ await check('실패한 정렬 조회와 대상이 빠진 페이지에서는 복구를 보류하고 수동 새로고침은 베스트를 한 번만 읽는다', async () => {
+  const { p, state } = await fixture(member, 22)
+  await settled(p)
+  comments[0].likeCount = 9
+  await p.locator('#comments-refresh').click()
+  await settled(p, 1, false, 9)
+  const bestReads = () => state.calls.filter(c => c.path.endsWith('/best')).length
+  const before = bestReads()
+  state.write = route => {
+    comments[0].likeCount = 10
+    state.liked.add(`${member.memberId}:1`)
+    return route.abort('connectionreset')
+  }
+  await btn(p).click()
+  await reaction(p).getByRole('alert').waitFor()
+  readFail = true
+  await selectSort(p, '최신순', 'LATEST')
+  await p.getByRole('button', { name: '댓글 조회 다시 시도' }).waitFor()
+  assert.equal(bestReads(), before)
+  readFail = false
+  await p.getByRole('button', { name: '댓글 조회 다시 시도' }).click()
+  await settled(p, 22)
+  assert.equal(await reaction(p).count(), 0)
+  assert.equal(bestReads(), before)
+  await p.getByRole('button', { name: '댓글 더 보기', exact: true }).click()
+  await settled(p, 1, true, 10)
+  await p.locator('[data-best-comment="1"]').waitFor()
+  assert.equal(bestReads(), before + 1)
+  state.write = route => {
+    comments[0].likeCount = 9
+    state.liked.delete(`${member.memberId}:1`)
+    return route.abort('connectionreset')
+  }
+  await btn(p).click()
+  await reaction(p).getByRole('alert').waitFor()
+  await p.locator('#comments-refresh').click()
+  await settled(p, 1, false, 9)
+  await p.locator('[data-best-comment="1"]').waitFor({ state: 'detached' })
+  await p.waitForLoadState('networkidle')
+  assert.equal(await btn(p).getAttribute('aria-label'), '댓글 좋아요 등록')
+  assert.equal(await reaction(p).getByRole('alert').count(), 0)
+  assert.equal(bestReads(), before + 2)
+  assert.deepEqual(writes(state).map(c => c.method), ['PUT', 'DELETE'])
+ })
  await check('older refresh response cannot undo a successful like',async()=>{
   const{p,state}=await fixture(member,3);await settled(p);const g=gate();state.get=async(r,u,result)=>{if(u.pathname.endsWith('/comments'))await g.hold();await r.fulfill(result)}
   await p.locator('#comments-refresh').click();await g.reached;await btn(p).click();await settled(p,1,true,1);g.release();await p.waitForFunction(()=>!document.querySelector('#comments-refresh').disabled);await settled(p,1,true,1)
  })
- await check('later-page COMMENT_NOT_FOUND rereads loaded prefix, removes only missing comment, preserves editor',async()=>{
-  const{p,state}=await fixture(member,45);await settled(p);await p.getByRole('button',{name:'댓글 더 보기',exact:true}).click();await settled(p,21);await p.locator('#comment-edit-button-21').click();await p.locator('#comment-edit-21').fill('보관해야 할 편집')
-  state.write=r=>{comments=comments.filter(c=>c.commentId!==21);return r.fulfill({status:404,json:failure('COMMENT_NOT_FOUND')})};await btn(p,21).click();await reaction(p,21).getByRole('alert').waitFor();const before=state.calls.filter(c=>c.path.endsWith('/comments')&&c.method==='GET').length;await btn(p,21).click();await p.getByText('현재 목록에 없는 댓글을 수정하고 있어요. 입력한 내용은 유지했어요.',{exact:true}).waitFor();assert.equal(await p.locator('#comment-edit-21').inputValue(),'보관해야 할 편집');assert.equal(await p.getByRole('dialog').count(),0);assert(await p.locator('.community-post-body').isVisible());assert(state.calls.filter(c=>c.path.endsWith('/comments')&&c.method==='GET').length>=before+3)
+ await check('다음 페이지의 COMMENT_NOT_FOUND 재확인 후 베스트 차순위와 편집 초안을 유지한다', async () => {
+  const { p, state } = await fixture(member, 45)
+  await settled(p)
+  for (const [id, count] of [[40, 15], [21, 13], [2, 12], [42, 10]]) {
+    comments[id - 1].likeCount = count
+  }
+  const endpoint = '/api/v1/community/posts/7/comments'
+  const best = p.getByRole('region', { name: '베스트 댓글', exact: true })
+  const ranking = () => best.locator('li').evaluateAll(nodes => nodes.map(node => Number(node.dataset.bestComment)))
+  await p.locator('#comments-refresh').click()
+  await best.locator('[data-best-comment="21"]').waitFor()
+  assert.deepEqual(await ranking(), [40, 21, 2])
+  const previousBody = await best.locator('[data-best-comment="21"] p').textContent()
+  await p.getByRole('button', { name: '댓글 더 보기', exact: true }).click()
+  await settled(p, 21, false, 13)
+  await p.locator('#comment-edit-button-21').click()
+  await p.locator('#comment-edit-21').fill('보관해야 할 편집')
+  state.write = route => {
+    assert.equal(route.request().method(), 'PUT')
+    assert.equal(new URL(route.request().url()).pathname, endpoint + '/21/like')
+    comments = comments.filter(c => c.commentId !== 21)
+    return route.fulfill({ status: 404, json: failure('COMMENT_NOT_FOUND') })
+  }
+  await btn(p, 21).click()
+  await reaction(p, 21).getByRole('alert').waitFor()
+  const start = state.calls.length
+  await reaction(p, 21).getByRole('button', { name: '댓글 좋아요 상태 다시 확인' }).click()
+  await p.getByText('현재 목록에 없는 댓글을 수정하고 있어요. 입력한 내용은 유지했어요.', { exact: true }).waitFor()
+  await p.waitForLoadState('networkidle')
+  assert.equal(await p.locator('#comment-edit-21').inputValue(), '보관해야 할 편집')
+  assert.equal(await p.getByRole('dialog').count(), 0)
+  assert.ok(await p.locator('.community-post-body').isVisible())
+  assert.deepEqual(await p.locator('.community-comment-list > li').evaluateAll(nodes => nodes.map(n => n.id)),
+    comments.map(c => 'comment-' + c.commentId))
+  assert.deepEqual(await ranking(), [40, 2, 42])
+  assert.equal(await best.getByText(previousBody, { exact: true }).count(), 0)
+  assert.deepEqual(state.calls.slice(start), [
+    { method: 'GET', path: endpoint }, { method: 'GET', path: endpoint },
+    { method: 'GET', path: endpoint }, { method: 'GET', path: endpoint + '/best' },
+  ])
  })
  for(const response of ['success','401','403','404'])await check(`old ${response} ignored after logout and same-member login`,async()=>{
   const{p,state}=await fixture(member,1);await settled(p);const g=gate();state.write=async r=>{await g.hold();await r.fulfill(response==='success'?{json:{postId:7,commentId:1,liked:true,likeCount:99}}:{status:Number(response),json:failure(response==='401'?'AUTHENTICATION_REQUIRED':response==='403'?'COMMENT_LIKE_NOT_ALLOWED':'COMMENT_NOT_FOUND')})}

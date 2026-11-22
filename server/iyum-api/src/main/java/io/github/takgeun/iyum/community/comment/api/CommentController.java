@@ -1,10 +1,7 @@
 package io.github.takgeun.iyum.community.comment.api;
 
 import io.github.takgeun.iyum.auth.security.MemberPrincipal;
-import io.github.takgeun.iyum.community.comment.api.dto.CommentCreateRequest;
-import io.github.takgeun.iyum.community.comment.api.dto.CommentCreateResponse;
-import io.github.takgeun.iyum.community.comment.api.dto.CommentListResponse;
-import io.github.takgeun.iyum.community.comment.api.dto.CommentUpdateRequest;
+import io.github.takgeun.iyum.community.comment.api.dto.*;
 import io.github.takgeun.iyum.community.comment.application.*;
 import io.github.takgeun.iyum.global.error.ApiErrorResponse;
 import io.swagger.v3.oas.annotations.Operation;
@@ -28,6 +25,7 @@ import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
 
 import java.time.Instant;
+import java.util.List;
 
 @Tag(name = "커뮤니티 댓글")
 @RestController
@@ -221,6 +219,33 @@ public class CommentController {
         return ResponseEntity.ok()
                 .cacheControl(CacheControl.noStore())
                 .body(CommentListResponse.from(result));
+    }
+
+    @GetMapping(
+            value = "/best",
+            produces = MediaType.APPLICATION_JSON_VALUE
+    )
+    @Operation(
+            summary = "게시글 베스트 댓글 조회",
+            description = "좋아요가 10개 이상인 공개 댓글을 좋아요 순으로 최대 3개 반환합니다."
+    )
+    public ResponseEntity<BestCommentListResponse> getBestComments(
+            @PathVariable Long postId,
+            @Parameter(hidden = true)
+            @AuthenticationPrincipal MemberPrincipal principal
+    ) {
+        Long viewerId = principal == null
+                ? null
+                : principal.getMemberId();
+
+        List<CommentResult> results = commentReadService.getBestComments(
+                postId,
+                viewerId
+        );
+
+        return ResponseEntity.ok()
+                .cacheControl(CacheControl.noStore())
+                .body(BestCommentListResponse.from(results));
     }
 
     @PostMapping(

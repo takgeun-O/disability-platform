@@ -901,6 +901,101 @@ class CommentReadServiceTest {
                 .isNull();
     }
 
+    @Test
+    void 베스트_댓글은_순위를_유지하고_댓글별_좋아요_수와_내_좋아요_여부를_반환한다() {
+        for (int i = 1; i <= 10; i++) {
+            Member reader = saveMember(
+                    "best-reader-" + i + "@example.com",
+                    "베스트독자" + i
+            );
+
+            saveLike(firstCommentId, reader.getId());
+            saveLike(secondCommentId, reader.getId());
+        }
+
+        Member viewer = saveMember(
+                "best-viewer@example.com",
+                "베스트조회자"
+        );
+
+        saveLike(secondCommentId, viewer.getId());
+
+        List<CommentResult> result = commentReadService.getBestComments(
+                postId,
+                viewer.getId()
+        );
+
+        assertThat(result)
+                .extracting(
+                        CommentResult::commentId,
+                        CommentResult::likeCount,
+                        CommentResult::liked
+                )
+                .containsExactly(
+                        tuple(secondCommentId, 11L, true),
+                        tuple(firstCommentId, 10L, false)
+                );
+
+        // 이미 두 댓글의 좋아요가 각각 11개, 10개이고, 로그인 회원이 1위 댓글에 좋아요를 눌느 상태
+        // 같은 데이터에서 조회자만 null로 바꾸면 무엇이 달라지는지 확인
+        // 기대 결과는 순위와 좋아요 수는 동일하고, 비로그인 조회에선ㄴ 두 댓글 모두 liked=false
+        List<CommentResult> anonymousResult =
+                commentReadService.getBestComments(postId, null);
+
+        assertThat(anonymousResult)
+                .extracting(
+                        CommentResult::commentId,
+                        CommentResult::likeCount,
+                        CommentResult::liked
+                )
+                .containsExactly(
+                        tuple(secondCommentId, 11L, false),
+                        tuple(firstCommentId, 10L, false)
+                );
+    }
+
+    // 기존 @BeforeEach는 댓글 3개가 있는 postId와 댓글이 하나도 없는 emptyPostId를 준비하였음.
+    // 기본 댓글에는 좋아요가 없으므로 두 경우를 바로 검증
+    @Test
+    void 공개_게시글에_베스트_댓글_후보가_없으면_빈_목록을_반환한다() {
+        assertThat(commentReadService.getBestComments(postId, null))
+                .isEmpty();
+
+        assertThat(commentReadService.getBestComments(emptyPostId, null))
+                .isEmpty();
+    }
+
+    @Test
+    void 숨겨진_게시글의_베스트_댓글을_조회하면_POST_NOT_FOUND가_발생한다() {
+        jdbcTemplate.update("""
+            UPDATE community_posts
+            SET hidden_at = CURRENT_TIMESTAMP
+            WHERE id = ?
+            """,
+                postId
+        );
+
+        assertBestCommentsPostNotFound(postId);
+    }
+
+    @Test
+    void 삭제된_게시글의_베스트_댓글을_조회하면_POST_NOT_FOUND가_발생한다() {
+        jdbcTemplate.update("""
+            UPDATE community_posts
+            SET deleted_at = CURRENT_TIMESTAMP
+            WHERE id = ?
+            """,
+                postId
+        );
+
+        assertBestCommentsPostNotFound(postId);
+    }
+
+    @Test
+    void 존재하지_않는_게시글의_베스트_댓글을_조회하면_POST_NOT_FOUND가_발생한다() {
+        assertBestCommentsPostNotFound(Long.MAX_VALUE);
+    }
+
     private Member saveMember(String email, String nickname) {
         Member member = Member.createPending(
                 email,
@@ -957,6 +1052,16 @@ class CommentReadServiceTest {
 
         commentLikeRepository.saveAndFlush(
                 CommentLike.create(comment, member)
+        );
+    }
+
+    private void assertBestCommentsPostNotFound(Long targetPostId) {
+        assertThatThrownBy(() ->
+                commentReadService.getBestComments(targetPostId, null)
+        ).isInstanceOfSatisfying(
+                CommentReadException.class,
+                exception -> assertThat(exception.getCode())
+                        .isEqualTo(CommentReadException.Code.POST_NOT_FOUND)
         );
     }
 

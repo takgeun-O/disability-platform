@@ -24,4 +24,5 @@
 - [공개 게시글 목록 검색](community-post-search.md)
 - [댓글 본문 수정 시각](comment-content-updated-at.md)
 - [댓글 정렬](community-comment-sorting.md)
+- [게시글별 베스트 댓글](community-best-comments.md)
 - [마이페이지 콘텐츠 공개 상태](mypage-content-visibility.md)
