@@ -142,7 +142,8 @@ public class SecurityConfig {
                                     "/api/v1/community/posts",
                                     "/api/v1/community/posts/*",
                                     "/api/v1/community/posts/*/comments",
-                                    "/api/v1/community/posts/*/comments/best"
+                                    "/api/v1/community/posts/*/comments/best",
+                                    "/api/v1/community/posts/*/comments/*/replies"
                             )
                             .permitAll();
 

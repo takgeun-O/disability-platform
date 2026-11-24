@@ -23,15 +23,28 @@ public interface CommentRepository
 
     // 첫 조회에는 커서가 없으니 findFirstVisibleComments()
     // 이후에는 findVisibleCommentsAfter() 사용
+
+    // exists는 지금 조회 중인 원 댓글 c에 공개 답글이 하나라도 있는지 확인
+    // 공개 답글이 두 개든 열 개든 원댓글은 목록에서 한 자리만 차지
     @Query("""
             select c
             from Comment c
             join c.post p
             join fetch c.author
             where p.id = :postId
+                and c.parent is null
                 and p.deletedAt is null
                 and p.hiddenAt is null
-                and c.deletedAt is null
+                and (
+                     c.deletedAt is null
+                     or exists (
+                         select 1
+                         from Comment reply
+                         where reply.parent = c
+                            and reply.deletedAt is null
+                            and reply.hiddenAt is null
+                     )
+                )
                 and c.hiddenAt is null
             order by c.createdAt asc, c.id asc
             """)
@@ -48,9 +61,19 @@ public interface CommentRepository
             join c.post p
             join fetch c.author
             where p.id = :postId
+                and c.parent is null
                 and p.deletedAt is null
                 and p.hiddenAt is null
-                and c.deletedAt is null
+                and (
+                     c.deletedAt is null
+                     or exists (
+                        select 1
+                        from Comment reply
+                        where reply.parent = c
+                            and reply.deletedAt is null
+                            and reply.hiddenAt is null
+                     )
+                )
                 and c.hiddenAt is null
                 and (
                     c.createdAt > :afterCreatedAt
@@ -87,6 +110,10 @@ public interface CommentRepository
                 and p.hiddenAt is null
                 and c.deletedAt is null
                 and c.hiddenAt is null
+                and not exists (
+                    select 1 from Comment root
+                    where root = c.parent and root.hiddenAt is not null
+                )
             """)
     Optional<Comment> findVisibleCommentByIdForUpdate(
             @Param("postId") Long postId,
@@ -110,10 +137,35 @@ public interface CommentRepository
                 and p.hiddenAt is null
                 and c.deletedAt is null
                 and c.hiddenAt is null
+                and not exists (
+                    select 1 from Comment root
+                    where root = c.parent and root.hiddenAt is not null
+                )
             group by p.id
             """)
     List<PostCommentCount> countVisibleCommentsByPostIds(
             @Param("postIds") List<Long> postIds
+    );
+
+    @Query("""
+        select root.id as parentId,
+            count(reply.id) as replyCount
+        from Comment reply
+        join reply.parent root
+        join root.post p
+        where p.id = :postId
+            and root.id in :parentIds
+            and root.parent is null
+            and p.deletedAt is null
+            and p.hiddenAt is null
+            and root.hiddenAt is null
+            and reply.deletedAt is null
+            and reply.hiddenAt is null
+        group by root.id
+        """)
+    List<CommentReplyCount> countVisibleRepliesByParentIds(
+            @Param("postId") Long postId,
+            @Param("parentIds") List<Long> parentIds
     );
 
     // 내 댓글 수 조회
@@ -126,6 +178,10 @@ public interface CommentRepository
                 and c.hiddenAt is null
                 and p.deletedAt is null
                 and p.hiddenAt is null
+                and not exists (
+                    select 1 from Comment root
+                    where root = c.parent and root.hiddenAt is not null
+                )
             """)
     long countVisibleCommentsByAuthorId(
             @Param("memberId") Long memberId
@@ -142,6 +198,10 @@ public interface CommentRepository
                 and c.hiddenAt is null
                 and p.deletedAt is null
                 and p.hiddenAt is null
+                and not exists (
+                    select 1 from Comment root
+                    where root = c.parent and root.hiddenAt is not null
+                )
             order by c.createdAt desc, c.id desc
             """)
     List<Comment> findFirstVisibleCommentsByAuthorId(
@@ -160,6 +220,10 @@ public interface CommentRepository
                 and c.hiddenAt is null
                 and p.deletedAt is null
                 and p.hiddenAt is null
+                and not exists (
+                    select 1 from Comment root
+                    where root = c.parent and root.hiddenAt is not null
+                )
                 and (
                     c.createdAt < :afterCreatedAt
                     or (
@@ -188,9 +252,19 @@ public interface CommentRepository
             join c.post p
             join fetch c.author
             where p.id = :postId
-                and p.deletedAt is null
+                and c.parent is null
+                and (
+                    c.deletedAt is null
+                    or exists (
+                        select 1
+                        from Comment reply
+                        where reply.parent = c
+                            and reply.deletedAt is null
+                            and reply.hiddenAt is null
+                    )
+                )
                 and p.hiddenAt is null
-                and c.deletedAt is null
+                and p.deletedAt is null
                 and c.hiddenAt is null
             order by c.createdAt desc, c.id desc
             """)
@@ -210,9 +284,19 @@ public interface CommentRepository
             join c.post p
             join fetch c.author
             where p.id = :postId
+                and c.parent is null
                 and p.deletedAt is null
                 and p.hiddenAt is null
-                and c.deletedAt is null
+                and (
+                    c.deletedAt is null
+                    or exists (
+                        select 1
+                        from Comment reply
+                        where reply.parent = c
+                            and reply.deletedAt is null
+                            and reply.hiddenAt is null
+                    )
+                )
                 and c.hiddenAt is null
                 and (
                     c.createdAt < :afterCreatedAt
@@ -245,11 +329,23 @@ public interface CommentRepository
                 count(cl.id) as likeCount
             from Comment c
             join c.post p
-            left join CommentLike cl on cl.comment = c
+            left join CommentLike cl
+                on cl.comment = c
+                and c.deletedAt is null
             where p.id = :postId
+                and c.parent is null
                 and p.deletedAt is null
                 and p.hiddenAt is null
-                and c.deletedAt is null
+                and (
+                    c.deletedAt is null
+                    or exists (
+                        select 1
+                        from Comment reply
+                        where reply.parent = c
+                            and reply.deletedAt is null
+                            and reply.hiddenAt is null
+                    )
+                )
                 and c.hiddenAt is null
             group by c.id, c.createdAt
             order by count(cl.id) desc, c.createdAt asc, c.id asc
@@ -273,11 +369,23 @@ public interface CommentRepository
                 count(cl.id) as likeCount
             from Comment c
             join c.post p
-            left join CommentLike cl on cl.comment = c
+            left join CommentLike cl
+                on cl.comment = c
+                and c.deletedAt is null
             where p.id = :postId
+                and c.parent is null
                 and p.deletedAt is null
                 and p.hiddenAt is null
-                and c.deletedAt is null
+                and (
+                    c.deletedAt is null
+                    or exists (
+                        select 1
+                        from Comment reply
+                        where reply.parent = c
+                            and reply.deletedAt is null
+                            and reply.hiddenAt is null
+                    )
+                )
                 and c.hiddenAt is null
             group by c.id, c.createdAt
             having
@@ -328,6 +436,33 @@ public interface CommentRepository
                 and c.id in :commentIds
             """)
     List<Comment> findVisibleCommentsByIds(
+            @Param("postId") Long postId,
+            @Param("commentIds") List<Long> commentIds
+    );
+
+    @Query("""
+        select c
+        from Comment c
+        join c.post p
+        join fetch c.author
+        where p.id = :postId
+            and p.deletedAt is null
+            and p.hiddenAt is null
+            and c.id in :commentIds
+            and c.parent is null
+            and c.hiddenAt is null
+            and (
+                c.deletedAt is null
+                or exists (
+                    select 1
+                    from Comment reply
+                    where reply.parent = c
+                        and reply.deletedAt is null
+                        and reply.hiddenAt is null
+                )
+            )
+        """)
+    List<Comment> findPopularListCommentsByIds(
             @Param("postId") Long postId,
             @Param("commentIds") List<Long> commentIds
     );
@@ -443,10 +578,10 @@ public interface CommentRepository
      * <p>
      * 숨김·삭제 상태로 제외하지 않는다.
      * 상태 검증은 부모 게시글과 댓글을 순서대로 잠근 뒤 수행한다.
-     *
+     * <p>
      * 여기서는 @Lock으로 댓글부터 잠그는 일 없도록 한다.
      * 댓글부터 잠그면 기존의 부모 게시글 -> 댓글 잠금 순서와 달라지기 때문
-     *
+     * <p>
      * 부모 ID를 얻은 뒤에는 findCommentByIdForModerationForUpdate(postId, commentId)로
      * 소속 관계까지 다시 확인한다.
      */
@@ -457,5 +592,60 @@ public interface CommentRepository
             """)
     Optional<Long> findPostIdByCommentIdForModeration(
             @Param("commentId") Long commentId
+    );
+
+    /**
+     * 첫 페이지 대댓글 조회 메서드 추가
+     */
+    @Query("""
+            select c
+            from Comment c
+            join fetch c.author
+            join c.post p
+            join c.parent root
+            where p.id = :postId
+                and root.id = :parentId
+                and root.post.id = :postId
+                and root.parent is null
+                and p.deletedAt is null
+                and p.hiddenAt is null
+                and root.hiddenAt is null
+                and c.deletedAt is null
+                and c.hiddenAt is null
+            order by c.createdAt asc, c.id asc
+            """)
+    List<Comment> findFirstVisibleReplies(
+            @Param("postId") Long postId,
+            @Param("parentId") Long parentId,
+            Pageable pageable
+    );
+
+    @Query("""
+        select c
+        from Comment c
+        join fetch c.author
+        join c.post p
+        join c.parent root
+        where p.id = :postId
+          and root.id = :parentId
+          and root.post.id = :postId
+          and root.parent is null
+          and p.deletedAt is null
+          and p.hiddenAt is null
+          and root.hiddenAt is null
+          and c.deletedAt is null
+          and c.hiddenAt is null
+          and (
+                c.createdAt > :afterCreatedAt
+                or (c.createdAt = :afterCreatedAt and c.id > :afterId)
+          )
+        order by c.createdAt asc, c.id asc
+        """)
+    List<Comment> findVisibleRepliesAfter(
+            @Param("postId") Long postId,
+            @Param("parentId") Long parentId,
+            @Param("afterCreatedAt") Instant afterCreatedAt,
+            @Param("afterId") Long afterId,
+            Pageable pageable
     );
 }

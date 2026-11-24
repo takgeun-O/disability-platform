@@ -24,6 +24,10 @@ public class CommentCreateException extends RuntimeException {
 
         POST_NOT_FOUND(
                 "게시글을 찾을 수 없습니다."
+        ),
+
+        PARENT_COMMENT_NOT_FOUND(
+                "답글을 작성할 원댓글을 찾을 수 없습니다."
         );
 
         private final String message;

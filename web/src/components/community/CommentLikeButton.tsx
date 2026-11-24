@@ -7,8 +7,9 @@ import { changeCommentLike, CommentError, type Comment } from "@/lib/community-c
 import { memberCommentsChanged, postCommentsChanged } from "@/lib/community-mutations"
 import CommunityDialog from "./CommunityDialog"
 
-export default function CommentLikeButton({ postId, comment, ready, reread, returnTo, onChanged }: {
+export default function CommentLikeButton({ postId, comment, ready, reread, returnTo, parentId, onChanged }: {
   onChanged?: () => void
+  parentId?: number
   returnTo?: "/mypage"; postId: string; comment: Comment; ready: boolean; reread: (commentId: number) => Promise<boolean | undefined>
 }) {
   const auth = useAuth(), store = auth.commentLikes, scope = useNavigationRequest(), guard = useNavigationGuard(), router = useRouter(), uid = useId()
@@ -77,7 +78,7 @@ export default function CommentLikeButton({ postId, comment, ready, reread, retu
         <button type="button" className="iyum-button iyum-button-primary" disabled={!!auth.pending || auth.status === "checking"} onClick={() => {
           if (auth.status === "error") { void auth.refresh(); return }
           if (authenticated) { setPrompt(false); return }
-          const destination = returnTo ?? (location.pathname + location.search + `#comment-${comment.commentId}`)
+          const destination = returnTo ?? (location.pathname + location.search + `#comment-${parentId ?? comment.commentId}`)
           guard.request(() => { setPrompt(false); router.push(`/login?from=${encodeURIComponent(destination)}`) })
         }}>{auth.status === "error" ? "로그인 상태 다시 확인" : authenticated ? "현재 화면에서 계속하기" : "로그인하기"}</button>
       </div>

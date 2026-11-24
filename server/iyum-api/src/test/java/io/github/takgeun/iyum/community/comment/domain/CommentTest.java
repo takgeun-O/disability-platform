@@ -261,6 +261,108 @@ class CommentTest {
         assertThat(comment.getContent()).isEqualTo("수정한 내용");
     }
 
+    @Test
+    void 공개_원댓글에_답글을_작성하면_원댓글과_같은_게시글에_속한다() {
+        Post post = createPost();
+        Member replyAuthor = createCommentAuthor();
+
+        Comment parent = Comment.create(
+                post,
+                post.getAuthor(),
+                "첫 보청기 상담 때 어떤 준비가 도움이 됐나요?"
+        );
+
+        String content = "저는 평소 잘 안 들렸던 상황을 메모해 갔어요.";
+
+        Comment reply = Comment.createReply(
+                parent,
+                replyAuthor,
+                content
+        );
+
+        assertThat(parent.getParent()).isNull();
+        assertThat(reply.getParent()).isSameAs(parent);
+        assertThat(reply.getPost()).isSameAs(post);
+        assertThat(reply.getAuthor()).isSameAs(replyAuthor);
+        assertThat(reply.getContent()).isEqualTo(content);
+    }
+
+    @Test
+    void 원댓글이_없으면_답글을_작성할_수_없다() {
+        Member author = createCommentAuthor();
+
+        assertThatThrownBy(() ->
+                Comment.createReply(null, author, "답글 내용")
+        )
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessage("답글을 작성할 원댓글은 필수입니다.");
+    }
+
+    @Test
+    void 답글에는_다시_답글을_작성할_수_없다() {
+        Comment parent = createComment();
+        Member author = createCommentAuthor();
+
+        Comment reply = Comment.createReply(
+                parent,
+                author,
+                "첫 번째 답글입니다."
+        );
+
+        assertThatThrownBy(() ->
+                Comment.createReply(reply, author, "두 번째 깊이의 답글입니다.")
+        )
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessage("답글에는 다시 답글을 작성할 수 없습니다.");
+    }
+
+    @Test
+    void 삭제된_원댓글에는_답글을_작성할_수_없다() {
+        Comment parent = createComment();
+        Member author = createCommentAuthor();
+
+        parent.delete(Instant.parse("2026-11-24T01:00:00Z"));
+
+        assertThatThrownBy(() ->
+                Comment.createReply(parent, author, "답글 내용")
+        )
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessage("삭제되거나 숨겨진 댓글에는 답글을 작성할 수 없습니다.");
+    }
+
+    @Test
+    void 숨겨진_원댓글에는_답글을_작성할_수_없다() {
+        Comment parent = createComment();
+        Member author = createCommentAuthor();
+
+        parent.hide(Instant.parse("2026-11-24T01:00:00Z"));
+
+        assertThatThrownBy(() ->
+                Comment.createReply(parent, author, "답글 내용")
+        )
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessage("삭제되거나 숨겨진 댓글에는 답글을 작성할 수 없습니다.");
+    }
+
+    @ParameterizedTest
+    @ValueSource(booleans = {true, false})
+    void 게시글이_숨겨지거나_삭제되면_공개_원댓글에도_답글을_작성할_수_없다(
+            boolean hidden
+    ) {
+        Comment parent = createComment();
+        Instant changedAt = Instant.parse("2026-11-24T01:00:00Z");
+
+        if (hidden) {
+            parent.getPost().hide(changedAt);
+        } else {
+            parent.getPost().delete(changedAt);
+        }
+
+        assertThatThrownBy(() ->
+                Comment.createReply(parent, createCommentAuthor(), "답글 내용")
+        ).isInstanceOf(IllegalStateException.class);
+    }
+
     private Comment createComment() {
         return Comment.create(
                 createPost(),

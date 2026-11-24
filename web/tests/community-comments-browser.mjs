@@ -1713,8 +1713,10 @@ try {
     "404 deleted comment removed without deleting other comments",
     async () => {
       const { ctx, p, state } = await fixture(member, 2)
-      state.write = (r) =>
-        r.fulfill({ status: 404, json: failure("COMMENT_NOT_FOUND") })
+      state.write = (r) => {
+        comments = comments.filter(c => c.commentId !== 1)
+        return r.fulfill({ status: 404, json: failure("COMMENT_NOT_FOUND") })
+      }
       await p
         .locator("#comment-1")
         .getByRole("button", { name: "댓글 삭제", exact: true })

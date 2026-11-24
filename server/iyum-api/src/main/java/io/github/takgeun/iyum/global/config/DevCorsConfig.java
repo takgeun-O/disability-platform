@@ -85,9 +85,10 @@ public class DevCorsConfig {
                 postDetailCors);
 
         source.registerCorsConfiguration("/api/v1/community/posts/*/comments", cors);
-        CorsConfiguration bestCommentsCors = new CorsConfiguration(cors);
-        bestCommentsCors.setAllowedMethods(List.of("GET", "OPTIONS"));
-        source.registerCorsConfiguration("/api/v1/community/posts/*/comments/best", bestCommentsCors);
+        CorsConfiguration commentReadCors = new CorsConfiguration(cors);
+        commentReadCors.setAllowedMethods(List.of("GET", "OPTIONS"));
+        source.registerCorsConfiguration("/api/v1/community/posts/*/comments/best", commentReadCors);
+        source.registerCorsConfiguration("/api/v1/community/posts/*/comments/*/replies", cors);
 
         CorsConfiguration commentItemCors = new CorsConfiguration(cors);
         commentItemCors.setAllowedMethods(List.of("PUT", "DELETE", "OPTIONS"));

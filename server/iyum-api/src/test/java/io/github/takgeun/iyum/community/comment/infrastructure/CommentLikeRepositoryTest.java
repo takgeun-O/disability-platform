@@ -425,6 +425,10 @@ class CommentLikeRepositoryTest {
         Comment tenLikes = saveComment(currentPost, author, "좋아요 10개인 댓글");
         Comment otherPostComment = saveComment(otherPost, author, "다른 게시글의 댓글");
 
+        Comment reply = commentRepository.save(
+                Comment.createReply(tenLikes, author, "좋아요 11개인 대댓글")
+        );
+
         // 같은 회원은 한 댓글에 한 번씩만 좋아요를 누른다.
         for (int i = 1; i <= 11; i++) {
             Member reader = saveActiveMember(
@@ -441,6 +445,7 @@ class CommentLikeRepositoryTest {
             }
 
             commentLikeRepository.save(CommentLike.create(otherPostComment, reader));
+            commentLikeRepository.save(CommentLike.create(reply, reader));
         }
 
         entityManager.flush();

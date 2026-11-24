@@ -141,6 +141,51 @@ class CommentLikeSessionIntegrationTest {
     }
 
     @Test
+    void 삭제된_원댓글의_공개_답글은_답글_작성자만_수정하고_삭제한다() throws Exception {
+        CsrfSession owner = login(other.getEmail());
+        CsrfSession parentOwner = login(me.getEmail());
+        String comments = "/api/v1/community/posts/" + postId + "/comments";
+        String replies = comments + "/" + commentId + "/replies";
+        MvcResult created = mockMvc.perform(post(replies)
+                        .session(owner.session())
+                        .header(owner.headerName(), owner.token())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"content\":\"내 답글\"}"))
+                .andExpect(status().isCreated())
+                .andReturn();
+        long id = objectMapper.readTree(created.getResponse().getContentAsByteArray())
+                .get("commentId").asLong();
+        commentDeleteService.delete(me.getId(), postId, commentId);
+
+        for (HttpMethod method : new HttpMethod[]{HttpMethod.PUT, HttpMethod.DELETE}) {
+            mockMvc.perform(request(method, comments + "/" + id)
+                            .session(parentOwner.session())
+                            .header(parentOwner.headerName(), parentOwner.token())
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content("{\"content\":\"다른 사람의 변경\"}"))
+                    .andExpect(status().isForbidden());
+        }
+        mockMvc.perform(request(HttpMethod.PUT, comments + "/" + id)
+                        .session(owner.session())
+                        .header(owner.headerName(), owner.token())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"content\":\"수정한 답글\"}"))
+                .andExpect(status().isNoContent());
+        mockMvc.perform(get(replies))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.items[0].commentId").value(id))
+                .andExpect(jsonPath("$.items[0].content").value("수정한 답글"))
+                .andExpect(jsonPath("$.items[0].contentUpdatedAt").isString());
+        mockMvc.perform(request(HttpMethod.DELETE, comments + "/" + id)
+                        .session(owner.session())
+                        .header(owner.headerName(), owner.token()))
+                .andExpect(status().isNoContent());
+        mockMvc.perform(get(comments))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.items").isEmpty());
+    }
+
+    @Test
     void 실제_로그인_세션으로_등록과_취소를_반복할_수_있다()
             throws Exception {
         CsrfSession client = login(me.getEmail());

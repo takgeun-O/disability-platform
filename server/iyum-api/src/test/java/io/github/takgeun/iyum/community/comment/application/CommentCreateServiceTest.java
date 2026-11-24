@@ -288,6 +288,150 @@ class CommentCreateServiceTest {
         assertThat(commentRepository.count()).isZero();
     }
 
+    @Test
+    void 다른_게시글의_원댓글에는_대댓글을_작성할_수_없다() {
+        // A 게시글에 원댓글을 작성한다.
+        CommentCreateResult parent = commentCreateService.create(
+                commentAuthorId,
+                postId,
+                new CommentCreateCommand("A 게시글의 원댓글")
+        );
+
+        // 대댓글 작성 요청에서 사용할 B 게시글을 준비한다.
+        Member author = memberRepository.findById(commentAuthorId)
+                .orElseThrow();
+
+        Post otherPost = postRepository.saveAndFlush(
+                Post.create(
+                        author,
+                        PostType.QUESTION,
+                        PostTopic.HEARING_AID,
+                        "B 게시글",
+                        "다른 게시글의 본문"
+                )
+        );
+
+        // 게시글은 B를, 원댓글은 A의 댓글을 지정한다.
+        assertThatThrownBy(() ->
+                commentCreateService.createReply(
+                        commentAuthorId,
+                        otherPost.getId(),
+                        parent.commentId(),
+                        new CommentCreateCommand("잘못된 게시글에 요청한 대댓글")
+                )
+        ).isInstanceOfSatisfying(
+                CommentCreateException.class,
+                exception -> assertThat(exception.getCode())
+                        .isEqualTo(CommentCreateException.Code.PARENT_COMMENT_NOT_FOUND)
+        );
+
+        // 요청이 거절된 뒤에도 DB에는 처음 작성한 원댓글 한 건만 남아야 한다.
+        assertThat(commentRepository.count()).isEqualTo(1L);
+    }
+
+    @Test
+    void 활성_회원은_다른_회원의_원댓글에_대댓글을_작성할_수_있다() {
+        CommentCreateResult parent = commentCreateService.create(
+                commentAuthorId,
+                postId,
+                new CommentCreateCommand("첫 상담 때 어떤 질문을 준비하셨나요?")
+        );
+
+        Member replyAuthor = saveActiveMember(
+                "reply-author@example.com",
+                "답글작성자"
+        );
+        String content = "평소에 듣기 어려웠던 상황을 메모해 갔어요.";
+
+        CommentCreateResult reply = commentCreateService.createReply(
+                replyAuthor.getId(),
+                postId,
+                parent.commentId(),
+                new CommentCreateCommand(content)
+        );
+
+        assertThat(reply.commentId()).isPositive();
+        assertThat(reply.commentId()).isNotEqualTo(parent.commentId());
+        assertThat(commentRepository.count()).isEqualTo(2L);
+
+        Map<String, Object> saved = jdbcTemplate.queryForMap(
+                """
+                SELECT parent_id, post_id, author_id, content
+                FROM community_comments
+                WHERE id = ?
+                """,
+                reply.commentId()
+        );
+
+        assertThat(saved.get("parent_id")).isEqualTo(parent.commentId());
+        assertThat(saved.get("post_id")).isEqualTo(postId);
+        assertThat(saved.get("author_id")).isEqualTo(replyAuthor.getId());
+        assertThat(saved.get("content")).isEqualTo(content);
+    }
+
+    @Test
+    void 대댓글을_부모로_지정하면_추가_대댓글이_저장되지_않는다() {
+        CommentCreateResult parent = commentCreateService.create(
+                commentAuthorId,
+                postId,
+                new CommentCreateCommand("첫 상담 때 어떤 질문을 준비하셨나요?")
+        );
+
+        CommentCreateResult reply = commentCreateService.createReply(
+                commentAuthorId,
+                postId,
+                parent.commentId(),
+                new CommentCreateCommand("평소에 듣기 어려웠던 상황을 메모해 갔어요.")
+        );
+
+        assertThatThrownBy(() ->
+                commentCreateService.createReply(
+                        commentAuthorId,
+                        postId,
+                        reply.commentId(),
+                        new CommentCreateCommand("그 메모는 어떻게 정리하셨나요?")
+                )
+        ).isInstanceOfSatisfying(
+                CommentCreateException.class,
+                exception -> assertThat(exception.getCode())
+                        .isEqualTo(CommentCreateException.Code.PARENT_COMMENT_NOT_FOUND)
+        );
+
+        assertThat(commentRepository.count()).isEqualTo(2L);
+    }
+
+    @Test
+    void 공개_대댓글이_남아_있어도_삭제된_원댓글에는_새_대댓글을_작성할_수_없다() {
+        Long parentId = createParentWithReply();
+
+        jdbcTemplate.update(
+                """
+                UPDATE community_comments
+                SET deleted_at = CURRENT_TIMESTAMP
+                WHERE id = ?
+                """,
+                parentId
+        );
+
+        assertNewReplyRejected(parentId);
+    }
+
+    @Test
+    void 관리자가_숨긴_원댓글에는_새_대댓글을_작성할_수_없다() {
+        Long parentId = createParentWithReply();
+
+        jdbcTemplate.update(
+                """
+                UPDATE community_comments
+                SET hidden_at = CURRENT_TIMESTAMP
+                WHERE id = ?
+                """,
+                parentId
+        );
+
+        assertNewReplyRejected(parentId);
+    }
+
     private Member saveActiveMember(
             String email,
             String nickname
@@ -321,5 +465,39 @@ class CommentCreateServiceTest {
 
         // 예외 발생뿐 아니라 댓글이 저장되지 않은 것도 확인한다.
         assertThat(commentRepository.count()).isZero();
+    }
+
+    private Long createParentWithReply() {
+        CommentCreateResult parent = commentCreateService.create(
+                commentAuthorId,
+                postId,
+                new CommentCreateCommand("첫 상담 때 무엇을 준비하셨나요?")
+        );
+
+        commentCreateService.createReply(
+                commentAuthorId,
+                postId,
+                parent.commentId(),
+                new CommentCreateCommand("궁금한 점을 미리 적어 갔어요.")
+        );
+
+        return parent.commentId();
+    }
+
+    private void assertNewReplyRejected(Long parentId) {
+        assertThatThrownBy(() ->
+                commentCreateService.createReply(
+                        commentAuthorId,
+                        postId,
+                        parentId,
+                        new CommentCreateCommand("추가로 답글을 남깁니다.")
+                )
+        ).isInstanceOfSatisfying(
+                CommentCreateException.class,
+                exception -> assertThat(exception.getCode())
+                        .isEqualTo(CommentCreateException.Code.PARENT_COMMENT_NOT_FOUND)
+        );
+
+        assertThat(commentRepository.count()).isEqualTo(2L);
     }
 }
