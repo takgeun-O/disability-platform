@@ -1,6 +1,8 @@
 package io.github.takgeun.iyum.community.comment.api;
 
 import com.jayway.jsonpath.JsonPath;
+import io.github.takgeun.iyum.community.comment.application.CommentCreateCommand;
+import io.github.takgeun.iyum.community.comment.application.CommentCreateService;
 import io.github.takgeun.iyum.community.comment.domain.Comment;
 import io.github.takgeun.iyum.community.comment.infrastructure.CommentRepository;
 import io.github.takgeun.iyum.community.post.domain.Post;
@@ -92,6 +94,9 @@ class CommentReadApiTest {
 
     @Autowired
     MemberRepository memberRepository;
+
+    @Autowired
+    CommentCreateService commentCreateService;
 
     @Autowired
     JdbcTemplate jdbcTemplate;
@@ -401,6 +406,266 @@ class CommentReadApiTest {
                 .andExpect(
                         jsonPath("$.code")
                                 .value("INVALID_REQUEST_PARAMETER")
+                );
+    }
+
+    @Test
+    void 비회원은_원댓글_목록에서_선택한_원댓글의_답글만_펼쳐_볼_수_있다()
+            throws Exception {
+
+        Long firstReplyId = commentCreateService.createReply(
+                commentAuthorId,
+                postId,
+                firstCommentId,
+                new CommentCreateCommand("A의 첫 번째 답글")
+        ).commentId();
+
+        commentCreateService.createReply(
+                commentAuthorId,
+                postId,
+                secondCommentId,
+                new CommentCreateCommand("B의 첫 번째 답글")
+        );
+
+        Long secondReplyId = commentCreateService.createReply(
+                commentAuthorId,
+                postId,
+                firstCommentId,
+                new CommentCreateCommand("A의 두 번째 답글")
+        ).commentId();
+
+        commentCreateService.createReply(
+                commentAuthorId,
+                postId,
+                secondCommentId,
+                new CommentCreateCommand("B의 두 번째 답글")
+        );
+
+        // 원댓글 페이지에는 A와 B가 한 자리씩 차지한다.
+        mockMvc.perform(
+                        get(COMMENTS_URL, postId)
+                                .param("size", "2")
+                )
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.items.length()").value(2))
+                .andExpect(jsonPath("$.items[0].commentId")
+                        .value(is(firstCommentId), Long.class))
+                .andExpect(jsonPath("$.items[0].replyCount").value(2))
+                .andExpect(jsonPath("$.items[1].commentId")
+                        .value(is(secondCommentId), Long.class))
+                .andExpect(jsonPath("$.items[1].replyCount").value(2));
+
+        // 비회원이 A의 ‘답글 2개 보기’를 누른다.
+        mockMvc.perform(
+                        get(
+                                COMMENTS_URL + "/{parentId}/replies",
+                                postId,
+                                firstCommentId
+                        ).param("size", "2")
+                )
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.items.length()").value(2))
+                .andExpect(jsonPath("$.items[0].commentId")
+                        .value(is(firstReplyId), Long.class))
+                .andExpect(jsonPath("$.items[1].commentId")
+                        .value(is(secondReplyId), Long.class))
+                .andExpect(jsonPath("$.hasNext").value(false))
+                .andExpect(jsonPath("$.nextCursor").hasJsonPath())
+                .andExpect(jsonPath("$.nextCursor").value(nullValue()));
+    }
+
+    @Test
+    void 비회원이_대댓글_응답의_커서를_전달하면_같은_원댓글의_다음_답글을_조회한다()
+            throws Exception {
+
+        Long firstReplyId = commentCreateService.createReply(
+                commentAuthorId,
+                postId,
+                firstCommentId,
+                new CommentCreateCommand("A의 첫 번째 답글")
+        ).commentId();
+
+        commentCreateService.createReply(
+                commentAuthorId,
+                postId,
+                secondCommentId,
+                new CommentCreateCommand("B의 답글")
+        );
+
+        Long secondReplyId = commentCreateService.createReply(
+                commentAuthorId,
+                postId,
+                firstCommentId,
+                new CommentCreateCommand("A의 두 번째 답글")
+        ).commentId();
+
+        String repliesUrl = COMMENTS_URL + "/{parentId}/replies";
+
+        MvcResult firstPage = mockMvc.perform(
+                        get(repliesUrl, postId, firstCommentId)
+                                .param("size", "1")
+                )
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.items.length()").value(1))
+                .andExpect(jsonPath("$.items[0].commentId")
+                        .value(is(firstReplyId), Long.class))
+                .andExpect(jsonPath("$.hasNext").value(true))
+                .andExpect(jsonPath("$.nextCursor.commentId")
+                        .value(is(firstReplyId), Long.class))
+                .andExpect(jsonPath("$.nextCursor.createdAt")
+                        .value(CREATED_TIME.toString()))
+                .andReturn();
+
+        String body = firstPage.getResponse()
+                .getContentAsString(StandardCharsets.UTF_8);
+
+        String cursorTime = JsonPath.read(body, "$.nextCursor.createdAt");
+        Number cursorId = JsonPath.read(body, "$.nextCursor.commentId");
+
+        mockMvc.perform(
+                        get(repliesUrl, postId, firstCommentId)
+                                .param("size", "1")
+                                .param("afterCreatedAt", cursorTime)
+                                .param("afterId", cursorId.toString())
+                )
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.items.length()").value(1))
+                .andExpect(jsonPath("$.items[0].commentId")
+                        .value(is(secondReplyId), Long.class))
+                .andExpect(jsonPath("$.hasNext").value(false))
+                .andExpect(jsonPath("$.nextCursor").hasJsonPath())
+                .andExpect(jsonPath("$.nextCursor").value(nullValue()));
+    }
+
+    @ParameterizedTest
+    @CsvSource({
+            "afterCreatedAt, 2026-10-17T03:00:00.123456Z",
+            "afterId, 1"
+    })
+    void 대댓글_조회에서_커서_값을_하나만_보내면_400을_반환한다(
+            String parameterName,
+            String parameterValue
+    ) throws Exception {
+
+        mockMvc.perform(
+                        get(
+                                COMMENTS_URL + "/{parentId}/replies",
+                                postId,
+                                firstCommentId
+                        ).param(parameterName, parameterValue)
+                )
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("INVALID_CURSOR"));
+    }
+
+    @Test
+    void 비회원은_삭제된_원댓글의_자리에서_기존_공개_대댓글을_조회할_수_있다()
+            throws Exception {
+
+        var reply = commentCreateService.createReply(
+                commentAuthorId,
+                postId,
+                firstCommentId,
+                new CommentCreateCommand("원댓글이 삭제되기 전에 작성한 답글")
+        );
+
+        jdbcTemplate.update("""
+            UPDATE community_comments
+            SET deleted_at = CURRENT_TIMESTAMP
+            WHERE id = ?
+            """,
+                firstCommentId
+        );
+
+        // 원댓글 목록에 자리와 답글 수가 남아 있어야 한다.
+        mockMvc.perform(
+                        get(COMMENTS_URL, postId)
+                                .param("sort", "OLDEST")
+                )
+                .andExpect(status().isOk())
+                .andExpect(
+                        jsonPath("$.items[0].commentId")
+                                .value(is(firstCommentId), Long.class)
+                )
+                .andExpect(jsonPath("$.items[0].deleted").value(true))
+                .andExpect(
+                        jsonPath("$.items[0].content")
+                                .value("삭제된 댓글입니다.")
+                )
+                .andExpect(jsonPath("$.items[0].author").value(nullValue()))
+                .andExpect(jsonPath("$.items[0].replyCount").value(1));
+
+        // 같은 원댓글 ID로 답글을 열면 기존 공개 대댓글을 읽을 수 있다.
+        mockMvc.perform(
+                        get(
+                                COMMENTS_URL + "/{parentId}/replies",
+                                postId,
+                                firstCommentId
+                        )
+                )
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.items.length()").value(1))
+                .andExpect(
+                        jsonPath("$.items[0].commentId")
+                                .value(is(reply.commentId()), Long.class)
+                )
+                .andExpect(
+                        jsonPath("$.items[0].content")
+                                .value("원댓글이 삭제되기 전에 작성한 답글")
+                )
+                .andExpect(jsonPath("$.items[0].deleted").value(false));
+    }
+
+    @Test
+    void 원댓글을_숨기면_대댓글을_조회할_수_없고_복원하면_공개_대댓글만_보인다()
+            throws Exception {
+
+        var visibleReply = commentCreateService.createReply(
+                commentAuthorId,
+                postId,
+                firstCommentId,
+                new CommentCreateCommand("원댓글을 복원하면 다시 보일 답글")
+        );
+
+        var hiddenReply = commentCreateService.createReply(
+                commentAuthorId,
+                postId,
+                firstCommentId,
+                new CommentCreateCommand("개별 숨김을 유지할 답글")
+        );
+
+        jdbcTemplate.update("""
+            UPDATE community_comments
+            SET hidden_at = CURRENT_TIMESTAMP
+            WHERE id IN (?, ?)
+            """,
+                firstCommentId,
+                hiddenReply.commentId()
+        );
+
+        String repliesUrl = COMMENTS_URL + "/{parentId}/replies";
+
+        mockMvc.perform(get(repliesUrl, postId, firstCommentId))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.items.length()").value(0))
+                .andExpect(jsonPath("$.hasNext").value(false))
+                .andExpect(jsonPath("$.nextCursor").value(nullValue()));
+
+        // 원댓글만 복원한다. 개별 숨김 답글의 상태는 그대로 둔다.
+        jdbcTemplate.update("""
+            UPDATE community_comments
+            SET hidden_at = NULL
+            WHERE id = ?
+            """,
+                firstCommentId
+        );
+
+        mockMvc.perform(get(repliesUrl, postId, firstCommentId))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.items.length()").value(1))
+                .andExpect(
+                        jsonPath("$.items[0].commentId")
+                                .value(is(visibleReply.commentId()), Long.class)
                 );
     }
 

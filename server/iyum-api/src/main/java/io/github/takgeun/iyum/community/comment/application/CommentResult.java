@@ -8,7 +8,7 @@ import java.time.Instant;
 public record CommentResult(
         Long commentId,
         String content,
-        CommentAuthorResult author,
+        @Nullable CommentAuthorResult author,
         Instant createdAt,
         Instant updatedAt,
         // 값이 null일 때 updatedAt으로 대체하지 말 것.
@@ -16,13 +16,31 @@ public record CommentResult(
         // 다시 본문 수정 시각으로 노출될 가능성이 있음.
         @Nullable Instant contentUpdatedAt,
         long likeCount,
-        boolean liked
+        boolean liked,
+        boolean deleted,
+        long replyCount
 ) {
 
     public static CommentResult from(
             Comment comment,
-            CommentLikeState likeState
+            CommentLikeState likeState,
+            long replyCount
     ) {
+        if (comment.getDeletedAt() != null) {
+            return new CommentResult(
+                    comment.getId(),
+                    "삭제된 댓글입니다.",
+                    null,
+                    comment.getCreatedAt(),
+                    comment.getUpdatedAt(),
+                    null,
+                    0L,
+                    false,
+                    true,
+                    replyCount
+            );
+        }
+
         return new CommentResult(
                 comment.getId(),
                 comment.getContent(),
@@ -31,7 +49,9 @@ public record CommentResult(
                 comment.getUpdatedAt(),
                 comment.getContentUpdatedAt(),
                 likeState.likeCount(),
-                likeState.liked()
+                likeState.liked(),
+                false,
+                replyCount
         );
     }
 }

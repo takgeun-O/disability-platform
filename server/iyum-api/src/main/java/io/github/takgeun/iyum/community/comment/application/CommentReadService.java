@@ -3,6 +3,7 @@ package io.github.takgeun.iyum.community.comment.application;
 import io.github.takgeun.iyum.community.comment.domain.Comment;
 import io.github.takgeun.iyum.community.comment.infrastructure.CommentLikeRepository;
 import io.github.takgeun.iyum.community.comment.infrastructure.CommentPopularityRow;
+import io.github.takgeun.iyum.community.comment.infrastructure.CommentReplyCount;
 import io.github.takgeun.iyum.community.comment.infrastructure.CommentRepository;
 import io.github.takgeun.iyum.community.post.infrastructure.PostRepository;
 import jakarta.annotation.Nullable;
@@ -186,6 +187,8 @@ public class CommentReadService {
                 .map(Comment::getId)
                 .toList();
 
+        Map<Long, Long> replyCounts = getReplyCounts(postId, commentIds);
+
         // 직전에서 추출한 ID를 조회 서비스에 한번에 넘긴다.
         Map<Long, CommentLikeState> likeStates =
                 commentLikeReadService.getStates(
@@ -200,7 +203,8 @@ public class CommentReadService {
                         likeStates.getOrDefault(    // 해당 댓글의 집계가 없으면 기본값인 좋아요 0개, 즉, 내가 누르지 않았음을 의미
                                 comment.getId(),
                                 CommentLikeState.EMPTY
-                        )
+                        ),
+                        replyCounts.getOrDefault(comment.getId(), 0L)
                 ))
                 .toList();
 
@@ -315,8 +319,10 @@ public class CommentReadService {
                 .map(CommentPopularityRow::getCommentId)
                 .toList();
 
+        Map<Long, Long> replyCounts = getReplyCounts(postId, commentIds);
+
         Map<Long, Comment> commentsById =
-                commentRepository.findVisibleCommentsByIds(
+                commentRepository.findPopularListCommentsByIds(
                                 postId,
                                 commentIds
                         )
@@ -364,7 +370,11 @@ public class CommentReadService {
                             viewerState.liked()
                     );
 
-                    return CommentResult.from(comment, state);
+                    return CommentResult.from(
+                            comment,
+                            state,
+                            replyCounts.getOrDefault(row.getCommentId(), 0L)
+                    );
                 })
                 .toList();
 
@@ -410,6 +420,8 @@ public class CommentReadService {
                         Function.identity()
                 ));
 
+        Map<Long, Long> replyCounts = getReplyCounts(postId, rankedIds);
+
         Map<Long, CommentLikeState> likeStates =
                 commentLikeReadService.getStates(rankedIds, viewerId);
 
@@ -432,7 +444,11 @@ public class CommentReadService {
                         );
                     }
 
-                    return CommentResult.from(comment, likeState);
+                    return CommentResult.from(
+                            comment,
+                            likeState,
+                            replyCounts.getOrDefault(commentId, 0L)
+                    );
                 })
                 .toList();
     }
@@ -450,5 +466,104 @@ public class CommentReadService {
                                 CommentReadException.Code.POST_NOT_FOUND
                         )
                 );
+    }
+
+    public CommentListResult getReplies(
+            Long postId,
+            Long parentId,
+            @Nullable CommentCursor cursor,
+            int size,
+            @Nullable Long viewerId
+    ) {
+        CommentReadQuery query = new CommentReadQuery(
+                CommentSort.OLDEST,
+                cursor,
+                size
+        );
+
+        validatePost(postId);
+
+        PageRequest limit = PageRequest.of(0, query.size() + 1);
+
+        List<Comment> replies;
+
+        if(cursor == null) {
+            replies = commentRepository.findFirstVisibleReplies(
+                    postId,
+                    parentId,
+                    limit
+            );
+        } else {
+            replies = commentRepository.findVisibleRepliesAfter(
+                    postId,
+                    parentId,
+                    cursor.createdAt(),
+                    cursor.commentId(),
+                    limit
+            );
+        }
+
+        if(replies.isEmpty()) {
+            return new CommentListResult(
+                    List.of(),
+                    false,
+                    null
+            );
+        }
+
+        boolean hasNext = replies.size() > query.size();
+        List<Comment> returnedReplies = replies.subList(
+                0,
+                Math.min(replies.size(), query.size())
+        );
+
+        List<Long> replyIds = returnedReplies.stream()
+                .map(Comment::getId)
+                .toList();
+
+        Map<Long, CommentLikeState> likeStates =
+                commentLikeReadService.getStates(replyIds, viewerId);
+
+        List<CommentResult> items = returnedReplies.stream()
+                .map(reply -> CommentResult.from(
+                        reply,
+                        likeStates.getOrDefault(
+                                reply.getId(),
+                                CommentLikeState.EMPTY
+                        ),
+                        0L
+                ))
+                .toList();
+
+        CommentCursor nextCursor = null;
+
+        if(hasNext) {
+            CommentResult last = items.getLast();
+            nextCursor = new CommentCursor(
+                    last.createdAt(),
+                    last.commentId()
+            );
+        }
+
+        return new CommentListResult(items, hasNext, nextCursor);
+    }
+
+    /**
+     * 한 페이지의 답글 수를 한 번에 조회
+     */
+    private Map<Long, Long> getReplyCounts(
+            Long postId,
+            List<Long> parentIds
+    ) {
+        if (parentIds.isEmpty()) {
+            return Map.of();
+        }
+
+        return commentRepository.countVisibleRepliesByParentIds(postId, parentIds)
+                .stream()
+                .collect(Collectors.toMap(
+                        CommentReplyCount::getParentId,
+                        CommentReplyCount::getReplyCount
+                ));
     }
 }

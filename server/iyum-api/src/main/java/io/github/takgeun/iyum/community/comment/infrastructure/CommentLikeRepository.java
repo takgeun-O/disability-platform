@@ -57,6 +57,7 @@ public interface CommentLikeRepository
             join cl.comment c
             join c.post p
             where p.id = :postId
+                and c.parent is null
                 and p.deletedAt is null
                 and p.hiddenAt is null
                 and c.deletedAt is null

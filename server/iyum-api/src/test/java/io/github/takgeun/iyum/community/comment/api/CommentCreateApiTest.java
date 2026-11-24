@@ -3,6 +3,7 @@ package io.github.takgeun.iyum.community.comment.api;
 import com.jayway.jsonpath.JsonPath;
 import io.github.takgeun.iyum.auth.security.MemberPrincipal;
 import io.github.takgeun.iyum.community.comment.api.dto.CommentCreateRequest;
+import io.github.takgeun.iyum.community.comment.domain.Comment;
 import io.github.takgeun.iyum.community.comment.infrastructure.CommentRepository;
 import io.github.takgeun.iyum.community.post.domain.Post;
 import io.github.takgeun.iyum.community.post.domain.PostTopic;
@@ -10,6 +11,7 @@ import io.github.takgeun.iyum.community.post.domain.PostType;
 import io.github.takgeun.iyum.community.post.infrastructure.PostRepository;
 import io.github.takgeun.iyum.member.domain.Member;
 import io.github.takgeun.iyum.member.infrastructure.MemberRepository;
+import org.jspecify.annotations.NonNull;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
@@ -194,6 +196,68 @@ class CommentCreateApiTest {
         assertThat(saved.get("created_at")).isNotNull();
         assertThat(saved.get("updated_at")).isNotNull();
         assertThat(saved.get("deleted_at")).isNull();
+    }
+
+    @Test
+    void 로그인한_회원이_원댓글에_답글을_작성하면_201과_대댓글_ID를_반환한다()
+            throws Exception {
+
+        Member parentAuthor = saveActiveMember(
+                "parent-author@example.com",
+                "원댓글작성자"
+        );
+
+        Post post = postRepository.findById(postId)
+                .orElseThrow();
+
+        Comment parent = commentRepository.saveAndFlush(
+                Comment.create(
+                        post,
+                        parentAuthor,
+                        "첫 상담 때 어떤 질문을 준비하셨나요?"
+                )
+        );
+
+        String replyContent = "저는 평소에 듣기 어려웠던 상황을 적어 갔어요.";
+
+        MvcResult result = mockMvc.perform(
+                        post(
+                                COMMENTS_URL + "/{parentId}/replies",
+                                postId,
+                                parent.getId()
+                        )
+                                .with(user(commentAuthorPrincipal()))
+                                .with(csrf().asHeader())
+                                .contentType(MediaType.APPLICATION_JSON)
+                                .content(jsonBody(replyContent))
+                )
+                .andExpect(status().isCreated())
+                .andExpect(content().contentTypeCompatibleWith(
+                        MediaType.APPLICATION_JSON
+                ))
+                .andExpect(header().string(
+                        HttpHeaders.CACHE_CONTROL,
+                        "no-store"
+                ))
+                .andExpect(jsonPath("$.commentId").isNumber())
+                .andReturn();
+
+        Number replyId = JsonPath.read(
+                result.getResponse().getContentAsString(StandardCharsets.UTF_8),
+                "$.commentId"
+        );
+
+        Map<String, Object> saved = jdbcTemplate.queryForMap(
+                """
+                SELECT parent_id, author_id
+                FROM community_comments
+                WHERE id = ?
+                """,
+                replyId.longValue()
+        );
+
+        assertThat(saved.get("parent_id")).isEqualTo(parent.getId());
+        assertThat(saved.get("author_id")).isEqualTo(commentAuthor.getId());
     }
 
     @Test
@@ -439,6 +503,121 @@ class CommentCreateApiTest {
         );
     }
 
+    @Test
+    void 비로그인_회원은_유효한_CSRF가_있어도_대댓글을_작성할_수_없다()
+            throws Exception {
+
+        Long parentId = saveParentComment();
+
+        mockMvc.perform(
+                        post(
+                                COMMENTS_URL + "/{parentId}/replies",
+                                postId,
+                                parentId
+                        )
+                                .with(csrf().asHeader())
+                                .contentType(MediaType.APPLICATION_JSON)
+                                .content(jsonBody("상담 질문을 미리 적어 갔어요."))
+                )
+                .andExpect(status().isUnauthorized())
+                .andExpect(jsonPath("$.code")
+                        .value("AUTHENTICATION_REQUIRED"));
+
+        assertThat(commentRepository.count()).isEqualTo(1L);
+    }
+
+    @Test
+    void 로그인한_회원도_CSRF가_없으면_대댓글을_작성할_수_없다()
+            throws Exception {
+
+        Long parentId = saveParentComment();
+
+        mockMvc.perform(
+                        post(
+                                COMMENTS_URL + "/{parentId}/replies",
+                                postId,
+                                parentId
+                        )
+                                .with(user(commentAuthorPrincipal()))
+                                .contentType(MediaType.APPLICATION_JSON)
+                                .content(jsonBody("상담 질문을 미리 적어 갔어요."))
+                )
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.code")
+                        .value("CSRF_TOKEN_INVALID"));
+
+        assertThat(commentRepository.count()).isEqualTo(1L);
+    }
+
+    @Test
+    void 다른_게시글의_원댓글에_대댓글을_요청하면_404를_반환한다()
+            throws Exception {
+
+        // A 게시글에 원댓글을 작성한다.
+        Long parentId = saveParentComment();
+
+        // 요청 URL에 사용할 B 게시글도 실제로 저장한다.
+        Post otherPost = postRepository.saveAndFlush(
+                Post.create(
+                        commentAuthor,
+                        PostType.QUESTION,
+                        PostTopic.HEARING_AID,
+                        "두 번째 상담 질문",
+                        "다른 게시글의 본문입니다."
+                )
+        );
+
+        mockMvc.perform(
+                        post(
+                                COMMENTS_URL + "/{parentId}/replies",
+                                otherPost.getId(),
+                                parentId
+                        )
+                                .with(user(commentAuthorPrincipal()))
+                                .with(csrf().asHeader())
+                                .contentType(MediaType.APPLICATION_JSON)
+                                .content(jsonBody("상담 전에 메모를 준비했어요."))
+                )
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.code")
+                        .value("PARENT_COMMENT_NOT_FOUND"));
+
+        assertThat(commentRepository.count()).isEqualTo(1L);
+    }
+
+    @ParameterizedTest
+    @NullAndEmptySource
+    @ValueSource(strings = {"   ", "\t\n"})
+    void 대댓글_본문이_비어_있으면_content_필드_오류와_400을_반환한다(
+            String invalidContent
+    ) throws Exception {
+
+        Long parentId = saveParentComment();
+
+        mockMvc.perform(
+                        post(
+                                COMMENTS_URL + "/{parentId}/replies",
+                                postId,
+                                parentId
+                        )
+                                .with(user(commentAuthorPrincipal()))
+                                .with(csrf().asHeader())
+                                .contentType(MediaType.APPLICATION_JSON)
+                                .content(jsonBody(invalidContent))
+                )
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code")
+                        .value("VALIDATION_FAILED"))
+                .andExpect(jsonPath("$.fieldErrors.length()")
+                        .value(1))
+                .andExpect(jsonPath("$.fieldErrors[0].field")
+                        .value("content"))
+                .andExpect(jsonPath("$.fieldErrors[0].message")
+                        .value("댓글 내용은 필수입니다."));
+
+        assertThat(commentRepository.count()).isEqualTo(1L);
+    }
+
     // 회원 생성 -> ACTIVE 상태로 변경 -> DB 저장
     private Member saveActiveMember(
             String email,
@@ -464,7 +643,14 @@ class CommentCreateApiTest {
             Object targetPostId,
             String body
     ) {
-        MemberPrincipal principal = new MemberPrincipal(
+        return post(COMMENTS_URL, targetPostId)
+                .with(user(commentAuthorPrincipal()))
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(body);
+    }
+
+    private MemberPrincipal commentAuthorPrincipal() {
+        return new MemberPrincipal(
                 commentAuthor.getId(),
                 commentAuthor.getEmail(),
                 commentAuthor.getPasswordHash(),
@@ -473,11 +659,6 @@ class CommentCreateApiTest {
                 commentAuthor.getRole(),
                 commentAuthor.getCredentialVersion()
         );
-
-        return post(COMMENTS_URL, targetPostId)
-                .with(user(principal))
-                .contentType(MediaType.APPLICATION_JSON)
-                .content(body);
     }
 
     private void assertRejected(
@@ -498,5 +679,18 @@ class CommentCreateApiTest {
                 );
 
         assertThat(commentRepository.count()).isZero();
+    }
+
+    private Long saveParentComment() {
+        Post post = postRepository.findById(postId)
+                .orElseThrow();
+
+        Comment parent = Comment.create(
+                post,
+                commentAuthor,
+                "첫 상담 때 무엇을 준비하셨나요?"
+        );
+
+        return commentRepository.saveAndFlush(parent).getId();
     }
 }

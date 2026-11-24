@@ -43,6 +43,14 @@ test("public first/cursor request omits credentials and preserves microseconds",
   assert.equal(calls[0].options.credentials, "omit")
   assert.equal(calls[0].options.cache, "no-store")
 })
+test("삭제된 원댓글은 작성자가 null이어도 공개 답글 수를 유지한다", () => {
+  const root = { ...item, deleted: true, replyCount: 2, author: null, content: "삭제된 댓글입니다." }
+  const page = (comment) => ({ items: [comment], hasNext: false, nextCursor: null })
+  assert.equal(api.isCommentPage(page(root)), true)
+  assert.equal(api.isCommentPage(page({ ...root, deleted: false })), false)
+  assert.equal(api.isCommentPage(page({ ...root, replyCount: -1 })), false)
+})
+
 test("201 exact body, CSRF and session; 204 never parsed; DELETE no body/content-type", async (t) => {
   const calls = []
   t.mock.method(globalThis, "fetch", async (url, options) => {

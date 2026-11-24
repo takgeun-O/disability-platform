@@ -5,7 +5,9 @@ import { characterCount, normalizeTitle } from "./community-posts";
 export type Comment = LikeState & {
   commentId: number;
   content: string;
-  author: { memberId: number; nickname: string };
+  author: { memberId: number; nickname: string } | null;
+  deleted?: boolean;
+  replyCount?: number;
   createdAt: string;
   updatedAt: string;
   contentUpdatedAt: string | null;
@@ -66,9 +68,11 @@ const comment = (v: unknown): v is Comment =>
   typeof v.content === "string" &&
   instant(v.updatedAt) &&
   (v.contentUpdatedAt === null || (typeof v.contentUpdatedAt === "string" && writtenInstant(v.contentUpdatedAt) !== null)) &&
-  obj(v.author) &&
-  id(v.author.memberId) &&
-  typeof v.author.nickname === "string" &&
+  ((v.replyCount === undefined && v.deleted === undefined) ||
+    (Number.isSafeInteger(v.replyCount) && Number(v.replyCount) >= 0 && typeof v.deleted === "boolean")) &&
+  (v.deleted
+    ? v.author === null && v.contentUpdatedAt === null && v.likeCount === 0 && v.liked === false
+    : obj(v.author) && id(v.author.memberId) && typeof v.author.nickname === "string") &&
   id(v.commentId) &&
   instant(v.createdAt) &&
   isLikeState(v);
@@ -112,6 +116,7 @@ export function commentError(status: number, body: unknown, writing: boolean) {
       "현재 회원 상태에서는 댓글을 변경할 수 없습니다.",
     ACCESS_DENIED: "이 댓글을 변경할 권한이 없습니다.",
     POST_NOT_FOUND: "게시글이 없거나 삭제되어 댓글을 이용할 수 없습니다.",
+    PARENT_COMMENT_NOT_FOUND: "원댓글이 삭제되었거나 숨겨져 답글을 등록할 수 없어요.",
     COMMENT_NOT_FOUND: "댓글이 없거나 이미 삭제되었습니다.",
     VALIDATION_FAILED: "댓글 입력을 확인해 주세요.",
     INVALID_REQUEST_BODY: "댓글 요청 형식을 확인해 주세요.",
@@ -215,6 +220,23 @@ export async function getBestComments(postId: string, signal?: AbortSignal, base
   return body.items;
 }
 
+export async function getReplies(
+  postId: string,
+  parentId: number,
+  after: CommentCursor | null,
+  signal: AbortSignal,
+): Promise<CommentPage> {
+  const params = new URLSearchParams({ size: "20" });
+  if (after) {
+    params.set("afterCreatedAt", after.createdAt);
+    params.set("afterId", String(after.commentId));
+  }
+  const body = await request(postId, `/${parentId}/replies?${params}`, { method: "GET", signal }, false);
+  if (!isCommentPage(body) || body.items.some(reply => reply.deleted))
+    throw commentError(200, null, false);
+  return body;
+}
+
 export async function getComments(
   postId: string,
   after: CommentCursor | null = null,
@@ -256,6 +278,17 @@ export async function changeComment(
   content: string,
   isCurrent: () => boolean,
 ) {
+  return writeComment(postId, commentId === null ? "" : `/${commentId}`, method, commentId, content, isCurrent);
+}
+
+export function createReply(postId: string, parentId: number, content: string, isCurrent: () => boolean) {
+  return writeComment(postId, `/${parentId}/replies`, "POST", null, content, isCurrent);
+}
+
+async function writeComment(
+  postId: string, suffix: string, method: "POST" | "PUT" | "DELETE",
+  commentId: number | null, content: string, isCurrent: () => boolean,
+) {
   if (!isCurrent()) return null;
   if (method !== "DELETE") {
     const field = validateComment(content);
@@ -274,7 +307,7 @@ export async function changeComment(
   if (!isCurrent()) return null;
   const body = await request(
     postId,
-    commentId === null ? "" : `/${commentId}`,
+    suffix,
     {
       method,
       headers: {

@@ -1249,6 +1249,714 @@ class CommentRepositoryTest {
         ).isNull();
     }
 
+    @Test
+    void 원댓글과_답글을_저장한_뒤_다시_조회하면_부모_관계가_유지된다() {
+        Comment parent = saveComment(
+                "첫 보청기 상담 때 무엇을 준비하셨나요?"
+        );
+        Member replyAuthor = saveActiveMember(
+                "reply-writer@example.com",
+                "답글회원"
+        );
+
+        Comment reply = commentRepository.saveAndFlush(
+                Comment.createReply(
+                        parent,
+                        replyAuthor,
+                        "저는 평소 잘 안 들렸던 상황을 메모해 갔어요."
+                )
+        );
+
+        Long parentId = parent.getId();
+        Long replyId = reply.getId();
+        Long postId = parent.getPost().getId();
+
+        entityManager.clear();
+
+        Comment foundParent = commentRepository.findById(parentId)
+                .orElseThrow();
+        Comment foundReply = commentRepository.findById(replyId)
+                .orElseThrow();
+
+        assertThat(foundParent.getParent()).isNull();
+        assertThat(foundReply.getParent().getId()).isEqualTo(parentId);
+        assertThat(foundReply.getPost().getId()).isEqualTo(postId);
+    }
+
+    @Test
+    void 등록순_첫_페이지와_다음_페이지에는_원댓글만_나온다() {
+        Comment first = saveComment("첫 번째 원댓글");
+        Post post = first.getPost();
+        Member author = first.getAuthor();
+
+        commentRepository.saveAndFlush(
+                Comment.createReply(first, author, "첫 번째 원댓글의 답글")
+        );
+
+        Comment second = saveCommentAt(
+                post, author, "두 번째 원댓글", CREATED_TIME
+        );
+
+        commentRepository.saveAndFlush(
+                Comment.createReply(second, author, "두 번째 원댓글의 답글")
+        );
+
+        Comment third = saveCommentAt(
+                post, author, "세 번째 원댓글", CREATED_TIME
+        );
+
+        Long postId = post.getId();
+        entityManager.clear();
+
+        PageRequest pageSizeTwo = PageRequest.of(0, 2);
+
+        List<Comment> firstPage = commentRepository.findFirstVisibleComments(
+                postId,
+                pageSizeTwo
+        );
+
+        assertThat(firstPage)
+                .extracting(Comment::getId)
+                .containsExactly(first.getId(), second.getId());
+
+        Comment cursor = firstPage.getLast();
+
+        List<Comment> nextPage = commentRepository.findVisibleCommentsAfter(
+                postId,
+                cursor.getCreatedAt(),
+                cursor.getId(),
+                pageSizeTwo
+        );
+
+        assertThat(nextPage)
+                .extracting(Comment::getId)
+                .containsExactly(third.getId());
+    }
+
+    @Test
+    void 최신순_첫_페이지와_다음_페이지에는_원댓글만_나온다() {
+        Comment first = saveComment("첫 번째 원댓글");
+        Post post = first.getPost();
+        Member author = first.getAuthor();
+
+        commentRepository.saveAndFlush(
+                Comment.createReply(first, author, "첫 번째 원댓글의 답글")
+        );
+
+        Comment second = saveCommentAt(
+                post,
+                author,
+                "두 번째 원댓글",
+                CREATED_TIME
+        );
+
+        commentRepository.saveAndFlush(
+                Comment.createReply(second, author, "두 번째 원댓글의 답글")
+        );
+
+        Comment third = saveCommentAt(
+                post,
+                author,
+                "세 번째 원댓글",
+                CREATED_TIME
+        );
+
+        Long postId = post.getId();
+        entityManager.clear();
+
+        PageRequest pageable = PageRequest.of(0, 2);
+
+        var firstPage = commentRepository.findFirstVisibleCommentsLatest(
+                postId,
+                pageable
+        );
+
+        assertThat(firstPage)
+                .extracting(Comment::getId)
+                .containsExactly(third.getId(), second.getId());
+
+        Comment cursor = firstPage.getLast();
+
+        var nextPage = commentRepository.findVisibleCommentsLatestAfter(
+                postId,
+                cursor.getCreatedAt(),
+                cursor.getId(),
+                pageable
+        );
+
+        assertThat(nextPage)
+                .extracting(Comment::getId)
+                .containsExactly(first.getId());
+    }
+
+    @Test
+    void 인기순_첫_페이지와_다음_페이지에는_원댓글만_나온다() {
+        Comment popularRoot = saveComment("좋아요 2개인 원댓글");
+        Post post = popularRoot.getPost();
+        Member author = popularRoot.getAuthor();
+
+        Comment otherRoot = saveCommentAt(
+                post,
+                author,
+                "좋아요가 없는 원댓글",
+                CREATED_TIME
+        );
+
+        Comment mostLikedReply = commentRepository.saveAndFlush(
+                Comment.createReply(otherRoot, author, "좋아요 3개인 답글")
+        );
+        Comment lessLikedReply = commentRepository.saveAndFlush(
+                Comment.createReply(otherRoot, author, "좋아요 1개인 답글")
+        );
+
+        Member readerOne = saveActiveMember("reader1@example.com", "독자하나");
+        Member readerTwo = saveActiveMember("reader2@example.com", "독자둘");
+        Member readerThree = saveActiveMember("reader3@example.com", "독자셋");
+
+        saveLikes(popularRoot, readerOne, readerTwo);
+        saveLikes(mostLikedReply, readerOne, readerTwo, readerThree);
+        saveLikes(lessLikedReply, readerOne);
+
+        Long postId = post.getId();
+        entityManager.flush();
+        entityManager.clear();
+
+        PageRequest pageable = PageRequest.of(0, 1);
+
+        var firstPage = commentRepository.findFirstVisibleCommentsPopular(
+                postId,
+                pageable
+        );
+
+        assertThat(firstPage)
+                .extracting(CommentPopularityRow::getCommentId)
+                .containsExactly(popularRoot.getId());
+
+        var cursor = firstPage.getFirst();
+        assertThat(cursor.getLikeCount()).isEqualTo(2L);
+
+        var nextPage = commentRepository.findVisibleCommentsPopularAfter(
+                postId,
+                cursor.getLikeCount(),
+                cursor.getCreatedAt(),
+                cursor.getCommentId(),
+                pageable
+        );
+
+        assertThat(nextPage)
+                .extracting(CommentPopularityRow::getCommentId)
+                .containsExactly(otherRoot.getId());
+        assertThat(nextPage.getFirst().getLikeCount()).isZero();
+    }
+
+    @Test
+    void 답글은_같은_원댓글_안에서_등록순으로_다음_페이지까지_이어진다() {
+        Comment parent = saveComment("답글을 펼칠 원댓글");
+        Post post = parent.getPost();
+        Member author = parent.getAuthor();
+
+        Comment otherParent = saveCommentAt(
+                post,
+                author,
+                "같은 게시글의 다른 원댓글",
+                CREATED_TIME
+        );
+
+        Comment firstReply = commentRepository.saveAndFlush(
+                Comment.createReply(parent, author, "첫 번째 답글")
+        );
+
+        commentRepository.saveAndFlush(
+                Comment.createReply(otherParent, author, "다른 원댓글의 답글")
+        );
+
+        Comment secondReply = commentRepository.saveAndFlush(
+                Comment.createReply(parent, author, "두 번째 답글")
+        );
+
+        commentRepository.saveAndFlush(
+                Comment.createReply(otherParent, author, "커서 뒤에 있는 다른 원댓글의 답글")
+        );
+
+        Comment thirdReply = commentRepository.saveAndFlush(
+                Comment.createReply(parent, author, "세 번째 답글")
+        );
+
+        Long postId = post.getId();
+        Long parentId = parent.getId();
+        entityManager.clear();
+
+        PageRequest pageable = PageRequest.of(0, 2);
+
+        var firstPage = commentRepository.findFirstVisibleReplies(
+                postId,
+                parentId,
+                pageable
+        );
+
+        assertThat(firstPage)
+                .extracting(Comment::getId)
+                .containsExactly(firstReply.getId(), secondReply.getId());
+
+        Comment cursor = firstPage.getLast();
+
+        var nextPage = commentRepository.findVisibleRepliesAfter(
+                postId,
+                parentId,
+                cursor.getCreatedAt(),
+                cursor.getId(),
+                pageable
+        );
+
+        assertThat(nextPage)
+                .extracting(Comment::getId)
+                .containsExactly(thirdReply.getId());
+    }
+
+    @Test
+    void 삭제되거나_숨겨진_답글은_첫_페이지와_다음_페이지에서_제외된다() {
+        Comment parent = saveComment("공개 원댓글");
+        Member author = parent.getAuthor();
+
+        saveReply(parent, author, "첫 페이지에서 제외할 삭제 답글")
+                .delete(UPDATED_TIME);
+        saveReply(parent, author, "첫 페이지에서 제외할 숨김 답글")
+                .hide(UPDATED_TIME);
+
+        Comment firstVisible = saveReply(parent, author, "첫 번째 공개 답글");
+
+        saveReply(parent, author, "다음 페이지에서 제외할 삭제 답글")
+                .delete(UPDATED_TIME);
+        saveReply(parent, author, "다음 페이지에서 제외할 숨김 답글")
+                .hide(UPDATED_TIME);
+
+        Comment secondVisible = saveReply(parent, author, "두 번째 공개 답글");
+
+        Long postId = parent.getPost().getId();
+        Long parentId = parent.getId();
+        entityManager.flush();
+        entityManager.clear();
+
+        PageRequest pageable = PageRequest.of(0, 1);
+
+        var firstPage = commentRepository.findFirstVisibleReplies(
+                postId,
+                parentId,
+                pageable
+        );
+
+        assertThat(firstPage)
+                .extracting(Comment::getId)
+                .containsExactly(firstVisible.getId());
+
+        Comment cursor = firstPage.getFirst();
+
+        var nextPage = commentRepository.findVisibleRepliesAfter(
+                postId,
+                parentId,
+                cursor.getCreatedAt(),
+                cursor.getId(),
+                pageable
+        );
+
+        assertThat(nextPage)
+                .extracting(Comment::getId)
+                .containsExactly(secondVisible.getId());
+    }
+
+    @Test
+    void 삭제된_원댓글의_공개_답글은_첫_페이지와_다음_페이지에서_조회된다() {
+        Comment parent = saveComment("작성자가 삭제할 원댓글");
+        Member author = parent.getAuthor();
+
+        Comment firstReply = saveReply(parent, author, "첫 번째 공개 답글");
+        Comment secondReply = saveReply(parent, author, "두 번째 공개 답글");
+
+        Long postId = parent.getPost().getId();
+        Long parentId = parent.getId();
+
+        parent.delete(UPDATED_TIME);
+
+        entityManager.flush();
+        entityManager.clear();
+
+        PageRequest pageable = PageRequest.of(0, 1);
+
+        var firstPage = commentRepository.findFirstVisibleReplies(
+                postId,
+                parentId,
+                pageable
+        );
+
+        assertThat(firstPage)
+                .extracting(Comment::getId)
+                .containsExactly(firstReply.getId());
+
+        Comment cursor = firstPage.getFirst();
+
+        var nextPage = commentRepository.findVisibleRepliesAfter(
+                postId,
+                parentId,
+                cursor.getCreatedAt(),
+                cursor.getId(),
+                pageable
+        );
+
+        assertThat(nextPage)
+                .extracting(Comment::getId)
+                .containsExactly(secondReply.getId());
+    }
+
+    @Test
+    void 원댓글이_숨겨지면_첫_페이지와_숨김_전에_받은_커서_모두_빈_목록을_반환한다() {
+        Comment parent = saveComment("관리자가 숨길 원댓글");
+        Member author = parent.getAuthor();
+
+        Comment firstReply = saveReply(parent, author, "숨기기 전에 읽을 답글");
+        saveReply(parent, author, "다음 페이지에 남아 있는 답글");
+
+        Long postId = parent.getPost().getId();
+        Long parentId = parent.getId();
+        PageRequest pageable = PageRequest.of(0, 1);
+
+        entityManager.flush();
+
+        var beforeHide = commentRepository.findFirstVisibleReplies(
+                postId,
+                parentId,
+                pageable
+        );
+
+        assertThat(beforeHide)
+                .extracting(Comment::getId)
+                .containsExactly(firstReply.getId());
+
+        Comment cursor = beforeHide.getFirst();
+
+        parent.hide(UPDATED_TIME);
+
+        entityManager.flush();
+        entityManager.clear();
+
+        var firstPage = commentRepository.findFirstVisibleReplies(
+                postId,
+                parentId,
+                pageable
+        );
+
+        var nextPage = commentRepository.findVisibleRepliesAfter(
+                postId,
+                parentId,
+                cursor.getCreatedAt(),
+                cursor.getId(),
+                pageable
+        );
+
+        assertThat(firstPage).isEmpty();
+        assertThat(nextPage).isEmpty();
+        assertThat(commentRepository.findVisibleCommentByIdForUpdate(
+                postId, firstReply.getId()
+        )).isEmpty();
+        assertThat(commentRepository.countVisibleCommentsByPostIds(
+                List.of(postId)
+        )).isEmpty();
+
+        commentRepository.findById(parentId).orElseThrow().restore();
+        entityManager.flush();
+
+        assertThat(commentRepository.findVisibleCommentByIdForUpdate(
+                postId, firstReply.getId()
+        )).isPresent();
+        assertThat(commentRepository.countVisibleCommentsByPostIds(List.of(postId)))
+                .extracting(PostCommentCount::getCommentCount)
+                .containsExactly(3L);
+    }
+
+    @Test
+    void 등록순에서_공개_답글이_남은_삭제_원댓글만_첫_페이지와_다음_페이지에_포함된다() {
+        Comment noReplies = saveComment("답글 없이 삭제할 원댓글");
+        Post post = noReplies.getPost();
+        Member author = noReplies.getAuthor();
+        noReplies.delete(UPDATED_TIME);
+
+        Comment firstParent = saveCommentAt(
+                post, author, "공개 답글 두 개가 남을 원댓글", CREATED_TIME
+        );
+        saveReply(firstParent, author, "첫 번째 공개 답글");
+        saveReply(firstParent, author, "두 번째 공개 답글");
+        firstParent.delete(UPDATED_TIME);
+
+        Comment noVisibleReplies = saveCommentAt(
+                post, author, "공개 답글이 남지 않을 원댓글", CREATED_TIME
+        );
+        saveReply(noVisibleReplies, author, "삭제된 답글").delete(UPDATED_TIME);
+        saveReply(noVisibleReplies, author, "숨겨진 답글").hide(UPDATED_TIME);
+        noVisibleReplies.delete(UPDATED_TIME);
+
+        Comment hiddenParent = saveCommentAt(
+                post, author, "관리자가 숨길 원댓글", CREATED_TIME
+        );
+        saveReply(hiddenParent, author, "원댓글을 숨기기 전에 작성한 답글");
+        hiddenParent.hide(UPDATED_TIME);
+
+        Comment secondParent = saveCommentAt(
+                post, author, "공개 답글 한 개가 남을 원댓글", CREATED_TIME
+        );
+        saveReply(secondParent, author, "남아 있는 공개 답글");
+        secondParent.delete(UPDATED_TIME);
+
+        Long postId = post.getId();
+        entityManager.flush();
+        entityManager.clear();
+
+        PageRequest pageable = PageRequest.of(0, 1);
+
+        var firstPage = commentRepository.findFirstVisibleComments(
+                postId,
+                pageable
+        );
+
+        assertThat(firstPage)
+                .extracting(Comment::getId)
+                .containsExactly(firstParent.getId());
+
+        Comment cursor = firstPage.getFirst();
+
+        var nextPage = commentRepository.findVisibleCommentsAfter(
+                postId,
+                cursor.getCreatedAt(),
+                cursor.getId(),
+                pageable
+        );
+
+        assertThat(nextPage)
+                .extracting(Comment::getId)
+                .containsExactly(secondParent.getId());
+    }
+
+    @Test
+    void 최신순에서_공개_답글이_남은_삭제_원댓글은_페이지를_넘겨도_역순으로_조회된다() {
+        Comment olderParent = saveComment("먼저 작성한 원댓글");
+        Post post = olderParent.getPost();
+        Member author = olderParent.getAuthor();
+
+        saveReply(olderParent, author, "먼저 작성한 원댓글의 공개 답글");
+        olderParent.delete(UPDATED_TIME);
+
+        Comment noVisibleReplies = saveCommentAt(
+                post, author, "공개 답글이 남지 않은 원댓글", CREATED_TIME
+        );
+        saveReply(noVisibleReplies, author, "삭제된 답글").delete(UPDATED_TIME);
+        saveReply(noVisibleReplies, author, "숨겨진 답글").hide(UPDATED_TIME);
+        noVisibleReplies.delete(UPDATED_TIME);
+
+        Comment newerParent = saveCommentAt(
+                post, author, "나중에 작성한 원댓글", CREATED_TIME
+        );
+        saveReply(newerParent, author, "나중에 작성한 원댓글의 공개 답글");
+        newerParent.delete(UPDATED_TIME);
+
+        Comment hiddenParent = saveCommentAt(
+                post, author, "관리자가 숨긴 원댓글", CREATED_TIME
+        );
+        saveReply(hiddenParent, author, "원댓글을 숨기기 전에 작성한 답글");
+        hiddenParent.hide(UPDATED_TIME);
+
+        Long postId = post.getId();
+        entityManager.flush();
+        entityManager.clear();
+
+        PageRequest pageable = PageRequest.of(0, 1);
+
+        var firstPage = commentRepository.findFirstVisibleCommentsLatest(
+                postId,
+                pageable
+        );
+
+        assertThat(firstPage)
+                .extracting(Comment::getId)
+                .containsExactly(newerParent.getId());
+
+        Comment cursor = firstPage.getFirst();
+
+        var nextPage = commentRepository.findVisibleCommentsLatestAfter(
+                postId,
+                cursor.getCreatedAt(),
+                cursor.getId(),
+                pageable
+        );
+
+        assertThat(nextPage)
+                .extracting(Comment::getId)
+                .containsExactly(olderParent.getId());
+    }
+
+    @Test
+    void 인기순에서_공개_답글이_남은_삭제_원댓글은_좋아요_0개로_페이지가_이어진다() {
+        Comment visible = saveComment("좋아요 1개인 공개 원댓글");
+        Post post = visible.getPost();
+        Member author = visible.getAuthor();
+
+        Member readerOne = saveActiveMember("popular1@example.com", "인기독자하나");
+        Member readerTwo = saveActiveMember("popular2@example.com", "인기독자둘");
+
+        saveLikes(visible, readerOne);
+
+        Comment firstDeleted = saveCommentAt(
+                post, author, "먼저 작성한 삭제 원댓글", CREATED_TIME
+        );
+        saveReply(firstDeleted, author, "첫 번째 원댓글에 남은 공개 답글");
+        saveLikes(firstDeleted, readerOne, readerTwo);
+        firstDeleted.delete(UPDATED_TIME);
+
+        Comment noVisibleReplies = saveCommentAt(
+                post, author, "숨긴 답글만 남은 삭제 원댓글", CREATED_TIME
+        );
+        saveReply(noVisibleReplies, author, "관리자가 숨긴 답글")
+                .hide(UPDATED_TIME);
+        noVisibleReplies.delete(UPDATED_TIME);
+
+        Comment secondDeleted = saveCommentAt(
+                post, author, "나중에 작성한 삭제 원댓글", CREATED_TIME
+        );
+        saveReply(secondDeleted, author, "두 번째 원댓글에 남은 공개 답글");
+        saveLikes(secondDeleted, readerOne, readerTwo);
+        secondDeleted.delete(UPDATED_TIME);
+
+        Long postId = post.getId();
+        entityManager.flush();
+        entityManager.clear();
+
+        PageRequest pageable = PageRequest.of(0, 2);
+
+        var firstPage = commentRepository.findFirstVisibleCommentsPopular(
+                postId,
+                pageable
+        );
+
+        assertThat(firstPage)
+                .extracting(CommentPopularityRow::getCommentId)
+                .containsExactly(visible.getId(), firstDeleted.getId());
+        assertThat(firstPage)
+                .extracting(CommentPopularityRow::getLikeCount)
+                .containsExactly(1L, 0L);
+
+        var cursor = firstPage.getLast();
+
+        var nextPage = commentRepository.findVisibleCommentsPopularAfter(
+                postId,
+                cursor.getLikeCount(),
+                cursor.getCreatedAt(),
+                cursor.getCommentId(),
+                pageable
+        );
+
+        assertThat(nextPage)
+                .extracting(CommentPopularityRow::getCommentId)
+                .containsExactly(secondDeleted.getId());
+        assertThat(nextPage.getFirst().getLikeCount()).isZero();
+    }
+
+    @Test
+    void 원댓글별로_공개_답글만_집계하고_삭제된_원댓글의_공개_답글도_포함한다() {
+        Comment visibleParent = saveComment("공개 원댓글");
+        Post post = visibleParent.getPost();
+        Member author = visibleParent.getAuthor();
+
+        saveReply(visibleParent, author, "공개 답글 하나");
+        saveReply(visibleParent, author, "공개 답글 둘");
+        saveReply(visibleParent, author, "삭제한 답글").delete(UPDATED_TIME);
+        saveReply(visibleParent, author, "숨긴 답글").hide(UPDATED_TIME);
+
+        Comment deletedParent = saveCommentAt(
+                post, author, "작성자가 삭제할 원댓글", CREATED_TIME
+        );
+        saveReply(deletedParent, author, "삭제 후에도 남는 공개 답글");
+        deletedParent.delete(UPDATED_TIME);
+
+        Comment hiddenParent = saveCommentAt(
+                post, author, "관리자가 숨길 원댓글", CREATED_TIME
+        );
+        saveReply(hiddenParent, author, "원댓글이 숨겨지기 전에 작성한 답글");
+        hiddenParent.hide(UPDATED_TIME);
+
+        Comment emptyParent = saveCommentAt(
+                post, author, "답글이 없는 원댓글", CREATED_TIME
+        );
+
+        Long postId = post.getId();
+        List<Long> parentIds = List.of(
+                visibleParent.getId(),
+                deletedParent.getId(),
+                hiddenParent.getId(),
+                emptyParent.getId()
+        );
+
+        entityManager.flush();
+        entityManager.clear();
+
+        var result = commentRepository.countVisibleRepliesByParentIds(
+                postId,
+                parentIds
+        );
+
+        assertThat(result)
+                .extracting(
+                        CommentReplyCount::getParentId,
+                        CommentReplyCount::getReplyCount
+                )
+                .containsExactlyInAnyOrder(
+                        tuple(visibleParent.getId(), 2L),
+                        tuple(deletedParent.getId(), 1L)
+                );
+    }
+
+    @Test
+    void 작성자별_공개_조회는_원댓글_숨김과_복원을_반영하고_삭제_후에도_공개_답글을_포함한다() {
+        Comment parent = saveComment("다른 회원의 원댓글");
+        Member author = saveActiveMember("reply-reader@example.com", "답글작성자");
+        Comment reply = saveReply(parent, author, "작성자별 목록에 표시할 답글");
+        Comment cursor = saveCommentAt(
+                parent.getPost(), author, "더 최근에 작성한 원댓글",
+                CREATED_TIME.plusSeconds(10)
+        );
+
+        assertPublicAuthorPages(author, cursor, reply.getId());
+
+        parent.hide(UPDATED_TIME);
+        assertPublicAuthorPages(author, cursor);
+
+        parent.restore();
+        assertPublicAuthorPages(author, cursor, reply.getId());
+
+        parent.delete(UPDATED_TIME);
+        assertPublicAuthorPages(author, cursor, reply.getId());
+    }
+
+    private void assertPublicAuthorPages(
+            Member author,
+            Comment cursor,
+            Long... expectedAfterCursor
+    ) {
+        entityManager.flush();
+        PageRequest limit = PageRequest.of(0, 2);
+        assertThat(commentRepository.countVisibleCommentsByAuthorId(author.getId()))
+                .isEqualTo(1L + expectedAfterCursor.length);
+
+        List<Comment> firstPage = commentRepository.findFirstVisibleCommentsByAuthorId(
+                author.getId(), limit
+        );
+        assertThat(firstPage).hasSize(1 + expectedAfterCursor.length);
+        assertThat(firstPage.getFirst().getId()).isEqualTo(cursor.getId());
+        assertThat(firstPage.subList(1, firstPage.size()))
+                .extracting(Comment::getId)
+                .containsExactly(expectedAfterCursor);
+
+        assertThat(commentRepository.findVisibleCommentsByAuthorIdAfter(
+                author.getId(), cursor.getCreatedAt(), cursor.getId(), limit
+        )).extracting(Comment::getId).containsExactly(expectedAfterCursor);
+    }
+
     private Comment saveComment(String content) {
         Member postAuthor = saveActiveMember(
                 "post-writer@example.com",
@@ -1323,5 +2031,11 @@ class CommentRepositoryTest {
                     CommentLike.create(comment, member)
             );
         }
+    }
+
+    private Comment saveReply(Comment parent, Member author, String content) {
+        return commentRepository.save(
+                Comment.createReply(parent, author, content)
+        );
     }
 }

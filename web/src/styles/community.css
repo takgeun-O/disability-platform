@@ -367,6 +367,7 @@
 .comment-like .post-like-error { max-width:100%; }
 
 /* Compact comment controls: visual weight is reduced, 44px targets remain. */
+.community-comment-interactions { display:flex; flex-wrap:wrap; align-items:center; gap:4px 12px; min-width:0; }
 .community-comment-toolbar { display:grid; grid-template-columns:minmax(0,1fr) auto; align-items:start; gap:4px 12px; margin-top:4px; }
 .community-comment-tools { display:flex; gap:2px; }
 .community-comment-tool { min-width:44px; min-height:44px; padding:8px; border:0; border-radius:6px; background:transparent; color:var(--iyum-muted); font:inherit; font-size:13px; font-weight:500; cursor:pointer; }
@@ -403,3 +404,33 @@
 .comment-auth-close { position:absolute; top:8px; right:8px; display:grid; place-items:center; min-width:44px; min-height:44px; border:0; border-radius:8px; background:transparent; color:var(--iyum-muted); cursor:pointer; }
 .comment-auth-close:focus-visible { outline:2px solid var(--iyum-primary); outline-offset:2px; }
 .comment-auth-dialog .community-dialog-actions { flex-wrap:wrap; gap:8px; }
+
+.comment-replies { margin-block-start: 8px; }
+.comment-reply-list {
+  list-style: none;
+  padding-inline-start: clamp(10px, 2vw, 20px);
+  margin-block: 8px;
+  border-inline-start: 2px solid var(--iyum-border);
+}
+/* Align the thread with the parent body when the author header has an avatar. */
+.community-comments .community-comment-list :where(.comment-author-header) ~ .comment-replies {
+  margin-inline-start: calc(var(--comment-avatar) + var(--author-gap));
+}
+@media (max-width: 767px) {
+  .community-comments .community-comment-list > li > .comment-replies { margin-inline-start: 12px; }
+}
+.community-comments .community-comment-list { --comment-avatar: 32px; --author-gap: 8px; }
+.comment-reply-list { --comment-avatar: 26px; }
+.comment-reply-list > li { padding-block: 16px; }
+.comment-reply-list > li + li { border-block-start: 1px solid var(--iyum-border); }
+
+.comment-author-header { align-items: center; flex-wrap: nowrap; gap: var(--author-gap); }
+.comment-author-header > .feed-avatar { width: var(--comment-avatar); height: var(--comment-avatar); color: #437e97; }
+.comment-author-header > .feed-avatar svg { width: 60%; height: 60%; }
+.comment-byline { flex: 1; min-width: 0; display: flex; align-items: baseline; flex-wrap: wrap; gap: 2px 8px; }
+.comment-byline > strong { font-weight: 700; overflow-wrap: anywhere; }
+.comment-byline > span { color: var(--iyum-muted); font-size: 14px; }
+.community-comments [data-comment-item] > .community-comment-body { margin-block: 6px 2px; font-weight: 400; }
+.comment-author-header ~ :is(.community-comment-body, .community-comment-toolbar) {
+  margin-inline-start: calc(var(--comment-avatar) + var(--author-gap));
+}

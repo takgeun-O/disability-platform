@@ -2,6 +2,7 @@
 import { useCommentTransition } from "@/lib/useCommentTransition";
 import CommentSortMenu from "./CommentSortMenu";
 import ReportButton from "./ReportButton";
+import CommentReplies, { ReplyForm, type ReplyFormProps, type ReplyReceipt, type ReplyCheck, type ReadReplies } from "./CommentReplies";
 import CommentItem from "./CommentItem";
 // Refresh the visible prefix, keeping editor snapshots separate from server data.
 import {
@@ -32,6 +33,7 @@ import CommentLikeButton from "./CommentLikeButton";
 import CommentSuccessToast from "./CommentSuccessToast";
 import {
   changeComment,
+  createReply,
   CommentError,
   getBestComments,
   getComments,
@@ -47,6 +49,14 @@ import {
 import type { PublicResult } from "@/lib/community-load";
 import { characterCount } from "@/lib/community-posts";
 
+type ReplyDraft = {
+  memberId: number;
+  nickname: string;
+  value: string;
+  error: string;
+  expired?: boolean;
+  check?: ReplyCheck;
+};
 type EditorAction =
   | { kind: "edit" | "delete"; comment: Comment }
   | { kind: "cancel" };
@@ -89,6 +99,8 @@ export default function Comments({
     autoStalled = useRef(false);
   const { list: commentList, capture: captureTransition } =
     useCommentTransition();
+  const deletedHere = useRef(new Set<number>());
+  const [replyRevision, setReplyRevision] = useState(0);
   const [best, setBest] = useState(initialBest);
   const bestRequest = useRef<AbortController | null>(null);
   const listOffset = useRef<number | null>(null);
@@ -108,7 +120,7 @@ export default function Comments({
     if (list && (list.getBoundingClientRect().top < 0 || list.contains(document.activeElement))) {
       listOffset.current = list.getBoundingClientRect().top;
     }
-    setBest(next);
+    setBest(next?.filter(c => !deletedHere.current.has(c.commentId)) ?? null);
   }
   useLayoutEffect(() => {
     if (listOffset.current !== null && commentList.current) {
@@ -121,6 +133,9 @@ export default function Comments({
     const unsubscribe = subscribeNavigation(cancel);
     return () => { cancel(); unsubscribe(); };
   }, [subscribeNavigation]);
+  // A terminal cursor page can include rows cached before a visibility change.
+  const [countCheckPending, setCountCheckPending] = useState(false);
+  const countChecks = useRef(new Map<number, (count: number) => void>());
   const [displayedSort, setDisplayedSort] = useState<CommentSort>("OLDEST");
   const removed = useRef(new Set<number>());
   const [page, setPage] = useState<CommentPage>(
@@ -135,7 +150,28 @@ export default function Comments({
   const [error, setError] = useState<CommentError | null>(null);
   const [createError, setCreateError] = useState<CommentError | null>(null);
   const [draft, setDraft] = useState("");
+  const [replyDrafts, setReplyDrafts] = useState<Record<number, ReplyDraft>>({});
+  const [unavailableEdits, setUnavailableEdits] = useState<{ id: number; parentId: number; content: string; unavailable: boolean; valid: () => boolean; endEdit: () => void }[]>([]);
+  const visibleEdits = unavailableEdits.filter(edit => edit.valid());
+  function retainedDraft(edit: typeof unavailableEdits[number]) {
+    return <div key={edit.id} className="community-comment-form">
+      <label htmlFor={`unavailable-edit-${edit.id}`}>답글을 더 이상 볼 수 없어요.</label>
+      <textarea id={`unavailable-edit-${edit.id}`} aria-label="입력한 수정 초안" readOnly value={edit.content} />
+      <button className="iyum-text-link" type="button" onClick={() => {
+        edit.endEdit();
+        setUnavailableEdits(previous => previous.filter(item => item !== edit));
+        const next = document.querySelector<HTMLElement>(`#comment-${edit.parentId} .comment-reply-list > li`)
+          ?? document.getElementById(`reply-toggle-${edit.parentId}`) ?? document.getElementById(`reply-write-${edit.parentId}`)
+          ?? document.getElementById("comments-title");
+        next?.focus({ preventScroll: true });
+      }}>초안 닫기</button>
+    </div>;
+  }
+  const visibleReplyDrafts = Object.entries(replyDrafts).filter(([, d]) =>
+    auth.member?.memberId === d.memberId || (d.expired && auth.status === "anonymous"));
   const [editor, setEditor] = useState<Editor | null>(null);
+  const editingId = useRef<number | undefined>(undefined);
+  useLayoutEffect(() => { editingId.current = editor?.id; }, [editor?.id]);
   const [expiredAction, setExpiredAction] = useState<"create" | "edit" | null>(null);
   if (expiredAction && (auth.status === "authenticated" || auth.pending === "login")) setExpiredAction(null);
   // Transient auth checks/logout failures preserve drafts; confirmed identity loss does not.
@@ -145,6 +181,7 @@ export default function Comments({
   }
   const [busy, setBusy] = useState(false),
     [loading, setLoading] = useState(false);
+  const [postDeleteRead, setPostDeleteRead] = useState(false);
   const toastSequence = useRef(0);
   const [toast, setToast] = useState<{
     id: number;
@@ -202,10 +239,10 @@ export default function Comments({
   // original is the edit-start snapshot; confirmed is the latest accepted server body.
   // Every save/discard/departure decision uses this same comparison.
   const editDirty = !!editor && editor.value !== (editor.confirmed?.content ?? editor.original);
-  const blocker = useUnsavedChanges(draft.length > 0 || editDirty);
+  const blocker = useUnsavedChanges(draft.length > 0 || editDirty || visibleReplyDrafts.some(([, d]) => !!d.value));
   const permitted = auth.status === "authenticated" && !auth.pending;
   const owner = (c: Comment) =>
-    permitted && auth.member?.memberId === c.author.memberId;
+    permitted && !!c.author && auth.member?.memberId === c.author.memberId;
   function pauseAuto() {
     // 입력 중 도착한 자동 GET도 폼을 밀어내지 않는다. 수동 추가는 명시적 조작이다.
     const area = section.current;
@@ -239,7 +276,7 @@ export default function Comments({
     more = false,
     automatic = false,
     targetId?: number,
-    refresh?: "manual" | "retry",
+    refresh?: "manual" | "retry" | "after-delete",
   ) {
     if (
       reading.current ||
@@ -253,6 +290,7 @@ export default function Comments({
     if (automatic && autoStalled.current) return;
     if (more && (!page.hasNext || !page.nextCursor)) return;
     reading.current = true;
+    const requestedCounts = more ? [] : Array.from(countChecks.current.entries());
     const requestedSort = sortRef.current;
     const ticket = ++reads.current;
     const controller = new AbortController();
@@ -268,9 +306,12 @@ export default function Comments({
       likeRead.valid() &&
       (!session || session.isCurrent()) &&
       ticket === reads.current;
+    setPostDeleteRead(refresh === "after-delete");
     setLoading(true);
     setReadError("");
     setReadMore(more);
+    if (refresh === "manual" || refresh === "retry")
+      setReplyRevision(revision => revision + 1);
     if (refresh === "manual") void refreshBest();
     try {
       const seen = new Set(more ? cursors.current : []);
@@ -307,7 +348,10 @@ export default function Comments({
         }
         buffered.current = null;
         track(result);
-        result = { ...result, items: mergeComments(page.items, result.items) };
+        const deletedRows = new Map(fetched.filter(c => c.deleted).map(c => [c.commentId, c]));
+        result = { ...result, items: mergeComments(
+          page.items.map(c => deletedRows.get(c.commentId) ?? c), fetched
+        ) };
         segments++;
       } else {
         buffered.current = null;
@@ -349,6 +393,17 @@ export default function Comments({
           removed.current.delete(comment.commentId);
         }
 
+        const deletedEditor = fetched.find(c => c.deleted && c.commentId === editingId.current);
+        if (deletedEditor) {
+          const id = deletedEditor.commentId;
+          const form = document.getElementById(`comment-edit-${id}`)?.closest("form");
+          if (form?.contains(document.activeElement)) requestFocus(`comment-${id}`);
+          setError(null);
+          setFields(f => ({ ...f, [id]: "" }));
+          setDiscard(null);
+          setEditor(null);
+          setNotice("댓글이 삭제되어 수정을 종료했어요.");
+        }
         // Functional update preserves typing performed while the GET was pending.
         setEditor(previous => {
           if (!previous) return previous;
@@ -384,7 +439,7 @@ export default function Comments({
         pageCount.current = segments;
 
         if (
-          editor &&
+          !deletedEditor && editor &&
           page.items.some((c) => c.commentId === editor.id) !==
             result.items.some((c) => c.commentId === editor.id) &&
           document.activeElement?.id === `comment-edit-${editor.id}`
@@ -402,10 +457,21 @@ export default function Comments({
 
         setPage({
           ...result,
-          items: result.items.filter((c) => !removed.current.has(c.commentId)),
+          items: result.items.filter(c => !removed.current.has(c.commentId) &&
+            (c.deleted || !deletedHere.current.has(c.commentId))),
         });
 
-        if (refresh)
+        if (requestedCounts.length) {
+          for (const [id, onCount] of requestedCounts) {
+            if (countChecks.current.get(id) !== onCount) continue;
+            countChecks.current.delete(id);
+            const parent = result.items.find(c => c.commentId === id);
+            if (parent) onCount(parent.replyCount ?? 0);
+          }
+          setCountCheckPending(countChecks.current.size > 0);
+        }
+
+        if (refresh === "manual" || refresh === "retry")
           showToast(
             "댓글 목록을 새로고침했습니다.",
             () => likeRead.valid() && scope.isActive(),
@@ -428,6 +494,13 @@ export default function Comments({
       }
     }
   }
+
+  const readReplyCounts = useEffectEvent(() => { void load(); });
+  useEffect(() => {
+    if (!countCheckPending || loading || busy || readError || auth.pending || auth.status === "checking") return;
+    const timer = window.setTimeout(readReplyCounts, 0);
+    return () => window.clearTimeout(timer);
+  }, [countCheckPending, loading, busy, readError, auth.pending, auth.status]);
 
   function switchSort(next: CommentSort) {
     if (next === sortRef.current || writing.current) return;
@@ -720,7 +793,10 @@ export default function Comments({
       }
       if (method !== "POST") void refreshBest();
       if (method === "DELETE") {
+        deletedHere.current.add(result);
+        setBest(previous => previous?.filter(c => c.commentId !== result) ?? null);
         removeItem(result);
+        refresh = true;
       }
       if (method === "POST") {
         setDraft((value) => (value === content ? "" : value));
@@ -780,8 +856,11 @@ export default function Comments({
         // Refresh is disabled while rereading; the persistent heading remains focusable.
         requestFocus("comments-title");
         showToast("현재 이 댓글을 수정할 수 없어요.", session.isCurrent, "notice");
-      } else if (method === "DELETE" && failure.code === "COMMENT_NOT_FOUND" && id) {
+      } else if (method === "DELETE" && failure.status === 404 && failure.code === "COMMENT_NOT_FOUND" && id) {
+        setBest(previous => previous?.filter(c => c.commentId !== id) ?? null);
+        void refreshBest();
         removeItem(id);
+        refresh = true;
         setNotice("댓글이 없거나 이미 삭제되었습니다.");
       } else {
         if (method === "POST") setCreateError(failure.field ? null : failure);
@@ -798,9 +877,103 @@ export default function Comments({
       writing.current = false;
       if (current()) {
         setBusy(false);
-        if (refresh) void load();
+        if (refresh) void load(false, false, undefined, method === "DELETE" ? "after-delete" : undefined);
       }
     }
+  }
+  function closeReply(parentId: number) {
+    setReplyDrafts(previous => {
+      const next = { ...previous };
+      delete next[parentId];
+      return next;
+    });
+  }
+
+  async function checkReplyResult(parentId: number, readReplies: ReadReplies) {
+    if (!auth.member || !scope.isActive()) return;
+    const sessionMember = auth.member.memberId;
+    const session = auth.captureMemberRequest(sessionMember);
+    const update = (check: ReplyCheck) => setReplyDrafts(previous => {
+      const draft = previous[parentId];
+      if (!draft || draft.memberId !== sessionMember || (check !== "checking" && draft.check !== "checking")) return previous;
+      return { ...previous, [parentId]: { ...draft, check } };
+    });
+    update("checking");
+    const [rootUpdated, repliesUpdated] = await Promise.all([load(), readReplies()]);
+    if (scope.isActive() && session.isCurrent()) update(rootUpdated && repliesUpdated ? "checked" : "failed");
+  }
+
+  async function submitReply(
+    parentId: number, reply: ReplyDraft, onRegistered: (receipt: ReplyReceipt) => void, readReplies: ReadReplies,
+  ) {
+    if (writing.current || !permitted || auth.member?.memberId !== reply.memberId || !scope.isActive()) return;
+    const invalid = validateComment(reply.value);
+    const report = (error: string, expired = false) => setReplyDrafts(previous => ({
+      ...previous, [parentId]: { ...reply, error, expired },
+    }));
+    if (invalid) {
+      report(invalid);
+      requestFocus(`reply-input-${parentId}`);
+      return;
+    }
+    const session = auth.captureMemberRequest(reply.memberId);
+    const current = scope.begin();
+    const valid = () => current() && session.isCurrent();
+    writing.current = true;
+    cancelRead();
+    setLoading(false);
+    setBusy(true);
+    let refresh = false;
+    let uncertain = false;
+    try {
+      const commentId = await createReply(postId, parentId, reply.value, valid);
+      if (commentId === null) return;
+      if (session.isCurrent()) {
+        postCommentsChanged(postId);
+        postListChanged();
+      }
+      if (!valid()) return;
+      closeReply(parentId);
+      onRegistered({ commentId, content: reply.value });
+      requestFocus(`reply-write-${parentId}`);
+      showToast("답글을 등록했습니다.", session.isCurrent);
+      refresh = true;
+    } catch (e) {
+      if (!valid()) return;
+      if (e instanceof CommentError && e.status === 401) {
+        report("로그인이 만료되어 답글을 등록할 수 없어요. 다시 로그인해 주세요.", true);
+        session.expire("expired", { notice: false });
+      } else {
+        report(e instanceof CommentError ? e.field || e.message : "등록 결과를 확인하지 못했어요. 답글 목록을 확인해 주세요.");
+        uncertain = e instanceof CommentError && e.uncertain;
+        refresh = e instanceof CommentError && e.code === "PARENT_COMMENT_NOT_FOUND";
+      }
+    } finally {
+      writing.current = false;
+      if (current()) {
+        setBusy(false);
+        if (uncertain) void checkReplyResult(parentId, readReplies);
+        else if (refresh) void load();
+      }
+    }
+  }
+
+  function replyFormProps(parentId: number, reply: ReplyDraft, unavailable = false): ReplyFormProps {
+    return {
+      parentId, nickname: reply.nickname, value: reply.value, error: reply.error,
+      check: reply.check, busy, permitted, unavailable, expired: !!reply.expired,
+      onChange(value) {
+        blocker.markDirty();
+        setReplyDrafts(previous => ({ ...previous, [parentId]: { ...reply, value, error: reply.expired ? reply.error : "" } }));
+      },
+      onCancel() {
+        closeReply(parentId);
+        requestFocus(unavailable ? "comments-title" : `reply-write-${parentId}`);
+      },
+      onLogin: () => setLoginPrompt(true),
+      onSubmit: (onRegistered, readReplies) => submitReply(parentId, reply, onRegistered, readReplies),
+      onRecheck: readReplies => checkReplyResult(parentId, readReplies),
+    };
   }
   const fieldFor = (id: number | null) => fields[id ?? "draft"] ?? "";
   function clearField(id: number | null, value: string) {
@@ -870,7 +1043,8 @@ export default function Comments({
         <button
           id="comments-refresh"
           className="iyum-text-link community-comments-refresh"
-          disabled={loading || busy}
+          disabled={busy || (loading && !postDeleteRead)}
+          aria-disabled={busy || loading}
           aria-label="목록 새로고침"
           aria-busy={loading && !readMore}
           onClick={() => void load(false, false, undefined, "manual")}
@@ -1032,7 +1206,7 @@ export default function Comments({
       {best && best.length > 0 && <section className="community-best-comments" aria-labelledby="best-comments-title">
         <h3 id="best-comments-title">베스트 댓글</h3>
         <ol>{best.map(comment => <li key={comment.commentId} data-best-comment={comment.commentId}>
-          <strong>{comment.author.nickname}</strong>
+          <strong>{comment.author?.nickname}</strong>
           <p>{comment.content}</p>
           <div className="community-best-comment-actions">
             <span>좋아요 {comment.likeCount.toLocaleString("ko-KR")}개</span>
@@ -1101,19 +1275,24 @@ export default function Comments({
         </p>
       )}
       {outsidePage && editForm()}
+      {visibleEdits.filter(edit => !page.items.some(c => c.commentId === edit.parentId)).map(retainedDraft)}
+      {visibleReplyDrafts.filter(([id]) => !page.items.some(c => c.commentId === Number(id) && !c.deleted))
+        .map(([id, reply]) => <ReplyForm key={id} {...replyFormProps(Number(id), reply, true)} />)}
       <ul ref={commentList} className="community-comment-list">
-        {page.items.map((c) => (
-          <CommentItem
+        {page.items.map((c) => {
+          const hasReplyForm = !c.deleted && visibleReplyDrafts.some(([id]) => Number(id) === c.commentId);
+          return <CommentItem
+            showAvatar
             key={c.commentId}
             comment={c}
             anchorId={`comment-${c.commentId}`}
             arrived={arrival?.commentId === c.commentId}
             body={
-              editor?.id === c.commentId
+              !c.deleted && editor?.id === c.commentId
                 ? editForm()
                 : undefined
             }
-            reactions={
+            reactions={<div className="community-comment-interactions">
               <CommentLikeButton
                 postId={postId}
                 comment={c}
@@ -1121,8 +1300,15 @@ export default function Comments({
                 ready={loadedContext === likeContext}
                 reread={(id) => load(false, false, id)}
               />
-            }
-            more={<ReportButton postId={postId} commentId={c.commentId} authorId={c.author.memberId} label={c.content.slice(0,120)} />}
+              {!hasReplyForm && !c.deleted && c.author && <button id={`reply-write-${c.commentId}`} type="button" className="iyum-text-link"
+                  disabled={busy || !!auth.pending || auth.status === "checking"} onClick={() => {
+                    if (!permitted || !auth.member) { setLoginPrompt(true); return; }
+                    setReplyDrafts({ ...replyDrafts, [c.commentId]: { value: "", error: "",
+                      memberId: auth.member.memberId, nickname: c.author!.nickname } });
+                    requestFocus(`reply-input-${c.commentId}`);
+                  }}>답글 달기</button>}
+            </div>}
+            more={c.author && <ReportButton postId={postId} commentId={c.commentId} authorId={c.author.memberId} label={c.content.slice(0,120)} />}
             actions={
               owner(c) &&
               editor?.id !== c.commentId ? (
@@ -1153,8 +1339,31 @@ export default function Comments({
                 </div>
               ) : null
             }
-          />
-        ))}
+          >
+            {(!c.deleted || !!c.replyCount) && (
+              <CommentReplies key={`${postId}:${likeContext}`} postId={postId}
+                parentId={c.commentId} count={c.replyCount ?? 0} revision={replyRevision}
+                form={hasReplyForm
+                  ? replyFormProps(c.commentId, replyDrafts[c.commentId]) : null}
+                showToast={showToast}
+                forgetDraft={id => setUnavailableEdits(previous => previous.filter(edit => edit.id !== id))}
+                keepDraft={(id, content, valid, endEdit) => {
+                  setUnavailableEdits(previous => [...previous.filter(edit => edit.id !== id && edit.valid()),
+                    { id, parentId: c.commentId, content, unavailable: false, valid, endEdit }]);
+                }}
+                showUnavailableDraft={(id, valid) => {
+                  setUnavailableEdits(previous => previous.map(edit => edit.id === id && edit.valid()
+                    ? { ...edit, unavailable: true } : edit));
+                  requestAnimationFrame(() => { if (scope.isActive() && valid()) document.getElementById(`unavailable-edit-${id}`)?.focus({ preventScroll: true }); });
+                }}
+                checkCount={onCount => {
+                  countChecks.current.set(c.commentId, onCount);
+                  setCountCheckPending(true);
+                }} />
+            )}
+            {visibleEdits.filter(edit => edit.parentId === c.commentId && (edit.unavailable || c.replyCount === 0)).map(retainedDraft)}
+          </CommentItem>;
+        })}
       </ul>
       {page.hasNext && (
         <div
@@ -1185,7 +1394,7 @@ export default function Comments({
       )}
       {(expiredAction || loginPrompt) && scope.isActive() && !guard.pending && (
         <CommentAuthDialog idPrefix={expiredAction ? "comment-expired" : "comment-login"}
-          action={expiredAction ?? "login"} hasDraft={draft.length > 0}
+          action={expiredAction ?? "login"} hasDraft={draft.length > 0 || visibleReplyDrafts.some(([, d]) => !!d.value)}
           status={auth.status} pending={!!auth.pending}
           onClose={() => {
             if (expiredAction) requestFocus(expiredAction === "create" ? "comment-draft" : "comments-title");
@@ -1212,7 +1421,7 @@ export default function Comments({
         >
           <h2 id="comment-delete-title">댓글을 삭제할까요?</h2>
           <p id="comment-delete-description">
-            삭제하면 목록에서 더 이상 볼 수 없습니다. 요청 중에는 이 창을 닫을
+            삭제하면 댓글 본문이 사라집니다. 공개 답글은 계속 볼 수 있습니다. 요청 중에는 이 창을 닫을
             수 없습니다.
           </p>
           {error && <p role="alert">{error.message}</p>}

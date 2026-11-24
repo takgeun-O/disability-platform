@@ -9,7 +9,7 @@ import java.time.Instant;
 public record CommentResponse(
         Long commentId,
         String content,
-        CommentAuthorResponse author,
+        @Nullable CommentAuthorResponse author,
         Instant createdAt,
         Instant updatedAt,
         // 값이 null일 때 updatedAt으로 대체하지 말 것.
@@ -17,7 +17,9 @@ public record CommentResponse(
         // 다시 본문 수정 시각으로 노출될 가능성이 있음.
         @Nullable Instant contentUpdatedAt,
         long likeCount,
-        boolean liked
+        boolean liked,
+        boolean deleted,
+        long replyCount
 ) {
 
     public static CommentResponse from(
@@ -26,12 +28,16 @@ public record CommentResponse(
         return new CommentResponse(
                 result.commentId(),
                 result.content(),
-                CommentAuthorResponse.from(result.author()),
+                result.author() == null
+                        ? null
+                        : CommentAuthorResponse.from(result.author()),
                 result.createdAt(),
                 result.updatedAt(),
                 result.contentUpdatedAt(),
                 result.likeCount(),
-                result.liked()
+                result.liked(),
+                result.deleted(),
+                result.replyCount()
         );
     }
 }

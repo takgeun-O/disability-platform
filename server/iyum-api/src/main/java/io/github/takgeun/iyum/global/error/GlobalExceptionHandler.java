@@ -391,13 +391,14 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
         HttpStatus status = switch (exception.getCode()) {
             case AUTHOR_NOT_FOUND -> HttpStatus.UNAUTHORIZED;
             case AUTHOR_NOT_ACTIVE -> HttpStatus.FORBIDDEN;
-            case POST_NOT_FOUND -> HttpStatus.NOT_FOUND;
+            case POST_NOT_FOUND, PARENT_COMMENT_NOT_FOUND -> HttpStatus.NOT_FOUND;
         };
 
         String code = switch (exception.getCode()) {
             case AUTHOR_NOT_FOUND -> "AUTHENTICATION_REQUIRED";
             case AUTHOR_NOT_ACTIVE -> "COMMENT_WRITE_NOT_ALLOWED";
             case POST_NOT_FOUND -> "POST_NOT_FOUND";
+            case PARENT_COMMENT_NOT_FOUND -> "PARENT_COMMENT_NOT_FOUND";
         };
 
         String message =

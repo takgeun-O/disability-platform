@@ -725,7 +725,7 @@ class CommentReadServiceTest {
 
             // 변경 트랜잭션의 커밋 후 실제 본문 조회를 이어간다.
             return originalAnswer.answer(invocation);
-        }).when(repositorySpy).findVisibleCommentsByIds(
+        }).when(repositorySpy).findPopularListCommentsByIds(
                 eq(postId),
                 anyList()
         );
@@ -1007,6 +1007,146 @@ class CommentReadServiceTest {
         return memberRepository.saveAndFlush(member);
     }
 
+    @Test
+    void 인기순_목록은_공개_답글이_남은_삭제_원댓글을_순위에_맞게_반환한다() {
+        Member viewer = saveMember(
+                "popular-reply-viewer@example.com",
+                "인기순조회회원"
+        );
+
+        saveLike(firstCommentId, viewer.getId());
+        saveLike(secondCommentId, viewer.getId());
+
+        new TransactionTemplate(transactionManager).executeWithoutResult(status -> {
+            Comment parent = commentRepository.findById(firstCommentId)
+                    .orElseThrow();
+
+            commentRepository.save(
+                    Comment.createReply(parent, viewer, "삭제 후에도 남을 공개 답글")
+            );
+
+            parent.delete(CREATED_TIME.plusSeconds(60));
+        });
+
+        CommentListResult result = commentReadService.getComments(
+                postId,
+                new CommentReadQuery(CommentSort.POPULAR, null, 3),
+                viewer.getId()
+        );
+
+        assertThat(result.items())
+                .extracting(CommentResult::commentId)
+                .containsExactly(secondCommentId, firstCommentId, thirdCommentId);
+
+        CommentResult deleted = result.items().get(1);
+
+        assertThat(deleted.deleted()).isTrue();
+        assertThat(deleted.content()).isEqualTo("삭제된 댓글입니다.");
+        assertThat(deleted.author()).isNull();
+        assertThat(deleted.likeCount()).isZero();
+        assertThat(deleted.liked()).isFalse();
+    }
+
+    @ParameterizedTest
+    @EnumSource(CommentSort.class)
+    void 댓글_목록은_정렬과_관계없이_원댓글별_공개_답글_수를_반환한다(
+            CommentSort sort
+    ) {
+        new TransactionTemplate(transactionManager).executeWithoutResult(status -> {
+            Comment first = commentRepository.findById(firstCommentId)
+                    .orElseThrow();
+            Comment second = commentRepository.findById(secondCommentId)
+                    .orElseThrow();
+            Member author = first.getAuthor();
+
+            commentRepository.save(
+                    Comment.createReply(first, author, "첫 번째 공개 답글")
+            );
+            commentRepository.save(
+                    Comment.createReply(first, author, "두 번째 공개 답글")
+            );
+            commentRepository.save(
+                    Comment.createReply(second, author, "원댓글 삭제 후에도 남을 답글")
+            );
+
+            second.delete(CREATED_TIME.plusSeconds(60));
+        });
+
+        CommentListResult result = commentReadService.getComments(
+                postId,
+                new CommentReadQuery(sort, null, 3),
+                null
+        );
+
+        assertThat(result.items())
+                .extracting(CommentResult::commentId, CommentResult::replyCount)
+                .containsExactlyInAnyOrder(
+                        tuple(firstCommentId, 2L),
+                        tuple(secondCommentId, 1L),
+                        tuple(thirdCommentId, 0L)
+                );
+    }
+
+    @Test
+    void 비회원은_선택한_원댓글의_대댓글만_등록순으로_조회한다(){
+        Long firstReplyId = saveReply(
+                firstCommentId,
+                "첫 번째 원댓글의 첫 답글"
+        );
+
+        saveReply(
+                secondCommentId,
+                "다른 원댓글에 달린 답글"
+        );
+
+        Long secondReplyId = saveReply(
+                firstCommentId,
+                "첫 번째 원댓글의 두 번째 답글"
+        );
+
+        saveReply(
+                secondCommentId,
+                "커서 뒤에 있지만 다른 원댓글에 달린 답글"
+        );
+
+        Long thirdReplyId = saveReply(
+                firstCommentId,
+                "다음 페이지에서 볼 답글"
+        );
+
+        CommentListResult result = commentReadService.getReplies(
+                postId,
+                firstCommentId,
+                null,
+                2,
+                null
+        );
+
+        assertThat(result.items())
+                .extracting(CommentResult::commentId)
+                .containsExactly(firstReplyId, secondReplyId);
+
+        assertThat(result.hasNext()).isTrue();
+        assertThat(result.nextCursor()).isNotNull();
+        assertThat(result.nextCursor().commentId()).isEqualTo(secondReplyId);
+        assertThat(result.nextCursor().createdAt()).isEqualTo(CREATED_TIME);
+
+        CommentListResult nextPage = commentReadService.getReplies(
+                postId,
+                firstCommentId,
+                result.nextCursor(),
+                2,
+                null
+        );
+
+        assertThat(nextPage.items())
+                .extracting(CommentResult::commentId)
+                .containsExactly(thirdReplyId);
+
+        assertThat(nextPage.hasNext()).isFalse();
+        assertThat(nextPage.nextCursor()).isNull();
+    }
+
     private Post savePost(Member author, String title) {
         return postRepository.saveAndFlush(
                 Post.create(
@@ -1063,6 +1203,21 @@ class CommentReadServiceTest {
                 exception -> assertThat(exception.getCode())
                         .isEqualTo(CommentReadException.Code.POST_NOT_FOUND)
         );
+    }
+
+    private Long saveReply(Long parentId, String content) {
+        return new TransactionTemplate(transactionManager).execute(status -> {
+            Comment parent = commentRepository.findById(parentId)
+                    .orElseThrow();
+
+            Comment reply = Comment.createReply(
+                    parent,
+                    parent.getAuthor(),
+                    content
+            );
+
+            return commentRepository.saveAndFlush(reply).getId();
+        });
     }
 
     enum ConcurrentChange {

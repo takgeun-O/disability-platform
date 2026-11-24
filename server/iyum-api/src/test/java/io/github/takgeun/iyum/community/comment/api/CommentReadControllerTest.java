@@ -166,6 +166,7 @@ class CommentReadControllerTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.items[0].commentId").value(100))
                 .andExpect(jsonPath("$.items[0].likeCount").value(5))
+                .andExpect(jsonPath("$.items[0].replyCount").value(2))
                 .andExpect(jsonPath("$.items[0].liked").value(false))
                 .andExpect(jsonPath("$.hasNext").value(true))
                 .andExpect(jsonPath("$.nextCursor.createdAt")
@@ -189,6 +190,33 @@ class CommentReadControllerTest {
                 123L, expected, null
         );
         verifyNoMoreInteractions(commentReadService);
+    }
+
+    @Test
+    void 공개_답글이_남은_삭제_원댓글은_답글_수와_명시적_null을_반환한다()
+            throws Exception {
+        CommentResult deleted = new CommentResult(
+                101L, "삭제된 댓글입니다.", null, TIME, TIME,
+                null, 0L, false, true, 3L
+        );
+        CommentReadQuery query = new CommentReadQuery(
+                CommentSort.OLDEST, null, 20
+        );
+        when(commentReadService.getComments(123L, query, null))
+                .thenReturn(new CommentListResult(List.of(deleted), false, null));
+
+        mockMvc.perform(get(API_PATH))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.items[0].commentId").value(101))
+                .andExpect(jsonPath("$.items[0].content").value("삭제된 댓글입니다."))
+                .andExpect(jsonPath("$.items[0].deleted").value(true))
+                .andExpect(jsonPath("$.items[0].replyCount").value(3))
+                .andExpect(jsonPath("$.items[0].likeCount").value(0))
+                .andExpect(jsonPath("$.items[0].liked").value(false))
+                .andExpect(jsonPath("$.items[0].author").hasJsonPath())
+                .andExpect(jsonPath("$.items[0].author").value(nullValue()))
+                .andExpect(jsonPath("$.items[0].contentUpdatedAt").hasJsonPath())
+                .andExpect(jsonPath("$.items[0].contentUpdatedAt").value(nullValue()));
     }
 
     @Test
@@ -477,7 +505,9 @@ class CommentReadControllerTest {
                 entityUpdatedAt,
                 contentUpdatedAt,
                 5L,
-                false
+                false,
+                false,
+                0L
         );
 
         when(commentReadService.getComments(
@@ -551,7 +581,9 @@ class CommentReadControllerTest {
                 TIME,
                 null,
                 18L,
-                loggedIn
+                loggedIn,
+                false,
+                3L
         );
 
         CommentResult second = new CommentResult(
@@ -562,7 +594,9 @@ class CommentReadControllerTest {
                 TIME,
                 null,
                 10L,
-                false
+                false,
+                false,
+                0L
         );
 
         when(commentReadService.getBestComments(123L, viewerId))
@@ -577,9 +611,11 @@ class CommentReadControllerTest {
                 .andExpect(jsonPath("$.items.length()").value(2))
                 .andExpect(jsonPath("$.items[0].commentId").value(120))
                 .andExpect(jsonPath("$.items[0].likeCount").value(18))
+                .andExpect(jsonPath("$.items[0].replyCount").value(3))
                 .andExpect(jsonPath("$.items[0].liked").value(loggedIn))
                 .andExpect(jsonPath("$.items[1].commentId").value(101))
                 .andExpect(jsonPath("$.items[1].likeCount").value(10))
+                .andExpect(jsonPath("$.items[1].replyCount").value(0))
                 .andExpect(jsonPath("$.items[1].liked").value(false));
 
         verify(commentReadService).getBestComments(123L, viewerId);
@@ -627,7 +663,9 @@ class CommentReadControllerTest {
                 TIME,
                 null,
                 5L,
-                liked
+                liked,
+                false,
+                2L
         );
     }
 

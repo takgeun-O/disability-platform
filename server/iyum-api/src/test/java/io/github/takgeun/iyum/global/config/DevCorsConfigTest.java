@@ -46,10 +46,16 @@ class DevCorsConfigTest {
     @MockitoBean CommentUpdateService commentUpdateService;
     @MockitoBean CommentDeleteService commentDeleteService;
 
-    @Test
-    void 베스트_댓글은_개발_프론트의_조회만_허용한다() throws Exception {
-        String path = "/api/v1/community/posts/7/comments/best";
-        when(commentReadService.getBestComments(7L, null)).thenReturn(List.of());
+    @ParameterizedTest
+    @ValueSource(strings = {"best", "10/replies"})
+    void 베스트_댓글은_조회만_답글은_조회와_작성을_허용한다(String suffix) throws Exception {
+        String path = "/api/v1/community/posts/7/comments/" + suffix;
+        if (suffix.equals("best")) {
+            when(commentReadService.getBestComments(7L, null)).thenReturn(List.of());
+        } else {
+            when(commentReadService.getReplies(7L, 10L, null, 20, null))
+                    .thenReturn(new CommentListResult(List.of(), false, null));
+        }
 
         mockMvc.perform(get(path).header(HttpHeaders.ORIGIN, ORIGIN))
                 .andExpect(status().isOk())
@@ -59,8 +65,17 @@ class DevCorsConfigTest {
         mockMvc.perform(options(path).header(HttpHeaders.ORIGIN, ORIGIN)
                         .header(HttpHeaders.ACCESS_CONTROL_REQUEST_METHOD, "GET"))
                 .andExpect(status().isOk())
-                .andExpect(header().string(HttpHeaders.ACCESS_CONTROL_ALLOW_METHODS, "GET,OPTIONS"));
-        for (String method : List.of("POST", "PUT", "DELETE")) {
+                .andExpect(header().string(HttpHeaders.ACCESS_CONTROL_ALLOW_METHODS, suffix.equals("best") ? "GET,OPTIONS" : "GET,POST,OPTIONS"));
+        if (!suffix.equals("best")) {
+            mockMvc.perform(options(path).header(HttpHeaders.ORIGIN, ORIGIN)
+                            .header(HttpHeaders.ACCESS_CONTROL_REQUEST_METHOD, "POST")
+                            .header(HttpHeaders.ACCESS_CONTROL_REQUEST_HEADERS, "content-type,x-csrf-token"))
+                    .andExpect(status().isOk())
+                    .andExpect(header().string(HttpHeaders.ACCESS_CONTROL_ALLOW_HEADERS, "content-type, x-csrf-token"));
+            mockMvc.perform(post(path).header(HttpHeaders.ORIGIN, ORIGIN))
+                    .andExpect(status().isForbidden()).andExpect(jsonPath("$.code").value("CSRF_TOKEN_INVALID"));
+        }
+        for (String method : suffix.equals("best") ? List.of("POST", "PUT", "DELETE") : List.of("PUT", "DELETE")) {
             mockMvc.perform(options(path).header(HttpHeaders.ORIGIN, ORIGIN)
                             .header(HttpHeaders.ACCESS_CONTROL_REQUEST_METHOD, method))
                     .andExpect(status().isForbidden());

@@ -541,4 +541,87 @@ public class CommentController {
                 .cacheControl(CacheControl.noStore())
                 .build();
     }
+
+    @PostMapping(
+            value = "/{parentId}/replies",
+            consumes = MediaType.APPLICATION_JSON_VALUE,
+            produces = MediaType.APPLICATION_JSON_VALUE
+    )
+    @Operation(summary = "대댓글 작성")
+    public ResponseEntity<CommentCreateResponse> createReply(
+            @Parameter(hidden = true)
+            @AuthenticationPrincipal MemberPrincipal principal,
+
+            @PathVariable("postId") Long postId,
+            @PathVariable("parentId") Long parentId,
+
+            @Valid @RequestBody CommentCreateRequest request
+    ) {
+        if(principal == null) {
+            throw new CommentCreateException(
+                    CommentCreateException.Code.AUTHOR_NOT_FOUND
+            );
+        }
+
+        CommentCreateResult result = commentCreateService.createReply(
+                principal.getMemberId(),
+                postId,
+                parentId,
+                request.toCommand()
+        );
+
+        return ResponseEntity
+                .status(HttpStatus.CREATED)
+                .cacheControl(CacheControl.noStore())
+                .body(CommentCreateResponse.from(result));
+    }
+
+    @GetMapping(
+            value = "/{parentId}/replies",
+            produces = MediaType.APPLICATION_JSON_VALUE
+    )
+    @Operation(summary = "원댓글의 공개 대댓글을 등록순으로 조회")
+    public ResponseEntity<CommentListResponse> getReplies(
+            @Parameter(hidden = true)
+            @AuthenticationPrincipal
+            @Nullable MemberPrincipal principal,
+
+            @PathVariable("postId") Long postId,
+            @PathVariable("parentId") Long parentId,
+
+            @RequestParam(name = "afterCreatedAt", required = false)
+            @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME)
+            @Nullable Instant afterCreatedAt,
+
+            @RequestParam(name = "afterId", required = false)
+            @Nullable Long afterId,
+
+            @RequestParam(name = "size", defaultValue = "20")
+            int size
+    ) {
+        CommentCursor cursor = null;
+
+        if(afterCreatedAt != null || afterId != null) {
+            cursor = new CommentCursor(
+                    afterCreatedAt,
+                    afterId
+            );
+        }
+
+        Long viewerId = principal == null
+                ? null
+                : principal.getMemberId();
+
+        CommentListResult result = commentReadService.getReplies(
+                postId,
+                parentId,
+                cursor,
+                size,
+                viewerId
+        );
+
+        return ResponseEntity.ok()
+                .cacheControl(CacheControl.noStore())
+                .body(CommentListResponse.from(result));
+    }
 }

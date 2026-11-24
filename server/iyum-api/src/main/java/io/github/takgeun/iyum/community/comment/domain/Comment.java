@@ -36,6 +36,15 @@ public class Comment {
     )
     private Post post;
 
+    // 원댓글 하나에 여러 답글이 달릴 수 있으니 @ManyToOne
+    // 원댓글은 parent가 null이고, 답글은 자신이 달린 원댓글을 참조
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(
+            name = "parent_id",
+            updatable = false
+    )
+    private Comment parent;
+
     // 댓글에서 댓글의 작성자를 참조하는 단방향 관계 -> Member에 댓글 목록 필드를 추가할 필요 없음
     @ManyToOne(fetch = FetchType.LAZY, optional = false)
     @JoinColumn(
@@ -185,6 +194,46 @@ public class Comment {
 
         this.hiddenAt = null;
         return true;
+    }
+
+    public static Comment createReply(
+            Comment parent,
+            Member author,
+            String content
+    ) {
+        if(parent == null) {
+            throw new IllegalArgumentException(
+                    "답글을 작성할 원댓글은 필수입니다."
+            );
+        }
+
+        if(parent.getParent() != null) {
+            throw new IllegalStateException(
+                    "답글에는 다시 답글을 작성할 수 없습니다."
+            );
+        }
+
+        if(parent.getDeletedAt() != null || parent.getHiddenAt() != null) {
+            throw new IllegalStateException(
+                    "삭제되거나 숨겨진 댓글에는 답글을 작성할 수 없습니다."
+            );
+        }
+
+        Post post = parent.getPost();
+        if(post.getDeletedAt() != null || post.getHiddenAt() != null) {
+            throw new IllegalStateException(
+                    "삭제되거나 숨겨진 게시글에는 답글을 작성할 수 없습니다."
+            );
+        }
+
+        Comment reply = new Comment(
+                post,
+                author,
+                content
+        );
+
+        reply.parent = parent;
+        return reply;
     }
 
     private void validateNotDeletedForModeration() {
