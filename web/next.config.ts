@@ -1,6 +1,17 @@
 import type { NextConfig } from 'next';
 const config: NextConfig = {
   poweredByHeader: false,
+  async rewrites() {
+    const apiOrigin = process.env.IYUM_API_INTERNAL_URL;
+    if (!apiOrigin) return [];
+
+    return [
+      {
+        source: '/api/:path*',
+        destination: `${apiOrigin}/api/:path*`,
+      },
+    ];
+  },
   async headers() {
     return ['/forgot-password', '/reset-password/:path*'].map(source => ({ source, headers: [
       { key: 'Referrer-Policy', value: 'no-referrer' },
