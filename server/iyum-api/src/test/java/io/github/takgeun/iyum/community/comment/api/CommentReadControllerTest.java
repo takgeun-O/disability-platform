@@ -600,7 +600,10 @@ class CommentReadControllerTest {
         );
 
         when(commentReadService.getBestComments(123L, viewerId))
-                .thenReturn(List.of(first, second));
+                .thenReturn(List.of(
+                        new BestCommentResult(first, null),
+                        new BestCommentResult(second, null)
+                ));
 
         mockMvc.perform(request)
                 .andExpect(status().isOk())

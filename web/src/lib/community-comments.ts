@@ -12,6 +12,7 @@ export type Comment = LikeState & {
   updatedAt: string;
   contentUpdatedAt: string | null;
 };
+export type BestComment = Comment & { bestReply?: Comment | null };
 export type CommentSort = "OLDEST" | "LATEST" | "POPULAR";
 export type CommentCursor = {
   createdAt: string;
@@ -213,9 +214,16 @@ async function request(
     throw commentError(response.status, null, writing);
   return body;
 }
-export async function getBestComments(postId: string, signal?: AbortSignal, base?: string): Promise<Comment[]> {
+function isBestComment(value: unknown): value is BestComment {
+  if (!comment(value)) return false;
+  if (!("bestReply" in value)) return true;
+  const reply = value.bestReply;
+  return reply == null || (comment(reply) && !reply.deleted && reply.commentId !== value.commentId);
+}
+
+export async function getBestComments(postId: string, signal?: AbortSignal, base?: string): Promise<BestComment[]> {
   const body = await request(postId, "/best", { method: "GET", signal }, false, base);
-  if (!obj(body) || !Array.isArray(body.items) || body.items.length > 3 || !body.items.every(comment))
+  if (!obj(body) || !Array.isArray(body.items) || body.items.length > 3 || !body.items.every(isBestComment))
     throw commentError(200, null, false);
   return body.items;
 }

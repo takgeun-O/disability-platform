@@ -1,10 +1,7 @@
 package io.github.takgeun.iyum.community.comment.application;
 
 import io.github.takgeun.iyum.community.comment.domain.Comment;
-import io.github.takgeun.iyum.community.comment.infrastructure.CommentLikeRepository;
-import io.github.takgeun.iyum.community.comment.infrastructure.CommentPopularityRow;
-import io.github.takgeun.iyum.community.comment.infrastructure.CommentReplyCount;
-import io.github.takgeun.iyum.community.comment.infrastructure.CommentRepository;
+import io.github.takgeun.iyum.community.comment.infrastructure.*;
 import io.github.takgeun.iyum.community.post.infrastructure.PostRepository;
 import jakarta.annotation.Nullable;
 import lombok.RequiredArgsConstructor;
@@ -14,6 +11,7 @@ import org.springframework.transaction.annotation.Isolation;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Instant;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -398,59 +396,172 @@ public class CommentReadService {
         );
     }
 
-    public List<CommentResult> getBestComments(
+    /**
+     * 어떤 댓글 덕분에 베스트가 됐는지와
+     * 그 댓글을 화면에서 어떻게 보여줄지 연결하는 메서드
+     * 대댓글이 좋아요를 많이 받으면 그 대댓글 덕분에 베스트에 올라가지만,
+     * 화면에서는 맥락을 알 수 있도록 원댓글과 대댓글을 함께 보여줘야 한다.
+     * 그래서 순위를 정한 댓글 ID와 화면에 표시할 원댓글 ID가 다를 수 있다.
+     *
+     * 예시)
+     * 100번 댓글 - 좋아요 3개 - 원댓글
+     * 101번 댓글 - 좋아요 18개 - 100번의 대댓글
+     * 200번 댓글 - 좋아요 15개 - 원댓글. 대댓글 없음
+     * 이 때 메서드가 만들어야 하는 결과는 아래와 같다.
+     * 베스트 순위 - 순위가 결정된 이유 - 화면에 표시할 내용
+     * 1위 - 101번 대댓글이 18개 - 100번 원댓글 + 101번 대댓글
+     * 2위 - 200번 원댓글이 15개 - 200번 원댓글만
+     */
+    public List<BestCommentResult> getBestComments(
             Long postId,
             @Nullable Long viewerId
     ) {
+        // 대상 게시글 확인
         validatePost(postId);
 
+        // rankedIds: 어떤 댓글이 순위를 따냈나?
+        // findBestCommentIds(): 한 원댓글 묶음에서 대표를 하나씩 뽑고, 대표들을 좋아요 순으로 정렬
+        // PageRequest.of(0, BEST_COMMENT_LIMIT): 그 중 상위 개수만 가져온다.
+        // rankedIds = [101, 200]
         List<Long> rankedIds = commentLikeRepository.findBestCommentIds(
                 postId,
                 PageRequest.of(0, BEST_COMMENT_LIMIT)
         );
 
+        // 후보가 하나도 없으면 여기서 빈 리스트를 반환하고 종료한다.
         if (rankedIds.isEmpty()) {
             return List.of();
         }
 
-        Map<Long, Comment> commentsById = commentRepository.findVisibleCommentsByIds(postId, rankedIds)
+        /**
+         * rootIds : 각 순위에서 어떤 원댓글을 보여줘야 하나?
+         * rankedIds에는 숫자만 있어서 101이 누구의 대댓글인지 알 수 없다.
+         * 그래서 findVisibleCommentsByIds()로 댓글 객체를 가져와
+         * rankedCommentsById에 담는다.
+         */
+        Map<Long, Comment> rankedCommentsById = commentRepository
+                .findVisibleCommentsByIds(postId, rankedIds)
+                .stream()
+                .collect(Collectors.toMap(
+                        Comment::getId,
+                        Function.identity() // Comment 객체 자체를 넣는다는 의미
+                ));
+
+
+        // 보여줄 원댓글 골라내는 과정
+        List<Long> rootIds = rankedIds.stream()
+                .map(id -> Objects.requireNonNull(
+                        rankedCommentsById.get(id),
+                        "베스트 후보 댓글을 찾을 수 없습니다. commentId=" + id
+                ))
+                // 101은 대댓글이므로 부모 ID인 100을 선택한다.
+                // 200은 원댓글이므로 자기 ID인 200을 선택한다.
+                // 따라서 rankedIds = [101, 200] -> rootIds = [100, 200]이 된다.
+                // 원래 순서대로 rankedIds를 순회했기 때문에 100번 원댓글의 좋아요가 3개여도
+                // 첫 번째 자리가 유지된다.
+                // 이후 rootsById에는 화면에 표시할 원댓글 객체들을 담는다.
+                .map(comment -> comment.getParent() == null
+                        ? comment.getId()
+                        : comment.getParent().getId())
+                .toList();
+
+        // 화면에 표시할 원댓글 객체 담기
+        // findPopularListCommentsByIds()를 쓴 이유는
+        // 공개 대댓글이 남은 삭제 원댓글도 가져올 수 있기 때문
+        Map<Long, Comment> rootsById = commentRepository
+                .findPopularListCommentsByIds(postId, rootIds)
+                .stream()
+                .collect(Collectors.toMap(Comment::getId, Function.identity()));
+
+        // bestReplyIdByRootId: 각 원댓글 옆에 어떤 대댓글을 붙이나?
+        // 선정된 원댓글마다 좋아요가 10개 이상인 대댓글 중 가장 높은 것 하나를 찾는다.
+        // bestReplyIdByRootId = {100 -> 101}
+        // 200번 댓글은 해당하는 대댓글이 없으니 맵에 항목이 없음.
+        Map<Long, Long> bestReplyIdByRootId = commentLikeRepository
+                .findBestRepliesByParentIds(postId, rootIds)
+                .stream()
+                .collect(Collectors.toMap(
+                        BestReplyIds::getParentId,
+                        BestReplyIds::getReplyId
+                ));
+
+        // replyIds = [101]
+        List<Long> replyIds = List.copyOf(bestReplyIdByRootId.values());
+
+        // repliesById: 이렇게 찾은 대댓글의 실제 Comment 객체를 ID로 꺼내기 위한 맵
+        // 왜 대댓글을 다시 찾을까?
+        // 반대 상황을 생각해보자.
+        // 100번 원댓글이 25개, 101번 대댓글이 18개 좋아요 개수라면
+        // 첫 번째 쿼리는 원댓글 100만 대표로 뽑는다.
+        // 그래도 화면에는 좋아요 18개인 대댓글 101을 함께 보여줘야 한다.
+        // 이 상황의 대댓글을 찾아주는 것이 바로 여기 쿼리임.
+        Map<Long, Comment> repliesById = replyIds.isEmpty()
+                ? Map.of()
+                : commentRepository.findVisibleCommentsByIds(postId, replyIds)
                 .stream()
                 .collect(Collectors.toMap(
                         Comment::getId,
                         Function.identity()
                 ));
 
-        Map<Long, Long> replyCounts = getReplyCounts(postId, rankedIds);
+        List<Long> displayedIds = new ArrayList<>(rootIds);
+        displayedIds.addAll(replyIds);
 
+        // 표시할 댓글이 정해졌으니 필요한 정보를 모아서 조회한다.
+        // likeStates: 화면에 표시할 원댓글과 대댓글 각각의 좋아요 수, viewerId 회원의 좋아요 여부
+        // 예시 기준 조회할 ID [100, 200, 101]
         Map<Long, CommentLikeState> likeStates =
-                commentLikeReadService.getStates(rankedIds, viewerId);
+                commentLikeReadService.getStates(displayedIds, viewerId);
 
-        // rankedIds 순서로 조립한다.
-        // 예를 들어 순위 조회 결과가 [42, 17] 이면
-        // 본문 조회가 [17, 42]로 반환되어도 응답은 [42, 17]이어야 한다.
-        // IN 조회의 반환 순서에 의존하면 이 부분이 깨질 수 있음.
-        return rankedIds.stream()
-                .map(commentId -> {
-                    Comment comment = commentsById.get(commentId);
-                    CommentLikeState likeState = likeStates.get(commentId);
+        // replyCounts: 각 원댓글에 달린 대댓글 수
+        // 예시 기준 조회할 ID [100, 200] (101은 원댓글이 아님)
+        Map<Long, Long> replyCounts = getReplyCounts(postId, rootIds);
 
-                    // 일반 댓글은 좋아요 0개가 가능하지만 베스트로 선정된 댓글은
-                    // 같은 스냅샷에서 이미 좋아요가 10개 이상임.
-                    // 비로그인 사용자도 전체 좋아요 수는 그대로 받고 liked만 false가 되어야 한다.
-                    if (comment == null || likeState == null) {
-                        throw new IllegalStateException(
-                                "베스트 댓글의 본문 또는 좋아요 집계가 없습니다. commentId="
-                                        + commentId
-                        );
-                    }
+        List<BestCommentResult> results = new ArrayList<>();
 
-                    return CommentResult.from(
-                            comment,
-                            likeState,
-                            replyCounts.getOrDefault(commentId, 0L)
-                    );
-                })
-                .toList();
+        // 준비한 데이터를 카드로 조립한다.
+        // 예시 기준으로 원댓글 [100, 200] 순서로 순회한다.
+
+        // rootId = 100 -> rootResult : 원댓글 100 -> bestReply: 대댓글 101
+        // -> BestCommentResult(원댓글100, 대댓글101) 생성
+        // rootId = 200 -> rootResult : 원댓글 200 -> bestReply: 대댓글 null
+        // -> BestCommentResult(원댓글100, null) 생성
+        for (Long rootId : rootIds) {
+            Comment root = Objects.requireNonNull(
+                    rootsById.get(rootId),
+                    "베스트 카드의 원댓글을 찾을 수 없습니다. rootId=" + rootId
+            );
+
+            CommentResult rootResult = CommentResult.from(
+                    root,
+                    // 원댓글 좋아요에는 아래 getOrDefault(rootId, CommentLikeState.EMPTY) 가 필요
+                    // 대댓글 덕분에 선정된 원댓글은 실제로 좋아요가 0개일 수 있음.
+                    // 반면 베스트 대댓글은 같은 읽기 트랜잭션에서 이미 좋아요 10개 이상으로 선정됐으므로
+                    // 집계가 있어야 한다.
+                    likeStates.getOrDefault(rootId, CommentLikeState.EMPTY),
+                    replyCounts.getOrDefault(rootId, 0L)
+            );
+
+            CommentResult bestReply = null;
+            Long replyId = bestReplyIdByRootId.get(rootId);
+
+            if(replyId != null) {
+                Comment reply = Objects.requireNonNull(
+                        repliesById.get(replyId),
+                        "베스트 대댓글을 찾을 수 없습니다. replyId=" + replyId
+                );
+                CommentLikeState replyLikeState = Objects.requireNonNull(
+                        likeStates.get(replyId),
+                        "베스트 대댓글의 좋아요 집계가 없습니다. replyId=" + replyId
+                );
+
+                bestReply = CommentResult.from(reply, replyLikeState, 0L);
+            }
+
+            results.add(new BestCommentResult(rootResult, bestReply));
+        }
+
+        return results;
     }
 
     private void validatePost(Long postId) {
@@ -487,7 +598,7 @@ public class CommentReadService {
 
         List<Comment> replies;
 
-        if(cursor == null) {
+        if (cursor == null) {
             replies = commentRepository.findFirstVisibleReplies(
                     postId,
                     parentId,
@@ -503,7 +614,7 @@ public class CommentReadService {
             );
         }
 
-        if(replies.isEmpty()) {
+        if (replies.isEmpty()) {
             return new CommentListResult(
                     List.of(),
                     false,
@@ -537,7 +648,7 @@ public class CommentReadService {
 
         CommentCursor nextCursor = null;
 
-        if(hasNext) {
+        if (hasNext) {
             CommentResult last = items.getLast();
             nextCursor = new CommentCursor(
                     last.createdAt(),

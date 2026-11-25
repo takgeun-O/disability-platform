@@ -456,7 +456,7 @@ class CommentLikeRepositoryTest {
                 PageRequest.of(0, 3)
         );
 
-        assertThat(result).containsExactly(tenLikes.getId());
+        assertThat(result).containsExactly(reply.getId());
     }
 
     @Test
@@ -612,6 +612,55 @@ class CommentLikeRepositoryTest {
         assertThat(commentLikeRepository.countByComment_Id(comment.getId()))
                 .isEqualTo(9L);
         assertThat(afterCancel).isEmpty();
+    }
+
+    @Test
+    void 원댓글의_좋아요가_0개여도_좋아요가_10개인_대댓글은_베스트_후보가_된다() {
+        Member author = saveActiveMember(
+                "best-reply-author@example.com",
+                "답글작성자"
+        );
+        Post post = savePost(author);
+
+        Comment parent = saveComment(
+                post, author, "첫 상담 때 무엇을 준비하셨나요?"
+        );
+        Comment reply = commentRepository.save(
+                Comment.createReply(
+                        parent, author, "평소 불편했던 상황을 메모해 갔어요."
+                )
+        );
+
+        for (int i = 1; i <= 10; i++) {
+            Member reader = saveActiveMember(
+                    "best-reply-reader-" + i + "@example.com",
+                    "답글독자" + i
+            );
+            commentLikeRepository.save(CommentLike.create(reply, reader));
+        }
+
+        entityManager.flush();
+        entityManager.clear();
+
+        List<Long> result = commentLikeRepository.findBestCommentIds(
+                post.getId(),
+                PageRequest.of(0, 3)
+        );
+
+        assertThat(result).containsExactly(reply.getId());
+
+        List<BestReplyIds> bestReplies =
+                commentLikeRepository.findBestRepliesByParentIds(
+                        post.getId(),
+                        List.of(parent.getId())
+                );
+
+        assertThat(bestReplies)
+                .singleElement()
+                .satisfies(bestReply -> {
+                    assertThat(bestReply.getParentId()).isEqualTo(parent.getId());
+                    assertThat(bestReply.getReplyId()).isEqualTo(reply.getId());
+                });
     }
 
     private Member saveActiveMember(String email, String nickname) {

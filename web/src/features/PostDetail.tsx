@@ -3,7 +3,7 @@ import WrittenTime from "@/components/WrittenTime"
 import PostLikeButton from "@/components/community/PostLikeButton"
 import { useAuth } from "@/components/AuthProvider"
 import Comments from "@/components/community/Comments"
-import type { Comment, CommentPage } from "@/lib/community-comments"
+import type { BestComment, CommentPage } from "@/lib/community-comments"
 import type { PublicResult } from "@/lib/community-load"
 import PostActions from "@/components/community/PostActions"
 import { usePostVersion } from "@/lib/community-mutations"
@@ -24,7 +24,7 @@ import { isHomeListReturn, safeListReturn, listReturnLabel, requestListScrollRes
 
 import { topicByValue, topicPath } from "@/lib/community-topics"
 
-export default function PostDetail({ initial, initialComments, initialBest }: { initial: InitialPostDetail; initialComments: PublicResult<CommentPage>; initialBest: Comment[] | null }) {
+export default function PostDetail({ initial, initialComments, initialBest }: { initial: InitialPostDetail; initialComments: PublicResult<CommentPage>; initialBest: BestComment[] | null }) {
   const { postId } = useParams<{ postId: string }>()
   const { likes, memberRequests, status, pending } = useAuth()
   const params = useSearchParams()

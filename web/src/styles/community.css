@@ -183,14 +183,16 @@
 
 /* Comment drafts are independent of post refreshes. Scoped styles preserve other forms. */
 .community-comments { margin-block: 32px; border-top: 1px solid var(--iyum-border); padding-top: 24px; overflow-wrap: anywhere; }
-.community-best-comments { margin-block: 20px; padding: 16px; border: 1px solid var(--iyum-border); border-radius: 8px; }
+.community-best-comments { --comment-avatar: 32px; --author-gap: 8px; margin-block: 20px; padding: 16px; border: 1px solid var(--iyum-border); border-radius: 8px; }
+.community-best-comments .best-reply-preview { margin-inline-start: 12px; --author-gap: 6px; overflow-wrap: anywhere; }
+.community-best-comments .comment-author-header ~ :is(p, .community-best-comment-actions) { margin-inline-start: calc(var(--comment-avatar) + var(--author-gap)); }
 .community-best-comments h3 { font-size: 18px; font-weight: 700; }
 .community-best-comments li { padding-block: 10px; }
 .community-best-comments li + li { border-top: 1px solid var(--iyum-border); }
 .community-best-comments li p { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; overflow-wrap: anywhere; }
 .community-best-comments li span { color: var(--iyum-muted); font-size: 14px; }
-.community-best-comment-actions { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 4px 12px; }
-.community-best-comment-actions a { display: inline-flex; align-items: center; min-height: 44px; padding-inline: 4px; color: var(--iyum-primary); font-size: 14px; text-decoration: underline; text-underline-offset: 2px; }
+.community-best-comment-actions { display: flex; align-items: center; flex-wrap: wrap; gap: 4px 12px; }
+.community-best-comment-actions a { display: inline-flex; align-items: center; min-height: 44px; color: var(--iyum-primary); font-size: 14px; text-decoration: underline; text-underline-offset: 2px; }
 .community-best-comment-actions a:focus-visible { outline: 2px solid var(--iyum-primary); outline-offset: 3px; border-radius: 2px; }
 
 .community-comments h2 { font-size: 24px; }
@@ -421,7 +423,7 @@
 }
 .community-comments .community-comment-list { --comment-avatar: 32px; --author-gap: 8px; }
 .comment-reply-list { --comment-avatar: 26px; }
-.comment-reply-list > li { padding-block: 16px; }
+.community-comment-list .comment-reply-list > li { padding-block: 10px; }
 .comment-reply-list > li + li { border-block-start: 1px solid var(--iyum-border); }
 
 .comment-author-header { align-items: center; flex-wrap: nowrap; gap: var(--author-gap); }

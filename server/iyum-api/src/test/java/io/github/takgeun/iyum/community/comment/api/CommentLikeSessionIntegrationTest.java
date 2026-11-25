@@ -750,6 +750,53 @@ class CommentLikeSessionIntegrationTest {
                 .andExpect(jsonPath("$.items[0].liked").value(false));
     }
 
+    @ParameterizedTest
+    @ValueSource(ints = {0, 15})
+    void 비로그인으로_베스트를_조회하면_원댓글과_인기_대댓글을_한_항목으로_반환한다(
+            int parentLikeCount
+    ) throws Exception {
+        Post post = savePost(me);
+
+        Comment parent = commentRepository.saveAndFlush(
+                Comment.create(post, me, "첫 상담 때 무엇을 준비하셨나요?")
+        );
+        Comment reply = commentRepository.saveAndFlush(
+                Comment.createReply(parent, other, "불편했던 상황을 메모해 갔어요.")
+        );
+
+        int replyLikeCount = 10;
+        int readerCount = Math.max(parentLikeCount, replyLikeCount);
+        String passwordHash = passwordEncoder.encode(PASSWORD);
+
+        for (int i = 1; i <= readerCount; i++) {
+            Member reader = saveActiveMember(
+                    "best-pair-reader-" + i + "@example.com",
+                    "베스트독자" + i,
+                    passwordHash
+            );
+
+            if (i <= parentLikeCount) {
+                commentLikeRepository.save(CommentLike.create(parent, reader));
+            }
+
+            if (i <= replyLikeCount) {
+                commentLikeRepository.save(CommentLike.create(reply, reader));
+            }
+        }
+
+        mockMvc.perform(
+                        get("/api/v1/community/posts/{postId}/comments/best", post.getId())
+                )
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.items.length()").value(1))
+                .andExpect(jsonPath("$.items[0].commentId").value(parent.getId()))
+                .andExpect(jsonPath("$.items[0].content").value(parent.getContent()))
+                .andExpect(jsonPath("$.items[0].likeCount").value(parentLikeCount))
+                .andExpect(jsonPath("$.items[0].bestReply.commentId").value(reply.getId()))
+                .andExpect(jsonPath("$.items[0].bestReply.content").value(reply.getContent()))
+                .andExpect(jsonPath("$.items[0].bestReply.likeCount").value(replyLikeCount));
+    }
+
     private CsrfSession login(String email) throws Exception {
         CsrfSession beforeLogin = fetchCsrf(null);
 

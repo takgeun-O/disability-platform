@@ -214,6 +214,199 @@ async function selectSort(p, label, value) {
   await p.waitForLoadState('networkidle')
 }
 try {
+ for (const deleted of [true, false]) await check(`원댓글 수정 404 뒤 베스트 카드를 다시 읽는다 · ${deleted ? "삭제" : "숨김"}`, async () => {
+  const { p, state } = await fixture(member, 2)
+  const root = Object.assign(comments[0], { deleted:false, replyCount:1, likeCount:10 })
+  const other = Object.assign(comments[1], { deleted:false, replyCount:0, likeCount:10 })
+  const original = root.content
+  const reply = {...item(101), likeCount:12}
+  let changed = false, bestReads = 0
+  const pending = gate()
+  state.get = async (route, url, response) => {
+    if (!url.pathname.endsWith("/best")) return route.fulfill(response)
+    if (changed) { bestReads++; await pending.hold() }
+    const items = comments.map(c => c.commentId === root.commentId ? {...c, bestReply:reply} : c)
+    return route.fulfill({status:200, json:{items}})
+  }
+  state.write = route => {
+    assert.equal(route.request().method(), "PUT")
+    assert.ok(route.request().url().endsWith("/comments/1"))
+    changed = true
+    comments = deleted
+      ? [{...root, deleted:true, author:null, content:"삭제된 댓글입니다.", likeCount:0}, other]
+      : [other]
+    return route.fulfill({status:404, json:failure("COMMENT_NOT_FOUND")})
+  }
+  await p.locator("#comments-refresh").click()
+  const ids = () => p.locator("[data-best-comment]").evaluateAll(cards => cards.map(c => Number(c.dataset.bestComment)))
+  const card = p.locator('[data-best-comment="1"]')
+  const bestReply = card.locator('[data-best-reply="101"]')
+  const otherCard = p.locator('[data-best-comment="2"]')
+  await card.getByText(original).waitFor()
+  await bestReply.getByText(reply.content).waitFor()
+  await otherCard.getByText(other.content).waitFor()
+  assert.deepEqual(await ids(), [1, 2])
+  await p.locator("#comment-edit-button-1").click()
+  await p.locator("#comment-edit-1").fill("수정 시도")
+  try {
+    await Promise.all([
+      p.waitForRequest(
+        req => req.method() === "GET" && new URL(req.url()).pathname === "/api/v1/community/posts/7/comments/best",
+        { timeout: 8000 },
+      ),
+      p.getByRole("button", { name: "댓글 저장" }).click(),
+    ])
+    await card.waitFor({state:"detached"})
+    assert.deepEqual(await ids(), [2])
+    assert.equal(await p.locator('[data-best-reply="101"]').count(), 0)
+    await otherCard.getByText(other.content).waitFor()
+  } finally {
+    pending.release()
+  }
+  await p.waitForLoadState("networkidle")
+  assert.equal(bestReads, 1)
+  if (deleted) {
+    await card.getByText("삭제된 댓글입니다.").waitFor()
+    await bestReply.getByText(reply.content).waitFor()
+    assert.equal(await card.getByText(original).count(), 0)
+  }
+  assert.deepEqual(await ids(), deleted ? [1, 2] : [2])
+ })
+ await check("베스트 답글 탐색은 반복 커서에서 멈추고 같은 커서로 재시도한다", async () => {
+  const { p, state } = await fixture(null, 1)
+  const root = Object.assign(comments[0], { deleted:false, replyCount:2 })
+  const first = item(101), target = {...item(102), likeCount:10}
+  const reads = []
+  let retry = false
+  state.get = (route, url, response) => {
+    if (url.pathname.endsWith("/best")) return route.fulfill({json:{items:[{...root,bestReply:target}]}})
+    if (!url.pathname.endsWith("/replies")) return route.fulfill(response)
+    reads.push(url.searchParams.get("afterId"))
+    return route.fulfill({json:retry ? {items:[target],hasNext:false,nextCursor:null} : {
+      items:[first],hasNext:true,nextCursor:{createdAt:first.createdAt,commentId:101,sort:"OLDEST",likeCount:null},
+    }})
+  }
+  await p.locator("#comments-refresh").click()
+  await p.getByRole("link",{name:"해당 답글로 이동"}).press("Enter")
+  const button = p.getByRole("button",{name:"답글 다시 시도"})
+  await button.waitFor()
+  await p.waitForLoadState("networkidle")
+  assert.deepEqual(reads, [null,"101"])
+  assert.equal(await p.locator("#comment-1-reply-101").count(), 1)
+  retry = true
+  await button.press("Enter")
+  await p.waitForFunction(() => document.activeElement.id === "comment-1-reply-102" && document.activeElement.classList.contains("comment-arrived"))
+  assert.deepEqual(reads, [null,"101","101"])
+ })
+ await check("비회원이 다음 원댓글·답글 페이지의 베스트 답글 원문으로 이동한다", async () => {
+  const { p, state } = await fixture(null, 23)
+  await p.setViewportSize({ width: 390, height: 900 })
+  const root = comments[20], removed = comments[21], legacy = comments[0]
+  Object.assign(root, { deleted: false, replyCount: 21 })
+  Object.assign(removed, { deleted: true, replyCount: 1, author: null, content: "삭제된 댓글입니다." })
+  Object.assign(legacy, { likeCount: 10, deleted: false, replyCount: 4 })
+  const reply = { ...item(121), likeCount: 10, content: "읽고 싶은 베스트 답글 ".repeat(16) }
+  const gone = { ...item(201), likeCount: 10 }
+  let hidden = false
+  const reads = []
+  state.get = (route, url, result) => {
+    if (url.pathname.endsWith("/best")) return route.fulfill({ json: { items: [
+      { ...root, bestReply: reply }, ...hidden ? [] : [{ ...removed, bestReply: gone }], legacy,
+    ] } })
+    if (!url.pathname.endsWith("/replies")) return route.fulfill(result)
+    const parentId = Number(url.pathname.split("/").at(-2))
+    const after = Number(url.searchParams.get("afterId"))
+    reads.push([parentId, after])
+    if (parentId === 21 && !after) {
+      const items = Array.from({ length: 20 }, (_, i) => item(101 + i))
+      return route.fulfill({ json: { items, hasNext: true, nextCursor: {
+        createdAt: items[19].createdAt, commentId: 120, likeCount: null, sort: "OLDEST",
+      } } })
+    }
+    return route.fulfill({ json: { items: parentId === 21 ? [reply] : parentId === 1 ? [301,302,303,304].map(id => ({ ...item(id), content: "짧은 답글 " + id })) : [],
+      hasNext: false, nextCursor: null } })
+  }
+  await p.locator("#comments-refresh").click()
+  const best = p.getByRole("region", { name: "베스트 댓글", exact: true })
+  const card = best.locator('[data-best-comment="21"]')
+  await card.waitFor()
+  assert.deepEqual(await best.locator("[data-best-comment]").evaluateAll(rows => rows.map(el => +el.dataset.bestComment)), [21,22,1])
+  await card.getByText("좋아요 0개", { exact: true }).waitFor()
+  await card.locator("[data-best-reply]").getByText("좋아요 10개", { exact: true }).waitFor()
+  await best.locator('[data-best-comment="22"]').getByText("삭제된 댓글입니다.").waitFor()
+  await best.locator('[data-best-comment="1"]').getByRole("link", { name: "해당 댓글로 이동" }).waitFor()
+
+  await p.locator("#reply-toggle-1").click()
+  await p.locator('[data-comment-item="301"]').waitFor()
+  const thread = p.locator("#comment-1 .comment-reply-list")
+  assert.equal(await thread.locator(":scope > li").count(), 4)
+  for (const width of [1440, 390]) {
+    await p.setViewportSize({ width, height: 900 })
+    assert.equal(await best.locator(".feed-avatar").count(), 4)
+    assert.equal(await best.locator('[data-best-comment="22"]').getByText("좋아요 0개", {exact:true}).count(), 0)
+    for (const header of await best.locator(".comment-author-header").all()) {
+      const aligned = await header.evaluate(el => {
+        const name = el.querySelector("strong").getBoundingClientRect()
+        const body = el.nextElementSibling.getBoundingClientRect()
+        const actions = el.nextElementSibling.nextElementSibling
+        const count = actions.querySelector("span").getBoundingClientRect()
+        const link = actions.querySelector("a")?.getBoundingClientRect()
+        return Math.abs(name.left-body.left) < 1 && Math.abs(body.left-count.left) < 1 &&
+          (!link || (link.top >= count.bottom ? Math.abs(link.left-count.left) < 1 : link.left >= count.right))
+      })
+      assert.ok(aligned)
+    }
+    assert.equal(await thread.locator("li").first().evaluate(el => getComputedStyle(el).paddingBlockStart), "10px")
+    await best.screenshot({ path: output + "/best-cards-" + width + ".png" })
+    await thread.screenshot({ path: output + "/four-replies-" + width + ".png" })
+  }
+  assert.equal(await p.locator("#comment-21").count(), 0)
+  await card.getByRole("link", { name: "해당 답글로 이동" }).press("Enter")
+  await p.waitForFunction(() => document.activeElement.id === "comment-21-reply-121" && document.activeElement.classList.contains("comment-arrived"))
+  assert.deepEqual(reads, [[1,0], [21,0], [21,120]])
+  assert.equal(await p.locator("#reply-toggle-1").getAttribute("aria-expanded"), "true")
+  await p.screenshot({ path: output + "/best-reply-arrival.png" })
+  hidden = true
+  await best.locator('[data-best-comment="22"] a').click()
+  await p.getByText(/해당 답글을 찾을 수 없어요/).waitFor()
+  await best.locator('[data-best-comment="22"]').waitFor({state:"detached"})
+ })
+ await check("선정된 내 답글을 수정·삭제하면 서버가 돌려준 베스트 카드로 교체한다", async () => {
+  const { p, state } = await fixture(member, 1)
+  const root = Object.assign(comments[0], { deleted: false, replyCount: 2, likeCount: 0 })
+  let replies = [Object.assign(item(101), { likeCount: 12 }), Object.assign(item(102), { likeCount: 10 })]
+  const writes = []
+  state.get = (r, u, response) => {
+    if (u.pathname.endsWith("/best")) return r.fulfill({json:{items: replies.length ? [{...root,bestReply:replies[0]}] : []}})
+    if (u.pathname.endsWith("/replies")) return r.fulfill({json:{items:replies,hasNext:false,nextCursor:null}})
+    return r.fulfill(response)
+  }
+  state.write = r => {
+    const id = Number(new URL(r.request().url()).pathname.split("/").at(-1))
+    const method = r.request().method()
+    writes.push([method, id])
+    if (method === "PUT") replies[0] = {...replies[0],content:r.request().postDataJSON().content,contentUpdatedAt:replies[0].createdAt}
+    else { replies = replies.filter(reply => reply.commentId !== id); root.replyCount = replies.length }
+    return r.fulfill({status:204})
+  }
+  await p.locator("#comments-refresh").click()
+  await p.locator("#reply-toggle-1").click()
+  const row = p.locator('[data-comment-item="101"]')
+  await p.locator("#reply-more-101").click()
+  await row.getByRole("button",{name:"수정",exact:true}).click()
+  await row.getByRole("textbox").fill("수정한 베스트 답글")
+  await row.getByRole("button",{name:"저장"}).click()
+  await p.locator('[data-best-reply="101"]').getByText("수정한 베스트 답글").waitFor()
+  for (const id of [101,102]) {
+    await p.locator("#reply-more-" + id).click()
+    await p.locator(`[data-comment-item="${id}"]`).getByRole("button",{name:"삭제",exact:true}).click()
+    await p.getByRole("button",{name:"답글 삭제하기"}).click()
+    await p.locator(`[data-best-reply="${id}"]`).waitFor({state:"detached"})
+    if (id === 101) await p.locator('[data-best-reply="102"]').waitFor()
+  }
+  assert.equal(await p.locator("[data-best-comment]").count(),0)
+  assert.deepEqual(writes,[["PUT",101],["DELETE",101],["DELETE",102]])
+ })
  await check("삭제 직후 접었다 펼쳐도 남은 내 답글을 수정할 수 있다", async () => {
   const { p, state } = await fixture(member, 1)
   Object.assign(comments[0], { deleted: false, replyCount: 2 })
@@ -704,11 +897,14 @@ try {
  for (const lost of [false, true]) await check(`대댓글 좋아요는 해당 ID만 갱신하고 읽은 페이지와 초안을 유지한다 · ${lost ? "응답 유실" : "정상 응답"}`, async () => {
   const { p, state } = await fixture(member, 1)
   const a = p.locator("#comment-1"), b = 102, c = 101
-  Object.assign(comments[0], { deleted: false, replyCount: 2, likeCount: 10 })
+  Object.assign(comments[0], { deleted: false, replyCount: 2, likeCount: 15 })
   const cursors = [], methods = []
   const pending = gate()
   let liked = false
   state.get = (route, url, result) => {
+    if (url.pathname.endsWith("/best")) return route.fulfill({ json: { items: [{
+      ...comments[0], bestReply: liked ? { ...item(b), likeCount: 10, liked } : null,
+    }] } })
     if (!url.pathname.endsWith("/1/replies")) return route.fulfill(result)
     const after = url.searchParams.get("afterId")
     cursors.push(after)
@@ -746,7 +942,11 @@ try {
       await p.keyboard.press("Enter")
     }
     await settled(p, b, selected, selected ? 10 : 9)
-    await settled(p, 1, false, 10)
+    await settled(p, 1, false, 15)
+    const card = p.locator('[data-best-comment="1"]')
+    await card.getByRole("link", { name: selected ? "해당 답글로 이동" : "해당 댓글로 이동" }).waitFor()
+    await card.getByText("좋아요 15개", { exact: true }).waitFor()
+    if (selected) await card.locator('[data-best-reply="102"]').getByText("좋아요 10개", { exact: true }).waitFor()
     await settled(p, c, false, 2)
     assert.equal(await btn(p, b).evaluate(el => el === document.activeElement), true)
     assert.equal(await a.getByRole("textbox").inputValue(), "답글 작성 중")

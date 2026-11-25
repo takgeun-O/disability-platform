@@ -3,7 +3,7 @@
 import { useEffect, useEffectEvent, useLayoutEffect, useId, useRef, useState } from "react"
 import { useAuth } from "@/components/AuthProvider"
 import { useNavigationRequest } from "@/components/NavigationGuard"
-import { changeComment, CommentError, getReplies, validateComment, type Comment, mergeComments, type CommentPage } from "@/lib/community-comments"
+import { changeComment, CommentError, commentCursorKey, getReplies, validateComment, type Comment, mergeComments, type CommentPage } from "@/lib/community-comments"
 import { characterCount } from "@/lib/community-posts"
 import CommentLikeButton from "./CommentLikeButton"
 import CommentItem from "./CommentItem"
@@ -58,8 +58,11 @@ export function ReplyForm({ parentId, nickname, value, error, busy, permitted, e
   </form>
 }
 
-export default function CommentReplies({ postId, parentId, count, revision, form, checkCount, showToast, keepDraft, showUnavailableDraft, forgetDraft }: {
+export default function CommentReplies({ postId, parentId, count, revision, destination, arrivalId, onArrival, onMissing, refreshBest, form, checkCount, showToast, keepDraft, showUnavailableDraft, forgetDraft }: {
   postId: string; parentId: number; count: number; revision: number
+  destination?: number; arrivalId?: number
+  onArrival: (target: HTMLElement, id: number) => void
+  onMissing: () => void; refreshBest: () => void
   showToast: (message: string, valid: () => boolean) => void
   keepDraft: (id: number, content: string, valid: () => boolean, endEdit: () => void) => void
   showUnavailableDraft: (id: number, valid: () => boolean) => void
@@ -73,7 +76,7 @@ export default function CommentReplies({ postId, parentId, count, revision, form
   const expanded = useRef(false)
   const [page, setPage] = useState<CommentPage | null>(null)
   const [loading, setLoading] = useState(false)
-  const [failed, setFailed] = useState<"first" | "more" | null>(null)
+  const [failed, setFailed] = useState<"first" | "more" | "missing" | null>(null)
   const [receipts, setReceipts] = useState<ReplyReceipt[]>([])
   const [action, setAction] = useState<{ id: number; method: "PUT" | "DELETE"; content: string } | null>(null)
   const [message, setMessage] = useState("")
@@ -93,6 +96,7 @@ export default function CommentReplies({ postId, parentId, count, revision, form
   const lastRevision = useRef(revision)
   const latestCount = useRef(count)
   const loadedPages = useRef(0)
+  const pageCursors = useRef(new Set<string>())
 
   function invalidateCache(confirmed: number) {
     generation.current++
@@ -123,11 +127,21 @@ export default function CommentReplies({ postId, parentId, count, revision, form
     setLoading(true)
     setFailed(null)
     try {
-      let next = await getReplies(postId, parentId, previous?.nextCursor ?? null, controller.signal)
+      const seen = new Set(previous ? pageCursors.current : [])
+      async function readPage(after: CommentPage["nextCursor"]) {
+        const result = await getReplies(postId, parentId, after, controller.signal)
+        if (result.nextCursor) {
+          const key = commentCursorKey(result.nextCursor)
+          if (seen.has(key)) throw new Error("답글 목록의 다음 커서가 반복되었습니다.")
+          seen.add(key)
+        }
+        return result
+      }
+      let next = await readPage(previous?.nextCursor ?? null)
       let pages = previous ? loadedPages.current + 1 : 1
       let fetched = next.items
       while (current() && next.hasNext && pages < loadedPages.current) {
-        next = await getReplies(postId, parentId, next.nextCursor, controller.signal)
+        next = await readPage(next.nextCursor)
         fetched = mergeComments(fetched, next.items)
         pages++
       }
@@ -140,7 +154,8 @@ export default function CommentReplies({ postId, parentId, count, revision, form
         if (countChanged && stale) {
           return await invalidateCache(confirmed)
         }
-        likeRead.accept(fetched.map(reply => ({ ...reply, id: reply.commentId })))
+        if (likeRead.accept(fetched.map(reply => ({ ...reply, id: reply.commentId })))) refreshBest()
+        pageCursors.current = seen
         loadedPages.current = pages
         const result = { ...next, items }
         setPage(result)
@@ -162,7 +177,7 @@ export default function CommentReplies({ postId, parentId, count, revision, form
       }
     } catch (error) {
       if (current()) {
-        setFailed(previous ? "more" : "first")
+        setFailed(error instanceof CommentError && error.status === 404 ? "missing" : previous ? "more" : "first")
         if (error instanceof CommentError && error.status === 401) session?.expire()
         return false
       }
@@ -316,6 +331,7 @@ export default function CommentReplies({ postId, parentId, count, revision, form
       if (!readOnly) {
         setVerification({ acknowledged: confirmed, prefix: null })
         if (confirmed) {
+          refreshBest()
           showToast(method === "PUT" ? "답글을 수정했습니다." : "답글을 삭제했습니다.", session.isCurrent)
           if (method === "DELETE") {
             pendingDeletion.current = true
@@ -347,10 +363,10 @@ export default function CommentReplies({ postId, parentId, count, revision, form
         }
         setVerification(null)
         if (method === "PUT" && latest && (confirmed || latest.content === content.trim())) {
-          if (!confirmed) showToast("수정한 내용을 확인했습니다.", session.isCurrent)
+          if (!confirmed) { refreshBest(); showToast("수정한 내용을 확인했습니다.", session.isCurrent) }
           closeAction(id)
         } else if (!latest) {
-          if (!confirmed) showToast("답글이 더 이상 표시되지 않습니다.", session.isCurrent)
+          if (!confirmed) { refreshBest(); showToast("답글이 더 이상 표시되지 않습니다.", session.isCurrent) }
           setAction(null)
           if (method === "PUT") showUnavailableDraft(id, session.isCurrent)
           else {
@@ -372,6 +388,33 @@ export default function CommentReplies({ postId, parentId, count, revision, form
       }
     }
   }
+
+  const lastDestination = useRef<number | undefined>(undefined)
+  const followReply = useEffectEvent(() => {
+    if (!destination || !scope.isActive()) return
+    const newSearch = lastDestination.current !== destination
+    lastDestination.current = destination
+    if (newSearch && failed) {
+      setFailed(null)
+      return
+    }
+    if (!open) {
+      expanded.current = true
+      setOpen(true)
+      return
+    }
+    if (failed === "missing") { onMissing(); return }
+    if (failed || active.current) return
+    const target = document.getElementById(`comment-${parentId}-reply-${destination}`)
+    if (target) onArrival(target, destination)
+    else if (!page || page.hasNext) void load(page, false)
+    else onMissing()
+  })
+  useEffect(() => {
+    if (!destination) { lastDestination.current = undefined; return }
+    const frame = requestAnimationFrame(() => followReply())
+    return () => cancelAnimationFrame(frame)
+  }, [destination, open, page, loading, failed])
 
   function toggle() {
     expanded.current = !open
@@ -398,6 +441,7 @@ export default function CommentReplies({ postId, parentId, count, revision, form
         </div>)}
         {!!page?.items.length && <ul className="comment-reply-list">
           {page.items.map(reply => <CommentItem showAvatar key={reply.commentId} comment={reply}
+            anchorId={`comment-${parentId}-reply-${reply.commentId}`} arrived={arrivalId === reply.commentId}
             more={auth.status === "authenticated" && auth.member?.memberId === reply.author?.memberId &&
               <ReplyOwnerMenu id={reply.commentId} disabled={!!auth.pending || saving || !!action}
                 onEdit={() => beginAction(reply, "PUT")} onDelete={() => beginAction(reply, "DELETE")} />}
@@ -415,7 +459,7 @@ export default function CommentReplies({ postId, parentId, count, revision, form
               </div>
             </form> : undefined}
             reactions={<CommentLikeButton postId={postId} comment={reply} parentId={parentId}
-              ready reread={() => load(null)} />} />)}
+              ready onChanged={refreshBest} reread={() => load(null)} />} />)}
         </ul>}
         {action?.method === "PUT" && !page?.items.some(reply => reply.commentId === action.id) && <div>
           <p role="status">{message || "수정 중인 답글을 현재 목록에서 확인할 수 없어요."}</p>
@@ -437,11 +481,11 @@ export default function CommentReplies({ postId, parentId, count, revision, form
         {page && !loading && !failed && !needsDeleteRead && !page.items.length && <p>표시할 답글이 없습니다.</p>}
         {failed && <p role="alert">{verification || needsDeleteRead ? "답글 목록을 다시 불러와 주세요." : "답글을 불러오지 못했습니다."}</p>}
         {((failed && form?.check !== "checking" && form?.check !== "failed") || page?.hasNext) && <button type="button" className="iyum-text-link"
-          disabled={loading} onClick={async event => {
+          data-reply-retry={failed ? true : undefined} disabled={loading} onClick={async event => {
             if (readOnlyRetry && action) return void manageReply(true)
             const retry = event.currentTarget
             const restoreFocus = needsDeleteRead && document.activeElement === retry
-            if (await load(failed === "first" ? null : page) && restoreFocus) {
+            if (await load(failed && failed !== "more" ? null : page) && restoreFocus) {
               requestAnimationFrame(() => {
                 if (scope.isActive() && !retry.isConnected && document.activeElement === document.body)
                   focusAfterRemoval(-1)

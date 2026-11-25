@@ -920,10 +920,11 @@ class CommentReadServiceTest {
 
         saveLike(secondCommentId, viewer.getId());
 
-        List<CommentResult> result = commentReadService.getBestComments(
-                postId,
-                viewer.getId()
-        );
+        List<CommentResult> result = commentReadService
+                .getBestComments(postId, viewer.getId())
+                .stream()
+                .map(BestCommentResult::root)
+                .toList();
 
         assertThat(result)
                 .extracting(
@@ -939,8 +940,11 @@ class CommentReadServiceTest {
         // 이미 두 댓글의 좋아요가 각각 11개, 10개이고, 로그인 회원이 1위 댓글에 좋아요를 눌느 상태
         // 같은 데이터에서 조회자만 null로 바꾸면 무엇이 달라지는지 확인
         // 기대 결과는 순위와 좋아요 수는 동일하고, 비로그인 조회에선ㄴ 두 댓글 모두 liked=false
-        List<CommentResult> anonymousResult =
-                commentReadService.getBestComments(postId, null);
+        List<CommentResult> anonymousResult = commentReadService
+                .getBestComments(postId, null)
+                .stream()
+                .map(BestCommentResult::root)
+                .toList();
 
         assertThat(anonymousResult)
                 .extracting(
