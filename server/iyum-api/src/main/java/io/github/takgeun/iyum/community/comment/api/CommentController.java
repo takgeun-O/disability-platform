@@ -238,7 +238,7 @@ public class CommentController {
                 ? null
                 : principal.getMemberId();
 
-        List<CommentResult> results = commentReadService.getBestComments(
+        List<BestCommentResult> results = commentReadService.getBestComments(
                 postId,
                 viewerId
         );

@@ -2,6 +2,7 @@
 import { useCommentTransition } from "@/lib/useCommentTransition";
 import CommentSortMenu from "./CommentSortMenu";
 import ReportButton from "./ReportButton";
+import { FeedAvatar } from "./FeedNavigation";
 import CommentReplies, { ReplyForm, type ReplyFormProps, type ReplyReceipt, type ReplyCheck, type ReadReplies } from "./CommentReplies";
 import CommentItem from "./CommentItem";
 // Refresh the visible prefix, keeping editor snapshots separate from server data.
@@ -45,6 +46,7 @@ import {
   requiredContent,
   type Comment,
   type CommentPage,
+  type BestComment,
 } from "@/lib/community-comments";
 import type { PublicResult } from "@/lib/community-load";
 import { characterCount } from "@/lib/community-posts";
@@ -69,6 +71,19 @@ type Editor = {
   contentUpdatedAt: string | null;
   confirmed?: Comment;
 };
+function BestCommentPreview({ comment, link }: { comment: Comment; link?: React.ReactNode }) {
+  if (comment.deleted) return <p>{comment.content}</p>;
+  return <>
+    <div className="community-comment-meta comment-author-header">
+      <FeedAvatar /><strong>{comment.author?.nickname}</strong>
+    </div>
+    <p>{comment.content}</p>
+    <div className="community-best-comment-actions">
+      <span>좋아요 {comment.likeCount.toLocaleString("ko-KR")}개</span>
+      {link}
+    </div>
+  </>;
+}
 export default function Comments({
   postId,
   initial,
@@ -78,7 +93,7 @@ export default function Comments({
   postId: string;
   returnTo: string;
   initial: PublicResult<CommentPage>;
-  initialBest: Comment[] | null;
+  initialBest: BestComment[] | null;
 }) {
   const identityVersion = usePostVersion("public-identity");
   const auth = useAuth();
@@ -109,7 +124,7 @@ export default function Comments({
     const request = new AbortController();
     bestRequest.current = request;
     const session = auth.member ? auth.captureMemberRequest(auth.member.memberId) : null;
-    let next: Comment[] | null;
+    let next: BestComment[] | null;
     try {
       next = await getBestComments(postId, request.signal);
     } catch {
@@ -120,7 +135,7 @@ export default function Comments({
     if (list && (list.getBoundingClientRect().top < 0 || list.contains(document.activeElement))) {
       listOffset.current = list.getBoundingClientRect().top;
     }
-    setBest(next?.filter(c => !deletedHere.current.has(c.commentId)) ?? null);
+    setBest(next?.filter(c => (!deletedHere.current.has(c.commentId) || c.deleted && c.bestReply)) ?? null);
   }
   useLayoutEffect(() => {
     if (listOffset.current !== null && commentList.current) {
@@ -191,7 +206,7 @@ export default function Comments({
     dismiss: () => void;
   } | null>(null);
   const [notice, setNotice] = useState("");
-  const [linkedComment, setLinkedComment] = useState<number | null>(null);
+  const [linkedComment, setLinkedComment] = useState<{ parentId: number; replyId?: number } | null>(null);
   const [arrival, setArrival] = useState<{ commentId: number } | null>(null);
   useEffect(() => {
     if (!arrival) return;
@@ -531,8 +546,8 @@ export default function Comments({
     // Shift+Tab sends a separate Shift keydown before focus moves.
     if (event instanceof KeyboardEvent && event.key === "Shift") return;
     // Keep the destination while tabbing to the failed page's retry button.
-    if (readError && event instanceof KeyboardEvent && event.key === "Tab") return;
-    if (event.target instanceof Element && event.target.closest("#comments-read-retry") &&
+    if ((readError || (linkedComment?.replyId && document.querySelector(`#comment-${linkedComment.parentId} [data-reply-retry]`))) && event instanceof KeyboardEvent && event.key === "Tab") return;
+    if (event.target instanceof Element && event.target.closest("#comments-read-retry, [data-reply-retry]") &&
         !(event instanceof KeyboardEvent && event.key === "Tab")) return;
     setLinkedComment(null);
   });
@@ -540,9 +555,11 @@ export default function Comments({
   // An explicit comment link may point beyond the first public cursor page.
   useEffect(() => {
     const select = () => {
-      const match = /^#comment-([1-9]\d*)$/.exec(location.hash);
+      const match = /^#comment-([1-9]\d*)(?:-reply-([1-9]\d*))?$/.exec(location.hash);
       const id = match ? Number(match[1]) : NaN;
-      setLinkedComment(Number.isSafeInteger(id) ? id : null);
+      const replyId = match?.[2] ? Number(match[2]) : undefined;
+      setLinkedComment(Number.isSafeInteger(id) && (replyId === undefined || Number.isSafeInteger(replyId))
+        ? { parentId: id, replyId } : null);
       setLinkNotice("");
     };
     select();
@@ -556,34 +573,36 @@ export default function Comments({
       window.removeEventListener("keydown", cancel);
     };
   }, [postId]);
+  function arriveAt(target: HTMLElement, commentId: number) {
+    target.focus({ preventScroll: true });
+    setArrival({ commentId });
+    target.scrollIntoView({
+      behavior: matchMedia("(prefers-reduced-motion: reduce)").matches ? "instant" : "smooth",
+      block: "center",
+    });
+    setLinkedComment(null);
+  }
+  function missingDestination() {
+    void refreshBest();
+    setLinkNotice(linkedComment?.replyId
+      ? "해당 답글을 찾을 수 없어요. 삭제되었거나 더 이상 표시되지 않는 답글일 수 있습니다."
+      : "해당 댓글을 찾을 수 없어요. 삭제되었거나 더 이상 표시되지 않는 댓글일 수 있습니다.");
+    setLinkedComment(null);
+  }
   const followComment = useEffectEvent(() => {
-    if (
-      !linkedComment ||
-      !scope.isActive() ||
-      writing.current
-    )
-      return;
-    const target = document.getElementById(`comment-${linkedComment}`);
+    if (!linkedComment || !scope.isActive() || writing.current) return;
+    const target = document.getElementById(`comment-${linkedComment.parentId}`);
     if (target) {
-      target.focus({ preventScroll: true });
-      setArrival({ commentId: linkedComment });
-      target.scrollIntoView({
-        behavior: matchMedia("(prefers-reduced-motion: reduce)").matches
-          ? "instant"
-          : "smooth",
-        block: "center",
-      });
-      setLinkedComment(null);
+      if (!linkedComment.replyId) arriveAt(target, linkedComment.parentId);
+      else if (!target.querySelector(".comment-replies") &&
+        page.items.some(c => c.commentId === linkedComment.parentId && c.deleted && !c.replyCount))
+        missingDestination();
     } else if (reading.current || readError) {
       return;
     } else if (page.hasNext && page.nextCursor) {
       void load(true);
     } else {
-      void refreshBest();
-      setLinkNotice(
-        "해당 댓글을 찾을 수 없어요. 삭제되었거나 더 이상 표시되지 않는 댓글일 수 있습니다.",
-      );
-      setLinkedComment(null);
+      missingDestination();
     }
   });
   useEffect(() => {
@@ -850,6 +869,8 @@ export default function Comments({
       }
       if (method === "PUT" && id && failure.status === 404 &&
           (failure.code === "COMMENT_NOT_FOUND" || failure.code === "POST_NOT_FOUND")) {
+        setBest(previous => previous?.filter(c => c.commentId !== id) ?? null);
+        void refreshBest();
         removeItem(id);
         setError(null);
         refresh = true;
@@ -1205,21 +1226,23 @@ export default function Comments({
       </p>}
       {best && best.length > 0 && <section className="community-best-comments" aria-labelledby="best-comments-title">
         <h3 id="best-comments-title">베스트 댓글</h3>
-        <ol>{best.map(comment => <li key={comment.commentId} data-best-comment={comment.commentId}>
-          <strong>{comment.author?.nickname}</strong>
-          <p>{comment.content}</p>
-          <div className="community-best-comment-actions">
-            <span>좋아요 {comment.likeCount.toLocaleString("ko-KR")}개</span>
-            <a href={`#comment-${comment.commentId}`} onClick={event => {
+        <ol>{best.map(comment => {
+          const link = <a href={`#comment-${comment.commentId}${comment.bestReply ? `-reply-${comment.bestReply.commentId}` : ""}`} onClick={event => {
               if (event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
               event.preventDefault();
               const hash = event.currentTarget.hash;
               if (location.hash !== hash) history.replaceState(history.state, "", hash);
               setLinkNotice("");
-              setLinkedComment(comment.commentId);
-            }}>해당 댓글로 이동</a>
-          </div>
-        </li>)}</ol>
+              setLinkedComment({ parentId: comment.commentId, replyId: comment.bestReply?.commentId });
+            }}>{comment.bestReply ? "해당 답글로 이동" : "해당 댓글로 이동"}</a>;
+          return <li key={comment.commentId} data-best-comment={comment.commentId}>
+            <BestCommentPreview comment={comment} link={comment.bestReply ? undefined : link} />
+            {comment.bestReply && <div className="comment-reply-list best-reply-preview" data-best-reply={comment.bestReply.commentId}>
+              <strong>베스트 답글</strong>
+              <BestCommentPreview comment={comment.bestReply} link={link} />
+            </div>}
+          </li>;
+        })}</ol>
       </section>}
       <div className="community-comment-list-heading">
         {!!best?.length && <h3>전체 댓글</h3>}
@@ -1342,6 +1365,9 @@ export default function Comments({
           >
             {(!c.deleted || !!c.replyCount) && (
               <CommentReplies key={`${postId}:${likeContext}`} postId={postId}
+                destination={linkedComment?.parentId === c.commentId ? linkedComment.replyId : undefined}
+                arrivalId={arrival?.commentId} onArrival={arriveAt} onMissing={missingDestination}
+                refreshBest={refreshBest}
                 parentId={c.commentId} count={c.replyCount ?? 0} revision={replyRevision}
                 form={hasReplyForm
                   ? replyFormProps(c.commentId, replyDrafts[c.commentId]) : null}
