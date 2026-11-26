@@ -124,10 +124,12 @@ class PostModerationConcurrencyTest {
     }
 
     @ParameterizedTest
-    @EnumSource(ModerationAction.class)
+    @EnumSource(ModerationAction.class) // HIDE, RESTORE
     void 서로_다른_관리자의_동일_요청은_한_번만_변경한다(
             ModerationAction action
     ) throws Exception {
+
+        // 복원 작업을 하려면 처음에 게시글이 숨겨져 있어야 하니까 미리 숨김 처리한다.
         if (action == ModerationAction.RESTORE) {
             transactionTemplate.executeWithoutResult(status -> {
                 Post post = entityManager.find(Post.class, postId);
@@ -144,9 +146,12 @@ class PostModerationConcurrencyTest {
         AtomicInteger firstPid = new AtomicInteger();
         AtomicInteger secondPid = new AtomicInteger();
 
+        // 두 관리자 작업을 실행할 스레드 풀을 만든다.
         ExecutorService executor = Executors.newFixedThreadPool(2);
 
         try {
+//            1. 관리자 A
+//            execute(...)로 숨김을 처리한 뒤 firstProcessed.countDown()으로 테스트 스레드에 알린다.
             Future<PostModerationResult> first = executor.submit(() ->
                     transactionTemplate.execute(status -> {
                         configureLockTimeout();
@@ -158,7 +163,8 @@ class PostModerationConcurrencyTest {
                                 "첫 번째 관리자 처리"
                         );
 
-                        // 서비스가 참여한 트랜잭션을 아직 커밋하지 않는다.
+//                        2. 관리자 A
+//                         awaitRelease(allowFirstCommit)에서 기다린다. 서비스 메서드는 반환했지만 바깥의 트랜잭션 콜백이 끝나지 않아 아직 커밋되지 않음.
                         firstProcessed.countDown();
                         awaitRelease(allowFirstCommit);
 
@@ -170,6 +176,10 @@ class PostModerationConcurrencyTest {
                     .as("첫 번째 관리자의 처리가 완료되어야 한다")
                     .isTrue();
 
+            // 두 번째 관리자가 별도 트랜잭션에서 같은 글을 action 처리 시도한다.
+//            3. 테스트 스레드 -> 관리자 B
+//             A의 처리 신호를 받은 뒤 B 작업을 제출한다. B는 자기 DB 세션의 PID를 기록하고
+//             secondStarted.countDown()을 호출한 뒤 같은 게시글에 숨김을 요청한다.
             Future<PostModerationResult> second = executor.submit(() ->
                     transactionTemplate.execute(status -> {
                         configureLockTimeout();
@@ -192,12 +202,20 @@ class PostModerationConcurrencyTest {
 
             // 단순히 두 스레드를 실행하는 데 그치지 않고,
             // 실제 DB 잠금 대기가 발생했는지 확인한다.
+            // 두 번째 DB 연결이 실제로 첫 번째 연결의 잠금을 기다리는지 확인
+//            4. 테스트 스레드
+//              awaitBlockedBy(secondPid, firstPid, second)로 B의 DB 세션이 실제로 A 떄문에 기다리는지 확인
+            // 실제로 A 때문에 기다리는 게 맞다면 true가 나와야 A의 커밋을 허용한다.
+            // 즉 두 번째 작업이 잠금 대기를 관찰하기 전에 끝나면 테스트는 실패함.
             awaitBlockedBy(
                     secondPid.get(),
                     firstPid.get(),
                     second
             );
 
+            // 확인이 끝나면 allowFirstCommit.countDown()을 호출해 첫 번째 트랜잭션이 커밋되도록 한다.
+            // 5. 테스트 스레드 -> 관리자 A
+            //  A가 콜백을 빠져나가면서 커밋하고 잠금이 풀린다.
             allowFirstCommit.countDown();
 
             PostModerationResult firstResult =
@@ -207,6 +225,8 @@ class PostModerationConcurrencyTest {
                     second.get(10, TimeUnit.SECONDS);
 
             assertThat(firstResult.changed()).isTrue();
+            // 6. 관리자 B
+            //  처리를 재개한다. 게시글이 이미 숨겨져 있으므로 추가 변경 없이 changed = false
             assertThat(secondResult.changed()).isFalse();
 
             boolean expectedHidden =

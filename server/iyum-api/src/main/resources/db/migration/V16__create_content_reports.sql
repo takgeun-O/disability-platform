@@ -101,10 +101,10 @@ CREATE TABLE content_reports
 );
 
 -- 같은 회원은 같은 게시글에 한 번만 신고할 수 있다.
--- 대상별 조회와 외래 키 참조 검색에도 활용한다.
+-- 유니크 인덱스 활용함으로써 같은 쌍이 두 번 저장되면 거절한다.
 CREATE UNIQUE INDEX uq_content_reports_post_reporter
     ON content_reports (post_id, reporter_member_id)
-    WHERE post_id IS NOT NULL;
+    WHERE post_id IS NOT NULL;  -- 게시글 신고만 이 인덱스에 담는다.
 
 -- 같은 회원은 같은 댓글에 한 번만 신고할 수 있다.
 CREATE UNIQUE INDEX uq_content_reports_comment_reporter
